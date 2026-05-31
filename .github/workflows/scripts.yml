@@ -1,0 +1,23 @@
+name: Scripts
+
+on:
+  push:
+    paths:
+      - 'docs/proxmox/scripts/**'
+      - '.github/workflows/scripts.yml'
+  pull_request:
+    paths:
+      - 'docs/proxmox/scripts/**'
+      - '.github/workflows/scripts.yml'
+
+jobs:
+  shell-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax check (all scripts)
+        run: |
+          find docs/proxmox/scripts -name '*.sh' -print0 | while IFS= read -r -d '' f; do
+            echo "==> $f"
+            bash -n "$f"
+          done

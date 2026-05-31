@@ -1,0 +1,14 @@
+# Never commit host secrets or local overrides
+/etc/default/proxmox-network.env
+**/proxmox-network.env
+*.env.local
+.env
+.env.*
+
+# Editor / OS
+.DS_Store
+*.swp
+*~
+
+# Local hardware notes (optional personal files)
+docs/proxmox/hardware/local-*

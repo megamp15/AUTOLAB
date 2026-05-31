@@ -1,50 +1,54 @@
-# Proxmox VE — Wi-Fi on the hypervisor
+---
+tags: [proxmox, wifi, reference]
+status: alpha
+audience: operator
+---
 
-Proxmox is based on Debian. A wired Ethernet uplink is the default recommendation for the management network and for bridges such as `vmbr0`. **Wi-Fi** can be used for **host management only** (SSH, web UI, package updates) with additional configuration.
+# Wi‑Fi on the Proxmox host
 
-For a full command-and-file runbook (USB Ethernet bridge fix, `wpa_supplicant`, routing metrics, sysctl, iptables NAT, `vmbr0-watch`, `wpa_cli`), see [03-post-install-network-runbook.md](./03-post-install-network-runbook.md).
+Wi‑Fi is used for **management** (web UI, SSH, `apt`) when USB Ethernet is unavailable. VM bridging over Wi‑Fi is out of scope here; use USB Ethernet on `vmbr0` for guests when possible.
 
-For `apt` repositories, upgrades, and **Tailscale on the node**, see [04-apt-updates-tailscale.md](./04-apt-updates-tailscale.md).
+## Setup
 
-## Design notes
+Use the automated installer: [00-fresh-install-network.md](./00-fresh-install-network.md).
 
-- **Bridging**: VM bridges are most straightforward with a physical Ethernet interface. Wi-Fi uplinks complicate bridging; see Proxmox documentation for routed/NAT approaches if VMs require outbound Internet.
-- **Management over Wi-Fi**: Supported in principle via Debian networking (`/etc/network/interfaces`, `wpa_supplicant`). A USB Ethernet adapter reduces configuration time for the management path.
+## Priority (two layers)
 
-## Wi-Fi configuration
-
-1. Identify the Wi-Fi interface (e.g. `wlp…`) with `ip link`.
-2. Use **DHCP** on networks that provide it (typical home routers).
-3. When changing uplinks (e.g. home WLAN to phone hotspot), update SSID/credentials in `wpa_supplicant` (or equivalent), restart the interface or networking service, or reboot.
-
-Common configuration paths:
-
-- **`/etc/network/interfaces`** with `allow-hotplug` and `wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf`
-- Manual bring-up with **`wpa_supplicant`** and **`dhclient`** for testing, then persist the working configuration
-
-Set `country=XX` in `wpa_supplicant` to the correct regulatory domain; incorrect or missing country settings can limit 5 GHz channel availability. Official examples are in the Proxmox wiki and forum.
-
-## SSID special characters (e.g. apostrophe)
-
-Hotspot SSIDs may include characters such as **`'`** (apostrophe). Those characters can break shell snippets or mis-nest quotes in `wpa_supplicant` stanzas unless escaped correctly.
-
-**Mitigation**: use an SSID limited to alphanumeric characters and hyphens, and avoid spaces where possible.
-
-**Alternative**: use the escaping rules for the configuration file in use, or an SSID encoded in hex in `wpa_supplicant.conf` per `wpa_supplicant` documentation.
-
-## Connectivity checks
-
-```bash
-ip link
-iw dev <iface> scan | less
-ping -c 3 1.1.1.1
-curl -I https://www.proxmox.com
+```mermaid
+flowchart TB
+  subgraph L1 [Uplink — Ethernet vs Wi-Fi]
+    E[USB Ethernet\nnetwork-uplink-failover]
+    W[Wi-Fi backup]
+    E -->|link up| Active1[Active path]
+    W -->|USB down| Active1
+  end
+  subgraph L2 [Wi-Fi SSIDs only]
+    H[Home SSID\npriority 10]
+    P[Hotspot\npriority 5]
+    H -->|higher wins| Active2[Associated SSID]
+    P --> Active2
+  end
 ```
 
-Replace `<iface>` with the Wi-Fi interface name.
+| Layer | Config | Rule |
+|-------|--------|------|
+| Ethernet vs Wi‑Fi | `network-uplink-failover` | USB carrier + bridge port → Ethernet; else Wi‑Fi |
+| Home vs hotspot | `wpa_supplicant.conf` `priority=` | **Higher number = preferred** SSID |
 
-If the host obtains DHCP on Wi-Fi but **guests have no Internet**, verify bridge/NAT design and that `vmbr0` (or the chosen bridge) is tied to the correct physical interface per Proxmox networking documentation.
+## SSID naming
 
-## Remote API access
+Avoid apostrophes and Unicode quotes in hotspot names. If `scan_results` shows `\xe2\x80\x99`, rename the hotspot to plain ASCII or use a hex SSID in `wpa_supplicant.conf`.
 
-Automation (e.g. Terraform, CI pipelines) requires a stable hostname or IP that reaches the Proxmox API (HTTPS port 8006). Install **Tailscale on the Proxmox host** per [04-apt-updates-tailscale.md](./04-apt-updates-tailscale.md).
+## Quick checks
+
+```bash
+source /etc/default/proxmox-network.env
+wpa_cli -i "${WIFI}" status
+wpa_cli -i "${WIFI}" list_networks
+ping -c 2 8.8.8.8
+```
+
+## Related
+
+- [03-post-install-network-runbook.md](./03-post-install-network-runbook.md) — `wpa_cli`, troubleshooting
+- [05-tailscale.md](./05-tailscale.md) — remote API access
