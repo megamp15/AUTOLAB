@@ -1,41 +1,13 @@
 #!/bin/bash
 # Install vmbr0-watch on a Proxmox node (run as root).
+# The watch script reads ETH_USB and VMBR from /etc/default/network-uplink-failover at runtime,
+# so it stays in sync with the network env file without regeneration.
 set -euo pipefail
 
-: "${ETH_USB:?Set ETH_USB (or leave empty in env if no USB NIC yet)}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/systemd-units.sh
+source "${SCRIPT_DIR}/lib/systemd-units.sh"
 
-cat > /usr/local/bin/vmbr0-watch.sh << EOF
-#!/bin/bash
-ETH_USB="${ETH_USB}"
-while true; do
-    if [[ -n "\$ETH_USB" ]] && ip link show "\$ETH_USB" &>/dev/null; then
-        if ! bridge link show | grep -q "\$ETH_USB"; then
-            echo "\$(date): Re-enslaving \${ETH_USB} to vmbr0..."
-            ip link set "\$ETH_USB" up
-            sleep 1
-            ip link set "\$ETH_USB" master vmbr0
-            ip link set vmbr0 up
-            echo "\$(date): Done."
-        fi
-    fi
-    sleep 3
-done
-EOF
-chmod +x /usr/local/bin/vmbr0-watch.sh
+install -m 755 "${SCRIPT_DIR}/vmbr0-watch.sh" /usr/local/bin/vmbr0-watch.sh
 
-cat > /etc/systemd/system/vmbr0-watch.service << 'EOF'
-[Unit]
-Description=Re-attach USB Ethernet to vmbr0 when replugged
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/vmbr0-watch.sh
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl daemon-reload
-systemctl enable --now vmbr0-watch
-systemctl --no-pager status vmbr0-watch
+render_vmbr0_watch_unit | install_unit "vmbr0-watch.service"

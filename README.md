@@ -34,8 +34,13 @@ Autolab is a **custom, learning-first homelab** you build yourself: versioned do
 - [x] Extra Wi‑Fi networks (home, phone hotspot, more SSIDs)
 - [x] Host-only secrets; repo stays generic
 - [x] Troubleshooting runbook (incl. Wi‑Fi password / terminal pitfalls)
-- [ ] GitHub Actions deploy/lint beyond script syntax
-- [ ] Ansible/Terraform modules (one role per Proxmox host)
+- [x] GitOps phase 2A docs + OpenTofu VM/LXC scaffold
+- [x] GitHub Actions CI, plan, and apply workflows (ephemeral Tailscale runner)
+- [x] Cloudflare R2 state backend + Packer template scaffold
+- [x] Packer VM template build workflow
+- [x] Schema-driven code generation (connection schema → OpenTofu/Packer adapters, network env schema → env file + validation)
+- [x] Production-readiness checks for retry behaviour, R2 setup output, cloud-init Tailscale enrollment, and generated adapter validation
+- [ ] Ansible hardening roles (one role per server baseline)
 - [ ] Service/VM tutorials on top of PVE
 
 ## Get started
@@ -67,7 +72,14 @@ bash setup-proxmox-network.sh --apply
 | Path | Purpose |
 |------|---------|
 | [docs/proxmox/](docs/proxmox/) | Guides + scripts (current focus) |
+| [docs/gitops/](docs/gitops/) | Phase 2A GitOps docs for secure VM/LXC creation |
+| [infra/](infra/) | Terramate + OpenTofu stacks and modules |
+| [infra/stacks/](infra/stacks/) | Environment stacks (lab, prod, etc.) |
+| [infra/modules/](infra/modules/) | Shared Proxmox compute and connection modules |
+| [infra/_base/](infra/_base/) | Terramate code generation (providers, backend) |
+| [infra/packer/](infra/packer/) | Packer VM template builds (phase 2B scaffold) |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Now / next / non-goals |
+| [docs/production-readiness.md](docs/production-readiness.md) | Stop criteria for using Autolab (schema drift, tests, smoke test) |
 | [docs/proxmox/config/network.env.example](docs/proxmox/config/network.env.example) | Template → `/etc/default/proxmox-network.env` on host |
 
 ## GitHub topics

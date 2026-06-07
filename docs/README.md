@@ -33,3 +33,7 @@ Autolab docs are organized by **platform** and **maturity**. Each guide uses opt
 ## Roadmap
 
 Planned work (IaC, CI, more nodes): [ROADMAP.md](./ROADMAP.md)
+
+## GitOps
+
+**[gitops/README.md](./gitops/README.md)** - phase 2 track for secure VM/LXC creation with OpenTofu, GitHub Actions, and Tailscale.

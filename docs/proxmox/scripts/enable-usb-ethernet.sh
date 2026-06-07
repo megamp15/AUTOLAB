@@ -4,8 +4,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/proxmox-env.sh
-source "${SCRIPT_DIR}/lib/proxmox-env.sh"
+# shellcheck source=lib/detect.sh
+source "${SCRIPT_DIR}/lib/detect.sh"
+# shellcheck source=lib/env-config.sh
+source "${SCRIPT_DIR}/lib/env-config.sh"
 CONFIG="${CONFIG:-/etc/default/proxmox-network.env}"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -14,7 +16,7 @@ log() { echo "==> $*"; }
 [[ "$(id -u)" -eq 0 ]] || die "Run as root"
 [[ -f "${CONFIG}" ]] || die "Missing ${CONFIG}. Run configure-proxmox-network-env.sh first."
 
-ETH_USB="$(ip -br link 2>/dev/null | awk '/^enx/ { print $1; exit }')"
+ETH_USB="$(detect_iface '^enx')"
 [[ -n "${ETH_USB}" ]] || die "No USB Ethernet (enx*) found. Plug the adapter/hub, wait a few seconds, then retry."
 
 log "Detected USB Ethernet: ${ETH_USB}"

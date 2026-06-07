@@ -21,9 +21,9 @@ This repo is meant to **grow** from a documented single node into a reusable hom
 
 | Item | Tags | Notes |
 |------|------|--------|
-| GitHub Actions | `ci`, `cd` | **CI/CD** — test scripts on push, maybe deploy artifacts; not GitOps alone |
-| GitOps (homelab path) | `gitops`, `infrastructure-as-code` | Git = desired state; automation **reconciles** hosts to match (see below) |
-| Ansible or Terraform layout | `infrastructure-as-code` | Encode “copy scripts + apply config” as idempotent roles/modules |
+| GitOps phase 2A | `gitops`, `opentofu`, `proxmox`, `terramate` | Create VMs/LXCs from git via ephemeral GitHub runner on Tailscale — [setup checklist](gitops/setup-checklist.md) |
+| Packer phase 2B | `packer`, `templates` | Automate VM template creation — scaffold in `infra/packer/` |
+| Ansible phase 2C | `ansible`, `security` | Enforce non-root users, gitops user, SSH hardening, firewall, Tailscale |
 | Second node / “real homelab” profile | `homelab` | Fork-friendly; keep this repo as the **learning** path |
 | VM / service tutorials | `learning`, `self-hosted` | Optional guides that consume a working PVE node |
 
@@ -71,3 +71,4 @@ Repos such as [khuedoan/homelab](https://github.com/khuedoan/homelab) are excell
 1. Add or update a guide under `docs/` with frontmatter `tags`, `status`, `audience`.
 2. Keep scripts idempotent and paths explicit (`/etc/default/…`, `/root/proxmox-setup/…`).
 3. Note breaking changes in the guide that owns that area (usually `00-fresh-install-network.md` or `scripts/README.md`).
+4. Before merging, run or document the applicable [production-readiness gates](production-readiness.md) (schema drift, Bats tests, bootstrap dry-run, validate/plan).

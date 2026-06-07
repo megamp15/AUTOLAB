@@ -13,18 +13,19 @@ fi
 
 # shellcheck source=/dev/null
 source "${ENV_FILE}"
+VMBR="${VMBR:-vmbr0}"
 
 : "${WIFI:?WIFI not set in ${ENV_FILE}}"
 : "${GW:?GW not set in ${ENV_FILE}}"
 : "${VMBR_IP:?VMBR_IP not set in ${ENV_FILE}}"
 
 echo "==> Installing network-uplink-failover from ${SCRIPT_DIR}"
-ETH_USB="${ETH_USB:-}" WIFI="${WIFI}" GW="${GW}" VMBR_IP="${VMBR_IP}" \
+ETH_USB="${ETH_USB:-}" WIFI="${WIFI}" GW="${GW}" VMBR="${VMBR}" VMBR_IP="${VMBR_IP}" \
   bash "${SCRIPT_DIR}/install-network-uplink-failover.sh"
 
 if [[ -n "${ETH_USB:-}" ]]; then
   echo "==> Installing vmbr0-watch from ${SCRIPT_DIR}"
-  ETH_USB="${ETH_USB}" bash "${SCRIPT_DIR}/install-vmbr0-watch.sh"
+  bash "${SCRIPT_DIR}/install-vmbr0-watch.sh"
 else
   echo "==> Skipping vmbr0-watch (ETH_USB empty in ${ENV_FILE})"
 fi
@@ -32,11 +33,11 @@ fi
 systemctl restart network-uplink-failover
 /usr/local/bin/network-uplink-failover.sh --once
 
-if grep -q 'dhclient -r "${WIFI}"' /usr/local/bin/network-uplink-failover.sh \
-   && ! grep -q 'wifi_dhcp_standby' /usr/local/bin/network-uplink-failover.sh; then
-  echo "OK: failover script matches documented version"
+if [[ -f /usr/local/lib/proxmox-network/failover-logic.sh ]] \
+   && grep -q 'apply_state' /usr/local/lib/proxmox-network/failover-logic.sh; then
+  echo "OK: failover logic installed"
 else
-  echo "MISMATCH: re-copy repo and run again" >&2
+  echo "MISMATCH: failover logic not found, re-copy repo and run again" >&2
   exit 1
 fi
 
@@ -45,6 +46,6 @@ if cmp -s "${SCRIPT_DIR}/network-uplink-failover.sh" /usr/local/bin/network-upli
 fi
 
 echo ""
-ip -br addr show dev vmbr0 2>/dev/null || true
+ip -br addr show dev "${VMBR}" 2>/dev/null || true
 ip -br addr show dev "${WIFI}" 2>/dev/null || true
 ip route get 8.8.8.8 2>/dev/null || true

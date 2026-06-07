@@ -1,0 +1,47 @@
+# ---------------------------------------------------------------------------
+# Packer variable overrides for Debian 12 template
+#
+# Copy this file to debian-12.pkrvars.hcl (not tracked by git), fill in your
+# values, and run:
+#
+#   packer init infra/packer/
+#   packer validate -var-file=infra/packer/debian-12.pkrvars.hcl infra/packer/
+#   packer build    -var-file=infra/packer/debian-12.pkrvars.hcl infra/packer/
+#
+# In CI, these values are passed via PKR_VAR_ environment variables from
+# GitHub repository variables and secrets (see .github/workflows/packer-build.yml).
+# ---------------------------------------------------------------------------
+
+# ---- Proxmox connection (mirrors proxmox-connection module) ----
+# Connection variables are defined in connection-vars.pkr.hcl (generated from schema).
+# Override them here or via PKR_VAR_ environment variables.
+proxmox_endpoint      = "https://xps-pve:8006"
+proxmox_api_token     = "USER@REALM!TOKENID=TOKEN_SECRET"
+proxmox_node_name     = "pve"
+proxmox_insecure_tls  = true
+
+# ---- Template identity ----
+vm_template_name = "autolab-debian-12-template"
+vm_id_base      = 9000
+
+# ---- Storage ----
+storage_pool            = "local-lvm"
+cloud_init_storage_pool = null   # defaults to storage_pool when null
+
+# ---- ISO ----
+iso_file     = "local:iso/debian-12.8.0-amd64-netinst.iso"
+iso_checksum = ""   # set to sha256:abcdef... to verify, or leave empty to skip
+
+# ---- SSH ----
+ssh_password     = "packer"   # temporary; changed by cloud-init on cloned VMs
+# root_password  = "packer"   # Only used during automated install; root is locked after provisioning
+ssh_public_keys  = [
+  "ssh-ed25519 REPLACE_WITH_PUBLIC_KEY_ONLY autolab@example"
+]
+
+# ---- Network ----
+network_bridge = "vmbr0"
+
+# ---- Bastion / SSH relay (leave empty if not using) ----
+pve_ssh_host             = ""
+pve_ssh_private_key_file = ""

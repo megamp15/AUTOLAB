@@ -1,0 +1,35 @@
+name: OpenTofu Preflight
+description: >
+  Shared preflight context for OpenTofu plan and apply workflows.
+  Validates the stack directory exists and outputs the environment name and directory path.
+
+inputs:
+  environment:
+    description: Stack name under infra/stacks
+    required: true
+
+outputs:
+  environment:
+    description: Validated environment/stack name
+    value: ${{ steps.context.outputs.environment }}
+  env_dir:
+    description: Path to the environment directory (e.g. infra/stacks/lab)
+    value: ${{ steps.context.outputs.env_dir }}
+
+runs:
+  using: composite
+  steps:
+    - name: Build workflow context
+      id: context
+      shell: bash
+      run: |
+        environment="${{ inputs.environment }}"
+        env_dir="infra/stacks/${environment}"
+
+        if [ ! -d "$env_dir" ]; then
+          echo "OpenTofu stack not found: $env_dir"
+          exit 1
+        fi
+
+        echo "environment=$environment" >> "$GITHUB_OUTPUT"
+        echo "env_dir=$env_dir" >> "$GITHUB_OUTPUT"

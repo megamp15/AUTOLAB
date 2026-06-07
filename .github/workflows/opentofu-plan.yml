@@ -1,0 +1,147 @@
+name: OpenTofu Plan
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Stack name under infra/stacks
+        required: true
+        default: lab
+      upload_plan_text:
+        description: Upload redacted text plan artifact
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      upload_binary_plan:
+        description: Upload sensitive binary plan artifact for a later saved-plan apply
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opentofu-state
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: 'true'
+  TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.context.outputs.environment }}
+      env_dir: ${{ steps.context.outputs.env_dir }}
+      text_artifact_name: ${{ steps.artifacts.outputs.text_artifact_name }}
+      binary_artifact_name: ${{ steps.artifacts.outputs.binary_artifact_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/opentofu-preflight
+        id: context
+        with:
+          environment: ${{ inputs.environment }}
+
+      - name: Compute artifact names
+        id: artifacts
+        run: |
+          echo "text_artifact_name=opentofu-${{ steps.context.outputs.environment }}-plan-text" >> "$GITHUB_OUTPUT"
+          echo "binary_artifact_name=opentofu-${{ steps.context.outputs.environment }}-tfplan" >> "$GITHUB_OUTPUT"
+
+      - name: Job summary
+        run: |
+          {
+            echo "## OpenTofu Plan Preflight"
+            echo
+            echo "- Environment: \`${{ steps.context.outputs.environment }}\`"
+            echo "- Directory: \`${{ steps.context.outputs.env_dir }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  plan:
+    needs: preflight
+    runs-on: ubuntu-latest
+    environment: autolab-plan
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-opentofu-pipeline
+        with:
+          env_dir: ${{ needs.preflight.outputs.env_dir }}
+          tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          tailscale_oauth_secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+          proxmox_endpoint: ${{ secrets.PROXMOX_ENDPOINT }}
+          proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
+          proxmox_insecure_tls: ${{ vars.PROXMOX_INSECURE_TLS || 'true' }}
+          proxmox_node_name: ${{ vars.PROXMOX_NODE_NAME }}
+          tailscale_auth_key: ${{ secrets.TAILSCALE_VM_AUTHKEY }}
+          r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2_account_id: ${{ secrets.R2_ACCOUNT_ID }}
+
+      - name: Plan
+        id: plan
+        working-directory: ${{ needs.preflight.outputs.env_dir }}
+        run: |
+          set +e
+          tofu plan -input=false -no-color -detailed-exitcode -out=tfplan > plan.txt
+          exit_code=$?
+          set -e
+
+          if [ "$exit_code" -eq 0 ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          elif [ "$exit_code" -eq 2 ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            cat plan.txt
+            exit "$exit_code"
+          fi
+
+          tofu show -no-color tfplan > plan.txt
+          cat plan.txt
+
+          summary_line="$(grep -E '^(Plan:|No changes\.)' plan.txt | tail -n 1 || true)"
+          echo "summary_line=${summary_line:-Plan completed. Review the artifact for details.}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload text plan
+        if: inputs.upload_plan_text == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.preflight.outputs.text_artifact_name }}
+          path: ${{ needs.preflight.outputs.env_dir }}/plan.txt
+          retention-days: 3
+
+      - name: Upload binary plan
+        if: inputs.upload_binary_plan == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.preflight.outputs.binary_artifact_name }}
+          path: ${{ needs.preflight.outputs.env_dir }}/tfplan
+          retention-days: 1
+
+      - name: Job summary
+        if: always()
+        working-directory: ${{ needs.preflight.outputs.env_dir }}
+        run: |
+          {
+            echo "## OpenTofu Plan"
+            echo
+            echo "- Environment: \`${{ needs.preflight.outputs.environment }}\`"
+            echo "- Result: \`${{ job.status }}\`"
+            echo "- Changes detected: \`${{ steps.plan.outputs.has_changes || 'unknown' }}\`"
+            echo "- Summary: ${{ steps.plan.outputs.summary_line || 'Plan did not complete.' }}"
+            echo "- Text artifact uploaded: \`${{ inputs.upload_plan_text }}\`"
+            echo "- Text artifact name: \`${{ needs.preflight.outputs.text_artifact_name }}\`"
+            echo "- Binary plan uploaded: \`${{ inputs.upload_binary_plan }}\`"
+            echo "- Binary artifact name: \`${{ needs.preflight.outputs.binary_artifact_name }}\`"
+            echo
+            echo "Binary plans are sensitive. Use them only when you intentionally want apply to consume this exact plan."
+          } >> "$GITHUB_STEP_SUMMARY"

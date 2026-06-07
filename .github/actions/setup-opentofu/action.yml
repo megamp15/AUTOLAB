@@ -1,0 +1,38 @@
+name: Setup OpenTofu
+description: >
+  Install OpenTofu and Terramate, generate Terramate configs, and configure
+  the Terraform plugin cache.
+
+inputs:
+  tofu_version:
+    description: OpenTofu version to install
+    required: false
+    default: '1.9.0'
+
+runs:
+  using: composite
+  steps:
+    - uses: opentofu/setup-opentofu@v1
+      with:
+        tofu_version: ${{ inputs.tofu_version }}
+
+    - name: Setup Terramate
+      uses: terramate-io/terramate-action@v3
+      with:
+        version: '0.6.0'
+
+    - name: Generate Terramate configs
+      shell: bash
+      working-directory: infra
+      run: terramate generate
+
+    - name: Prepare plugin cache directory
+      shell: bash
+      run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+    - uses: actions/cache@v4
+      with:
+        path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+        key: opentofu-${{ runner.os }}-${{ hashFiles('infra/**/.terraform.lock.hcl', 'infra/_base/**') }}
+        restore-keys: |
+          opentofu-${{ runner.os }}-

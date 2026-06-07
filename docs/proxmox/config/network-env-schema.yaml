@@ -1,0 +1,98 @@
+# Network Environment Schema
+#
+# Single source of truth for the Proxmox network env file contract.
+# This schema is referenced by:
+#   - docs/proxmox/scripts/lib/network-env-schema.sh (validation)
+#   - docs/proxmox/scripts/lib/env-config.sh (writing)
+#   - docs/proxmox/config/network.env.example (template)
+#
+# When adding or changing a field, define validation rules here and re-run
+# scripts/generate-network-env-adapters.sh. The generated schema module owns
+# all network env validation, including secret sanitization and no-newline checks.
+# CI validation checks for generated adapter drift.
+
+fields:
+  # ---- Required ----
+
+  - name: WIFI
+    type: string
+    description: "Wi-Fi interface name (e.g. wlp2s0)"
+    required: true
+    example: "wlp2s0"
+
+  - name: GW
+    type: string
+    description: "Default gateway IP address"
+    required: true
+    example: "192.168.1.1"
+
+  - name: VMBR_IP
+    type: string
+    description: "Proxmox management IP/CIDR (e.g. 10.0.0.5/24)"
+    required: true
+    example: "10.0.0.5/24"
+
+  - name: WPA_HOME_SSID
+    type: string
+    description: "Home Wi-Fi SSID"
+    required: true
+    example: "MyHomeNetwork"
+
+  - name: WPA_HOME_PSK
+    type: string
+    description: "Home Wi-Fi password (use single quotes in env file)"
+    required: true
+    sensitive: true
+    validation: "no newlines"
+
+  # ---- Optional (with defaults) ----
+
+  - name: ETH_USB
+    type: string
+    description: "USB Ethernet interface name (e.g. enx00e04c123456); empty if not yet plugged in"
+    required: false
+    default: ""
+    example: "enx00e04c123456"
+
+  - name: VMBR
+    type: string
+    description: "Proxmox bridge name"
+    required: false
+    default: vmbr0
+    example: "vmbr0"
+
+  - name: WPA_COUNTRY
+    type: string
+    description: "WPA country code"
+    required: false
+    default: US
+    example: "US"
+
+  - name: WPA_HOME_PRIORITY
+    type: number
+    description: "Home Wi-Fi priority (higher = preferred)"
+    required: false
+    default: 10
+    example: "10"
+
+  - name: WPA_HOTSPOT_SSID
+    type: string
+    description: "Phone hotspot SSID; optional"
+    required: false
+    default: ""
+    example: "MyPhoneHotspot"
+
+  - name: WPA_HOTSPOT_PSK
+    type: string
+    description: "Phone hotspot password; optional, use single quotes in env file"
+    required: false
+    default: ""
+    sensitive: true
+    validation: "no newlines"
+
+  - name: WPA_HOTSPOT_PRIORITY
+    type: number
+    description: "Hotspot priority"
+    required: false
+    default: 5
+    example: "5"

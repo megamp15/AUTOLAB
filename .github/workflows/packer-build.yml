@@ -1,0 +1,134 @@
+name: Packer Build Template
+
+on:
+  workflow_dispatch:
+    inputs:
+      template:
+        description: "Template to build"
+        required: true
+        default: debian-12
+        type: choice
+        options:
+          - debian-12
+      force_rebuild:
+        description: "Force rebuild even if template exists"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packer-build
+  cancel-in-progress: false
+
+jobs:
+  build-template:
+    name: Build ${{ inputs.template }} template
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve Packer template
+        run: bash scripts/resolve-packer-template.sh "${{ inputs.template }}" --github-env
+
+      - uses: ./.github/actions/connect-tailscale
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+
+      - uses: ./.github/actions/configure-proxmox-connection
+        with:
+          proxmox_endpoint: ${{ secrets.PROXMOX_ENDPOINT }}
+          proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
+          proxmox_node_name: ${{ vars.PROXMOX_NODE_NAME }}
+          proxmox_insecure_tls: ${{ vars.PROXMOX_INSECURE_TLS || 'true' }}
+          emit_tf_vars: 'false'
+          emit_packer_vars: 'true'
+
+      - name: Configure Packer build variables
+        shell: bash
+        env:
+          AUTOLAB_PACKER_SSH_PASSWORD: ${{ secrets.PACKER_SSH_PASSWORD }}
+          AUTOLAB_PROXMOX_STORAGE_POOL: ${{ vars.PROXMOX_STORAGE_POOL }}
+          AUTOLAB_PROXMOX_NETWORK_BRIDGE: ${{ vars.PROXMOX_NETWORK_BRIDGE }}
+          AUTOLAB_PACKER_ISO_FILE: ${{ vars.PACKER_ISO_FILE }}
+          AUTOLAB_PACKER_ISO_CHECKSUM: ${{ vars.PACKER_ISO_CHECKSUM }}
+          AUTOLAB_PROXMOX_CLOUD_INIT_STORAGE_POOL: ${{ vars.PROXMOX_CLOUD_INIT_STORAGE_POOL }}
+          AUTOLAB_SSH_PUBLIC_KEYS: ${{ vars.SSH_PUBLIC_KEYS }}
+        run: |
+          source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
+
+          append_github_env "PKR_VAR_ssh_password" "$AUTOLAB_PACKER_SSH_PASSWORD"
+          append_github_env "PKR_VAR_storage_pool" "$AUTOLAB_PROXMOX_STORAGE_POOL"
+          append_github_env "PKR_VAR_network_bridge" "$AUTOLAB_PROXMOX_NETWORK_BRIDGE"
+          append_github_env "PKR_VAR_iso_file" "$AUTOLAB_PACKER_ISO_FILE"
+          append_github_env "PKR_VAR_iso_checksum" "$AUTOLAB_PACKER_ISO_CHECKSUM"
+
+          if [[ -n "$AUTOLAB_PROXMOX_CLOUD_INIT_STORAGE_POOL" ]]; then
+            append_github_env "PKR_VAR_cloud_init_storage_pool" "$AUTOLAB_PROXMOX_CLOUD_INIT_STORAGE_POOL"
+          fi
+
+          if [[ -n "$AUTOLAB_SSH_PUBLIC_KEYS" ]]; then
+            append_github_env "PKR_VAR_ssh_public_keys" "$AUTOLAB_SSH_PUBLIC_KEYS"
+          fi
+
+      - name: Verify Tailscale connectivity
+        run: |
+          echo "Waiting for Tailscale routing to establish..."
+          sleep 5
+          tailscale status
+          echo "Checking connectivity to PVE..."
+          tailscale ping ${{ vars.PROXMOX_HOST }} || true
+
+      - name: Setup SSH Key for PVE
+        if: secrets.PVE_SSH_PRIVATE_KEY != ''
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.PVE_SSH_PRIVATE_KEY }}" > ~/.ssh/pve_ci_key
+          chmod 600 ~/.ssh/pve_ci_key
+          ssh-keyscan -H ${{ vars.PROXMOX_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@main
+        with:
+          version: "1.12.0"
+
+      - name: Initialize Packer
+        working-directory: ${{ env.AUTOLAB_PACKER_TEMPLATE_DIR }}
+        run: packer init .
+
+      - name: Validate Packer configuration
+        working-directory: ${{ env.AUTOLAB_PACKER_TEMPLATE_DIR }}
+        run: packer validate .
+
+      - name: Build template
+        working-directory: ${{ env.AUTOLAB_PACKER_TEMPLATE_DIR }}
+        run: |
+          echo "========================================================"
+          echo "🔨 BUILDING PROXMOX VM TEMPLATE: ${{ inputs.template }}"
+          echo "========================================================"
+          echo "   • Catalog entry: ${AUTOLAB_PACKER_TEMPLATE_DESCRIPTION}"
+          echo "   • Template file: ${AUTOLAB_PACKER_TEMPLATE_FILE}"
+          echo "   • Force rebuild: ${{ inputs.force_rebuild }}"
+          echo "========================================================"
+
+          packer build -force=${{ inputs.force_rebuild }} .
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "========================================================"
+          echo "🏗️ PACKER BUILD COMPLETED"
+          echo "========================================================"
+          echo "📋 Summary:"
+          echo "   • Template: ${{ inputs.template }}"
+          echo "   • Status: ${{ job.status }}"
+          echo "========================================================"
+          echo ""
+          echo "📝 Next Steps:"
+          echo "   1. Run OpenTofu Plan to verify the template is available"
+          echo "   2. Run OpenTofu Apply to create VMs from this template"
+          echo "========================================================"

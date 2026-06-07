@@ -1,0 +1,122 @@
+name: Setup OpenTofu Pipeline
+description: >
+  Common pipeline setup for plan and apply workflows: connect Tailscale,
+  configure Proxmox/R2 environment variables, install OpenTofu + Terramate,
+  generate configs, and init the stack.
+
+inputs:
+  env_dir:
+    description: Path to the environment directory (e.g. infra/stacks/lab)
+    required: true
+  connect_tailscale:
+    description: Whether to connect to Tailscale
+    required: false
+    default: 'true'
+  tailscale_oauth_client_id:
+    description: Tailscale OAuth client ID
+    required: false
+    default: ''
+  tailscale_oauth_secret:
+    description: Tailscale OAuth secret
+    required: false
+    default: ''
+  proxmox_endpoint:
+    description: Proxmox API endpoint URL
+    required: false
+    default: ''
+  proxmox_api_token:
+    description: Proxmox API token
+    required: false
+    default: ''
+  proxmox_insecure_tls:
+    description: Skip TLS verification for Proxmox
+    required: false
+    default: 'true'
+  proxmox_node_name:
+    description: Proxmox node name
+    required: false
+    default: ''
+  tailscale_auth_key:
+    description: Tailscale auth key for VMs
+    required: false
+    default: ''
+  r2_access_key_id:
+    description: R2 access key ID for state backend
+    required: false
+    default: ''
+  r2_secret_access_key:
+    description: R2 secret access key for state backend
+    required: false
+    default: ''
+  r2_account_id:
+    description: R2 account ID for state backend
+    required: false
+    default: ''
+  tofu_version:
+    description: OpenTofu version to install
+    required: false
+    default: '1.9.0'
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/connect-tailscale
+      if: inputs.connect_tailscale == 'true'
+      with:
+        oauth-client-id: ${{ inputs.tailscale_oauth_client_id }}
+        oauth-secret: ${{ inputs.tailscale_oauth_secret }}
+
+    - name: Configure R2 credentials
+      if: inputs.r2_access_key_id != ''
+      shell: bash
+      env:
+        AUTOLAB_R2_ACCESS_KEY_ID: ${{ inputs.r2_access_key_id }}
+        AUTOLAB_R2_SECRET_ACCESS_KEY: ${{ inputs.r2_secret_access_key }}
+        AUTOLAB_R2_ACCOUNT_ID: ${{ inputs.r2_account_id }}
+      run: |
+        source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
+
+        append_github_env "AWS_ACCESS_KEY_ID" "$AUTOLAB_R2_ACCESS_KEY_ID"
+        append_github_env "AWS_SECRET_ACCESS_KEY" "$AUTOLAB_R2_SECRET_ACCESS_KEY"
+        append_github_env "R2_ENDPOINT" "https://${AUTOLAB_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+    - uses: ./.github/actions/configure-proxmox-connection
+      if: inputs.proxmox_endpoint != ''
+      with:
+        proxmox_endpoint: ${{ inputs.proxmox_endpoint }}
+        proxmox_api_token: ${{ inputs.proxmox_api_token }}
+        proxmox_node_name: ${{ inputs.proxmox_node_name }}
+        proxmox_insecure_tls: ${{ inputs.proxmox_insecure_tls }}
+        emit_tf_vars: 'true'
+        emit_packer_vars: 'false'
+
+    - name: Configure Tailscale variables
+      if: inputs.tailscale_auth_key != ''
+      shell: bash
+      env:
+        AUTOLAB_TAILSCALE_AUTH_KEY: ${{ inputs.tailscale_auth_key }}
+      run: |
+        source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
+        append_github_env "TF_VAR_tailscale_auth_key" "$AUTOLAB_TAILSCALE_AUTH_KEY"
+
+    - uses: ./.github/actions/setup-opentofu
+      with:
+        tofu_version: ${{ inputs.tofu_version }}
+
+    - name: Init
+      working-directory: ${{ inputs.env_dir }}
+      shell: bash
+      env:
+        AUTOLAB_R2_ACCESS_KEY_ID: ${{ inputs.r2_access_key_id }}
+        AUTOLAB_R2_SECRET_ACCESS_KEY: ${{ inputs.r2_secret_access_key }}
+        AUTOLAB_R2_ACCOUNT_ID: ${{ inputs.r2_account_id }}
+      run: |
+        if [[ -z "${AUTOLAB_R2_ACCESS_KEY_ID}" || -z "${AUTOLAB_R2_SECRET_ACCESS_KEY}" || -z "${AUTOLAB_R2_ACCOUNT_ID}" ]]; then
+          echo "ERROR: R2 Backend init requires r2_access_key_id, r2_secret_access_key, and r2_account_id." >&2
+          exit 1
+        fi
+
+        : "${R2_ENDPOINT:=https://${AUTOLAB_R2_ACCOUNT_ID}.r2.cloudflarestorage.com}"
+
+        tofu init -input=false \
+          -backend-config="endpoint=$R2_ENDPOINT"

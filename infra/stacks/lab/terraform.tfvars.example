@@ -1,0 +1,59 @@
+# ---- Proxmox connection ----
+proxmox_endpoint       = "https://pve.example.ts.net:8006/"
+proxmox_api_token      = "USER@REALM!TOKENID=TOKEN_SECRET"
+proxmox_insecure_tls   = true
+proxmox_node_name      = "pve"
+
+# ---- Network defaults ----
+network_defaults = {
+  network_bridge = "vmbr0"
+  vlan_id        = null
+}
+
+# ---- Identity defaults ----
+identity_defaults = {
+  admin_username  = "autolab"
+  ssh_public_keys = ["ssh-ed25519 AAAA... your-key@host"]
+}
+
+# ---- Tailscale ----
+tailscale_auth_key = ""  # Set to an ephemeral reusable key for VMs
+
+# ---- Tags ----
+common_tags = ["autolab", "gitops", "phase-2a"]
+
+# ---- Machines ----
+# Add machines here. Each entry needs a type ("vm" or "lxc") and
+# type-specific fields. Shared defaults come from the per-concern variables above.
+machines = {
+  example_vm = {
+    type       = "vm"
+    name       = "example-vm"
+    vm_id      = 100
+    node_name  = "pve"
+
+    # VM-specific
+    template_vm_id          = 9000
+    cloud_init_datastore_id = "local-lvm"
+    datastore_id            = "local-lvm"
+    cpu_cores               = 2
+    memory_mb               = 2048
+    disk_size_gb            = 20
+    ipv4_address            = "dhcp"
+  }
+
+  # Example LXC (uncomment to enable)
+  # example_lxc = {
+  #   type       = "lxc"
+  #   name       = "example-lxc"
+  #   vm_id      = 101
+  #
+  #   # LXC-specific
+  #   template_file_id = "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst"
+  #   datastore_id     = "local-lvm"
+  #   cpu_cores        = 1
+  #   memory_mb        = 512
+  #   disk_size_gb     = 8
+  #   ipv4_address     = "dhcp"
+  # }
+}

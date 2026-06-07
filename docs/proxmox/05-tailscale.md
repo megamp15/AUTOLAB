@@ -43,6 +43,15 @@ systemctl enable --now tailscaled
 
 Proxmox UI over Tailscale: `https://<tailscale-ip>:8006` or `https://YOUR_NODE_NAME:8006` if MagicDNS is enabled.
 
+## Next: Tailscale SSH for GitOps
+
+Joining Tailscale gives the host a private tailnet address. It does not automatically enable Tailscale SSH.
+
+For phase 2 GitOps, see [../gitops/01-tailscale-ssh.md](../gitops/01-tailscale-ssh.md). Autolab uses:
+
+- Tailscale SSH for human admin access
+- normal SSH keys over the Tailscale network for automation later
+
 ## Related
 
 - [04-apt-maintenance.md](./04-apt-maintenance.md) · [README.md](./README.md)
