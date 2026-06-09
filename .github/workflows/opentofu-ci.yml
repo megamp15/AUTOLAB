@@ -1,0 +1,62 @@
+name: OpenTofu CI
+
+on:
+  push:
+    paths:
+      - 'infra/stacks/**'
+      - 'infra/modules/**'
+      - 'infra/_base/**'
+      - 'infra/terramate.tm.hcl'
+      - '.github/actions/setup-opentofu/**'
+      - '.github/actions/configure-proxmox-connection/**'
+      - '.github/actions/setup-opentofu-pipeline/**'
+      - '.github/workflows/opentofu-ci.yml'
+  pull_request:
+    paths:
+      - 'infra/stacks/**'
+      - 'infra/modules/**'
+      - 'infra/_base/**'
+      - 'infra/terramate.tm.hcl'
+      - '.github/actions/setup-opentofu/**'
+      - '.github/actions/configure-proxmox-connection/**'
+      - '.github/actions/setup-opentofu-pipeline/**'
+      - '.github/workflows/opentofu-ci.yml'
+
+permissions:
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: 'true'
+  TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+
+jobs:
+  fmt-validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/stacks/lab
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-opentofu
+
+      - name: Check formatting
+        run: tofu fmt -check -recursive ../..
+
+      - name: Init without backend
+        run: tofu init -backend=false
+
+      - name: Validate
+        run: tofu validate
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## OpenTofu CI"
+            echo
+            echo "- Environment: \`lab\`"
+            echo "- Formatting: \`${{ job.status }}\`"
+            echo "- Validation: \`${{ job.status }}\`"
+            echo "- Provider cache: \`$TF_PLUGIN_CACHE_DIR\`"
+          } >> "$GITHUB_STEP_SUMMARY"

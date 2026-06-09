@@ -1,0 +1,64 @@
+# Proxmox Connection Schema
+#
+# Single source of truth for the Proxmox connection interface.
+# This schema is referenced by:
+#   - infra/modules/proxmox-connection/ (OpenTofu)
+#   - infra/packer/connection-vars.pkr.hcl (Packer)
+#   - .github/actions/configure-proxmox-connection/ (CI)
+#
+# When adding or changing a field, define each consumer-facing name here and
+# re-run scripts/generate-connection-adapters.sh. The generator is a pure
+# schema-to-adapter renderer; it should not contain per-field name mapping.
+# CI validation checks for generated adapter drift.
+
+fields:
+  # ---- Required ----
+
+  - name: proxmox_endpoint
+    type: string
+    description: "Proxmox API endpoint URL (must be HTTPS)"
+    validation: "^https://"
+    opentofu_var: proxmox_endpoint
+    module_var: endpoint
+    packer_var: proxmox_endpoint
+    ci_env: PROXMOX_ENDPOINT
+    ci_source: secret
+    error_message: "Proxmox endpoint must be an HTTPS URL."
+    sensitive: false
+
+  - name: proxmox_api_token
+    type: string
+    description: "Proxmox API token in USER@REALM!TOKENID=TOKEN_SECRET format"
+    validation: "^[^@]+@[^!]+!.+=.+$"
+    opentofu_var: proxmox_api_token
+    module_var: api_token
+    packer_var: proxmox_api_token
+    ci_env: PROXMOX_API_TOKEN
+    ci_source: secret
+    error_message: "Proxmox API token must be in USER@REALM!TOKENID=TOKEN_SECRET format."
+    sensitive: true
+
+  - name: proxmox_node_name
+    type: string
+    description: "Proxmox node name shown in the UI"
+    validation: "^[a-zA-Z0-9][a-zA-Z0-9-]*$"
+    opentofu_var: proxmox_node_name
+    module_var: node_name
+    packer_var: proxmox_node_name
+    ci_env: PROXMOX_NODE_NAME
+    ci_source: variable
+    error_message: "Node name must start with an alphanumeric character and contain only alphanumeric characters and hyphens."
+    sensitive: false
+
+  # ---- Optional (with defaults) ----
+
+  - name: proxmox_insecure_tls
+    type: bool
+    description: "Allow self-signed Proxmox TLS certificates"
+    default: true
+    opentofu_var: proxmox_insecure_tls
+    module_var: insecure_tls
+    packer_var: proxmox_insecure_tls
+    ci_env: PROXMOX_INSECURE_TLS
+    ci_source: variable
+    sensitive: false

@@ -1,0 +1,6 @@
+# Cloudflare R2 backend config for OpenTofu state.
+# Single source of truth for generated Terramate globals and setup script defaults.
+
+bucket: autolab-opentofu-state
+region: auto
+token_name: autolab-opentofu-state

@@ -1,0 +1,26 @@
+# Reference layout for /etc/network/interfaces
+# Do NOT copy blindly — use setup-proxmox-network.sh, which generates this
+# from /etc/default/proxmox-network.env on each host.
+#
+# Replace in your head (or in network.env):
+#   ETH_USB  → your enx… name from:  ip -br link | grep enx
+#   WIFI     → your wlp… name from:  ip -br link | grep wlp
+#   VMBR_IP  → your chosen management IP/CIDR
+
+auto lo
+iface lo inet loopback
+
+auto WIFI
+iface WIFI inet dhcp
+    wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
+
+iface ETH_USB inet manual
+
+auto vmbr0
+iface vmbr0 inet static
+        address VMBR_IP
+        bridge-ports ETH_USB
+        bridge-stp off
+        bridge-fd 0
+
+source /etc/network/interfaces.d/*

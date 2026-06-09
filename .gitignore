@@ -1,0 +1,35 @@
+# Never commit host secrets or local overrides
+/etc/default/proxmox-network.env
+**/proxmox-network.env
+*.env.local
+.env
+.env.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+*.pkrvars.hcl
+!*.pkrvars.example
+*.tfstate
+*.tfstate.*
+*.tfplan
+plan.out
+.terraform/
+tofu.env
+ssh-keys/
+*.pem
+*.key
+
+# Editor / OS
+.DS_Store
+*.swp
+*~
+
+# Local hardware notes (optional personal files)
+docs/proxmox/hardware/local-*
+
+# IDE / local tool config
+.cursor/
+config.json
+
+# Local tool indexes
+.codegraph/

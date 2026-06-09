@@ -1,0 +1,11 @@
+  - |
+    curl -fsSL https://tailscale.com/install.sh | sh 2>&1 | tee -a /var/log/cloud-init-tailscale.log
+  - |
+    for i in 1 2 3 4 5; do
+      if tailscale up --authkey=${tailscale_auth_key} --accept-routes --hostname=$$(hostname) 2>&1 | tee -a /var/log/cloud-init-tailscale.log; then
+        echo "Tailscale joined successfully" | tee -a /var/log/cloud-init-tailscale.log
+        break
+      fi
+      echo "Tailscale join attempt $$i failed, retrying in 10 seconds..." | tee -a /var/log/cloud-init-tailscale.log
+      sleep 10
+    done
