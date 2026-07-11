@@ -1,0 +1,4 @@
+---
+- name: Document gitops user role scaffold
+  ansible.builtin.debug:
+    msg: "TODO: create deploy user, install authorized keys, and restrict sudo intentionally."

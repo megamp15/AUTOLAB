@@ -1,6 +1,6 @@
 # Autolab documentation
 
-Autolab docs are organized by **platform** and **maturity**. Each guide uses optional frontmatter (`tags`, `status`, `audience`) so the set can grow without losing structure.
+Autolab docs are organized by **platform**, **lifecycle layer**, and **maturity**. Each guide uses optional frontmatter (`tags`, `status`, `audience`) so the set can grow without losing structure.
 
 ## Doc tags (convention)
 
@@ -9,6 +9,17 @@ Autolab docs are organized by **platform** and **maturity**. Each guide uses opt
 | `tags` | Search / filter topics | `proxmox`, `networking`, `beginner` |
 | `status` | How complete the guide is | `alpha` (project), `draft`, `stable` (when a guide is frozen) |
 | `audience` | Who it’s for | `beginner`, `operator` |
+
+## Layer model
+
+| Layer | Purpose | Current home |
+|-------|---------|--------------|
+| Bootstrap | Get the physical Proxmox node online before automation can reach it | [proxmox/](./proxmox/) |
+| Provision | Create machines from git-managed infrastructure | [gitops/](./gitops/) and `infra/` |
+| Template | Build Proxmox VM templates from ISOs | `infra/packer/` |
+| Configure | Apply the reusable Linux server baseline over SSH | `../builders/ansible/` |
+
+The Proxmox path uses all four layers. A future VPS path skips the Proxmox bootstrap and Packer template layers, then reuses the configure layer once the provider returns a reachable Linux host.
 
 ## Proxmox hypervisor
 
@@ -37,3 +48,7 @@ Planned work (IaC, CI, more nodes): [ROADMAP.md](./ROADMAP.md)
 ## GitOps
 
 **[gitops/README.md](./gitops/README.md)** - phase 2 track for secure VM/LXC creation with OpenTofu, GitHub Actions, and Tailscale.
+
+## Builder
+
+**[../builders/ansible/README.md](../builders/ansible/README.md)** - phase 2C scaffold for provider-neutral Linux hardening and runtime roles.

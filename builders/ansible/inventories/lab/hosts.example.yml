@@ -1,0 +1,12 @@
+all:
+  children:
+    lab:
+      hosts:
+        autolab-vm-01:
+          ansible_host: 100.64.0.10
+          ansible_user: autolab
+          autolab_provider: proxmox
+          autolab_machine_type: vm
+    linux_servers:
+      children:
+        lab:

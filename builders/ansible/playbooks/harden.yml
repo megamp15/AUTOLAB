@@ -1,0 +1,14 @@
+---
+- name: Apply Autolab Linux server baseline
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: base-linux
+    - role: gitops-user
+    - role: ssh-hardening
+    - role: firewall
+    - role: tailscale
+    - role: docker-host
+      when: autolab_enable_docker | default(false) | bool

@@ -1,0 +1,12 @@
+all:
+  children:
+    vps:
+      hosts:
+        autolab-vps-01:
+          ansible_host: 203.0.113.10
+          ansible_user: autolab
+          autolab_provider: hetzner
+          autolab_machine_type: vps
+    linux_servers:
+      children:
+        vps:

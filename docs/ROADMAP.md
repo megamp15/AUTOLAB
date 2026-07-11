@@ -6,7 +6,7 @@ audience: maintainer
 
 # Autolab roadmap
 
-This repo is meant to **grow** from a documented single node into a reusable homelab scaffold. Status labels match doc frontmatter.
+This repo is meant to **grow** from a documented single node into a reusable homelab scaffold. Proxmox is the first provider track; the later server baseline should also apply to reachable VPS hosts. Status labels match doc frontmatter.
 
 ## Now (alpha — usable on real hardware)
 
@@ -23,9 +23,23 @@ This repo is meant to **grow** from a documented single node into a reusable hom
 |------|------|--------|
 | GitOps phase 2A | `gitops`, `opentofu`, `proxmox`, `terramate` | Create VMs/LXCs from git via ephemeral GitHub runner on Tailscale — [setup checklist](gitops/setup-checklist.md) |
 | Packer phase 2B | `packer`, `templates` | Automate VM template creation — scaffold in `infra/packer/` |
-| Ansible phase 2C | `ansible`, `security` | Enforce non-root users, gitops user, SSH hardening, firewall, Tailscale |
+| Builder phase 2C | `ansible`, `security`, `linux` | Enforce the provider-neutral server baseline on Proxmox VMs/LXCs and future VPS hosts — scaffold in `builders/ansible/` |
+| VPS provider track | `vps`, `opentofu`, `providers` | Future cloud-provider stacks replace Proxmox/Packer provisioning while reusing the builder baseline |
 | Second node / “real homelab” profile | `homelab` | Fork-friendly; keep this repo as the **learning** path |
 | VM / service tutorials | `learning`, `self-hosted` | Optional guides that consume a working PVE node |
+
+## Layer model
+
+Autolab separates the work by when it can run and what it depends on:
+
+| Layer | Proxmox path | VPS path |
+|-------|--------------|----------|
+| Bootstrap | Manual Proxmox install, host networking, Tailscale | Provider account, SSH key, API token |
+| Provision | Packer template + OpenTofu Proxmox VM/LXC resources | OpenTofu cloud-provider server resources |
+| Configure | Ansible builder roles over SSH | Same Ansible builder roles over SSH |
+| Serve | Homelab services, tutorials, experiments | Project-specific services |
+
+The VPS path does not need Packer because the provider already returns a booted server image. The shared value is the post-provisioning baseline: users, SSH policy, firewall, updates, Tailscale, deploy user, and runtime roles.
 
 ### GitOps vs GitHub Actions (terms)
 
@@ -45,7 +59,7 @@ You **cannot** GitOps your way onto a host that has no working uplink yet. Somet
 | Layer | How it usually runs | Autolab today |
 |-------|---------------------|---------------|
 | **Bootstrap** | ISO install, local console, or SSH over whatever link works (installer Wi‑Fi/Ethernet); copy scripts via USB or `scp`; wizard writes `/etc/default/proxmox-network.env` | **This repo** — docs + bash, aimed at noobs |
-| **Steady state** | Host reaches git/Actions/Ansible; desired state in git; reconcile VMs, LXCs, storage, backups | **Later** — your Proxmox/VM/LXC GitOps |
+| **Steady state** | Host reaches git/Actions/Ansible; desired state in git; reconcile VMs, LXCs, storage, backups, and server hardening | **Later** — your Proxmox/VM/LXC GitOps plus provider-neutral builder roles |
 
 So **host networking is not “no GitOps ever”** — it is **not GitOps until the node can reach the internet** (or at least your laptop on LAN). After failover and SSH work, GitOps applies to **what runs on Proxmox**, not to the first cable/Wi‑Fi bring-up.
 
@@ -54,13 +68,15 @@ Ways people still reduce bootstrap pain without full GitOps:
 - Version **scripts and templates** in git (you already do); apply by copy/`scp` once.
 - Optional later: USB stick with `docs/proxmox`, or Actions that only **lint** scripts (no target host required).
 
-**Autolab scope:** nail bootstrap + document it clearly; treat VM/LXC/cluster automation as the next learning track.
+**Autolab scope:** nail bootstrap + document it clearly; treat VM/LXC provisioning and the reusable Linux builder baseline as the next learning tracks.
 
 ## Non-goals (for this repo)
 
 - Storing Wi‑Fi passwords or site-specific IPs in git
 - Replacing Proxmox’s own upgrade documentation for major migrations
 - One-click support for every possible NIC naming scheme without the wizard
+- Treating VPS providers as the main path before the Proxmox learning path is usable
+- Bundling a fixed app catalog before the reusable server baseline exists
 
 ## Compared to larger homelab repos
 

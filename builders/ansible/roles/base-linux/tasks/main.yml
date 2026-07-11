@@ -1,0 +1,4 @@
+---
+- name: Document base Linux role scaffold
+  ansible.builtin.debug:
+    msg: "TODO: refresh packages, configure update policy, and install baseline tools."

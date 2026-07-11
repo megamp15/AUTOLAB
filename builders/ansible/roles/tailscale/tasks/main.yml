@@ -1,0 +1,4 @@
+---
+- name: Document Tailscale role scaffold
+  ansible.builtin.debug:
+    msg: "TODO: install Tailscale, join with approved auth flow, and enable private access."

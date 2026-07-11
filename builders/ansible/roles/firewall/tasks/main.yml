@@ -1,0 +1,4 @@
+---
+- name: Document firewall role scaffold
+  ansible.builtin.debug:
+    msg: "TODO: enforce default-deny inbound policy and allow management networks."

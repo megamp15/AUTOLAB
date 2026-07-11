@@ -6,7 +6,7 @@ audience: operator
 
 # Server hardening baseline
 
-Every Autolab VM or LXC should be treated like a small VPS.
+Every Autolab VM, supported LXC, or VPS should be treated like a small server on an untrusted network. Proxmox and VPS providers differ at provisioning time; after SSH is reachable, the hardening baseline should be shared.
 
 ## Phase 2A baseline
 
@@ -20,9 +20,9 @@ OpenTofu should make unsafe defaults harder:
 - prefer Tailscale/private management access
 - use unprivileged LXCs by default
 
-## Phase 2C baseline
+## Phase 2C builder baseline
 
-Ansible will enforce the full OS hardening baseline:
+Ansible builder roles will enforce the full OS hardening baseline:
 
 - create the human admin user
 - create the separate `gitops` deploy user
@@ -36,6 +36,8 @@ Ansible will enforce the full OS hardening baseline:
 - install security updates or document the update policy
 - enable Fail2Ban where SSH is reachable
 - run a simple Lynis audit
+
+The same roles should be usable from a `lab` inventory for Proxmox-created hosts and a future `vps` inventory for cloud-provider hosts. Project-specific roles can build on this baseline, but should not weaken it by default.
 
 ## Acceptance checks
 

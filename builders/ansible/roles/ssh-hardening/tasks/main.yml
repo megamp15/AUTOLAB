@@ -1,0 +1,4 @@
+---
+- name: Document SSH hardening role scaffold
+  ansible.builtin.debug:
+    msg: "TODO: disable root SSH, disable password auth, and reload sshd safely."

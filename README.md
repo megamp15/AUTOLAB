@@ -10,7 +10,7 @@
 [![license](https://img.shields.io/github/license/megamp15/AUTOLAB?style=flat-square)](LICENSE)
 [![stars](https://img.shields.io/github/stars/megamp15/AUTOLAB?logo=github&logoColor=white&color=gold&style=flat-square)](https://github.com/megamp15/AUTOLAB)
 
-Autolab is a **custom, learning-first homelab** you build yourself: versioned docs and bash automation for a **Proxmox** hypervisor—run the same flow again on a **second box** with that machine’s own config file, with secrets kept on each host—not in git. The path leads to **infrastructure as code** and **GitHub Actions**, without pretending to be a one-size-fits-all product.
+Autolab is a **custom, learning-first homelab** you build yourself: versioned docs and bash automation for a **Proxmox** hypervisor—run the same flow again on a **second box** with that machine’s own config file, with secrets kept on each host—not in git. The path leads to **infrastructure as code**, **GitHub Actions**, and a reusable Linux server baseline that can later apply to both Proxmox-created hosts and VPS hosts, without pretending to be a one-size-fits-all product.
 
 > **How is this different from a full “homelab in a box” repo?**  
 > Projects like [khuedoan/homelab](https://github.com/khuedoan/homelab) target multi-node Kubernetes, GitOps, and a large app stack. **Autolab** starts smaller: one Proxmox hypervisor, reproducible networking (USB Ethernet + Wi‑Fi failover), and tutorials you can fork for your own hardware. Same *idea* (IaC + learn by doing); different **scope** (Proxmox-first, fully yours to extend).
@@ -23,7 +23,7 @@ Autolab is a **custom, learning-first homelab** you build yourself: versioned do
 |--|--|
 | **Status** | **Alpha** — network path is usable; IaC/CI expanding ([roadmap](docs/ROADMAP.md)) |
 | **Hardware** | Repurposed laptop-class PC (e.g. Dell XPS) + USB Ethernet; Wi‑Fi for backup |
-| **Goal** | Portable lab: predictable management IP, failover, demos, then automate everything |
+| **Goal** | Portable lab: predictable management IP, failover, IaC provisioning, then reusable server configuration |
 
 ## Features
 
@@ -40,7 +40,9 @@ Autolab is a **custom, learning-first homelab** you build yourself: versioned do
 - [x] Packer VM template build workflow
 - [x] Schema-driven code generation (connection schema → OpenTofu/Packer adapters, network env schema → env file + validation)
 - [x] Production-readiness checks for retry behaviour, R2 setup output, cloud-init Tailscale enrollment, and generated adapter validation
-- [ ] Ansible hardening roles (one role per server baseline)
+- [x] Builder/Ansible scaffold for provider-neutral server baseline roles
+- [ ] Ansible hardening roles (users, SSH, firewall, updates, Tailscale, deploy user)
+- [ ] VPS provider track using the same builder baseline after provisioning
 - [ ] Service/VM tutorials on top of PVE
 
 ## Get started
@@ -66,6 +68,7 @@ bash setup-proxmox-network.sh --apply
 - **Bootstrap first** — host must get online manually (install + network scripts); **GitOps comes after** the node can reach git/your automation  
 - **Repeat per machine** — each host gets its own `/etc/default/proxmox-network.env`  
 - **Portable** — move the box, re-run setup or `enable-usb-ethernet.sh` as needed  
+- **Provider-neutral baseline** — once a Linux host is reachable over SSH, configure it through reusable builder roles whether it came from Proxmox or a VPS provider  
 
 ## Repository map
 
@@ -78,6 +81,7 @@ bash setup-proxmox-network.sh --apply
 | [infra/modules/](infra/modules/) | Shared Proxmox compute and connection modules |
 | [infra/_base/](infra/_base/) | Terramate code generation (providers, backend) |
 | [infra/packer/](infra/packer/) | Packer VM template builds (phase 2B scaffold) |
+| [builders/ansible/](builders/ansible/) | Provider-neutral server configuration scaffold (phase 2C) |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Now / next / non-goals |
 | [docs/production-readiness.md](docs/production-readiness.md) | Stop criteria for using Autolab (schema drift, tests, smoke test) |
 | [docs/proxmox/config/network.env.example](docs/proxmox/config/network.env.example) | Template → `/etc/default/proxmox-network.env` on host |

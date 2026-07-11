@@ -18,6 +18,9 @@ tofu.env
 ssh-keys/
 *.pem
 *.key
+builders/ansible/inventories/**/hosts.yml
+builders/ansible/inventories/**/group_vars/
+builders/ansible/inventories/**/host_vars/
 
 # Editor / OS
 .DS_Store

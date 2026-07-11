@@ -1,0 +1,4 @@
+---
+- name: Document Docker host role scaffold
+  ansible.builtin.debug:
+    msg: "TODO: install container runtime and configure safe defaults for service hosts."
