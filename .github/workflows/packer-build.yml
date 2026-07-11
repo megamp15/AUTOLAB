@@ -28,6 +28,8 @@ jobs:
   build-template:
     name: Build ${{ inputs.template }} template
     runs-on: ubuntu-latest
+    env:
+      PVE_SSH_PRIVATE_KEY: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -58,11 +60,11 @@ jobs:
           tailscale ping ${{ vars.PROXMOX_HOST }} || true
 
       - name: Setup SSH Key for PVE
-        if: secrets.PVE_SSH_PRIVATE_KEY != ''
+        if: env.PVE_SSH_PRIVATE_KEY != ''
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          echo "${{ secrets.PVE_SSH_PRIVATE_KEY }}" > ~/.ssh/pve_ci_key
+          echo "$PVE_SSH_PRIVATE_KEY" > ~/.ssh/pve_ci_key
           chmod 600 ~/.ssh/pve_ci_key
           ssh-keyscan -H ${{ vars.PROXMOX_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
