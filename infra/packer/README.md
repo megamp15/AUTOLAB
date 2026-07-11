@@ -45,6 +45,11 @@ The Packer template catalog seam is `scripts/resolve-packer-template.sh`.
 Callers choose a template name such as `debian-12`; the script owns the mapping
 to the Packer directory, template file, and description used by CI.
 
+The Packer CI setup seam is `.github/actions/setup-packer-pipeline`. It resolves
+the catalog entry, joins Tailscale, emits Connection variables for Packer, emits
+template-specific variables, and installs Packer before the workflow runs
+`packer init`, `packer validate`, and `packer build`.
+
 Environment-specific variable files (`.pkrvars.hcl`) are **not committed** —
 they contain secrets like API tokens. Copy the `.example` file and fill in your
 values:
@@ -62,7 +67,9 @@ packer build -var-file=debian-12.pkrvars.hcl .
 
 Connection variables are **auto-generated** from `infra/connection-schema.yaml` by `scripts/generate-connection-adapters.sh`. They live in `connection-vars.pkr.hcl` — do not edit that file manually.
 
-Template-specific variables are **hand-maintained** in `template-vars.pkr.hcl`. Override them via `.pkrvars.hcl` files, `PKR_VAR_` environment variables, or GitHub vars/secrets in CI.
+Template-specific Packer variables are **hand-maintained** in `template-vars.pkr.hcl`. Their GitHub CI vocabulary is defined in `template-schema.yaml` and rendered to `.github/actions/configure-packer-template/action.yml` by `scripts/generate-packer-template-adapters.sh`. Override values via `.pkrvars.hcl` files, `PKR_VAR_` environment variables, or GitHub vars/secrets in CI.
+
+For now, `template-schema.yaml` generates only the `configure-packer-template` adapter. The `setup-packer-pipeline` inputs and the `packer-build.yml` `with:` block still forward those values manually. That is intentional while Autolab has one Packer template; generate that forwarding only after adding another template or after variable churn proves the manual forwarding is causing drift.
 
 | Variable | Default | Secret? | Description |
 |---|---|---|---|
@@ -107,3 +114,11 @@ variable files as needed.
 
 Then add the template name to `scripts/resolve-packer-template.sh` so CI callers
 do not need to know template file paths.
+
+## Deferred enhancements
+
+Stop here until real use proves more depth is needed:
+
+- Generate `setup-packer-pipeline` inputs and workflow forwarding from `template-schema.yaml` only if adding template variables becomes repetitive.
+- Expand `template-schema.yaml` to cover all of `template-vars.pkr.hcl` only when a second template needs different build defaults.
+- Keep Stack wiring hand-written until a second real Stack proves the shape, per ADR-0003.

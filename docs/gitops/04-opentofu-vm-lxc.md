@@ -6,7 +6,7 @@ audience: beginner
 
 # Step 4 - OpenTofu VM/LXC provisioning
 
-Phase 2A uses OpenTofu to create one VM and one LXC from Proxmox.
+Phase 2A uses OpenTofu to create VM and LXC resources from the stack's `machines` map.
 
 This assumes you already have:
 

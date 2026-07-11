@@ -23,11 +23,14 @@ Complete these in order. Each step links to the relevant guide for details.
 The GitHub runner needs Tailscale OAuth credentials to join the tailnet temporarily during each workflow run.
 
 - [ ] Go to [Tailscale admin console → OAuth clients](https://login.tailscale.com/admin/settings/oauth)
-- [ ] Create a new OAuth client with **"Create ephemeral nodes"** scope
-- [ ] Tag it with `tag:ci-runner` (or a tag you choose — note it for the ACL step)
+- [ ] Create a new OAuth client with **Custom scopes**
+- [ ] Under **Keys**, grant only **Auth Keys → Write**. Leave all other scopes unchecked.
+- [ ] Configure the client to create ephemeral nodes tagged with `tag:ci-runner` (or a tag you choose — note it for the ACL step)
 - [ ] Save the **Client ID** and **Client Secret** — you will add them as `TAILSCALE_OAUTH_CLIENT_ID` and `TAILSCALE_OAUTH_SECRET` in GitHub
 
-See [01 - Tailscale SSH](./01-tailscale-ssh.md) for background.
+- [ ] Create the `ci-runner` tag in Tailscale. For **Tag owner**, choose your own identity for a personal lab, or `autogroup:admin` for a team-managed lab. Avoid `autogroup:member` for CI tags.
+
+See [02 - Secure GitHub runner](./02-secure-runner.md) for the full runner model.
 
 ## 2. Tailscale ACL
 
@@ -82,35 +85,40 @@ See [05 - R2 state backend](./05-r2-state-backend.md) for the full guide.
 
 ## 5. GitHub Environments and secrets
 
-GitHub Environments group secrets and can require approvals before apply.
+GitHub Environments group secrets. **Required reviewers is an Enterprise-only feature** — not available on Free/Team plans for private repos.
 
 - [ ] Go to your GitHub repo → **Settings → Environments**
 - [ ] Create environment `autolab-plan`
 - [ ] Create environment `autolab-apply`
+- [ ] Leave **Required reviewers** off (Enterprise-only)
 - [ ] Add these **Repository Variables** (non-sensitive) at the repository or organization level:
 
 | Variable | Value |
 |----------|-------|
-| `PROXMOX_HOST` | Your Proxmox Tailscale hostname (e.g. `xps-pve`) |
+| `PROXMOX_HOST` | Your Proxmox Tailscale hostname (e.g. `<proxmox-host>`) |
 | `PROXMOX_NODE_NAME` | Your Proxmox node name (e.g. `pve`) |
+| `PROXMOX_INSECURE_TLS` | Optional; use `true` for Proxmox's default self-signed certificate |
 | `SSH_PUBLIC_KEYS` | SSH public keys for VM/LXC injection (comma-separated) |
 
 - [ ] Add these secrets to **both** environments:
 
 | Secret | Value |
 |--------|-------|
-| `TAILSCALE_OAUTH_CLIENT_ID` | The OAuth client ID from step 1 |
-| `TAILSCALE_OAUTH_SECRET` | The OAuth client secret from step 1 |
-| `PROXMOX_ENDPOINT` | `https://<tailscale-hostname>:8006` (e.g. `https://xps-pve:8006`) |
-| `PROXMOX_API_TOKEN` | The full token string from step 3 |
-| `R2_ACCOUNT_ID` | Your Cloudflare account ID from step 4 |
-| `R2_ACCESS_KEY_ID` | The R2 access key from step 4 |
-| `R2_SECRET_ACCESS_KEY` | The R2 secret key from step 4 |
-| `AUTOLAB_ADMIN_SSH_PUBLIC_KEY` | Your SSH public key (for VM/LXC injection) |
+| `TAILSCALE_OAUTH_CLIENT_ID` | Tailscale OAuth client ID from step 1 |
+| `TAILSCALE_OAUTH_SECRET` | Tailscale OAuth client secret from step 1 |
+| `PROXMOX_ENDPOINT` | `https://<tailscale-magicdns>:8006` (e.g. `https://<proxmox-tailnet-host>:8006`; Tailscale IP also works: `https://<tailscale-ip>:8006`) |
+| `PROXMOX_API_TOKEN` | Full Proxmox API token string from step 3, e.g. `gitops@pve!opentofu=SECRET` |
+| `R2_ACCOUNT_ID` | Cloudflare account ID from step 4 |
+| `R2_ACCESS_KEY_ID` | R2 access key ID from step 4 |
+| `R2_SECRET_ACCESS_KEY` | R2 secret access key from step 4 |
+| `AUTOLAB_ADMIN_SSH_PUBLIC_KEY` | Your public SSH key, e.g. output of `cat ~/.ssh/id_ed25519.pub` |
+| `TAILSCALE_VM_AUTHKEY` | Optional for the first no-machine smoke test; later used by VMs/LXCs to join Tailscale |
 
-- [ ] (Optional) Add **required reviewers** to `autolab-apply` so apply workflows need manual approval before running
+If you already added these as **repository secrets**, the workflows can still read them. Keep going for a personal-lab smoke test, but prefer copying them into `autolab-plan` and `autolab-apply` environment secrets before doing real apply runs.
 
-See [06 - GitHub Environments](./06-github-environments.md) for details.
+- [ ] (Enterprise only) Add **required reviewers** to `autolab-apply` if you want manual approval before apply runs
+
+See [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.md) for per-field "where to get it" details, and [06 - GitHub Environments](./06-github-environments.md) for environment setup.
 
 ## 6. Proxmox VM template
 
@@ -235,7 +243,8 @@ tofu plan
 
 - [ ] Push the `feat/gitops` branch to GitHub
 - [ ] Check that the **OpenTofu CI** workflow runs on push (format + validate)
-- [ ] Manually trigger **OpenTofu Plan** (workflow dispatch) and verify it connects to Proxmox through Tailscale
+- [ ] Manually trigger **OpenTofu Plan** (workflow dispatch) and verify the pipeline initializes, reads R2 backend credentials, and receives the Proxmox/Tailscale connection settings
+- [ ] Treat the first plan as a smoke test. With no committed `terraform.tfvars`, `var.machines` defaults to `{}`, so a clean **No changes** result is expected until you add VM/LXC entries.
 - [ ] Manually trigger **OpenTofu Apply** with `confirm = apply` and verify it creates the VM/LXC
 
 ---
@@ -247,7 +256,7 @@ The Packer scaffold is in `infra/packer/`. To build templates:
 - [ ] Upload a Debian netinst ISO to Proxmox ISO storage
 - [ ] Copy `infra/packer/debian-12.pkrvars.example` to `debian-12.pkrvars.hcl` and fill in values
 - [ ] Run `packer init`, `packer validate`, `packer build` from a machine that can reach Proxmox over Tailscale
-- [ ] Or add a GitHub Actions workflow for Packer (similar pattern to the OpenTofu workflows)
+- [ ] Or run the existing **Packer Build** GitHub Actions workflow after adding the Packer CI variables/secrets from `infra/packer/README.md`
 
 ## Phase 2C manual steps (Ansible — not yet)
 

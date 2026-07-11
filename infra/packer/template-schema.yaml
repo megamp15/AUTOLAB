@@ -1,0 +1,68 @@
+# Packer template variable schema
+#
+# Single source of truth for the Packer template-specific CI Interface.
+# Connection variables stay in infra/connection-schema.yaml.
+
+fields:
+  - name: ssh_password
+    type: string
+    description: "Temporary SSH password used by Packer during provisioning"
+    packer_var: ssh_password
+    ci_env: PACKER_SSH_PASSWORD
+    ci_source: secret
+    sensitive: true
+    required_in_ci: false
+
+  - name: storage_pool
+    type: string
+    description: "Proxmox storage pool for VM disks"
+    packer_var: storage_pool
+    ci_env: PROXMOX_STORAGE_POOL
+    ci_source: variable
+    sensitive: false
+    required_in_ci: false
+
+  - name: network_bridge
+    type: string
+    description: "Proxmox bridge for the build VM"
+    packer_var: network_bridge
+    ci_env: PROXMOX_NETWORK_BRIDGE
+    ci_source: variable
+    sensitive: false
+    required_in_ci: false
+
+  - name: iso_file
+    type: string
+    description: "Proxmox ISO storage path for the installer ISO"
+    packer_var: iso_file
+    ci_env: PACKER_ISO_FILE
+    ci_source: variable
+    sensitive: false
+    required_in_ci: false
+
+  - name: iso_checksum
+    type: string
+    description: "Checksum for the ISO file. Empty skips verification."
+    packer_var: iso_checksum
+    ci_env: PACKER_ISO_CHECKSUM
+    ci_source: variable
+    sensitive: false
+    required_in_ci: false
+
+  - name: cloud_init_storage_pool
+    type: string
+    description: "Optional separate storage pool for the cloud-init drive"
+    packer_var: cloud_init_storage_pool
+    ci_env: PROXMOX_CLOUD_INIT_STORAGE_POOL
+    ci_source: variable
+    sensitive: false
+    required_in_ci: false
+
+  - name: ssh_public_keys
+    type: list_string
+    description: "Public SSH keys to inject via cloud-init"
+    packer_var: ssh_public_keys
+    ci_env: SSH_PUBLIC_KEYS
+    ci_source: variable
+    sensitive: false
+    required_in_ci: false

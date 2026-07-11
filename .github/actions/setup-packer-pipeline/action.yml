@@ -1,0 +1,97 @@
+name: Setup Packer Pipeline
+description: >
+  Common Packer pipeline setup: resolve template metadata, connect Tailscale,
+  configure Proxmox connection variables, configure template variables, and
+  install Packer.
+
+inputs:
+  template:
+    description: Packer template name from the Autolab template catalog
+    required: true
+  tailscale_oauth_client_id:
+    description: Tailscale OAuth client ID
+    required: true
+  tailscale_oauth_secret:
+    description: Tailscale OAuth secret
+    required: true
+  proxmox_endpoint:
+    description: Proxmox API endpoint URL
+    required: true
+  proxmox_api_token:
+    description: Proxmox API token
+    required: true
+  proxmox_node_name:
+    description: Proxmox node name
+    required: true
+  proxmox_insecure_tls:
+    description: Skip TLS verification for Proxmox
+    required: false
+    default: 'true'
+  ssh_password:
+    description: Temporary SSH password used by Packer during provisioning
+    required: false
+    default: ''
+  storage_pool:
+    description: Proxmox storage pool for VM disks
+    required: false
+    default: ''
+  network_bridge:
+    description: Proxmox bridge for the build VM
+    required: false
+    default: ''
+  iso_file:
+    description: Proxmox ISO storage path for the installer ISO
+    required: false
+    default: ''
+  iso_checksum:
+    description: Checksum for the ISO file. Empty skips verification.
+    required: false
+    default: ''
+  cloud_init_storage_pool:
+    description: Optional separate storage pool for the cloud-init drive
+    required: false
+    default: ''
+  ssh_public_keys:
+    description: Comma-separated public SSH keys to inject via cloud-init
+    required: false
+    default: ''
+  packer_version:
+    description: Packer version to install
+    required: false
+    default: "1.12.0"
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve Packer template
+      shell: bash
+      run: bash scripts/resolve-packer-template.sh "${{ inputs.template }}" --github-env
+
+    - uses: ./.github/actions/connect-tailscale
+      with:
+        oauth-client-id: ${{ inputs.tailscale_oauth_client_id }}
+        oauth-secret: ${{ inputs.tailscale_oauth_secret }}
+
+    - uses: ./.github/actions/configure-proxmox-connection
+      with:
+        proxmox_endpoint: ${{ inputs.proxmox_endpoint }}
+        proxmox_api_token: ${{ inputs.proxmox_api_token }}
+        proxmox_node_name: ${{ inputs.proxmox_node_name }}
+        proxmox_insecure_tls: ${{ inputs.proxmox_insecure_tls }}
+        emit_tf_vars: 'false'
+        emit_packer_vars: 'true'
+
+    - uses: ./.github/actions/configure-packer-template
+      with:
+        ssh_password: ${{ inputs.ssh_password }}
+        storage_pool: ${{ inputs.storage_pool }}
+        network_bridge: ${{ inputs.network_bridge }}
+        iso_file: ${{ inputs.iso_file }}
+        iso_checksum: ${{ inputs.iso_checksum }}
+        cloud_init_storage_pool: ${{ inputs.cloud_init_storage_pool }}
+        ssh_public_keys: ${{ inputs.ssh_public_keys }}
+
+    - name: Setup Packer
+      uses: hashicorp/setup-packer@main
+      with:
+        version: ${{ inputs.packer_version }}

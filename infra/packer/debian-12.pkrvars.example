@@ -15,7 +15,7 @@
 # ---- Proxmox connection (mirrors proxmox-connection module) ----
 # Connection variables are defined in connection-vars.pkr.hcl (generated from schema).
 # Override them here or via PKR_VAR_ environment variables.
-proxmox_endpoint      = "https://xps-pve:8006"
+proxmox_endpoint      = "https://<proxmox-tailnet-host>:8006"
 proxmox_api_token     = "USER@REALM!TOKENID=TOKEN_SECRET"
 proxmox_node_name     = "pve"
 proxmox_insecure_tls  = true

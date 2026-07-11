@@ -26,7 +26,7 @@ Phase 2A does one thing on purpose: create Proxmox VMs and LXCs from git, safely
 
 ## What phase 2A includes
 
-- OpenTofu modules for one VM and one LXC.
+- OpenTofu modules for VM and LXC resources.
 - Terramate for stack management, code generation, and change detection.
 - Packer config for building VM templates from ISOs.
 - GitHub Actions workflows for validate, plan, apply, and Packer builds.
@@ -51,8 +51,9 @@ Phase 2A does one thing on purpose: create Proxmox VMs and LXCs from git, safely
 4. [04 - OpenTofu VM/LXC provisioning](./04-opentofu-vm-lxc.md)
 5. [05 - R2 state backend](./05-r2-state-backend.md)
 6. [06 - GitHub Environments](./06-github-environments.md)
-7. [Server hardening baseline](./server-hardening-baseline.md)
-8. [Security sources](./security-sources.md)
+7. [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.md)
+8. [Server hardening baseline](./server-hardening-baseline.md)
+9. [Security sources](./security-sources.md)
 
 ## Setup checklist
 

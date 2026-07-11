@@ -27,13 +27,38 @@ OAuth credentials are preferred over auth keys because they don't expire and don
 
 Create an OAuth client in the [Tailscale admin console](https://login.tailscale.com/admin/settings/oauth):
 
-- The client needs the **"Create ephemeral nodes"** scope.
-- Tag the client with `tag:ci-runner` (or your chosen tag).
+- Choose **Custom scopes**, not **All - Read & Write**.
+- Under **Keys**, grant only **Auth Keys → Write**. Leave DNS, policy file, users, devices, OAuth keys, logging, and settings unchecked.
+- Configure the client to create ephemeral nodes tagged with `tag:ci-runner` (or your chosen CI tag).
 - Save the **Client ID** and **Client Secret**.
 
 Then set these as GitHub secrets named `TAILSCALE_OAUTH_CLIENT_ID` and `TAILSCALE_OAUTH_SECRET` (see [Step 6 - GitHub Environments](./06-github-environments.md)).
 
 > **Note**: Auth keys still work but need periodic rotation. OAuth credentials are the recommended approach for CI/CD pipelines.
+
+### CI runner tag setup
+
+Create a tag named `ci-runner` in the Tailscale admin console. In policy syntax this is `tag:ci-runner`, but the UI may ask for the tag name without the `tag:` prefix.
+
+For **Tag owner**, choose the narrowest owner that should be allowed to assign this tag:
+
+- Personal lab: choose your own identity, for example `<your-github-identity>`.
+- Team lab: choose `autogroup:admin` if any tailnet admin should be able to assign it.
+
+Avoid broad owners such as `autogroup:member` for CI/security tags. Do not use `autogroup:tagged` unless you intentionally want already-tagged devices to assign this tag.
+
+Recommended tag-owner policy shape:
+
+```json
+{
+  "tagOwners": {
+    "tag:ci-runner": ["<your-github-identity>"],
+    "tag:autolab": ["<your-github-identity>"]
+  }
+}
+```
+
+Use `autogroup:admin` instead of your identity if you want any tailnet admin to manage these tags.
 
 ## Tailscale ACL
 
@@ -47,7 +72,7 @@ Example ACL snippet:
     {
       "action": "accept",
       "src": ["tag:ci-runner"],
-      "dst": ["tag:autolab:80", "tag:autolab:443"]
+      "dst": ["tag:autolab:8006"]
     }
   ]
 }
@@ -70,7 +95,12 @@ If your Proxmox host is tagged (e.g. `tag:autolab`), the runner needs a route to
 |----------|--------|----------|---------|
 | `opentofu-ci.yml` | `ubuntu-latest` | No | format and static validation |
 | `opentofu-plan.yml` | `ubuntu-latest` | Yes | real plan against Proxmox, optional plan artifacts |
-| `opentofu-apply.yml` | `ubuntu-latest` | Yes | approved apply from a fresh plan or saved binary plan |
+| `opentofu-apply.yml` | `ubuntu-latest` | Yes | apply from a fresh plan or saved binary plan |
+
+**The gate between plan and apply:**
+
+- **Enterprise plans:** use environment "Required reviewers" on `autolab-apply`
+- **Free/Team plans:** the apply workflow is `workflow_dispatch` only and requires a manual `confirm: apply` input. You must deliberately run the workflow and type `apply`. That is your human-in-the-loop gate.
 
 ## Caching and artifacts
 
@@ -112,6 +142,9 @@ Each OpenTofu workflow writes a GitHub job summary:
 Sources:
 
 - [tailscale/github-action](https://github.com/tailscale/github-action)
+- [Tailscale OAuth clients](https://tailscale.com/kb/1215/oauth-clients)
+- [Tailscale trust credentials scopes](https://tailscale.com/kb/1623/trust-credentials#scopes)
+- [Tailscale tags](https://tailscale.com/kb/1068/tags)
 - [Tailscale ephemeral auth keys](https://tailscale.com/kb/1111/ephemeral-nodes)
 - [GitHub dependency caching](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows)
 - [GitHub workflow artifacts](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/storing-and-sharing-data-from-a-workflow)

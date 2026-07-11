@@ -1,22 +1,3 @@
-locals {
-  normalized_machines = {
-    for key, machine in var.machines : key => merge(machine, {
-      node_name          = coalesce(machine.node_name, module.proxmox.node_name)
-      admin_username     = coalesce(machine.admin_username, var.identity_defaults.admin_username)
-      network_bridge     = var.network_defaults.network_bridge
-      vlan_id            = var.network_defaults.vlan_id
-      ssh_public_keys    = var.identity_defaults.ssh_public_keys
-      tags               = concat(var.common_tags, [machine.type])
-      tailscale_auth_key = var.tailscale_auth_key
-    })
-  }
-
-  vm_machines = {
-    for key, machine in local.normalized_machines : key => machine
-    if machine.type == "vm"
-  }
-}
-
 module "proxmox" {
   source = "../../modules/proxmox-connection"
 
@@ -26,20 +7,30 @@ module "proxmox" {
   node_name    = var.proxmox_node_name
 }
 
+module "machine_inputs" {
+  source = "../../modules/machine-normalization"
+
+  machines          = var.machines
+  default_node_name = module.proxmox.node_name
+  network_defaults  = var.network_defaults
+  identity_defaults = var.identity_defaults
+  common_tags       = var.common_tags
+}
+
 module "cloud_init" {
-  for_each = local.vm_machines
+  for_each = module.machine_inputs.vm_machines
 
   source = "../../modules/cloud-init"
 
   hostname           = each.value.name
   admin_username     = each.value.admin_username
   ssh_public_keys    = each.value.ssh_public_keys
-  tailscale_auth_key = each.value.tailscale_auth_key
+  tailscale_auth_key = var.tailscale_auth_key
 }
 
 module "machine" {
   source   = "../../modules/proxmox-compute"
-  for_each = local.normalized_machines
+  for_each = module.machine_inputs.normalized_machines
 
   # Type selector
   type = each.value.type

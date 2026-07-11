@@ -36,8 +36,9 @@ Set these at the repository or organization level:
 
 | Variable | Meaning |
 |----------|---------|
-| `PROXMOX_HOST` | Proxmox Tailscale hostname (e.g. `xps-pve`) |
+| `PROXMOX_HOST` | Proxmox Tailscale hostname (e.g. `<proxmox-host>`) |
 | `PROXMOX_NODE_NAME` | Proxmox node name (e.g. `pve`) |
+| `PROXMOX_INSECURE_TLS` | Optional; `true` for Proxmox's default self-signed certificate |
 
 ### Environment Secrets (sensitive)
 
@@ -45,7 +46,7 @@ Store these in GitHub Environments:
 
 | Secret | Meaning |
 |--------|---------|
-| `PROXMOX_ENDPOINT` | Example: `https://xps-pve:8006` (use Tailscale hostname) |
+| `PROXMOX_ENDPOINT` | Example: `https://<proxmox-tailnet-host>:8006` (Tailscale MagicDNS; IP `https://<tailscale-ip>:8006` also works) |
 | `PROXMOX_API_TOKEN` | Provider token value |
 | `AUTOLAB_ADMIN_SSH_PUBLIC_KEY` | Public key injected into VMs/LXCs |
 | `TAILSCALE_OAUTH_CLIENT_ID` | Tailscale OAuth client ID for CI runners |

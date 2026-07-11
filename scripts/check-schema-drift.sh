@@ -20,6 +20,9 @@ run_check() {
 run_check "Connection adapter drift" \
   bash "${REPO_ROOT}/scripts/generate-connection-adapters.sh" --check
 
+run_check "Packer template adapter drift" \
+  bash "${REPO_ROOT}/scripts/generate-packer-template-adapters.sh" --check
+
 run_check "Network env adapter drift" \
   bash "${REPO_ROOT}/scripts/generate-network-env-adapters.sh" --check
 

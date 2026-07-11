@@ -128,26 +128,7 @@ jobs:
         if: inputs.plan_mode == 'fresh'
         id: fresh_plan
         working-directory: ${{ needs.preflight.outputs.env_dir }}
-        run: |
-          set +e
-          tofu plan -input=false -no-color -detailed-exitcode -parallelism=${{ inputs.parallelism || '1' }} -out=tfplan > plan.txt
-          exit_code=$?
-          set -e
-
-          if [ "$exit_code" -eq 0 ]; then
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
-          elif [ "$exit_code" -eq 2 ]; then
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
-          else
-            cat plan.txt
-            exit "$exit_code"
-          fi
-
-          tofu show -no-color tfplan > plan.txt
-          cat plan.txt
-
-          summary_line="$(grep -E '^(Plan:|No changes\.)' plan.txt | tail -n 1 || true)"
-          echo "summary_line=${summary_line:-Fresh plan completed.}" >> "$GITHUB_OUTPUT"
+        run: bash ${{ github.workspace }}/scripts/tofu-plan.sh --parallelism "${{ inputs.parallelism || '1' }}" --summary-default "Fresh plan completed."
 
       - name: Apply fresh plan
         if: inputs.plan_mode == 'fresh'

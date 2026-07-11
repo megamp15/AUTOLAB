@@ -32,49 +32,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve Packer template
-        run: bash scripts/resolve-packer-template.sh "${{ inputs.template }}" --github-env
-
-      - uses: ./.github/actions/connect-tailscale
+      - uses: ./.github/actions/setup-packer-pipeline
         with:
-          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
-
-      - uses: ./.github/actions/configure-proxmox-connection
-        with:
+          template: ${{ inputs.template }}
+          tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          tailscale_oauth_secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
           proxmox_endpoint: ${{ secrets.PROXMOX_ENDPOINT }}
           proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
           proxmox_node_name: ${{ vars.PROXMOX_NODE_NAME }}
           proxmox_insecure_tls: ${{ vars.PROXMOX_INSECURE_TLS || 'true' }}
-          emit_tf_vars: 'false'
-          emit_packer_vars: 'true'
-
-      - name: Configure Packer build variables
-        shell: bash
-        env:
-          AUTOLAB_PACKER_SSH_PASSWORD: ${{ secrets.PACKER_SSH_PASSWORD }}
-          AUTOLAB_PROXMOX_STORAGE_POOL: ${{ vars.PROXMOX_STORAGE_POOL }}
-          AUTOLAB_PROXMOX_NETWORK_BRIDGE: ${{ vars.PROXMOX_NETWORK_BRIDGE }}
-          AUTOLAB_PACKER_ISO_FILE: ${{ vars.PACKER_ISO_FILE }}
-          AUTOLAB_PACKER_ISO_CHECKSUM: ${{ vars.PACKER_ISO_CHECKSUM }}
-          AUTOLAB_PROXMOX_CLOUD_INIT_STORAGE_POOL: ${{ vars.PROXMOX_CLOUD_INIT_STORAGE_POOL }}
-          AUTOLAB_SSH_PUBLIC_KEYS: ${{ vars.SSH_PUBLIC_KEYS }}
-        run: |
-          source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
-
-          append_github_env "PKR_VAR_ssh_password" "$AUTOLAB_PACKER_SSH_PASSWORD"
-          append_github_env "PKR_VAR_storage_pool" "$AUTOLAB_PROXMOX_STORAGE_POOL"
-          append_github_env "PKR_VAR_network_bridge" "$AUTOLAB_PROXMOX_NETWORK_BRIDGE"
-          append_github_env "PKR_VAR_iso_file" "$AUTOLAB_PACKER_ISO_FILE"
-          append_github_env "PKR_VAR_iso_checksum" "$AUTOLAB_PACKER_ISO_CHECKSUM"
-
-          if [[ -n "$AUTOLAB_PROXMOX_CLOUD_INIT_STORAGE_POOL" ]]; then
-            append_github_env "PKR_VAR_cloud_init_storage_pool" "$AUTOLAB_PROXMOX_CLOUD_INIT_STORAGE_POOL"
-          fi
-
-          if [[ -n "$AUTOLAB_SSH_PUBLIC_KEYS" ]]; then
-            append_github_env "PKR_VAR_ssh_public_keys" "$AUTOLAB_SSH_PUBLIC_KEYS"
-          fi
+          ssh_password: ${{ secrets.PACKER_SSH_PASSWORD }}
+          storage_pool: ${{ vars.PROXMOX_STORAGE_POOL }}
+          network_bridge: ${{ vars.PROXMOX_NETWORK_BRIDGE }}
+          iso_file: ${{ vars.PACKER_ISO_FILE }}
+          iso_checksum: ${{ vars.PACKER_ISO_CHECKSUM }}
+          cloud_init_storage_pool: ${{ vars.PROXMOX_CLOUD_INIT_STORAGE_POOL }}
+          ssh_public_keys: ${{ vars.SSH_PUBLIC_KEYS }}
 
       - name: Verify Tailscale connectivity
         run: |
@@ -92,11 +65,6 @@ jobs:
           echo "${{ secrets.PVE_SSH_PRIVATE_KEY }}" > ~/.ssh/pve_ci_key
           chmod 600 ~/.ssh/pve_ci_key
           ssh-keyscan -H ${{ vars.PROXMOX_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
-
-      - name: Setup Packer
-        uses: hashicorp/setup-packer@main
-        with:
-          version: "1.12.0"
 
       - name: Initialize Packer
         working-directory: ${{ env.AUTOLAB_PACKER_TEMPLATE_DIR }}
