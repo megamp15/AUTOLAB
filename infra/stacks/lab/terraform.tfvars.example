@@ -23,16 +23,19 @@ tailscale_auth_key = ""  # Set to an ephemeral reusable key for VMs
 common_tags = ["autolab", "gitops", "phase-2a"]
 
 # ---- Machines ----
-# Add machines here. Each entry needs a type ("vm" or "lxc") and
-# type-specific fields. Shared defaults come from the per-concern variables above.
+# Add machines here. Each entry needs a type ("vm" or "lxc"), a
+# provisioning_class ("builder_target" today; "cluster_os" is reserved for
+# future Talos-style experiments), and type-specific fields. Shared defaults
+# come from the per-concern variables above.
 machines = {
   example_vm = {
-    type       = "vm"
-    name       = "example-vm"
-    vm_id      = 100
-    node_name  = "pve"
+    type               = "vm"
+    provisioning_class = "builder_target"
+    name               = "example-vm"
+    vm_id              = 100
+    node_name          = "pve"
 
-    # VM-specific
+    # VM-specific — default 9000 matches debian-12 in template-catalog.yaml
     template_vm_id          = 9000
     cloud_init_datastore_id = "local-lvm"
     datastore_id            = "local-lvm"
@@ -40,13 +43,15 @@ machines = {
     memory_mb               = 2048
     disk_size_gb            = 20
     ipv4_address            = "dhcp"
+    tags                    = ["experiment:debian-template-smoke"]
   }
 
   # Example LXC (uncomment to enable)
   # example_lxc = {
-  #   type       = "lxc"
-  #   name       = "example-lxc"
-  #   vm_id      = 101
+  #   type               = "lxc"
+  #   provisioning_class = "builder_target"
+  #   name               = "example-lxc"
+  #   vm_id              = 101
   #
   #   # LXC-specific
   #   template_file_id = "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst"
@@ -55,5 +60,21 @@ machines = {
   #   memory_mb        = 512
   #   disk_size_gb     = 8
   #   ipv4_address     = "dhcp"
+  #   tags             = ["experiment:lxc-smoke"]
+  # }
+  #
+  # Cluster OS experiments are documented but not wired yet. Keep Talos here
+  # as a comment until the cluster_os implementation exists.
+  # talos_cp_01 = {
+  #   type               = "vm"
+  #   provisioning_class = "cluster_os"
+  #   name               = "talos-cp-01"
+  #   vm_id              = 200
+  #   datastore_id       = "local-lvm"
+  #   cpu_cores          = 4
+  #   memory_mb          = 8192
+  #   disk_size_gb       = 32
+  #   ipv4_address       = "dhcp"
+  #   tags               = ["experiment:talos", "talos:control-plane"]
   # }
 }

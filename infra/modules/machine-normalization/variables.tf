@@ -8,7 +8,8 @@
 variable "machines" {
   description = "Raw Machine declarations from the Stack."
   type = map(object({
-    type = string
+    type               = string
+    provisioning_class = optional(string, "builder_target")
 
     # Identity
     name      = string
@@ -32,9 +33,17 @@ variable "machines" {
     disk_size_gb = number
     ipv4_address = optional(string, "dhcp")
     ipv4_gateway = optional(string, null)
+    tags         = optional(list(string), [])
     started      = optional(bool, true)
   }))
   default = {}
+  validation {
+    condition = alltrue([
+      for _, machine in var.machines :
+      contains(["builder_target", "cluster_os"], machine.provisioning_class)
+    ])
+    error_message = "Each Machine provisioning_class must be \"builder_target\" or \"cluster_os\"."
+  }
 }
 
 variable "default_node_name" {

@@ -38,7 +38,7 @@ Autolab is a **custom, learning-first homelab** you build yourself: versioned do
 - [x] GitHub Actions CI, plan, and apply workflows (ephemeral Tailscale runner)
 - [x] Cloudflare R2 state backend + Packer template scaffold
 - [x] Packer VM template build workflow
-- [x] Schema-driven code generation (connection schema → OpenTofu/Packer adapters, network env schema → env file + validation)
+- [x] Schema-driven code generation (connection, Packer template, and network env schemas → generated adapters)
 - [x] Production-readiness checks for retry behaviour, R2 setup output, cloud-init Tailscale enrollment, and generated adapter validation
 - [x] Builder/Ansible scaffold for provider-neutral server baseline roles
 - [ ] Ansible hardening roles (users, SSH, firewall, updates, Tailscale, deploy user)

@@ -15,8 +15,9 @@ infra/
   terramate.tm.hcl          # Terramate project config + global defaults (R2 bucket, etc.)
   modules/                  # Shared OpenTofu modules
     proxmox-connection/     # Proxmox connection validation and derived values
+    machine-normalization/  # Merges defaults; filters builder_target vs cluster_os
     proxmox-compute/        # Unified VM and LXC module (type = "vm" | "lxc")
-    cloud-init/             # Cloud-init user-data composition (base + owned Tailscale enrollment)
+    cloud-init/             # Cloud-init user-data composition (base + optional Tailscale enrollment)
   stacks/
     lab/                    # First homelab environment
       stack.tm.hcl
@@ -26,9 +27,11 @@ infra/
       terraform.tfvars.example
   _base/
     providers.tm.hcl        # Generates providers.tf for all stacks
-    backend.tm.hcl           # Generates versions.tf (backend + required_providers) for all stacks
+    backend.tm.hcl          # Generates versions.tf (backend + required_providers) for all stacks
     connection-variables.tm.hcl # Generates _connection-variables.tf for all stacks
-  packer/                   # Packer builds for VM templates
+  packer/
+    template-catalog.yaml   # Implemented templates + documented experiments
+    templates/              # Per-OS Packer modules (e.g. templates/debian-12/)
 ```
 
 ## Prerequisites
@@ -63,6 +66,10 @@ tofu plan
 
 Do not commit `terraform.tfvars`, state files, plan files, or secrets.
 
+The `machines` map in `terraform.tfvars` defines which VMs/LXCs to create. It is
+gitignored and not injected by GitHub Actions today — CI plan/apply smoke tests
+run with `machines = {}` unless you apply locally.
+
 ## Adding a new environment
 
 To add a new environment (e.g. `prod`):
@@ -82,6 +89,17 @@ endpoint and web UI URL. The Connection schema (`infra/connection-schema.yaml`)
 is the source of truth for fields and generated adapters. The provider block
 still reads from `var.proxmox_*` directly (an OpenTofu limitation), so this
 module is intentionally validation-only; see ADR-0002.
+
+### machine-normalization
+
+Merges per-machine config with stack defaults (`network_defaults`,
+`identity_defaults`, `common_tags`). Partitions machines by `provisioning_class`:
+
+- `builder_target` — cloud-init + Ansible path; passed to `proxmox-compute`
+- `cluster_os` — recognized but **not wired**; plan fails with a clear error until Talos support lands
+
+The lab stack (`infra/stacks/lab/main.tf`) calls this module before `cloud-init`
+and `proxmox-compute`.
 
 ### proxmox-compute
 

@@ -1,0 +1,42 @@
+# Packer template catalog
+#
+# Implemented templates are runnable from CI and local Packer builds.
+# Experiment entries document disposable learning targets from
+# docs/gitops/template-lab-matrix.md. They are not buildable until promoted
+# into templates with status: implemented.
+
+templates:
+  - name: debian-12
+    status: implemented
+    description: Debian 12 cloud-init template
+    directory: infra/packer/templates/debian-12
+    packer_file: debian-12.pkr.hcl
+    proxmox_template_name: autolab-debian-12-template
+    proxmox_template_vm_id: 9000
+    provisioning_class: builder_target
+    installer: preseed
+
+experiments:
+  - name: ubuntu-24.04
+    status: experiment
+    description: Ubuntu 24.04 server template experiment
+    provisioning_class: builder_target
+    installer: subiquity-autoinstall
+
+  - name: rocky-9
+    status: experiment
+    description: Rocky Linux 9 server template experiment
+    provisioning_class: builder_target
+    installer: kickstart
+
+  - name: alpine
+    status: experiment
+    description: Minimal Alpine Linux template experiment
+    provisioning_class: builder_target
+    installer: alpine-answers
+
+  - name: talos
+    status: experiment
+    description: Talos virtual Kubernetes cluster experiment
+    provisioning_class: cluster_os
+    installer: talosctl

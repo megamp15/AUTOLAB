@@ -3,7 +3,7 @@
 # Single source of truth for the Proxmox connection interface.
 # This schema is referenced by:
 #   - infra/modules/proxmox-connection/ (OpenTofu)
-#   - infra/packer/connection-vars.pkr.hcl (Packer)
+#   - infra/packer/templates/*/connection-vars.pkr.hcl (Packer)
 #   - .github/actions/configure-proxmox-connection/ (CI)
 #
 # When adding or changing a field, define each consumer-facing name here and
@@ -22,7 +22,7 @@ fields:
     module_var: endpoint
     packer_var: proxmox_endpoint
     ci_env: PROXMOX_ENDPOINT
-    ci_source: secret
+    ci_source: variable
     error_message: "Proxmox endpoint must be an HTTPS URL."
     sensitive: false
 

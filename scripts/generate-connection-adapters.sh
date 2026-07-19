@@ -4,7 +4,7 @@
 #
 # Generates:
 #   1. infra/modules/proxmox-connection/variables.tf  (OpenTofu module vars)
-#   2. infra/packer/connection-vars.pkr.hcl            (Packer connection vars, generated)
+#   2. infra/packer/templates/*/connection-vars.pkr.hcl (Packer connection vars, generated)
 #   3. infra/_base/connection-variables.tm.hcl         (Terramate code-gen for stack vars)
 #   4. .github/actions/configure-proxmox-connection/action.yml (CI env adapter)
 #
@@ -184,8 +184,9 @@ HEADER
 
 # --- Generate Packer connection variables (connection fields only) ---
 
-generate_packer() {
-  local out="${REPO_ROOT}/infra/packer/connection-vars.pkr.hcl"
+generate_packer_for_template() {
+  local template_name="$1"
+  local out="${REPO_ROOT}/infra/packer/templates/${template_name}/connection-vars.pkr.hcl"
   local tmp
   tmp="$(mktemp)"
 
@@ -231,7 +232,17 @@ HEADER
     echo "}" >> "$tmp"
   done
 
-  check_or_write "Packer connection variables" "$out" "$tmp"
+  check_or_write "Packer connection variables (${template_name})" "$out" "$tmp"
+}
+
+generate_packer() {
+  local catalog="${REPO_ROOT}/infra/packer/template-catalog.yaml"
+  local template_name
+
+  while IFS= read -r template_name; do
+    [[ -n "${template_name}" ]] || continue
+    generate_packer_for_template "${template_name}"
+  done < <("$YQ" -r '.templates[] | select(.status == "implemented") | .name' "${catalog}")
 }
 
 # --- Generate Terramate code-gen for stack connection variables ---

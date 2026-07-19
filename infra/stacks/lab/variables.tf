@@ -51,9 +51,10 @@ variable "common_tags" {
 # ---- Machines ----
 
 variable "machines" {
-  description = "Map of compute resources to create. Each entry has a type (vm or lxc) and type-specific config. Shared defaults come from var.network_defaults, var.identity_defaults, var.common_tags, and var.tailscale_auth_key (via the cloud-init module)."
+  description = "Map of compute resources to create. Each entry has a type (vm or lxc), a provisioning_class (builder_target or cluster_os), and type-specific config. Shared defaults come from var.network_defaults, var.identity_defaults, var.common_tags, and var.tailscale_auth_key (via the cloud-init module for builder targets)."
   type = map(object({
-    type = string
+    type               = string
+    provisioning_class = optional(string, "builder_target")
     # Identity
     name      = string
     vm_id     = number
@@ -73,7 +74,22 @@ variable "machines" {
     disk_size_gb = number
     ipv4_address = optional(string, "dhcp")
     ipv4_gateway = optional(string, null)
+    tags         = optional(list(string), [])
     started      = optional(bool, true)
   }))
   default = {}
+  validation {
+    condition = alltrue([
+      for _, machine in var.machines :
+      contains(["builder_target", "cluster_os"], machine.provisioning_class)
+    ])
+    error_message = "Each machine provisioning_class must be \"builder_target\" or \"cluster_os\"."
+  }
+  validation {
+    condition = alltrue([
+      for _, machine in var.machines :
+      machine.provisioning_class != "cluster_os"
+    ])
+    error_message = "Cluster OS machines are recognized as disposable experiments, but the Talos/OpenTofu implementation is not wired yet. Keep them in docs or comments until the cluster_os path is implemented."
+  }
 }

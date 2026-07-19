@@ -29,21 +29,47 @@ The schema stores the Proxmox token as `USER@REALM!TOKENID=TOKEN_SECRET`;
 the Packer template splits that value into the `username` and `token` fields
 required by the Proxmox Packer plugin.
 
+## Before the first build
+
+The Debian template is ready to test once these operator-owned values exist:
+
+1. Proxmox has the installer ISO uploaded to ISO storage.
+   Current default: `local:iso/debian-12.13.0-amd64-netinst.iso`.
+2. GitHub repository variables describe the Proxmox node:
+   `PROXMOX_HOST`, `PROXMOX_ENDPOINT`, `PROXMOX_NODE_NAME`, `PROXMOX_STORAGE_POOL`,
+   `PROXMOX_NETWORK_BRIDGE`, `PACKER_ISO_FILE`, and `SSH_PUBLIC_KEYS`.
+3. GitHub repository secrets provide credentials:
+   `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`,
+   `PROXMOX_API_TOKEN`, and `PACKER_SSH_PASSWORD`.
+
+`PACKER_SSH_PASSWORD` is not an SSH key you generate. It is a temporary
+installer password used only while Packer connects to the build VM during the
+image build. The template locks the temporary account before converting the VM
+to a reusable template. Use a generated random password for GitHub; it does not
+need to match your Proxmox root password or laptop SSH key.
+
 ## Layout
 
 ```text
 infra/packer/
 ├── README.md                  # this file
-├── connection-vars.pkr.hcl   # Proxmox connection variables (generated from schema)
-├── template-vars.pkr.hcl     # Template-specific variables (hand-maintained)
-├── debian-12.pkr.hcl         # Debian 12 cloud-init template build
-├── debian-12-preseed.cfg.tpl # preseed template for automated install
-└── debian-12.pkrvars.example # example variable overrides (copy to .pkrvars.hcl)
+├── template-schema.yaml       # Packer template CI vocabulary
+└── templates/
+    └── debian-12/
+        ├── connection-vars.pkr.hcl   # generated Proxmox connection variables
+        ├── template-vars.pkr.hcl     # Debian-specific variables
+        ├── debian-12.pkr.hcl         # Debian 12 cloud-init template build
+        ├── debian-12-preseed.cfg.tpl # preseed template for automated install
+        └── debian-12.pkrvars.example # example overrides
 ```
 
-The Packer template catalog seam is `scripts/resolve-packer-template.sh`.
-Callers choose a template name such as `debian-12`; the script owns the mapping
-to the Packer directory, template file, and description used by CI.
+The Packer template catalog lives in `template-catalog.yaml`. Only entries with
+`status: implemented` are buildable. Disposable experiment ideas stay in the same
+catalog under `experiments` and in `docs/gitops/template-lab-matrix.md` until
+they are promoted.
+
+`scripts/resolve-packer-template.sh` resolves implemented catalog entries to
+the Packer directory, template file, Proxmox template identity, and CI metadata.
 
 The Packer CI setup seam is `.github/actions/setup-packer-pipeline`. It resolves
 the catalog entry, joins Tailscale, emits Connection variables for Packer, emits
@@ -55,9 +81,9 @@ they contain secrets like API tokens. Copy the `.example` file and fill in your
 values:
 
 ```bash
-cp infra/packer/debian-12.pkrvars.example infra/packer/debian-12.pkrvars.hcl
-# edit infra/packer/debian-12.pkrvars.hcl with your values
-cd infra/packer
+cp infra/packer/templates/debian-12/debian-12.pkrvars.example infra/packer/templates/debian-12/debian-12.pkrvars.hcl
+# edit infra/packer/templates/debian-12/debian-12.pkrvars.hcl with your values
+cd infra/packer/templates/debian-12
 packer init .
 packer validate -var-file=debian-12.pkrvars.hcl .
 packer build -var-file=debian-12.pkrvars.hcl .
@@ -65,24 +91,24 @@ packer build -var-file=debian-12.pkrvars.hcl .
 
 ## Configurable variables
 
-Connection variables are **auto-generated** from `infra/connection-schema.yaml` by `scripts/generate-connection-adapters.sh`. They live in `connection-vars.pkr.hcl` — do not edit that file manually.
+Connection variables are **auto-generated** from `infra/connection-schema.yaml` by `scripts/generate-connection-adapters.sh`. They live in each implemented template directory as `connection-vars.pkr.hcl` — do not edit those files manually.
 
-Template-specific Packer variables are **hand-maintained** in `template-vars.pkr.hcl`. Their GitHub CI vocabulary is defined in `template-schema.yaml` and rendered to `.github/actions/configure-packer-template/action.yml` by `scripts/generate-packer-template-adapters.sh`. Override values via `.pkrvars.hcl` files, `PKR_VAR_` environment variables, or GitHub vars/secrets in CI.
+Template-specific Packer variables are **hand-maintained** in each template directory's `template-vars.pkr.hcl`. Their GitHub CI vocabulary is defined in `template-schema.yaml` and rendered to `.github/actions/configure-packer-template/action.yml` by `scripts/generate-packer-template-adapters.sh`. Override values via `.pkrvars.hcl` files, `PKR_VAR_` environment variables, or GitHub vars/secrets in CI.
 
 For now, `template-schema.yaml` generates only the `configure-packer-template` adapter. The `setup-packer-pipeline` inputs and the `packer-build.yml` `with:` block still forward those values manually. That is intentional while Autolab has one Packer template; generate that forwarding only after adding another template or after variable churn proves the manual forwarding is causing drift.
 
 | Variable | Default | Secret? | Description |
 |---|---|---|---|
-| `proxmox_endpoint` | — | Yes | Proxmox API URL |
+| `proxmox_endpoint` | — | No | Proxmox API URL |
 | `proxmox_api_token` | — | Yes | Proxmox API token in `USER@REALM!TOKENID=TOKEN_SECRET` format; the Packer template splits it for plugin auth |
 | `proxmox_node_name` | — | No | Proxmox node name |
 | `proxmox_insecure_tls` | `true` | No | Skip TLS verification |
 | `storage_pool` | `local-lvm` | No | Storage pool for VM disks |
 | `cloud_init_storage_pool` | `null` (defaults to `storage_pool`) | No | Separate pool for cloud-init drive |
-| `iso_file` | `local:iso/debian-12.8.0-amd64-netinst.iso` | No | Proxmox ISO storage path |
+| `iso_file` | `local:iso/debian-12.13.0-amd64-netinst.iso` | No | Proxmox ISO storage path |
 | `iso_checksum` | `""` (skip verification) | No | ISO checksum (e.g. `sha256:abc...`) |
 | `boot_iso_type` | `scsi` | No | Packer boot ISO device type (`scsi`, `ide`, `sata`, `virtio`) |
-| `ssh_password` | `packer` | Yes | Temporary SSH password for provisioning |
+| `ssh_password` | `packer` | Yes | Temporary build-only SSH password for provisioning |
 | `network_bridge` | `vmbr0` | No | Proxmox bridge for build VM |
 | `vm_template_name` | `autolab-debian-12-template` | No | Template name |
 | `vm_id_base` | `9000` | No | Starting VM ID |
@@ -94,7 +120,7 @@ In the Packer workflow, these map to GitHub repository variables and secrets:
 
 | Packer variable | GitHub type | GitHub name |
 |---|---|---|
-| `proxmox_endpoint` | Secret | `PROXMOX_ENDPOINT` |
+| `proxmox_endpoint` | Variable | `PROXMOX_ENDPOINT` |
 | `proxmox_api_token` | Secret | `PROXMOX_API_TOKEN` |
 | `ssh_password` | Secret | `PACKER_SSH_PASSWORD` |
 | `proxmox_node_name` | Variable | `PROXMOX_NODE_NAME` |
@@ -108,17 +134,32 @@ In the Packer workflow, these map to GitHub repository variables and secrets:
 
 ## Adding new templates
 
-Add a new `.pkr.hcl` file for each OS variant (e.g. `ubuntu-24.04.pkr.hcl`).
-Share connection variables through `connection-vars.pkr.hcl` (generated) and template-specific variables through `template-vars.pkr.hcl`. Override with environment
-variable files as needed.
+See [docs/gitops/template-lab-matrix.md](../../docs/gitops/template-lab-matrix.md)
+for the disposable experiment menu and [template-catalog.yaml](./template-catalog.yaml)
+for implemented templates plus documented experiment targets.
 
-Then add the template name to `scripts/resolve-packer-template.sh` so CI callers
-do not need to know template file paths.
+Add a new directory under `infra/packer/templates/` for each implemented OS
+template (for example `templates/ubuntu-24.04/`). Each template owns its Packer
+implementation, installer automation, `template-vars.pkr.hcl`, and example
+`.pkrvars.hcl` file.
+
+Then promote the template in `template-catalog.yaml` with `status: implemented`
+so CI callers can resolve it through `scripts/resolve-packer-template.sh`.
+
+The current checked-in build is Debian-specific because it uses Debian preseed.
+Ubuntu Server uses Subiquity autoinstall instead, so Ubuntu support should be a
+separate template implementation rather than a catalog alias for `debian-12`.
+The workflow resolves one implemented template and runs Packer only inside that
+template directory.
+
+Talos is a cluster OS target, not a normal cloud-init server template. Start it
+as an OpenTofu plus `talosctl` path using Talos Image Factory assets before
+deciding whether Packer adds value.
 
 ## Deferred enhancements
 
 Stop here until real use proves more depth is needed:
 
 - Generate `setup-packer-pipeline` inputs and workflow forwarding from `template-schema.yaml` only if adding template variables becomes repetitive.
-- Expand `template-schema.yaml` to cover all of `template-vars.pkr.hcl` only when a second template needs different build defaults.
+- Expand `template-schema.yaml` to cover all per-template `template-vars.pkr.hcl` files only when a second template needs different build defaults.
 - Keep Stack wiring hand-written until a second real Stack proves the shape, per ADR-0003.

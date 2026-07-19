@@ -79,11 +79,14 @@ Terramate generates provider and backend configs so each stack directory stays c
 ```text
 infra/
   terramate.tm.hcl
-  modules/proxmox-connection/
-  modules/proxmox-compute/
-  modules/cloud-init/
+  modules/
+    proxmox-connection/
+    machine-normalization/   # merges defaults; filters provisioning_class
+    proxmox-compute/
+    cloud-init/
   stacks/lab/
   _base/
+  packer/templates/debian-12/   # Packer-built cloud-init template (VM ID 9000)
 ```
 
 Copy the example variables:
@@ -96,11 +99,25 @@ Edit the copied file with your own values. Do not commit it.
 
 The CI workflows use the generated `configure-proxmox-connection` action to map schema-driven connection values into the correct secrets and variables before running OpenTofu.
 
-The `terraform.tfvars.example` uses a `machines` map variable with `for_each` to declare VMs and LXCs by key name. Shared settings come from four per-concern variables — `network_defaults`, `identity_defaults`, `tailscale_auth_key`, and `common_tags` — that apply to all machines unless overridden per entry. VMs get cloud-init composed per machine by the `cloud-init` module, which takes a hostname and emits a single `#cloud-config` document with base qemu-guest-agent setup plus optional Tailscale enrollment.
+The `terraform.tfvars.example` uses a `machines` map with `for_each`. Each machine
+has a `type` (`vm` or `lxc`) and `provisioning_class` (`builder_target` today;
+`cluster_os` is reserved for Talos experiments and **blocked at plan time** until
+wired). Shared settings come from `network_defaults`, `identity_defaults`,
+`tailscale_auth_key`, and `common_tags`.
 
-The `cloud-init` module owns Tailscale install, join, retry, and logging command composition. The existing `tailscale_auth_key` variable is enough for the default path; module variables also let you tune retry attempts, retry delay, `--accept-routes`, extra `tailscale up` arguments, and the VM log path without editing generated user-data by hand.
+The `machine-normalization` module merges those defaults per machine. The lab
+stack provisions only `builder_target` machines. VMs get cloud-init from the
+`cloud-init` module (admin user, SSH keys, qemu-guest-agent, optional Tailscale).
 
-To add a machine, add a new key to the `machines` map with `type = "vm"` or `type = "lxc"` plus the type-specific fields. Set `node_name` on a machine only when you want to place it on a Proxmox node other than the stack default. `proxmox-compute` validates the type-specific requirements at plan time: VMs need `template_vm_id`, VMs with cloud-init user-data need `cloud_init_datastore_id`, and LXCs need `template_file_id`.
+**CI today:** GitHub Actions injects Proxmox/R2 connection settings from secrets
+and variables. The `machines` map is **not** injected — it lives in local
+`terraform.tfvars` (gitignored). A CI plan with no local tfvars shows **No changes**.
+To create a VM, add a machine entry locally and run `tofu apply`, or use GitHub
+Apply after you have a tfvars file on the runner (not supported yet).
+
+To add a machine, add a key to `machines` with `type = "vm"` or `type = "lxc"`.
+Set `node_name` only when placing on a node other than the stack default.
+`proxmox-compute` validates type-specific fields at plan time.
 
 ## Local commands
 
@@ -114,8 +131,13 @@ tofu validate
 tofu plan
 ```
 
-Apply should normally happen through the protected GitHub Actions workflow once the runner is ready.
-The apply workflow uses `scripts/tofu-apply-with-retry.sh`, which delegates retry behaviour to `scripts/lib/retry.sh` so retry attempts, exhaustion, and delay behaviour are covered by bats tests.
+Apply through GitHub Actions reconciles whatever is in `var.machines`. With the
+default empty map, apply changes nothing. To create VMs today, define machines in
+local `terraform.tfvars` and run `tofu apply` locally (or dispatch GitHub Apply
+once CI can read your inventory).
+
+The apply workflow uses `scripts/tofu-apply-with-retry.sh`, which delegates retry
+behaviour to `scripts/lib/retry.sh`.
 
 ## GitHub apply modes
 

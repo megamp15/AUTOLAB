@@ -39,7 +39,7 @@ jobs:
           template: ${{ inputs.template }}
           tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           tailscale_oauth_secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
-          proxmox_endpoint: ${{ secrets.PROXMOX_ENDPOINT }}
+          proxmox_endpoint: ${{ vars.PROXMOX_ENDPOINT }}
           proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
           proxmox_node_name: ${{ vars.PROXMOX_NODE_NAME }}
           proxmox_insecure_tls: ${{ vars.PROXMOX_INSECURE_TLS || 'true' }}

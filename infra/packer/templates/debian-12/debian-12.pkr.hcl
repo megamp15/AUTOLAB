@@ -100,7 +100,7 @@ source "proxmox-iso" "debian-12" {
   # SSH access for provisioning
   communicator = "ssh"
   ssh_username = var.ssh_username
-  ssh_password = var.ssh_password # temporary; changed by cloud-init on cloned VMs
+  ssh_password = var.ssh_password # temporary build-only password; account is locked before templating
   ssh_timeout  = var.ssh_timeout
 
   # Convert to template after provisioning

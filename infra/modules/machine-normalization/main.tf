@@ -6,12 +6,22 @@ locals {
       network_bridge  = var.network_defaults.network_bridge
       vlan_id         = var.network_defaults.vlan_id
       ssh_public_keys = var.identity_defaults.ssh_public_keys
-      tags            = concat(var.common_tags, [machine.type])
+      tags            = concat(var.common_tags, [machine.type, machine.provisioning_class], machine.tags)
     })
   }
 
-  vm_machines = {
+  builder_target_machines = {
     for key, machine in local.normalized_machines : key => machine
-    if machine.type == "vm"
+    if machine.provisioning_class == "builder_target"
+  }
+
+  builder_target_vm_machines = {
+    for key, machine in local.normalized_machines : key => machine
+    if machine.type == "vm" && machine.provisioning_class == "builder_target"
+  }
+
+  cluster_os_machines = {
+    for key, machine in local.normalized_machines : key => machine
+    if machine.provisioning_class == "cluster_os"
   }
 }

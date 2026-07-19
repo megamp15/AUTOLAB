@@ -4,9 +4,9 @@ status: draft
 audience: operator
 ---
 
-# Phase 2A setup checklist
+# Phase 2 setup checklist
 
-Every manual step needed to go from "Proxmox is installed and on Tailscale" to "GitOps is fully operational."
+From "Proxmox is installed and on Tailscale" to working CI pipelines and your first disposable VM.
 
 Complete these in order. Each step links to the relevant guide for details.
 
@@ -96,23 +96,26 @@ GitHub Environments group secrets. **Required reviewers is an Enterprise-only fe
 | Variable | Value |
 |----------|-------|
 | `PROXMOX_HOST` | Your Proxmox Tailscale hostname (e.g. `<proxmox-host>`) |
+| `PROXMOX_ENDPOINT` | `https://<tailscale-magicdns>:8006` (e.g. `https://<proxmox-tailnet-host>:8006`) |
 | `PROXMOX_NODE_NAME` | Your Proxmox node name (e.g. `pve`) |
 | `PROXMOX_INSECURE_TLS` | Optional; use `true` for Proxmox's default self-signed certificate |
-| `SSH_PUBLIC_KEYS` | SSH public keys for VM/LXC injection (comma-separated) |
+| `SSH_PUBLIC_KEYS` | SSH public keys for Packer template build (comma-separated) |
+| `PROXMOX_STORAGE_POOL` | Packer: storage pool for template disks (e.g. `local-lvm`) |
+| `PROXMOX_NETWORK_BRIDGE` | Packer: network bridge (e.g. `vmbr0`) |
+| `PACKER_ISO_FILE` | Packer: ISO path (e.g. `local:iso/debian-12.13.0-amd64-netinst.iso`) |
 
-- [ ] Add these secrets to **both** environments:
+- [ ] Add these **secrets** (repository or environment level):
 
 | Secret | Value |
 |--------|-------|
 | `TAILSCALE_OAUTH_CLIENT_ID` | Tailscale OAuth client ID from step 1 |
 | `TAILSCALE_OAUTH_SECRET` | Tailscale OAuth client secret from step 1 |
-| `PROXMOX_ENDPOINT` | `https://<tailscale-magicdns>:8006` (e.g. `https://<proxmox-tailnet-host>:8006`; Tailscale IP also works: `https://<tailscale-ip>:8006`) |
 | `PROXMOX_API_TOKEN` | Full Proxmox API token string from step 3, e.g. `gitops@pve!opentofu=SECRET` |
+| `PACKER_SSH_PASSWORD` | Generated password for Packer Build (temporary, build-only) |
 | `R2_ACCOUNT_ID` | Cloudflare account ID from step 4 |
 | `R2_ACCESS_KEY_ID` | R2 access key ID from step 4 |
 | `R2_SECRET_ACCESS_KEY` | R2 secret access key from step 4 |
-| `AUTOLAB_ADMIN_SSH_PUBLIC_KEY` | Your public SSH key, e.g. output of `cat ~/.ssh/id_ed25519.pub` |
-| `TAILSCALE_VM_AUTHKEY` | Optional for the first no-machine smoke test; later used by VMs/LXCs to join Tailscale |
+| `TAILSCALE_VM_AUTHKEY` | Optional for first plan smoke test; needed when VMs should join Tailscale |
 
 If you already added these as **repository secrets**, the workflows can still read them. Keep going for a personal-lab smoke test, but prefer copying them into `autolab-plan` and `autolab-apply` environment secrets before doing real apply runs.
 
@@ -132,20 +135,20 @@ Packer builds templates from an ISO on your running Proxmox host — no manual s
 - [ ] Copy the Packer variables example:
 
 ```bash
-cp infra/packer/debian-12.pkrvars.example infra/packer/debian-12.pkrvars.hcl
+cp infra/packer/templates/debian-12/debian-12.pkrvars.example infra/packer/templates/debian-12/debian-12.pkrvars.hcl
 ```
 
-- [ ] Edit `infra/packer/debian-12.pkrvars.hcl` with your Proxmox endpoint, API token, node name, and SSH public keys
+- [ ] Edit `infra/packer/templates/debian-12/debian-12.pkrvars.hcl` with your Proxmox endpoint, API token, node name, and SSH public keys
 - [ ] Run Packer from a machine that can reach Proxmox over Tailscale:
 
 ```bash
-cd infra/packer
+cd infra/packer/templates/debian-12
 packer init .
 packer validate -var-file=debian-12.pkrvars.hcl .
 packer build -var-file=debian-12.pkrvars.hcl .
 ```
 
-- [ ] Note the template VM ID (default 9000) — it must match `template_vm_id` in your `terraform.tfvars`
+- [ ] Note the template VM ID (default 9000) — it must match `template_vm_id` in your `terraform.tfvars`. The default comes from `debian-12` in `infra/packer/template-catalog.yaml`.
 
 ### Option B: Create manually (quick start fallback)
 
@@ -213,7 +216,7 @@ cp infra/stacks/lab/terraform.tfvars.example infra/stacks/lab/terraform.tfvars
   - `proxmox_endpoint` — your Proxmox API URL (Tailscale hostname)
   - `proxmox_api_token` — the token from step 3
   - `proxmox_node_name` — your Proxmox node name
-  - `ssh_public_keys` — your public key(s)
+  - `identity_defaults.ssh_public_keys` — your public key(s) for cloned VMs
   - `example_vm.template_vm_id` — the template ID from step 6
   - `example_lxc.template_file_id` — the template file ID from step 7
 
@@ -241,11 +244,11 @@ tofu plan
 
 ## 9. Verify GitHub Actions
 
-- [ ] Push the `feat/gitops` branch to GitHub
+- [ ] Push to `main` (or your working branch) on GitHub
 - [ ] Check that the **OpenTofu CI** workflow runs on push (format + validate)
 - [ ] Manually trigger **OpenTofu Plan** (workflow dispatch) and verify the pipeline initializes, reads R2 backend credentials, and receives the Proxmox/Tailscale connection settings
-- [ ] Treat the first plan as a smoke test. With no committed `terraform.tfvars`, `var.machines` defaults to `{}`, so a clean **No changes** result is expected until you add VM/LXC entries.
-- [ ] Manually trigger **OpenTofu Apply** with `confirm = apply` and verify it creates the VM/LXC
+- [ ] Treat the first plan as a smoke test. With no committed `terraform.tfvars`, `var.machines` defaults to `{}`, so a clean **No changes** result is expected until you add VM/LXC entries locally.
+- [ ] To actually create a VM today, copy `terraform.tfvars.example` to a local `terraform.tfvars`, add your machine entry, then run `tofu plan` and `tofu apply` locally. CI injects Proxmox/R2 connection settings from GitHub secrets and variables, but not the `machines` map.
 
 ---
 
@@ -254,7 +257,7 @@ tofu plan
 The Packer scaffold is in `infra/packer/`. To build templates:
 
 - [ ] Upload a Debian netinst ISO to Proxmox ISO storage
-- [ ] Copy `infra/packer/debian-12.pkrvars.example` to `debian-12.pkrvars.hcl` and fill in values
+- [ ] Copy `infra/packer/templates/debian-12/debian-12.pkrvars.example` to `infra/packer/templates/debian-12/debian-12.pkrvars.hcl` and fill in values
 - [ ] Run `packer init`, `packer validate`, `packer build` from a machine that can reach Proxmox over Tailscale
 - [ ] Or run the existing **Packer Build** GitHub Actions workflow after adding the Packer CI variables/secrets from `infra/packer/README.md`
 

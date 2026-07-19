@@ -24,38 +24,32 @@ Do not use your personal root password in GitHub Actions.
 - Create a dedicated Proxmox user for automation.
 - Create a token for that user.
 - Grant only the permissions needed for the lab resource pool/storage/node.
-- Store the token in a GitHub Environment secret or runner-local secret store.
+- Store the token in a GitHub secret.
 - Rotate the token if it is exposed.
 - Never commit the token, real tfvars, state, or generated plans.
 
-## Suggested secret names
+## GitHub names (wired today)
 
-### Repository Variables (non-sensitive)
+See [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.md) for the full list.
 
-Set these at the repository or organization level:
+### Variables
 
 | Variable | Meaning |
 |----------|---------|
-| `PROXMOX_HOST` | Proxmox Tailscale hostname (e.g. `<proxmox-host>`) |
-| `PROXMOX_NODE_NAME` | Proxmox node name (e.g. `pve`) |
-| `PROXMOX_INSECURE_TLS` | Optional; `true` for Proxmox's default self-signed certificate |
+| `PROXMOX_HOST` | Tailscale hostname (Packer ping checks) |
+| `PROXMOX_ENDPOINT` | API URL, e.g. `https://<proxmox-host>:8006` |
+| `PROXMOX_NODE_NAME` | Node name from Proxmox UI |
+| `PROXMOX_INSECURE_TLS` | `true` for default self-signed cert |
 
-### Environment Secrets (sensitive)
-
-Store these in GitHub Environments:
+### Secrets
 
 | Secret | Meaning |
 |--------|---------|
-| `PROXMOX_ENDPOINT` | Example: `https://<proxmox-tailnet-host>:8006` (Tailscale MagicDNS; IP `https://<tailscale-ip>:8006` also works) |
-| `PROXMOX_API_TOKEN` | Provider token value |
-| `AUTOLAB_ADMIN_SSH_PUBLIC_KEY` | Public key injected into VMs/LXCs |
-| `TAILSCALE_OAUTH_CLIENT_ID` | Tailscale OAuth client ID for CI runners |
-| `TAILSCALE_OAUTH_SECRET` | Tailscale OAuth client secret for CI runners |
-| `R2_ACCOUNT_ID` | Cloudflare account ID for R2 endpoint |
-| `R2_ACCESS_KEY_ID` | Cloudflare R2 access key for state backend |
-| `R2_SECRET_ACCESS_KEY` | Cloudflare R2 secret key for state backend |
+| `PROXMOX_API_TOKEN` | Full API token string |
 
-The private SSH key for automation should be handled separately in phase 2C when Ansible is added.
+SSH public keys for cloned VMs are set in local `terraform.tfvars`
+(`identity_defaults.ssh_public_keys`), not in a GitHub secret. Packer template
+builds use the `SSH_PUBLIC_KEYS` repository variable.
 
 Source:
 

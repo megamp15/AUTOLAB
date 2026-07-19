@@ -18,14 +18,16 @@ Thanks for helping grow this project. It is aimed at **beginners** and **repeata
 
 4. **Schema-driven config:** Make changes to the schema YAML files (not generated outputs):
    - Connection schema → [`infra/connection-schema.yaml`](infra/connection-schema.yaml)
+   - Packer template schema → [`infra/packer/template-schema.yaml`](infra/packer/template-schema.yaml)
    - Network env schema → [`docs/proxmox/config/network-env-schema.yaml`](docs/proxmox/config/network-env-schema.yaml)
    - R2 backend config → [`infra/r2-config.yaml`](infra/r2-config.yaml)
 
    After editing a schema YAML, regenerate the adapter files with the corresponding generator script:
    ```bash
-   bash scripts/generate-connection-adapters.sh     # updates infra/modules/proxmox-connection/variables.tf, infra/packer/connection-vars.pkr.hcl, infra/_base/connection-variables.tm.hcl, and .github/actions/configure-proxmox-connection/action.yml
-   bash scripts/generate-network-env-adapters.sh    # updates docs/proxmox/config/network.env.example and docs/proxmox/scripts/lib/network-env-schema.sh
-   bash scripts/generate-r2-config.sh               # updates infra/terramate.tm.hcl and scripts/lib/r2-defaults.sh
+   bash scripts/generate-connection-adapters.sh     # OpenTofu, Packer connection, CI connection action
+   bash scripts/generate-packer-template-adapters.sh # Packer template CI action
+   bash scripts/generate-network-env-adapters.sh    # network.env.example + bash validation
+   bash scripts/generate-r2-config.sh               # Terramate R2 defaults
    ```
 
 ## Branch and commits

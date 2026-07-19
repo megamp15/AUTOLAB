@@ -58,14 +58,17 @@ jobs:
         uses: hashicorp/setup-packer@main
 
       - name: Validate generated Packer artifacts
-        working-directory: infra/packer
         run: |
-          packer init .
-          packer validate \
-            -var 'proxmox_endpoint=https://pve.example.ts.net:8006' \
-            -var 'proxmox_api_token=USER@pam!TOKENID=TOKEN_SECRET' \
-            -var 'proxmox_node_name=pve' \
-            .
+          eval "$(bash scripts/resolve-packer-template.sh debian-12)"
+          (
+            cd "$AUTOLAB_PACKER_TEMPLATE_DIR"
+            packer init .
+            packer validate \
+              -var 'proxmox_endpoint=https://pve.example.ts.net:8006' \
+              -var 'proxmox_api_token=USER@pam!TOKENID=TOKEN_SECRET' \
+              -var 'proxmox_node_name=pve' \
+              .
+          )
 
       - name: Install bats-core
         run: |

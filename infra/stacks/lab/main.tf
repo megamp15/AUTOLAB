@@ -18,7 +18,7 @@ module "machine_inputs" {
 }
 
 module "cloud_init" {
-  for_each = module.machine_inputs.vm_machines
+  for_each = module.machine_inputs.builder_target_vm_machines
 
   source = "../../modules/cloud-init"
 
@@ -30,7 +30,7 @@ module "cloud_init" {
 
 module "machine" {
   source   = "../../modules/proxmox-compute"
-  for_each = module.machine_inputs.normalized_machines
+  for_each = module.machine_inputs.builder_target_machines
 
   # Type selector
   type = each.value.type

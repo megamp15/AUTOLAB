@@ -1,8 +1,7 @@
 # ---------------------------------------------------------------------------
-# Packer template-specific variables (hand-maintained)
+# Debian 12 Packer template-specific variables (hand-maintained)
 #
-# Connection variables are in connection-vars.pkr.hcl (generated from schema).
-# Do not add connection variables here — they are auto-generated.
+# Connection variables are generated into connection-vars.pkr.hcl.
 # ---------------------------------------------------------------------------
 
 # ---- Template identity ----
@@ -115,7 +114,7 @@ variable "cloud_init_storage_pool" {
 
 variable "iso_file" {
   type        = string
-  default     = "local:iso/debian-12.8.0-amd64-netinst.iso"
+  default     = "local:iso/debian-12.13.0-amd64-netinst.iso"
   description = "Proxmox ISO storage path for the installer ISO. Must already be uploaded to the Proxmox host."
 }
 
@@ -136,7 +135,7 @@ variable "boot_iso_type" {
 variable "ssh_password" {
   type        = string
   default     = "packer"
-  description = "Temporary SSH password used by Packer during provisioning. Changed by cloud-init on cloned VMs."
+  description = "Temporary installer SSH password used only while Packer provisions the build VM. The account is locked before the VM is converted to a template."
   sensitive   = true
 }
 

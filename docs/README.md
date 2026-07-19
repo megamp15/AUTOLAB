@@ -15,7 +15,7 @@ Autolab docs are organized by **platform**, **lifecycle layer**, and **maturity*
 | Layer | Purpose | Current home |
 |-------|---------|--------------|
 | Bootstrap | Get the physical Proxmox node online before automation can reach it | [proxmox/](./proxmox/) |
-| Provision | Create machines from git-managed infrastructure | [gitops/](./gitops/) and `infra/` |
+| Provision | OpenTofu stacks and modules in git; machine inventory in local `terraform.tfvars` | [gitops/](./gitops/) and `infra/` |
 | Template | Build Proxmox VM templates from ISOs | `infra/packer/` |
 | Configure | Apply the reusable Linux server baseline over SSH | `../builders/ansible/` |
 
@@ -48,6 +48,8 @@ Planned work (IaC, CI, more nodes): [ROADMAP.md](./ROADMAP.md)
 ## GitOps
 
 **[gitops/README.md](./gitops/README.md)** - phase 2 track for secure VM/LXC creation with OpenTofu, GitHub Actions, and Tailscale.
+
+**[gitops/template-lab-matrix.md](./gitops/template-lab-matrix.md)** - disposable template and cluster OS experiment matrix, including Ubuntu, enterprise Linux, Alpine, and a Talos virtual Kubernetes cluster path.
 
 ## Builder
 
