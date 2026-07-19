@@ -41,7 +41,7 @@ source "proxmox-iso" "debian-13" {
   insecure_skip_tls_verify = var.proxmox_insecure_tls
 
   # VM identity
-  vm_id   = var.vm_id_base
+  vm_id   = var.vm_id
   vm_name = var.vm_template_name
   tags    = "autolab;template"
 
@@ -104,6 +104,9 @@ source "proxmox-iso" "debian-13" {
   ssh_username = var.ssh_username
   ssh_password = var.ssh_password # temporary build-only password; account is locked before templating
   ssh_timeout  = var.ssh_timeout
+  ssh_bastion_host               = var.ssh_bastion_host
+  ssh_bastion_username           = var.ssh_bastion_username
+  ssh_bastion_private_key_file   = var.ssh_bastion_private_key_file
 
   # Convert to template after provisioning
   template_description = var.template_description

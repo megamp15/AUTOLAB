@@ -1,0 +1,24 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  storage:
+    layout:
+      name: direct
+  identity:
+    hostname: ubuntu-template
+    username: packer
+    password: ${packer_password_hash}
+  ssh:
+    install-server: true
+    allow-pw: true
+    authorized-keys: ${jsonencode(ssh_keys)}
+  packages:
+    - cloud-init
+    - openssh-server
+    - qemu-guest-agent
+    - sudo
+  late-commands:
+    - curtin in-target --target=/target -- sh -c 'printf "%s\n" "packer ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-autolab-packer && chmod 0440 /etc/sudoers.d/90-autolab-packer'

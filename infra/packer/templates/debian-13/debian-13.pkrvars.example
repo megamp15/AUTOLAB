@@ -21,17 +21,10 @@ proxmox_api_token    = "USER@REALM!TOKENID=TOKEN_SECRET"
 proxmox_node_name    = "pve"
 proxmox_insecure_tls = true
 
-# ---- Template identity ----
-vm_template_name = "autolab-debian-13-template"
-vm_id_base       = 9000
-
+# Template identity is supplied by the catalog resolver.
 # ---- Storage ----
 storage_pool            = "local-lvm"
 cloud_init_storage_pool = null # defaults to storage_pool when null
-
-# ---- ISO ----
-iso_url      = "https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso"
-iso_checksum = "sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7"
 
 # ---- SSH ----
 ssh_password = "packer" # temporary build-only password; account is locked before templating
@@ -43,6 +36,7 @@ ssh_public_keys = [
 # ---- Network ----
 network_bridge = "vmbr0"
 
-# ---- Bastion / SSH relay (leave empty if not using) ----
-pve_ssh_host             = ""
-pve_ssh_private_key_file = ""
+# ---- Bastion / SSH relay ----
+ssh_bastion_host             = "<proxmox-tailnet-host>"
+ssh_bastion_username         = "root"
+ssh_bastion_private_key_file = "~/.ssh/pve_ci_key"

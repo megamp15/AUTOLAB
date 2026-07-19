@@ -102,8 +102,6 @@ GitHub Environments group secrets. **Required reviewers is an Enterprise-only fe
 | `SSH_PUBLIC_KEYS` | SSH public keys for Packer template build (comma-separated) |
 | `PROXMOX_STORAGE_POOL` | Packer: storage pool for template disks (e.g. `local-lvm`) |
 | `PROXMOX_NETWORK_BRIDGE` | Packer: network bridge (e.g. `vmbr0`) |
-| `PACKER_ISO_URL` | Packer: pinned ISO URL (e.g. `https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso`) |
-| `PACKER_ISO_CHECKSUM` | Packer: required ISO checksum (`sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7`) |
 
 - [ ] Add these **secrets** (repository or environment level):
 
@@ -113,6 +111,7 @@ GitHub Environments group secrets. **Required reviewers is an Enterprise-only fe
 | `TAILSCALE_OAUTH_SECRET` | Tailscale OAuth client secret from step 1 |
 | `PROXMOX_API_TOKEN` | Full Proxmox API token string from step 3, e.g. `gitops@pve!opentofu=SECRET` |
 | `PACKER_SSH_PASSWORD` | Generated password for Packer Build (temporary, build-only) |
+| `PVE_SSH_PRIVATE_KEY` | Private SSH key for the required Proxmox bastion connection |
 | `R2_ACCOUNT_ID` | Cloudflare account ID from step 4 |
 | `R2_ACCESS_KEY_ID` | R2 access key ID from step 4 |
 | `R2_SECRET_ACCESS_KEY` | R2 secret access key from step 4 |
@@ -131,10 +130,9 @@ OpenTofu clones VMs from an existing template. You have two options:
 ### Option A: Build with Packer (recommended)
 
 Packer asks Proxmox to download the pinned ISO URL directly into the `local`
-storage pool. The URL and verified checksum are required repository variables;
-there is no manual ISO upload step.
+storage pool. The URL and verified checksum are owned by the selected catalog
+entry; there is no manual ISO upload step or ISO repository variable.
 
-- [ ] Set repository variables `PACKER_ISO_URL` and `PACKER_ISO_CHECKSUM` to the pinned URL and verified checksum
 - [ ] Copy the Packer variables example:
 
 ```bash
@@ -142,6 +140,7 @@ cp infra/packer/templates/debian-13/debian-13.pkrvars.example infra/packer/templ
 ```
 
 - [ ] Edit `infra/packer/templates/debian-13/debian-13.pkrvars.hcl` with your Proxmox endpoint, API token, node name, and SSH public keys
+- [ ] For local validation, run `eval "$(bash scripts/resolve-packer-template.sh debian-13)"` and `export PKR_VAR_iso_url PKR_VAR_iso_checksum` from the repository root so the catalog supplies the required ISO variables
 - [ ] Run Packer from a machine that can reach Proxmox over Tailscale:
 
 ```bash
@@ -263,10 +262,9 @@ tofu plan
 
 The Packer scaffold is in `infra/packer/`. To build templates:
 
-- [ ] Set the pinned `PACKER_ISO_URL` and `PACKER_ISO_CHECKSUM` repository variables; PVE downloads the ISO into `local`
 - [ ] Copy `infra/packer/templates/debian-13/debian-13.pkrvars.example` to `infra/packer/templates/debian-13/debian-13.pkrvars.hcl` and fill in values
 - [ ] Run `packer init`, `packer validate`, `packer build` from a machine that can reach Proxmox over Tailscale
-- [ ] Or run the existing **Packer Build** GitHub Actions workflow after adding the Packer CI variables/secrets from `infra/packer/README.md`
+- [ ] Or run the existing **Packer Build** GitHub Actions workflow after adding the Packer CI variables/secrets from `infra/packer/README.md`; choose `debian-13` or the separately implemented `ubuntu-26.04` template
 
 ## Phase 2C manual steps (Ansible — not yet)
 

@@ -57,18 +57,31 @@ jobs:
       - name: Setup Packer
         uses: hashicorp/setup-packer@main
 
+      - name: Install seed CD tooling
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xorriso
+
       - name: Validate generated Packer artifacts
         run: |
-          eval "$(bash scripts/resolve-packer-template.sh debian-13)"
-          (
-            cd "$AUTOLAB_PACKER_TEMPLATE_DIR"
-            packer init .
-            packer validate \
-              -var 'proxmox_endpoint=https://pve.example.ts.net:8006' \
-              -var 'proxmox_api_token=USER@pam!TOKENID=TOKEN_SECRET' \
-              -var 'proxmox_node_name=pve' \
-              .
-          )
+          for template in debian-13 ubuntu-26.04; do
+            eval "$(bash scripts/resolve-packer-template.sh "$template")"
+            export PKR_VAR_vm_id PKR_VAR_vm_template_name PKR_VAR_iso_url PKR_VAR_iso_checksum
+            export PKR_VAR_ssh_bastion_host=pve.example.ts.net
+            export PKR_VAR_ssh_bastion_username=root
+            export PKR_VAR_ssh_bastion_private_key_file=/tmp/validation-bastion-key
+            export PKR_VAR_ssh_password=validation-only
+            export PKR_VAR_packer_password_hash="$(printf '%s\n' validation-only | openssl passwd -6 -stdin)"
+            (
+              cd "$AUTOLAB_PACKER_TEMPLATE_DIR"
+              packer init .
+              packer validate \
+                -var 'proxmox_endpoint=https://pve.example.ts.net:8006' \
+                -var 'proxmox_api_token=USER@pam!TOKENID=TOKEN_SECRET' \
+                -var 'proxmox_node_name=pve' \
+                .
+            )
+          done
 
       - name: Install bats-core
         run: |

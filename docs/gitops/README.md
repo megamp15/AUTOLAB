@@ -43,7 +43,7 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. The **stack code** lives
 
 ## What phase 2B includes (shipped scaffold)
 
-- Packer template catalog and `debian-13` template under `infra/packer/templates/`.
+- Packer template catalog with implemented `debian-13` and `ubuntu-26.04` templates under `infra/packer/templates/`.
 - Packer Build GitHub Actions workflow.
 
 ## What is not included yet

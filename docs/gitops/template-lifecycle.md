@@ -54,24 +54,27 @@ tested before machine definitions switch. Old templates and ISO files are
 retired deliberately after rollback needs, dependents, and retention have been
 reviewed. No cleanup job or build should auto-delete them.
 
-The existing `force_rebuild` workflow control is not a lifecycle strategy. Do
-not use it as a blind replacement mechanism; rebuilds still need a candidate,
-validation, promotion, and explicit machine pin update.
+Packer builds do not force-overwrite an existing release VM ID. A new release
+requires a new catalog entry with a new release identity and unused VM ID;
+rebuilds still need a candidate, validation, promotion, and explicit machine
+pin update.
 
 ## First Debian 13.6 Packer test run
 
-This run verifies the new pinned URL flow on the existing single implemented
-template. It does not promote a new multi-template architecture.
+This run verifies the pinned URL flow on the existing Debian 13.6 template. It
+does not change release promotion or machine pinning for either implemented
+template.
 
 1. In Proxmox, inspect the `local` ISO storage. If an ISO was uploaded
    manually and you want to prove that PVE downloads the ISO itself, delete
    that manually uploaded ISO first. Do not delete an ISO you need for
    rollback without recording that decision.
-2. In the GitHub repository variables, set:
-   - `PACKER_ISO_URL` to
-     `https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso`
-   - `PACKER_ISO_CHECKSUM` to
-     `sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7`
+2. Confirm the catalog pin in `infra/packer/template-catalog.yaml` is
+   Debian `13.6.0`, with URL
+   `https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso`
+   and checksum
+   `sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7`.
+   These are catalog fields, not GitHub repository variables.
 3. Manually dispatch **Packer Build** for `debian-13`. Use the normal
    repository variables and secrets; do not use a local Packer build as a
    substitute for the CI run.
@@ -92,8 +95,8 @@ Expected outcomes:
 
 Failure checks:
 
-- Confirm both repository variables are present and have no surrounding quotes
-  or whitespace.
+- Confirm the catalog URL and checksum are present and have no surrounding
+  quotes or whitespace.
 - Confirm the Proxmox host can resolve and reach `cdimage.debian.org`.
 - Confirm `local` storage has capacity and supports ISO content.
 - Compare the URL and checksum exactly with this runbook; do not replace the
@@ -110,11 +113,15 @@ PVE download has demonstrably failed. No fallback code is added now. Add it
 only after an actual automatic-download failure has been diagnosed and the
 fallback has its own validation and documentation.
 
+Ubuntu 26.04 is currently a buildable candidate, not a claim of real-hardware
+validation. It becomes promotable only after one successful Packer build and a
+successful `template-validation` run.
+
 ## Staged implementation plan
 
 ### Stage 0 — Preserve baseline compatibility
 
-Keep the existing single `debian-13` Packer workflow working while the
+Keep the existing `debian-13` and `ubuntu-26.04` Packer workflows working while the
 local-only machine input is migrated into reviewed git configuration.
 
 **Acceptance:** the Packer catalog resolves, the pinned Debian ISO

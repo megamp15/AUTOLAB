@@ -17,12 +17,16 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 
 | Workflow | Variables (`vars.*`) | Secrets (`secrets.*`) |
 |----------|----------------------|------------------------|
-| **Packer Build** | `PROXMOX_ENDPOINT`, `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `PROXMOX_HOST`, `PROXMOX_STORAGE_POOL`, `PROXMOX_NETWORK_BRIDGE`, `PACKER_ISO_URL`, `PACKER_ISO_CHECKSUM`, `PROXMOX_CLOUD_INIT_STORAGE_POOL`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `PVE_SSH_PRIVATE_KEY` (optional) |
+| **Packer Build** | `PROXMOX_ENDPOINT`, `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `PROXMOX_HOST`, `PROXMOX_STORAGE_POOL`, `PROXMOX_NETWORK_BRIDGE`, `PROXMOX_CLOUD_INIT_STORAGE_POOL`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `PVE_SSH_PRIVATE_KEY` |
 | **OpenTofu Plan** | `PROXMOX_ENDPOINT`, `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS` | `PROXMOX_API_TOKEN`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TAILSCALE_VM_AUTHKEY` (optional) |
 | **OpenTofu Apply** | same as Plan | same as Plan |
 
 `PROXMOX_HOST` is only used for Tailscale ping / ssh-keyscan in Packer Build — not
 passed to the Proxmox API.
+
+The implemented template's release URL and checksum are owned by
+`infra/packer/template-catalog.yaml` and injected by the catalog resolver; no
+`PACKER_ISO_URL` or `PACKER_ISO_CHECKSUM` repository variables are used.
 
 ## Repository variables
 
@@ -37,8 +41,6 @@ Set at **Settings → Secrets and variables → Actions → Variables**.
 | `SSH_PUBLIC_KEYS` | `ssh-ed25519 AAAA...` | Packer Build | `cat ~/.ssh/id_ed25519.pub` on your laptop. |
 | `PROXMOX_STORAGE_POOL` | `local-lvm` | Packer Build | Proxmox → Datacenter → Storage. |
 | `PROXMOX_NETWORK_BRIDGE` | `vmbr0` | Packer Build | Proxmox → Node → Network. |
-| `PACKER_ISO_URL` | `https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso` | Packer Build | Pinned ISO URL downloaded directly by Proxmox. |
-| `PACKER_ISO_CHECKSUM` | `sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7` | Packer Build | Required SHA-256 checksum for the pinned ISO. |
 | `PROXMOX_CLOUD_INIT_STORAGE_POOL` | `local-lvm` | Packer Build | Optional. Defaults to `PROXMOX_STORAGE_POOL`. |
 
 ## Secrets
@@ -56,7 +58,7 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |
 | `R2_SECRET_ACCESS_KEY` | `xyz789...` | OpenTofu | Same. Shown once. |
 | `TAILSCALE_VM_AUTHKEY` | `tskey-auth-...` | OpenTofu | Optional. VMs join Tailscale via `terraform.tfvars` + this secret. |
-| `PVE_SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH...` | Packer Build | Optional. Only if Packer needs SSH to the Proxmox host. |
+| `PVE_SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH...` | Packer Build | Required. Packer uses it as the SSH bastion key for `PROXMOX_HOST`. |
 
 ## Local-only config (not GitHub)
 
@@ -72,7 +74,7 @@ Copy from `infra/stacks/lab/terraform.tfvars.example` and edit locally.
 
 ## Creating a test VM
 
-1. **Packer Build** → creates template VM `9000` (`debian-13`)
+1. **Packer Build** → creates template VM `9000` (`debian-13`) or `9001` (`ubuntu-26.04`)
 2. **OpenTofu Plan** → smoke test (expect no changes until `machines` is set locally)
 3. **Local `tofu apply`** with `terraform.tfvars` → creates the disposable VM
 4. Destroy the VM when done; keep the template
@@ -95,8 +97,6 @@ Environments must exist even if secrets live at repository level.
 - [ ] `PROXMOX_NODE_NAME`
 - [ ] `PROXMOX_INSECURE_TLS` = `true`
 - [ ] `SSH_PUBLIC_KEYS`
-- [ ] `PROXMOX_STORAGE_POOL`, `PROXMOX_NETWORK_BRIDGE`, `PACKER_ISO_URL` (Packer)
-- [ ] `PACKER_ISO_CHECKSUM` = `sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7` (Packer)
 
 **Secrets**
 

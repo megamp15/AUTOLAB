@@ -7,8 +7,11 @@
 
 templates:
   - name: debian-13
+    release: 13.6.0
     status: implemented
     description: Debian 13 cloud-init template
+    iso_url: https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso
+    iso_checksum: sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7
     directory: infra/packer/templates/debian-13
     packer_file: debian-13.pkr.hcl
     proxmox_template_name: autolab-debian-13-template
@@ -16,25 +19,34 @@ templates:
     provisioning_class: builder_target
     installer: preseed
 
+  - name: ubuntu-26.04
+    release: 26.04
+    status: implemented
+    description: Ubuntu 26.04 cloud-init template
+    iso_url: https://releases.ubuntu.com/26.04/ubuntu-26.04-live-server-amd64.iso
+    iso_checksum: sha256:dec49008a71f6098d0bcfc822021f4d042d5f2db279e4d75bdd981304f1ca5d9
+    directory: infra/packer/templates/ubuntu-26.04
+    packer_file: ubuntu-26.04.pkr.hcl
+    proxmox_template_name: autolab-ubuntu-26.04-template
+    proxmox_template_vm_id: 9001
+    provisioning_class: builder_target
+    installer: subiquity-autoinstall
 experiments:
   - name: ubuntu-24.04
     status: experiment
     description: Ubuntu 24.04 server template experiment
     provisioning_class: builder_target
     installer: subiquity-autoinstall
-
   - name: rocky-9
     status: experiment
     description: Rocky Linux 9 server template experiment
     provisioning_class: builder_target
     installer: kickstart
-
   - name: alpine
     status: experiment
     description: Minimal Alpine Linux template experiment
     provisioning_class: builder_target
     installer: alpine-answers
-
   - name: talos
     status: experiment
     description: Talos virtual Kubernetes cluster experiment

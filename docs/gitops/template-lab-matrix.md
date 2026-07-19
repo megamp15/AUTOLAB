@@ -6,9 +6,10 @@ audience: operator
 
 # Template experiment matrix
 
-Autolab keeps **one boring Linux template** as the stable path (`debian-13`), plus
-a menu of **disposable experiments** to learn the framework. Experiments are meant
-to be destroyed when done — not permanently supported OS lines.
+Autolab keeps two implemented Linux template paths (`debian-13` and
+`ubuntu-26.04`), plus a menu of **disposable experiments** to learn the
+framework. Experiments are meant to be destroyed when done — not permanently
+supported OS lines.
 
 **Source of truth for buildability:** `infra/packer/template-catalog.yaml`
 - `templates:` with `status: implemented` → runnable from CI and local Packer
@@ -19,13 +20,18 @@ to be destroyed when done — not permanently supported OS lines.
 | Target | Phase | What works | What does not |
 |--------|-------|------------|---------------|
 | `debian-13` | 2B Packer + 2A OpenTofu | Packer Build workflow; template VM ID `9000`; clone via local `terraform.tfvars` + `tofu apply` | Ansible hardening; CI-injected `machines` |
+| `ubuntu-26.04` | 2B Packer + 2A OpenTofu | Buildable candidate; Subiquity autoinstall; distinct template VM ID `9001`; workflow selection is wired | First successful Packer build and `template-validation`; Ansible hardening; CI-injected `machines` |
 
 **Smoke test path:**
 
-1. Packer Build → `debian-13` → template `9000` on Proxmox
+1. Packer Build → select `debian-13` (`9000`) or `ubuntu-26.04` (`9001`)
 2. Local `terraform.tfvars` with one `builder_target` VM → `tofu apply`
 3. SSH as `autolab` with your injected key
 4. Destroy the VM; keep the template
+
+Ubuntu 26.04 is a buildable candidate, not a claim of real-hardware
+validation. Treat it as promotable only after one successful Packer build and
+one successful `template-validation` run.
 
 ## Documented experiments (not runnable yet)
 
@@ -43,7 +49,7 @@ workflow dropdown and `scripts/resolve-packer-template.sh` rejects them.
 
 | Layer | Owns | Status |
 |-------|------|--------|
-| **2B Packer** | ISO → Proxmox template | `debian-13` only |
+| **2B Packer** | ISO → Proxmox template | `debian-13` and `ubuntu-26.04` |
 | **2A OpenTofu** | Clone template → running VM/LXC | Works for `builder_target` with local tfvars |
 | **2A cloud-init** | Admin user, SSH keys, optional Tailscale join | Wired for builder-target VMs |
 | **2C Ansible** | OS hardening after SSH works | Scaffold only (`TODO` debug tasks) |
@@ -79,7 +85,7 @@ infra/packer/
   template-catalog.yaml
   templates/
     debian-13/          # implemented
-    ubuntu-24.04/       # future
+    ubuntu-26.04/       # implemented
 ```
 
 Installer automation per OS (when built):
@@ -107,6 +113,7 @@ keep the template or VM.
 | Target | Smoke test (when runnable) | Destroy check |
 |--------|---------------------------|---------------|
 | `debian-13` | Packer build + OpenTofu clone + SSH as `autolab` | Destroy cloned VM; keep template `9000` |
+| `ubuntu-26.04` | Packer build + OpenTofu clone + SSH as `autolab` | Destroy cloned VM; keep template `9001` |
 | `ubuntu-24.04` | Packer build + clone + SSH | Destroy unless promoted to implemented |
 | `rocky-9` / `alpine` | Packer build + Ansible fact gather (after 2C) | Destroy test host |
 | `talos` | `talosctl health`; `kubectl get nodes` Ready | Destroy all Talos VMs + local configs |

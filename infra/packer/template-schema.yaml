@@ -31,24 +31,6 @@ fields:
     sensitive: false
     required_in_ci: false
 
-  - name: iso_url
-    type: string
-    description: "Pinned URL for the installer ISO"
-    packer_var: iso_url
-    ci_env: PACKER_ISO_URL
-    ci_source: variable
-    sensitive: false
-    required_in_ci: true
-
-  - name: iso_checksum
-    type: string
-    description: "Required SHA-256 checksum for the installer ISO"
-    packer_var: iso_checksum
-    ci_env: PACKER_ISO_CHECKSUM
-    ci_source: variable
-    sensitive: false
-    required_in_ci: true
-
   - name: cloud_init_storage_pool
     type: string
     description: "Optional separate storage pool for the cloud-init drive"

@@ -14,6 +14,16 @@ inputs:
   tailscale_oauth_secret:
     description: Tailscale OAuth secret
     required: true
+  proxmox_host:
+    description: Proxmox Tailscale hostname used as the SSH bastion
+    required: true
+  pve_ssh_private_key:
+    description: Private key used to SSH to Proxmox as the bastion
+    required: true
+  pve_ssh_username:
+    description: Proxmox SSH bastion username
+    required: false
+    default: root
   proxmox_endpoint:
     description: Proxmox API endpoint URL
     required: true
@@ -39,12 +49,6 @@ inputs:
     description: Proxmox bridge for the build VM
     required: false
     default: ''
-  iso_url:
-    description: Pinned URL for the installer ISO
-    required: true
-  iso_checksum:
-    description: Required SHA-256 checksum for the installer ISO
-    required: true
   cloud_init_storage_pool:
     description: Optional separate storage pool for the cloud-init drive
     required: false
@@ -65,10 +69,45 @@ runs:
       shell: bash
       run: bash scripts/resolve-packer-template.sh "${{ inputs.template }}" --github-env
 
+    - name: Validate Packer SSH bastion inputs
+      shell: bash
+      env:
+        AUTOLAB_PROXMOX_HOST: ${{ inputs.proxmox_host }}
+        AUTOLAB_PVE_SSH_PRIVATE_KEY: ${{ inputs.pve_ssh_private_key }}
+      run: |
+        set -euo pipefail
+        if [[ -z "${AUTOLAB_PROXMOX_HOST}" ]]; then
+          echo "ERROR: proxmox_host is required for the Packer SSH bastion." >&2
+          exit 1
+        fi
+        if [[ -z "${AUTOLAB_PVE_SSH_PRIVATE_KEY}" ]]; then
+          echo "ERROR: PVE_SSH_PRIVATE_KEY is required for hosted Packer builds." >&2
+          echo "Direct host-to-guest routing is not assumed." >&2
+          exit 1
+        fi
+
     - uses: ./.github/actions/connect-tailscale
       with:
         oauth-client-id: ${{ inputs.tailscale_oauth_client_id }}
         oauth-secret: ${{ inputs.tailscale_oauth_secret }}
+
+    - name: Configure Packer SSH bastion
+      shell: bash
+      env:
+        AUTOLAB_PROXMOX_HOST: ${{ inputs.proxmox_host }}
+        AUTOLAB_PVE_SSH_PRIVATE_KEY: ${{ inputs.pve_ssh_private_key }}
+        AUTOLAB_PVE_SSH_USERNAME: ${{ inputs.pve_ssh_username }}
+      run: |
+        set -euo pipefail
+        mkdir -p "${HOME}/.ssh"
+        chmod 700 "${HOME}/.ssh"
+        printf '%s\n' "${AUTOLAB_PVE_SSH_PRIVATE_KEY}" > "${HOME}/.ssh/pve_ci_key"
+        chmod 600 "${HOME}/.ssh/pve_ci_key"
+        ssh-keyscan -H "${AUTOLAB_PROXMOX_HOST}" >> "${HOME}/.ssh/known_hosts" 2>/dev/null || true
+        source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
+        append_github_env "PKR_VAR_ssh_bastion_host" "${AUTOLAB_PROXMOX_HOST}"
+        append_github_env "PKR_VAR_ssh_bastion_username" "${AUTOLAB_PVE_SSH_USERNAME}"
+        append_github_env "PKR_VAR_ssh_bastion_private_key_file" "${HOME}/.ssh/pve_ci_key"
 
     - uses: ./.github/actions/configure-proxmox-connection
       with:
@@ -79,15 +118,36 @@ runs:
         emit_tf_vars: 'false'
         emit_packer_vars: 'true'
 
+    - name: Derive temporary Ubuntu installer password hash
+      shell: bash
+      env:
+        AUTOLAB_PACKER_SSH_PASSWORD: ${{ inputs.ssh_password }}
+      run: |
+        set -euo pipefail
+        if [[ -z "${AUTOLAB_PACKER_SSH_PASSWORD}" ]]; then
+          echo "ERROR: ssh_password is required for Packer template builds." >&2
+          exit 1
+        fi
+        packer_password_hash="$(printf '%s\n' "${AUTOLAB_PACKER_SSH_PASSWORD}" | openssl passwd -6 -stdin)"
+        echo "::add-mask::${packer_password_hash}"
+        export PKR_VAR_packer_password_hash="${packer_password_hash}"
+        source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
+        append_github_env "PKR_VAR_packer_password_hash" "${packer_password_hash}"
+        unset AUTOLAB_PACKER_SSH_PASSWORD packer_password_hash
+
     - uses: ./.github/actions/configure-packer-template
       with:
         ssh_password: ${{ inputs.ssh_password }}
         storage_pool: ${{ inputs.storage_pool }}
         network_bridge: ${{ inputs.network_bridge }}
-        iso_url: ${{ inputs.iso_url }}
-        iso_checksum: ${{ inputs.iso_checksum }}
         cloud_init_storage_pool: ${{ inputs.cloud_init_storage_pool }}
         ssh_public_keys: ${{ inputs.ssh_public_keys }}
+
+    - name: Install seed CD tooling
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq xorriso
 
     - name: Setup Packer
       uses: hashicorp/setup-packer@main

@@ -12,10 +12,7 @@ on:
         type: choice
         options:
           - debian-13
-      force_rebuild:
-        description: "Force rebuild even if template exists"
-        type: boolean
-        default: false
+          - ubuntu-26.04
 
 permissions:
   contents: read
@@ -29,8 +26,6 @@ jobs:
     name: Build ${{ inputs.template }} template
     runs-on: ubuntu-latest
     env:
-      PVE_SSH_PRIVATE_KEY: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -39,15 +34,16 @@ jobs:
           template: ${{ inputs.template }}
           tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           tailscale_oauth_secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+          proxmox_host: ${{ vars.PROXMOX_HOST }}
+          pve_ssh_username: root
           proxmox_endpoint: ${{ vars.PROXMOX_ENDPOINT }}
           proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
           proxmox_node_name: ${{ vars.PROXMOX_NODE_NAME }}
           proxmox_insecure_tls: ${{ vars.PROXMOX_INSECURE_TLS || 'true' }}
           ssh_password: ${{ secrets.PACKER_SSH_PASSWORD }}
+          pve_ssh_private_key: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
           storage_pool: ${{ vars.PROXMOX_STORAGE_POOL }}
           network_bridge: ${{ vars.PROXMOX_NETWORK_BRIDGE }}
-          iso_url: ${{ vars.PACKER_ISO_URL }}
-          iso_checksum: ${{ vars.PACKER_ISO_CHECKSUM }}
           cloud_init_storage_pool: ${{ vars.PROXMOX_CLOUD_INIT_STORAGE_POOL }}
           ssh_public_keys: ${{ vars.SSH_PUBLIC_KEYS }}
 
@@ -58,15 +54,6 @@ jobs:
           tailscale status
           echo "Checking connectivity to PVE..."
           tailscale ping ${{ vars.PROXMOX_HOST }} || true
-
-      - name: Setup SSH Key for PVE
-        if: env.PVE_SSH_PRIVATE_KEY != ''
-        run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          echo "$PVE_SSH_PRIVATE_KEY" > ~/.ssh/pve_ci_key
-          chmod 600 ~/.ssh/pve_ci_key
-          ssh-keyscan -H ${{ vars.PROXMOX_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Initialize Packer
         working-directory: ${{ env.AUTOLAB_PACKER_TEMPLATE_DIR }}
@@ -84,10 +71,9 @@ jobs:
           echo "========================================================"
           echo "   • Catalog entry: ${AUTOLAB_PACKER_TEMPLATE_DESCRIPTION}"
           echo "   • Template file: ${AUTOLAB_PACKER_TEMPLATE_FILE}"
-          echo "   • Force rebuild: ${{ inputs.force_rebuild }}"
           echo "========================================================"
 
-          packer build -force=${{ inputs.force_rebuild }} .
+          packer build .
 
       - name: Build summary
         if: always()

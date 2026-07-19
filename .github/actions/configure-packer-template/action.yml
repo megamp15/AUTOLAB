@@ -17,12 +17,6 @@ inputs:
     description: Proxmox bridge for the build VM
     required: false
     default: ''
-  iso_url:
-    description: Pinned URL for the installer ISO
-    required: true
-  iso_checksum:
-    description: Required SHA-256 checksum for the installer ISO
-    required: true
   cloud_init_storage_pool:
     description: Optional separate storage pool for the cloud-init drive
     required: false
@@ -41,8 +35,6 @@ runs:
         AUTOLAB_INPUT_SSH_PASSWORD: ${{ inputs.ssh_password }}
         AUTOLAB_INPUT_STORAGE_POOL: ${{ inputs.storage_pool }}
         AUTOLAB_INPUT_NETWORK_BRIDGE: ${{ inputs.network_bridge }}
-        AUTOLAB_INPUT_ISO_URL: ${{ inputs.iso_url }}
-        AUTOLAB_INPUT_ISO_CHECKSUM: ${{ inputs.iso_checksum }}
         AUTOLAB_INPUT_CLOUD_INIT_STORAGE_POOL: ${{ inputs.cloud_init_storage_pool }}
         AUTOLAB_INPUT_SSH_PUBLIC_KEYS: ${{ inputs.ssh_public_keys }}
       run: |
@@ -84,14 +76,6 @@ runs:
 
         if [[ -n "$AUTOLAB_INPUT_NETWORK_BRIDGE" ]]; then
           append_github_env "PKR_VAR_network_bridge" "$AUTOLAB_INPUT_NETWORK_BRIDGE"
-        fi
-
-        if [[ -n "$AUTOLAB_INPUT_ISO_URL" ]]; then
-          append_github_env "PKR_VAR_iso_url" "$AUTOLAB_INPUT_ISO_URL"
-        fi
-
-        if [[ -n "$AUTOLAB_INPUT_ISO_CHECKSUM" ]]; then
-          append_github_env "PKR_VAR_iso_checksum" "$AUTOLAB_INPUT_ISO_CHECKSUM"
         fi
 
         if [[ -n "$AUTOLAB_INPUT_CLOUD_INIT_STORAGE_POOL" ]]; then

@@ -32,8 +32,9 @@ Set at **Settings → Secrets and variables → Actions → Variables**:
 | `SSH_PUBLIC_KEYS` | Public SSH keys for Packer template build | `ssh-ed25519 AAAA...` |
 | `PROXMOX_STORAGE_POOL` | Packer: disk storage | `local-lvm` |
 | `PROXMOX_NETWORK_BRIDGE` | Packer: network bridge | `vmbr0` |
-| `PACKER_ISO_URL` | Packer: pinned installer ISO URL | `https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso` |
-| `PACKER_ISO_CHECKSUM` | Packer: required ISO checksum | `sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7` |
+
+The Debian Packer release URL and checksum come from the selected entry in
+`infra/packer/template-catalog.yaml`; they are not GitHub repository variables.
 
 Optional Packer variable: `PROXMOX_CLOUD_INIT_STORAGE_POOL`.
 
@@ -51,7 +52,7 @@ Set at repository or environment level:
 | `R2_ACCESS_KEY_ID` | OpenTofu | State backend. |
 | `R2_SECRET_ACCESS_KEY` | OpenTofu | Shown once at creation. |
 | `TAILSCALE_VM_AUTHKEY` | OpenTofu | Optional until VMs should join Tailscale. |
-| `PVE_SSH_PRIVATE_KEY` | Packer Build | Optional. |
+| `PVE_SSH_PRIVATE_KEY` | Packer Build | Required SSH bastion key for hosted builds. |
 
 SSH keys for **cloned VMs** come from local `terraform.tfvars`
 (`identity_defaults.ssh_public_keys`), not from a GitHub secret.

@@ -1,0 +1,30 @@
+# Packer variable overrides for Ubuntu 26.04 template
+#
+# Copy this file to ubuntu-26.04.pkrvars.hcl (not tracked by git), fill in
+# connection values, and resolve catalog-owned ISO variables before validation:
+#
+#   eval "$(bash ../../../scripts/resolve-packer-template.sh ubuntu-26.04)"
+#   export PKR_VAR_vm_id PKR_VAR_vm_template_name PKR_VAR_iso_url PKR_VAR_iso_checksum
+#   read -r -s PKR_VAR_ssh_password
+#   export PKR_VAR_ssh_password
+#   export PKR_VAR_packer_password_hash="$(printf '%s\n' "$PKR_VAR_ssh_password" | openssl passwd -6 -stdin)"
+#
+# ISO URL and checksum are intentionally not duplicated here.
+
+proxmox_endpoint     = "https://<proxmox-tailnet-host>:8006"
+proxmox_api_token    = "USER@REALM!TOKENID=TOKEN_SECRET"
+proxmox_node_name    = "pve"
+proxmox_insecure_tls = true
+
+# Template identity is supplied by the catalog resolver.
+
+storage_pool            = "local-lvm"
+cloud_init_storage_pool = null
+
+ssh_public_keys = [
+  "ssh-ed25519 REPLACE_WITH_PUBLIC_KEY_ONLY autolab@example"
+]
+
+ssh_bastion_host             = "<proxmox-tailnet-host>"
+ssh_bastion_username         = "root"
+ssh_bastion_private_key_file = "~/.ssh/pve_ci_key"
