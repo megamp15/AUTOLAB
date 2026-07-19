@@ -19,7 +19,7 @@ if [[ -z "${TEMPLATE}" || "${TEMPLATE}" == "-h" || "${TEMPLATE}" == "--help" ]];
 Usage: resolve-packer-template.sh TEMPLATE [--github-env]
 
 Known implemented templates:
-  debian-12  Debian 12 cloud-init template
+  debian-13  Debian 13 cloud-init template
 
 Outputs shell key=value lines by default. With --github-env, writes the same
 values to GITHUB_ENV using scripts/lib/github-env.sh.

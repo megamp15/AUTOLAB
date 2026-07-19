@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Debian 12 Packer template-specific variables (hand-maintained)
+# Debian 13 Packer template-specific variables (hand-maintained)
 #
 # Connection variables are generated into connection-vars.pkr.hcl.
 # ---------------------------------------------------------------------------
@@ -8,7 +8,7 @@
 
 variable "vm_template_name" {
   type        = string
-  default     = "autolab-debian-12-template"
+  default     = "autolab-debian-13-template"
   description = "Name for the VM template created by Packer"
 }
 
@@ -68,7 +68,7 @@ variable "ssh_timeout" {
 
 variable "template_description" {
   type        = string
-  default     = "Debian 12 cloud-init template — built by Packer"
+  default     = "Debian 13 cloud-init template — built by Packer"
   description = "Description applied to the resulting Proxmox template."
 }
 
@@ -114,7 +114,7 @@ variable "cloud_init_storage_pool" {
 
 variable "iso_file" {
   type        = string
-  default     = "local:iso/debian-12.13.0-amd64-netinst.iso"
+  default     = "local:iso/debian-13.6.0-amd64-netinst.iso"
   description = "Proxmox ISO storage path for the installer ISO. Must already be uploaded to the Proxmox host."
 }
 

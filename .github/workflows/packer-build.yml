@@ -8,10 +8,10 @@ on:
       template:
         description: "Template to build"
         required: true
-        default: debian-12
+        default: debian-13
         type: choice
         options:
-          - debian-12
+          - debian-13
       force_rebuild:
         description: "Force rebuild even if template exists"
         type: boolean

@@ -6,7 +6,7 @@ audience: operator
 
 # Template experiment matrix
 
-Autolab keeps **one boring Linux template** as the stable path (`debian-12`), plus
+Autolab keeps **one boring Linux template** as the stable path (`debian-13`), plus
 a menu of **disposable experiments** to learn the framework. Experiments are meant
 to be destroyed when done — not permanently supported OS lines.
 
@@ -18,11 +18,11 @@ to be destroyed when done — not permanently supported OS lines.
 
 | Target | Phase | What works | What does not |
 |--------|-------|------------|---------------|
-| `debian-12` | 2B Packer + 2A OpenTofu | Packer Build workflow; template VM ID `9000`; clone via local `terraform.tfvars` + `tofu apply` | Ansible hardening; CI-injected `machines` |
+| `debian-13` | 2B Packer + 2A OpenTofu | Packer Build workflow; template VM ID `9000`; clone via local `terraform.tfvars` + `tofu apply` | Ansible hardening; CI-injected `machines` |
 
 **Smoke test path:**
 
-1. Packer Build → `debian-12` → template `9000` on Proxmox
+1. Packer Build → `debian-13` → template `9000` on Proxmox
 2. Local `terraform.tfvars` with one `builder_target` VM → `tofu apply`
 3. SSH as `autolab` with your injected key
 4. Destroy the VM; keep the template
@@ -43,7 +43,7 @@ workflow dropdown and `scripts/resolve-packer-template.sh` rejects them.
 
 | Layer | Owns | Status |
 |-------|------|--------|
-| **2B Packer** | ISO → Proxmox template | `debian-12` only |
+| **2B Packer** | ISO → Proxmox template | `debian-13` only |
 | **2A OpenTofu** | Clone template → running VM/LXC | Works for `builder_target` with local tfvars |
 | **2A cloud-init** | Admin user, SSH keys, optional Tailscale join | Wired for builder-target VMs |
 | **2C Ansible** | OS hardening after SSH works | Scaffold only (`TODO` debug tasks) |
@@ -78,7 +78,7 @@ Each **implemented** template gets its own directory:
 infra/packer/
   template-catalog.yaml
   templates/
-    debian-12/          # implemented
+    debian-13/          # implemented
     ubuntu-24.04/       # future
 ```
 
@@ -86,7 +86,7 @@ Installer automation per OS (when built):
 
 | Template | Installer |
 |----------|-----------|
-| Debian | preseed (`debian-12-preseed.cfg.tpl`) |
+| Debian | preseed (`debian-13-preseed.cfg.tpl`) |
 | Ubuntu | Subiquity autoinstall |
 | Rocky/Alma | kickstart |
 | Alpine | answer file |
@@ -106,7 +106,7 @@ keep the template or VM.
 
 | Target | Smoke test (when runnable) | Destroy check |
 |--------|---------------------------|---------------|
-| `debian-12` | Packer build + OpenTofu clone + SSH as `autolab` | Destroy cloned VM; keep template `9000` |
+| `debian-13` | Packer build + OpenTofu clone + SSH as `autolab` | Destroy cloned VM; keep template `9000` |
 | `ubuntu-24.04` | Packer build + clone + SSH | Destroy unless promoted to implemented |
 | `rocky-9` / `alpine` | Packer build + Ansible fact gather (after 2C) | Destroy test host |
 | `talos` | `talosctl health`; `kubectl get nodes` Ready | Destroy all Talos VMs + local configs |

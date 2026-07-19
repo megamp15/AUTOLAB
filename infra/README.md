@@ -31,7 +31,7 @@ infra/
     connection-variables.tm.hcl # Generates _connection-variables.tf for all stacks
   packer/
     template-catalog.yaml   # Implemented templates + documented experiments
-    templates/              # Per-OS Packer modules (e.g. templates/debian-12/)
+    templates/              # Per-OS Packer modules (e.g. templates/debian-13/)
 ```
 
 ## Prerequisites

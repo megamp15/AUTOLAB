@@ -17,7 +17,7 @@ This repo is meant to **grow** from a documented single node into a reusable hom
 | APT maintenance + optional Tailscale | `proxmox`, `operator` |
 | Host-only config (`/etc/default/proxmox-network.env`) | `security`, `portable` |
 | GitOps phase 2A scaffold | `gitops`, `opentofu`, `proxmox`, `terramate` | OpenTofu modules, CI validate/plan/apply workflows, R2 backend — [setup checklist](gitops/setup-checklist.md) |
-| Packer phase 2B scaffold | `packer`, `templates` | `debian-12` template in `infra/packer/templates/` + Packer Build workflow |
+| Packer phase 2B scaffold | `packer`, `templates` | `debian-13` template in `infra/packer/templates/` + Packer Build workflow |
 
 Machine inventory (`machines` in `terraform.tfvars`) is **local-only today** — CI injects connection settings but not which VMs/LXCs to create.
 

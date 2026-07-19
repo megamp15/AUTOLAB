@@ -59,7 +59,7 @@ jobs:
 
       - name: Validate generated Packer artifacts
         run: |
-          eval "$(bash scripts/resolve-packer-template.sh debian-12)"
+          eval "$(bash scripts/resolve-packer-template.sh debian-13)"
           (
             cd "$AUTOLAB_PACKER_TEMPLATE_DIR"
             packer init .

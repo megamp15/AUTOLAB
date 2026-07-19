@@ -37,7 +37,7 @@ Set at **Settings → Secrets and variables → Actions → Variables**.
 | `SSH_PUBLIC_KEYS` | `ssh-ed25519 AAAA...` | Packer Build | `cat ~/.ssh/id_ed25519.pub` on your laptop. |
 | `PROXMOX_STORAGE_POOL` | `local-lvm` | Packer Build | Proxmox → Datacenter → Storage. |
 | `PROXMOX_NETWORK_BRIDGE` | `vmbr0` | Packer Build | Proxmox → Node → Network. |
-| `PACKER_ISO_FILE` | `local:iso/debian-12.13.0-amd64-netinst.iso` | Packer Build | ISO path after upload to Proxmox. |
+| `PACKER_ISO_FILE` | `local:iso/debian-13.6.0-amd64-netinst.iso` | Packer Build | ISO path after upload to Proxmox. |
 | `PACKER_ISO_CHECKSUM` | *(empty)* | Packer Build | Optional. Leave empty to skip. |
 | `PROXMOX_CLOUD_INIT_STORAGE_POOL` | `local-lvm` | Packer Build | Optional. Defaults to `PROXMOX_STORAGE_POOL`. |
 
@@ -72,7 +72,7 @@ Copy from `infra/stacks/lab/terraform.tfvars.example` and edit locally.
 
 ## Creating a test VM
 
-1. **Packer Build** → creates template VM `9000` (`debian-12`)
+1. **Packer Build** → creates template VM `9000` (`debian-13`)
 2. **OpenTofu Plan** → smoke test (expect no changes until `machines` is set locally)
 3. **Local `tofu apply`** with `terraform.tfvars` → creates the disposable VM
 4. Destroy the VM when done; keep the template

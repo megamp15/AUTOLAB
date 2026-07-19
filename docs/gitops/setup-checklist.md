@@ -102,7 +102,7 @@ GitHub Environments group secrets. **Required reviewers is an Enterprise-only fe
 | `SSH_PUBLIC_KEYS` | SSH public keys for Packer template build (comma-separated) |
 | `PROXMOX_STORAGE_POOL` | Packer: storage pool for template disks (e.g. `local-lvm`) |
 | `PROXMOX_NETWORK_BRIDGE` | Packer: network bridge (e.g. `vmbr0`) |
-| `PACKER_ISO_FILE` | Packer: ISO path (e.g. `local:iso/debian-12.13.0-amd64-netinst.iso`) |
+| `PACKER_ISO_FILE` | Packer: ISO path (e.g. `local:iso/debian-13.6.0-amd64-netinst.iso`) |
 
 - [ ] Add these **secrets** (repository or environment level):
 
@@ -131,24 +131,24 @@ OpenTofu clones VMs from an existing template. You have two options:
 
 Packer builds templates from an ISO on your running Proxmox host — no manual steps needed beyond uploading the ISO.
 
-- [ ] Upload a Debian 12 netinst ISO to Proxmox ISO storage (via the UI or `wget` on the host)
+- [ ] Upload a Debian 13 netinst ISO to Proxmox ISO storage (via the UI or `wget` on the host)
 - [ ] Copy the Packer variables example:
 
 ```bash
-cp infra/packer/templates/debian-12/debian-12.pkrvars.example infra/packer/templates/debian-12/debian-12.pkrvars.hcl
+cp infra/packer/templates/debian-13/debian-13.pkrvars.example infra/packer/templates/debian-13/debian-13.pkrvars.hcl
 ```
 
-- [ ] Edit `infra/packer/templates/debian-12/debian-12.pkrvars.hcl` with your Proxmox endpoint, API token, node name, and SSH public keys
+- [ ] Edit `infra/packer/templates/debian-13/debian-13.pkrvars.hcl` with your Proxmox endpoint, API token, node name, and SSH public keys
 - [ ] Run Packer from a machine that can reach Proxmox over Tailscale:
 
 ```bash
-cd infra/packer/templates/debian-12
+cd infra/packer/templates/debian-13
 packer init .
-packer validate -var-file=debian-12.pkrvars.hcl .
-packer build -var-file=debian-12.pkrvars.hcl .
+packer validate -var-file=debian-13.pkrvars.hcl .
+packer build -var-file=debian-13.pkrvars.hcl .
 ```
 
-- [ ] Note the template VM ID (default 9000) — it must match `template_vm_id` in your `terraform.tfvars`. The default comes from `debian-12` in `infra/packer/template-catalog.yaml`.
+- [ ] Note the template VM ID (default 9000) — it must match `template_vm_id` in your `terraform.tfvars`. The default comes from `debian-13` in `infra/packer/template-catalog.yaml`.
 
 ### Option B: Create manually (quick start fallback)
 
@@ -157,14 +157,14 @@ If you want to test OpenTofu before setting up Packer:
 - [ ] Download a cloud-init image on the Proxmox host:
 
 ```bash
-wget https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2
+wget https://cloud.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2
 ```
 
 - [ ] Create a VM from the image:
 
 ```bash
-qm create 9000 --name "debian-12-template" --memory 2048 --net0 virtio,bridge=vmbr0
-qm importdisk 9000 debian-12-generic-amd64.qcow2 local-lvm
+qm create 9000 --name "debian-13-template" --memory 2048 --net0 virtio,bridge=vmbr0
+qm importdisk 9000 debian-13-generic-amd64.qcow2 local-lvm
 qm set 9000 --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-9000-disk-0
 qm set 9000 --ide2 local-lvm:cloudinit
 qm set 9000 --boot c --bootdisk scsi0
@@ -195,8 +195,8 @@ See [04 - OpenTofu VM/LXC provisioning](./04-opentofu-vm-lxc.md) for details.
 LXC templates are downloaded directly in Proxmox — no manual VM creation needed.
 
 - [ ] In the Proxmox UI, go to your node → **local** storage → **CT Templates**
-- [ ] Download the template you want (e.g. `Debian 12 Standard`)
-- [ ] Note the template file ID (e.g. `local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst`) — it must match `template_file_id` in your `terraform.tfvars`
+- [ ] Download the template you want (e.g. `Debian 13 Standard`)
+- [ ] Note the template file ID (e.g. `local:vztmpl/debian-standard.tar.zst`) — it must match `template_file_id` in your `terraform.tfvars`
 
 ## 8. Local OpenTofu configuration
 
@@ -257,7 +257,7 @@ tofu plan
 The Packer scaffold is in `infra/packer/`. To build templates:
 
 - [ ] Upload a Debian netinst ISO to Proxmox ISO storage
-- [ ] Copy `infra/packer/templates/debian-12/debian-12.pkrvars.example` to `infra/packer/templates/debian-12/debian-12.pkrvars.hcl` and fill in values
+- [ ] Copy `infra/packer/templates/debian-13/debian-13.pkrvars.example` to `infra/packer/templates/debian-13/debian-13.pkrvars.hcl` and fill in values
 - [ ] Run `packer init`, `packer validate`, `packer build` from a machine that can reach Proxmox over Tailscale
 - [ ] Or run the existing **Packer Build** GitHub Actions workflow after adding the Packer CI variables/secrets from `infra/packer/README.md`
 

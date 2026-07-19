@@ -6,12 +6,12 @@
 # into templates with status: implemented.
 
 templates:
-  - name: debian-12
+  - name: debian-13
     status: implemented
-    description: Debian 12 cloud-init template
-    directory: infra/packer/templates/debian-12
-    packer_file: debian-12.pkr.hcl
-    proxmox_template_name: autolab-debian-12-template
+    description: Debian 13 cloud-init template
+    directory: infra/packer/templates/debian-13
+    packer_file: debian-13.pkr.hcl
+    proxmox_template_name: autolab-debian-13-template
     proxmox_template_vm_id: 9000
     provisioning_class: builder_target
     installer: preseed

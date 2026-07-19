@@ -29,15 +29,15 @@ See `infra/packer/` for the Packer config and `docs/gitops/setup-checklist.md` f
 
 If you want to test OpenTofu before setting up Packer, create a template manually:
 
-1. **Download a cloud-init image** — e.g. Debian 12 (Bookworm) qcow2:
+1. **Download a cloud-init image** — e.g. Debian 13 (Trixie) qcow2:
    ```bash
-   wget https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2
+   wget https://cloud.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2
    ```
 
 2. **Create a VM on Proxmox** using the image:
    ```bash
-   qm create 9000 --name "debian-12-template" --memory 2048 --net0 virtio,bridge=vmbr0
-   qm importdisk 9000 debian-12-generic-amd64.qcow2 local-lvm
+   qm create 9000 --name "debian-13-template" --memory 2048 --net0 virtio,bridge=vmbr0
+   qm importdisk 9000 debian-13-generic-amd64.qcow2 local-lvm
    qm set 9000 --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-9000-disk-0
    qm set 9000 --ide2 local-lvm:cloudinit
    qm set 9000 --boot c --bootdisk scsi0
@@ -86,7 +86,7 @@ infra/
     cloud-init/
   stacks/lab/
   _base/
-  packer/templates/debian-12/   # Packer-built cloud-init template (VM ID 9000)
+  packer/templates/debian-13/   # Packer-built cloud-init template (VM ID 9000)
 ```
 
 Copy the example variables:

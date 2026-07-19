@@ -34,7 +34,7 @@ required by the Proxmox Packer plugin.
 The Debian template is ready to test once these operator-owned values exist:
 
 1. Proxmox has the installer ISO uploaded to ISO storage.
-   Current default: `local:iso/debian-12.13.0-amd64-netinst.iso`.
+   Current default: `local:iso/debian-13.6.0-amd64-netinst.iso`.
 2. GitHub repository variables describe the Proxmox node:
    `PROXMOX_HOST`, `PROXMOX_ENDPOINT`, `PROXMOX_NODE_NAME`, `PROXMOX_STORAGE_POOL`,
    `PROXMOX_NETWORK_BRIDGE`, `PACKER_ISO_FILE`, and `SSH_PUBLIC_KEYS`.
@@ -55,12 +55,12 @@ infra/packer/
 ├── README.md                  # this file
 ├── template-schema.yaml       # Packer template CI vocabulary
 └── templates/
-    └── debian-12/
+    └── debian-13/
         ├── connection-vars.pkr.hcl   # generated Proxmox connection variables
         ├── template-vars.pkr.hcl     # Debian-specific variables
-        ├── debian-12.pkr.hcl         # Debian 12 cloud-init template build
-        ├── debian-12-preseed.cfg.tpl # preseed template for automated install
-        └── debian-12.pkrvars.example # example overrides
+        ├── debian-13.pkr.hcl         # Debian 13 cloud-init template build
+        ├── debian-13-preseed.cfg.tpl # preseed template for automated install
+        └── debian-13.pkrvars.example # example overrides
 ```
 
 The Packer template catalog lives in `template-catalog.yaml`. Only entries with
@@ -81,12 +81,12 @@ they contain secrets like API tokens. Copy the `.example` file and fill in your
 values:
 
 ```bash
-cp infra/packer/templates/debian-12/debian-12.pkrvars.example infra/packer/templates/debian-12/debian-12.pkrvars.hcl
-# edit infra/packer/templates/debian-12/debian-12.pkrvars.hcl with your values
-cd infra/packer/templates/debian-12
+cp infra/packer/templates/debian-13/debian-13.pkrvars.example infra/packer/templates/debian-13/debian-13.pkrvars.hcl
+# edit infra/packer/templates/debian-13/debian-13.pkrvars.hcl with your values
+cd infra/packer/templates/debian-13
 packer init .
-packer validate -var-file=debian-12.pkrvars.hcl .
-packer build -var-file=debian-12.pkrvars.hcl .
+packer validate -var-file=debian-13.pkrvars.hcl .
+packer build -var-file=debian-13.pkrvars.hcl .
 ```
 
 ## Configurable variables
@@ -105,12 +105,12 @@ For now, `template-schema.yaml` generates only the `configure-packer-template` a
 | `proxmox_insecure_tls` | `true` | No | Skip TLS verification |
 | `storage_pool` | `local-lvm` | No | Storage pool for VM disks |
 | `cloud_init_storage_pool` | `null` (defaults to `storage_pool`) | No | Separate pool for cloud-init drive |
-| `iso_file` | `local:iso/debian-12.13.0-amd64-netinst.iso` | No | Proxmox ISO storage path |
+| `iso_file` | `local:iso/debian-13.6.0-amd64-netinst.iso` | No | Proxmox ISO storage path |
 | `iso_checksum` | `""` (skip verification) | No | ISO checksum (e.g. `sha256:abc...`) |
 | `boot_iso_type` | `scsi` | No | Packer boot ISO device type (`scsi`, `ide`, `sata`, `virtio`) |
 | `ssh_password` | `packer` | Yes | Temporary build-only SSH password for provisioning |
 | `network_bridge` | `vmbr0` | No | Proxmox bridge for build VM |
-| `vm_template_name` | `autolab-debian-12-template` | No | Template name |
+| `vm_template_name` | `autolab-debian-13-template` | No | Template name |
 | `vm_id_base` | `9000` | No | Starting VM ID |
 | `ssh_public_keys` | `[]` | No | SSH keys to inject |
 
@@ -148,7 +148,7 @@ so CI callers can resolve it through `scripts/resolve-packer-template.sh`.
 
 The current checked-in build is Debian-specific because it uses Debian preseed.
 Ubuntu Server uses Subiquity autoinstall instead, so Ubuntu support should be a
-separate template implementation rather than a catalog alias for `debian-12`.
+separate template implementation rather than a catalog alias for `debian-13`.
 The workflow resolves one implemented template and runs Packer only inside that
 template directory.
 

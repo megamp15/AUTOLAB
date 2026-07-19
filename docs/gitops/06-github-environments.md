@@ -32,7 +32,7 @@ Set at **Settings → Secrets and variables → Actions → Variables**:
 | `SSH_PUBLIC_KEYS` | Public SSH keys for Packer template build | `ssh-ed25519 AAAA...` |
 | `PROXMOX_STORAGE_POOL` | Packer: disk storage | `local-lvm` |
 | `PROXMOX_NETWORK_BRIDGE` | Packer: network bridge | `vmbr0` |
-| `PACKER_ISO_FILE` | Packer: installer ISO path | `local:iso/debian-12.13.0-amd64-netinst.iso` |
+| `PACKER_ISO_FILE` | Packer: installer ISO path | `local:iso/debian-13.6.0-amd64-netinst.iso` |
 
 Optional Packer variables: `PACKER_ISO_CHECKSUM`, `PROXMOX_CLOUD_INIT_STORAGE_POOL`.
 

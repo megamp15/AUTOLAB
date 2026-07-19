@@ -1,12 +1,12 @@
 # ---------------------------------------------------------------------------
-# Debian 12 cloud-init VM template
+# Debian 13 cloud-init VM template
 #
-# Builds a Proxmox VM template from the Debian 12 netinst ISO using the
+# Builds a Proxmox VM template from the Debian 13 netinst ISO using the
 # proxmox-iso builder (bpg/proxmox plugin).
 #
 # How it works:
 #   1. Boots the Debian netinst ISO with an automated preseed config
-#   2. Installs a minimal Debian 12 system
+#   2. Installs a minimal Debian 13 system
 #   3. Installs qemu-guest-agent and ensures cloud-init is present
 #   4. Converts the VM to a Proxmox template
 #
@@ -32,7 +32,7 @@ locals {
 
 # ---- Source: proxmox-iso builder ----
 
-source "proxmox-iso" "debian-12" {
+source "proxmox-iso" "debian-13" {
   # Connection (mirrors proxmox-connection module schema)
   proxmox_url              = var.proxmox_endpoint
   username                 = local.proxmox_api_token_username
@@ -55,7 +55,7 @@ source "proxmox-iso" "debian-12" {
 
   # Preseed config — served via Packer's HTTP server during install
   http_content = {
-    "/preseed.cfg" = templatefile("${path.root}/debian-12-preseed.cfg.tpl", {
+    "/preseed.cfg" = templatefile("${path.root}/debian-13-preseed.cfg.tpl", {
       ssh_keys      = var.ssh_public_keys
       root_password = var.root_password
     })
@@ -111,8 +111,8 @@ source "proxmox-iso" "debian-12" {
 # ---- Provisioners ----
 
 build {
-  name    = "autolab-debian-12"
-  sources = ["source.proxmox-iso.debian-12"]
+  name    = "autolab-debian-13"
+  sources = ["source.proxmox-iso.debian-13"]
 
   # Install qemu-guest-agent (required for VM management / IP reporting)
   provisioner "shell" {

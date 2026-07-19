@@ -36,7 +36,7 @@ When OpenTofu clones a `builder_target` VM, the `cloud-init` module
 - Tailscale SSH for humans (only `tailscale up` install/join is wired)
 
 Packer-built Debian templates also bake SSH keys into the template and lock the
-temporary `packer` user before templating — see `infra/packer/templates/debian-12/`.
+temporary `packer` user before templating — see `infra/packer/templates/debian-13/`.
 
 ## Target baseline (phase 2C — Ansible, not implemented)
 

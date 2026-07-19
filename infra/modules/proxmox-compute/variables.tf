@@ -129,7 +129,7 @@ variable "cloud_init_user_data" {
 # ---- LXC-specific fields ----
 
 variable "template_file_id" {
-  description = "Proxmox template file ID, e.g. local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst (LXC only)."
+  description = "Proxmox template file ID, e.g. local:vztmpl/debian-standard.tar.zst (LXC only)."
   type        = string
   default     = null
 }

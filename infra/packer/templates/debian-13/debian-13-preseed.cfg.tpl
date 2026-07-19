@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------------------
-# Debian 12 automated install preseed
-# Used by Packer during the debian-12.pkr.hcl build.
+# Debian 13 automated install preseed
+# Used by Packer during the debian-13.pkr.hcl build.
 #
 # This configures:
 #   - Fully automated install (no interactive prompts)
@@ -35,9 +35,10 @@ d-i passwd/root-password-again           password ${root_password}
 # Inject SSH public keys for root (from the ssh_public_keys variable).
 # late_command runs once; we append all keys in a single shell command.
 d-i preseed/late_command                 string \
-  in-target sh -c 'mkdir -p /root/.ssh && \
-  %{ for key in ssh_keys ~} echo ${key} >> /target/root/.ssh/authorized_keys && \
-  %{ endfor ~} chmod 600 /target/root/.ssh/authorized_keys'
+  in-target sh -c 'mkdir -p /root/.ssh && chmod 700 /root/.ssh && \
+  touch /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys && \
+  %{ for key in ssh_keys ~} echo ${key} >> /root/.ssh/authorized_keys && \
+  %{ endfor ~} chmod 600 /root/.ssh/authorized_keys'
 
 # --- Clock / Time ---
 d-i clock/timezone                       string UTC

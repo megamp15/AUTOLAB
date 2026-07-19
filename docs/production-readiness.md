@@ -72,7 +72,7 @@ Run plan from the stack directory after `tofu init` with connection variables fr
 
 For changes that affect **Packer templates** (phase 2B):
 
-1. `packer validate` for the catalog-resolved template — **runs in CI** for `debian-12` via `scripts/resolve-packer-template.sh`.
+1. `packer validate` for the catalog-resolved template — **runs in CI** for `debian-13` via `scripts/resolve-packer-template.sh`.
 2. Full `packer build` — **manual dispatch** via `packer-build.yml` against a real Proxmox host.
 
 ### 7 — One real Proxmox host smoke test
@@ -89,7 +89,7 @@ This gate is manual for alpha; it becomes automated in CI once an ephemeral Tail
 ## When gates apply
 
 **Implemented in CI today** (`.github/workflows/scripts.yml`): schema drift, Bats,
-`bash -n`, `tofu validate`, Packer validate for `debian-12`.
+`bash -n`, `tofu validate`, Packer validate for `debian-13`.
 
 **Manual / dispatch today:** `tofu plan`, `tofu apply`, `packer build`, real host
 smoke test.
@@ -102,7 +102,7 @@ yamllint on CI adapters, validate every catalog template on every PR.
 | Schema drift | Yes | Yes | Required | Recommended |
 | Bats tests | Yes | Yes | Required | Recommended |
 | OpenTofu validate | Yes | Yes | Required | Recommended |
-| Packer validate (`debian-12`) | Yes | Yes | Required | Recommended |
+| Packer validate (`debian-13`) | Yes | Yes | Required | Recommended |
 | OpenTofu plan (real host) | Manual | Manual | Required | Optional |
 | Packer build (real host) | Manual | Manual | Required | Optional |
 | Bootstrap dry-run | No | No | Target | Optional |

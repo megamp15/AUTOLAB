@@ -1,13 +1,13 @@
 # ---------------------------------------------------------------------------
-# Packer variable overrides for Debian 12 template
+# Packer variable overrides for Debian 13 template
 #
-# Copy this file to debian-12.pkrvars.hcl (not tracked by git), fill in your
+# Copy this file to debian-13.pkrvars.hcl (not tracked by git), fill in your
 # values, and run:
 #
-#   cd infra/packer/templates/debian-12
+#   cd infra/packer/templates/debian-13
 #   packer init .
-#   packer validate -var-file=debian-12.pkrvars.hcl .
-#   packer build    -var-file=debian-12.pkrvars.hcl .
+#   packer validate -var-file=debian-13.pkrvars.hcl .
+#   packer build    -var-file=debian-13.pkrvars.hcl .
 #
 # In CI, these values are passed via PKR_VAR_ environment variables from
 # GitHub repository variables and secrets (see .github/workflows/packer-build.yml).
@@ -22,7 +22,7 @@ proxmox_node_name    = "pve"
 proxmox_insecure_tls = true
 
 # ---- Template identity ----
-vm_template_name = "autolab-debian-12-template"
+vm_template_name = "autolab-debian-13-template"
 vm_id_base       = 9000
 
 # ---- Storage ----
@@ -30,7 +30,7 @@ storage_pool            = "local-lvm"
 cloud_init_storage_pool = null # defaults to storage_pool when null
 
 # ---- ISO ----
-iso_file     = "local:iso/debian-12.13.0-amd64-netinst.iso"
+iso_file     = "local:iso/debian-13.6.0-amd64-netinst.iso"
 iso_checksum = "" # set to sha256:abcdef... to verify, or leave empty to skip
 
 # ---- SSH ----
