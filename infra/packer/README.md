@@ -33,11 +33,13 @@ required by the Proxmox Packer plugin.
 
 The Debian template is ready to test once these operator-owned values exist:
 
-1. Proxmox has the installer ISO uploaded to ISO storage.
-   Current default: `local:iso/debian-13.6.0-amd64-netinst.iso`.
+1. Proxmox can reach the pinned installer URL and download it directly to the
+   `local` storage pool:
+   `https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso`.
 2. GitHub repository variables describe the Proxmox node:
    `PROXMOX_HOST`, `PROXMOX_ENDPOINT`, `PROXMOX_NODE_NAME`, `PROXMOX_STORAGE_POOL`,
-   `PROXMOX_NETWORK_BRIDGE`, `PACKER_ISO_FILE`, and `SSH_PUBLIC_KEYS`.
+   `PROXMOX_NETWORK_BRIDGE`, `PACKER_ISO_URL`, `PACKER_ISO_CHECKSUM`, and
+   `SSH_PUBLIC_KEYS`.
 3. GitHub repository secrets provide credentials:
    `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`,
    `PROXMOX_API_TOKEN`, and `PACKER_SSH_PASSWORD`.
@@ -105,14 +107,18 @@ For now, `template-schema.yaml` generates only the `configure-packer-template` a
 | `proxmox_insecure_tls` | `true` | No | Skip TLS verification |
 | `storage_pool` | `local-lvm` | No | Storage pool for VM disks |
 | `cloud_init_storage_pool` | `null` (defaults to `storage_pool`) | No | Separate pool for cloud-init drive |
-| `iso_file` | `local:iso/debian-13.6.0-amd64-netinst.iso` | No | Proxmox ISO storage path |
-| `iso_checksum` | `""` (skip verification) | No | ISO checksum (e.g. `sha256:abc...`) |
+| `iso_url` | `https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso` | No | Pinned URL for the installer ISO |
+| `iso_checksum` | `sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7` | No | ISO checksum (e.g. `sha256:abc...`) |
 | `boot_iso_type` | `scsi` | No | Packer boot ISO device type (`scsi`, `ide`, `sata`, `virtio`) |
 | `ssh_password` | `packer` | Yes | Temporary build-only SSH password for provisioning |
 | `network_bridge` | `vmbr0` | No | Proxmox bridge for build VM |
 | `vm_template_name` | `autolab-debian-13-template` | No | Template name |
 | `vm_id_base` | `9000` | No | Starting VM ID |
 | `ssh_public_keys` | `[]` | No | SSH keys to inject |
+
+The pinned ISO is downloaded by PVE and is retained deliberately for rollback;
+Autolab never auto-deletes old ISO files. Build and test a new template
+separately before switching VM definitions to it.
 
 ### GitHub CI variables and secrets
 
@@ -127,7 +133,7 @@ In the Packer workflow, these map to GitHub repository variables and secrets:
 | `proxmox_insecure_tls` | Variable | `PROXMOX_INSECURE_TLS` |
 | `storage_pool` | Variable | `PROXMOX_STORAGE_POOL` |
 | `cloud_init_storage_pool` | Variable | `PROXMOX_CLOUD_INIT_STORAGE_POOL` |
-| `iso_file` | Variable | `PACKER_ISO_FILE` |
+| `iso_url` | Variable | `PACKER_ISO_URL` |
 | `iso_checksum` | Variable | `PACKER_ISO_CHECKSUM` |
 | `network_bridge` | Variable | `PROXMOX_NETWORK_BRIDGE` |
 | `ssh_public_keys` | Variable | `SSH_PUBLIC_KEYS` |

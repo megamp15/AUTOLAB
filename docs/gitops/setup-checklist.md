@@ -102,7 +102,8 @@ GitHub Environments group secrets. **Required reviewers is an Enterprise-only fe
 | `SSH_PUBLIC_KEYS` | SSH public keys for Packer template build (comma-separated) |
 | `PROXMOX_STORAGE_POOL` | Packer: storage pool for template disks (e.g. `local-lvm`) |
 | `PROXMOX_NETWORK_BRIDGE` | Packer: network bridge (e.g. `vmbr0`) |
-| `PACKER_ISO_FILE` | Packer: ISO path (e.g. `local:iso/debian-13.6.0-amd64-netinst.iso`) |
+| `PACKER_ISO_URL` | Packer: pinned ISO URL (e.g. `https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso`) |
+| `PACKER_ISO_CHECKSUM` | Packer: required ISO checksum (`sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7`) |
 
 - [ ] Add these **secrets** (repository or environment level):
 
@@ -129,9 +130,11 @@ OpenTofu clones VMs from an existing template. You have two options:
 
 ### Option A: Build with Packer (recommended)
 
-Packer builds templates from an ISO on your running Proxmox host — no manual steps needed beyond uploading the ISO.
+Packer asks Proxmox to download the pinned ISO URL directly into the `local`
+storage pool. The URL and verified checksum are required repository variables;
+there is no manual ISO upload step.
 
-- [ ] Upload a Debian 13 netinst ISO to Proxmox ISO storage (via the UI or `wget` on the host)
+- [ ] Set repository variables `PACKER_ISO_URL` and `PACKER_ISO_CHECKSUM` to the pinned URL and verified checksum
 - [ ] Copy the Packer variables example:
 
 ```bash
@@ -149,6 +152,10 @@ packer build -var-file=debian-13.pkrvars.hcl .
 ```
 
 - [ ] Note the template VM ID (default 9000) — it must match `template_vm_id` in your `terraform.tfvars`. The default comes from `debian-13` in `infra/packer/template-catalog.yaml`.
+
+Keep the previous ISO/template available deliberately for rollback; this setup
+never auto-deletes old ISO files. Before switching VM definitions to a new
+template, build and test that new template separately.
 
 ### Option B: Create manually (quick start fallback)
 
@@ -256,7 +263,7 @@ tofu plan
 
 The Packer scaffold is in `infra/packer/`. To build templates:
 
-- [ ] Upload a Debian netinst ISO to Proxmox ISO storage
+- [ ] Set the pinned `PACKER_ISO_URL` and `PACKER_ISO_CHECKSUM` repository variables; PVE downloads the ISO into `local`
 - [ ] Copy `infra/packer/templates/debian-13/debian-13.pkrvars.example` to `infra/packer/templates/debian-13/debian-13.pkrvars.hcl` and fill in values
 - [ ] Run `packer init`, `packer validate`, `packer build` from a machine that can reach Proxmox over Tailscale
 - [ ] Or run the existing **Packer Build** GitHub Actions workflow after adding the Packer CI variables/secrets from `infra/packer/README.md`

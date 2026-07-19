@@ -46,7 +46,7 @@ jobs:
           ssh_password: ${{ secrets.PACKER_SSH_PASSWORD }}
           storage_pool: ${{ vars.PROXMOX_STORAGE_POOL }}
           network_bridge: ${{ vars.PROXMOX_NETWORK_BRIDGE }}
-          iso_file: ${{ vars.PACKER_ISO_FILE }}
+          iso_url: ${{ vars.PACKER_ISO_URL }}
           iso_checksum: ${{ vars.PACKER_ISO_CHECKSUM }}
           cloud_init_storage_pool: ${{ vars.PROXMOX_CLOUD_INIT_STORAGE_POOL }}
           ssh_public_keys: ${{ vars.SSH_PUBLIC_KEYS }}

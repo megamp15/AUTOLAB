@@ -30,8 +30,8 @@ storage_pool            = "local-lvm"
 cloud_init_storage_pool = null # defaults to storage_pool when null
 
 # ---- ISO ----
-iso_file     = "local:iso/debian-13.6.0-amd64-netinst.iso"
-iso_checksum = "" # set to sha256:abcdef... to verify, or leave empty to skip
+iso_url      = "https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso"
+iso_checksum = "sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7"
 
 # ---- SSH ----
 ssh_password = "packer" # temporary build-only password; account is locked before templating

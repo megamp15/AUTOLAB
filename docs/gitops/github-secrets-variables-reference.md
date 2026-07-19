@@ -17,7 +17,7 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 
 | Workflow | Variables (`vars.*`) | Secrets (`secrets.*`) |
 |----------|----------------------|------------------------|
-| **Packer Build** | `PROXMOX_ENDPOINT`, `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `PROXMOX_HOST`, `PROXMOX_STORAGE_POOL`, `PROXMOX_NETWORK_BRIDGE`, `PACKER_ISO_FILE`, `PACKER_ISO_CHECKSUM`, `PROXMOX_CLOUD_INIT_STORAGE_POOL`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `PVE_SSH_PRIVATE_KEY` (optional) |
+| **Packer Build** | `PROXMOX_ENDPOINT`, `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `PROXMOX_HOST`, `PROXMOX_STORAGE_POOL`, `PROXMOX_NETWORK_BRIDGE`, `PACKER_ISO_URL`, `PACKER_ISO_CHECKSUM`, `PROXMOX_CLOUD_INIT_STORAGE_POOL`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `PVE_SSH_PRIVATE_KEY` (optional) |
 | **OpenTofu Plan** | `PROXMOX_ENDPOINT`, `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS` | `PROXMOX_API_TOKEN`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TAILSCALE_VM_AUTHKEY` (optional) |
 | **OpenTofu Apply** | same as Plan | same as Plan |
 
@@ -37,8 +37,8 @@ Set at **Settings → Secrets and variables → Actions → Variables**.
 | `SSH_PUBLIC_KEYS` | `ssh-ed25519 AAAA...` | Packer Build | `cat ~/.ssh/id_ed25519.pub` on your laptop. |
 | `PROXMOX_STORAGE_POOL` | `local-lvm` | Packer Build | Proxmox → Datacenter → Storage. |
 | `PROXMOX_NETWORK_BRIDGE` | `vmbr0` | Packer Build | Proxmox → Node → Network. |
-| `PACKER_ISO_FILE` | `local:iso/debian-13.6.0-amd64-netinst.iso` | Packer Build | ISO path after upload to Proxmox. |
-| `PACKER_ISO_CHECKSUM` | *(empty)* | Packer Build | Optional. Leave empty to skip. |
+| `PACKER_ISO_URL` | `https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso` | Packer Build | Pinned ISO URL downloaded directly by Proxmox. |
+| `PACKER_ISO_CHECKSUM` | `sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7` | Packer Build | Required SHA-256 checksum for the pinned ISO. |
 | `PROXMOX_CLOUD_INIT_STORAGE_POOL` | `local-lvm` | Packer Build | Optional. Defaults to `PROXMOX_STORAGE_POOL`. |
 
 ## Secrets
@@ -95,7 +95,8 @@ Environments must exist even if secrets live at repository level.
 - [ ] `PROXMOX_NODE_NAME`
 - [ ] `PROXMOX_INSECURE_TLS` = `true`
 - [ ] `SSH_PUBLIC_KEYS`
-- [ ] `PROXMOX_STORAGE_POOL`, `PROXMOX_NETWORK_BRIDGE`, `PACKER_ISO_FILE` (Packer)
+- [ ] `PROXMOX_STORAGE_POOL`, `PROXMOX_NETWORK_BRIDGE`, `PACKER_ISO_URL` (Packer)
+- [ ] `PACKER_ISO_CHECKSUM` = `sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7` (Packer)
 
 **Secrets**
 

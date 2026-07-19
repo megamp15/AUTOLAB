@@ -21,6 +21,8 @@ The phase where a bare-metal host gets online manually: ISO install, local conso
 The practice of declarative config in git with a controller that applies it. In Autolab, GitOps starts **after** bootstrap — once the host can reach GitHub Actions via Tailscale.
 
 - **Stack** — a Terramate-managed OpenTofu environment directory under `infra/stacks/`. Each stack defines one environment (e.g., `lab`).
+- **GitOps lifecycle** — the planned path from an ephemeral `template-validation` candidate, through persistent `integration-test`, to long-lived `lab`; see `docs/gitops/template-lifecycle.md`.
+- **Integration test** — the persistent canary environment for later server layers such as Ansible, Docker, Kubernetes, or monitoring; it is not a builder-only smoke test.
 - **Machine** — a VM or LXC resource defined in a stack's `machines` variable (local `terraform.tfvars` today). Each machine has a `type` (`vm` or `lxc`), a `provisioning_class` (`builder_target` or `cluster_os`), and type-specific config.
 - **Provisioning class** — how a Machine is configured after Proxmox creates it. `builder_target` uses cloud-init and the Ansible builder path; `cluster_os` is reserved for disposable Talos-style experiments configured through `talosctl`.
 

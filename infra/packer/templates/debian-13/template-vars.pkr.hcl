@@ -112,16 +112,16 @@ variable "cloud_init_storage_pool" {
 
 # ---- ISO ----
 
-variable "iso_file" {
+variable "iso_url" {
   type        = string
-  default     = "local:iso/debian-13.6.0-amd64-netinst.iso"
-  description = "Proxmox ISO storage path for the installer ISO. Must already be uploaded to the Proxmox host."
+  default     = "https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso"
+  description = "Pinned URL for the installer ISO downloaded by Proxmox."
 }
 
 variable "iso_checksum" {
   type        = string
-  default     = ""
-  description = "Checksum for the ISO file (e.g. sha256:abcdef...). Empty string skips verification."
+  default     = "sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7"
+  description = "Required SHA-256 checksum for the installer ISO."
 }
 
 variable "boot_iso_type" {

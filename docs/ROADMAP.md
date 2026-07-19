@@ -26,6 +26,7 @@ Machine inventory (`machines` in `terraform.tfvars`) is **local-only today** —
 | Item | Tags | Notes |
 |------|------|--------|
 | CI-injected or committed machine inventory | `gitops`, `opentofu` | So GitHub Apply can provision without a local `terraform.tfvars` |
+| `template-validation` and `integration-test` environments | `gitops`, `packer`, `opentofu`, `integration-test` | Validate ephemeral candidates, then test later server layers on a persistent canary before promoting to `lab` |
 | Template experiment matrix | `packer`, `templates`, `talos`, `kubernetes` | Disposable OS and cluster experiments — [template matrix](gitops/template-lab-matrix.md) |
 | Builder phase 2C | `ansible`, `security`, `linux` | Enforce the provider-neutral server baseline — scaffold in `builders/ansible/` |
 | VPS provider track | `vps`, `opentofu`, `providers` | Future cloud-provider stacks replace Proxmox/Packer provisioning while reusing the builder baseline |

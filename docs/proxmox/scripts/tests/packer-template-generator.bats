@@ -14,7 +14,10 @@ setup() {
   [ "$(schema_field 0 '.ci_env')" = "PACKER_SSH_PASSWORD" ]
   [ "$(schema_field 1 '.ci_env')" = "PROXMOX_STORAGE_POOL" ]
   [ "$(schema_field 2 '.ci_env')" = "PROXMOX_NETWORK_BRIDGE" ]
-  [ "$(schema_field 3 '.ci_env')" = "PACKER_ISO_FILE" ]
+  [ "$(schema_field 3 '.ci_env')" = "PACKER_ISO_URL" ]
+  [ "$(schema_field 4 '.ci_env')" = "PACKER_ISO_CHECKSUM" ]
+  [ "$(schema_field 3 '.required_in_ci')" = "true" ]
+  [ "$(schema_field 4 '.required_in_ci')" = "true" ]
 }
 
 @test "packer template schema carries Packer variable names" {
@@ -27,4 +30,6 @@ setup() {
   run env -u AUTOLAB_GENERATOR_LIB_ONLY bash "${SCRIPT_DIR}/../../../scripts/generate-packer-template-adapters.sh" --check
   [ "$status" -eq 0 ]
   [[ "$output" == *"matches schema"* ]]
+  grep -A2 '^  iso_url:' "${SCRIPT_DIR}/../../../.github/actions/configure-packer-template/action.yml" | grep -q 'required: true'
+  grep -A2 '^  iso_checksum:' "${SCRIPT_DIR}/../../../.github/actions/configure-packer-template/action.yml" | grep -q 'required: true'
 }

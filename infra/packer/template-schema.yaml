@@ -31,23 +31,23 @@ fields:
     sensitive: false
     required_in_ci: false
 
-  - name: iso_file
+  - name: iso_url
     type: string
-    description: "Proxmox ISO storage path for the installer ISO"
-    packer_var: iso_file
-    ci_env: PACKER_ISO_FILE
+    description: "Pinned URL for the installer ISO"
+    packer_var: iso_url
+    ci_env: PACKER_ISO_URL
     ci_source: variable
     sensitive: false
-    required_in_ci: false
+    required_in_ci: true
 
   - name: iso_checksum
     type: string
-    description: "Checksum for the ISO file. Empty skips verification."
+    description: "Required SHA-256 checksum for the installer ISO"
     packer_var: iso_checksum
     ci_env: PACKER_ISO_CHECKSUM
     ci_source: variable
     sensitive: false
-    required_in_ci: false
+    required_in_ci: true
 
   - name: cloud_init_storage_pool
     type: string

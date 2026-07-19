@@ -6,6 +6,12 @@ audience: beginner
 
 # GitOps phase 2 - VM and LXC foundation
 
+The agreed template and machine lifecycle is documented in
+[Template lifecycle](./template-lifecycle.md). It introduces the planned
+`template-validation`, persistent `integration-test`, and long-lived `lab`
+environments without claiming that the future multi-stack architecture exists
+today.
+
 This track starts after the manual Proxmox bootstrap works:
 
 1. Proxmox is installed.
@@ -58,8 +64,9 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. The **stack code** lives
 6. [06 - GitHub Environments](./06-github-environments.md)
 7. [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.md)
 8. [Template experiment matrix](./template-lab-matrix.md)
-9. [Server hardening baseline](./server-hardening-baseline.md)
-10. [Security sources](./security-sources.md)
+9. [Template lifecycle](./template-lifecycle.md)
+10. [Server hardening baseline](./server-hardening-baseline.md)
+11. [Security sources](./security-sources.md)
 
 ## Setup checklist
 

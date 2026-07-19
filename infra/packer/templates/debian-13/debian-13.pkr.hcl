@@ -47,10 +47,12 @@ source "proxmox-iso" "debian-13" {
 
   # OS / ISO
   boot_iso {
-    type         = var.boot_iso_type
-    iso_file     = var.iso_file
-    iso_checksum = var.iso_checksum != "" ? var.iso_checksum : null
-    unmount      = true
+    type             = var.boot_iso_type
+    iso_url          = var.iso_url
+    iso_checksum     = var.iso_checksum
+    iso_storage_pool = "local"
+    iso_download_pve = true
+    unmount          = true
   }
 
   # Preseed config — served via Packer's HTTP server during install

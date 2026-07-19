@@ -39,14 +39,12 @@ inputs:
     description: Proxmox bridge for the build VM
     required: false
     default: ''
-  iso_file:
-    description: Proxmox ISO storage path for the installer ISO
-    required: false
-    default: ''
+  iso_url:
+    description: Pinned URL for the installer ISO
+    required: true
   iso_checksum:
-    description: Checksum for the ISO file. Empty skips verification.
-    required: false
-    default: ''
+    description: Required SHA-256 checksum for the installer ISO
+    required: true
   cloud_init_storage_pool:
     description: Optional separate storage pool for the cloud-init drive
     required: false
@@ -86,7 +84,7 @@ runs:
         ssh_password: ${{ inputs.ssh_password }}
         storage_pool: ${{ inputs.storage_pool }}
         network_bridge: ${{ inputs.network_bridge }}
-        iso_file: ${{ inputs.iso_file }}
+        iso_url: ${{ inputs.iso_url }}
         iso_checksum: ${{ inputs.iso_checksum }}
         cloud_init_storage_pool: ${{ inputs.cloud_init_storage_pool }}
         ssh_public_keys: ${{ inputs.ssh_public_keys }}
