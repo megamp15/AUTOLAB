@@ -71,3 +71,9 @@ TEMPLATE_DIR="${SCRIPT_DIR}/../../../infra/packer/templates/ubuntu-26.04"
   ! grep -A8 '^variable "vm_id"' "$vars" | grep -q 'default'
   ! grep -A8 '^variable "vm_template_name"' "$vars" | grep -q 'default'
 }
+
+@test "Ubuntu source label is Packer-safe" {
+  hcl="${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
+  grep -q 'source "proxmox-iso" "ubuntu-2604"' "$hcl"
+  grep -q 'source.proxmox-iso.ubuntu-2604' "$hcl"
+}

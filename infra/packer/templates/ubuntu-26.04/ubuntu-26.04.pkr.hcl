@@ -20,7 +20,7 @@ locals {
   proxmox_api_token_secret   = local.proxmox_api_token_parts[1]
 }
 
-source "proxmox-iso" "ubuntu-26.04" {
+source "proxmox-iso" "ubuntu-2604" {
   proxmox_url              = var.proxmox_endpoint
   username                 = local.proxmox_api_token_username
   token                    = local.proxmox_api_token_secret
@@ -97,7 +97,7 @@ source "proxmox-iso" "ubuntu-26.04" {
 
 build {
   name    = "autolab-ubuntu-26.04"
-  sources = ["source.proxmox-iso.ubuntu-26.04"]
+  sources = ["source.proxmox-iso.ubuntu-2604"]
 
   provisioner "shell" {
     execute_command = "{{ .Vars }} bash -e '{{ .Path }}'"
