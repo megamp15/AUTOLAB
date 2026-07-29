@@ -41,9 +41,10 @@ source "proxmox-iso" "debian-13" {
   insecure_skip_tls_verify = var.proxmox_insecure_tls
 
   # VM identity
-  vm_id   = var.vm_id
-  vm_name = var.vm_template_name
-  tags    = "autolab;template"
+  vm_id        = var.vm_id
+  vm_name      = var.vm_template_name
+  tags         = "autolab;template"
+  task_timeout = "10m"
 
   # OS / ISO
   boot_iso {

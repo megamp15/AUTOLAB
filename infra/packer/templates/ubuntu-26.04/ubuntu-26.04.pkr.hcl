@@ -27,9 +27,10 @@ source "proxmox-iso" "ubuntu-2604" {
   node                     = var.proxmox_node_name
   insecure_skip_tls_verify = var.proxmox_insecure_tls
 
-  vm_id   = var.vm_id
-  vm_name = var.vm_template_name
-  tags    = "autolab;template"
+  vm_id        = var.vm_id
+  vm_name      = var.vm_template_name
+  tags         = "autolab;template"
+  task_timeout = "10m"
 
   boot_iso {
     type             = var.boot_iso_type
