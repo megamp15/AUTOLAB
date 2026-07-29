@@ -73,6 +73,9 @@ jobs:
             export PKR_VAR_ssh_bastion_private_key_file=/tmp/validation-bastion-key
             export PKR_VAR_ssh_password=validation-only
             export PKR_VAR_packer_password_hash="$(printf '%s\n' validation-only | openssl passwd -6 -stdin)"
+            if [[ "$template" == "debian-13" ]]; then
+              export PKR_VAR_pve_http_ip=192.168.50.10
+            fi
             proxmox_host=pve.example.ts.net
             proxmox_port=8006
             proxmox_endpoint="https://${proxmox_host}:${proxmox_port}"

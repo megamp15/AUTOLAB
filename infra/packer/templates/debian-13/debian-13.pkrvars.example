@@ -28,12 +28,12 @@ cloud_init_storage_pool = null # defaults to storage_pool when null
 
 # ---- SSH ----
 ssh_password = "packer" # temporary build-only password; account is locked before templating
-# root_password  = "packer"   # Only used during automated install; root is locked after provisioning
 ssh_public_keys = [
   "ssh-ed25519 REPLACE_WITH_PUBLIC_KEY_ONLY autolab@example"
 ]
 
 # ---- Network ----
+pve_http_ip = "192.168.1.10" # PVE LAN IP; CI serves preseed on port 8100
 network_bridge = "vmbr0"
 
 # ---- Bastion / SSH relay ----

@@ -17,12 +17,15 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 
 | Workflow | Variables (`vars.*`) | Secrets (`secrets.*`) |
 |----------|----------------------|------------------------|
-| **Packer Build** | `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `PVE_SSH_PRIVATE_KEY` |
+| **Packer Build** | `PROXMOX_HOST`, `PROXMOX_LAN_IP`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `PVE_SSH_PRIVATE_KEY` |
 | **OpenTofu Plan** | `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS` | `PROXMOX_API_TOKEN`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TAILSCALE_VM_AUTHKEY` (optional) |
 | **OpenTofu Apply** | same as Plan | same as Plan |
 
 `PROXMOX_HOST` is used for the Proxmox API endpoint and the Packer SSH bastion;
 the API endpoint is derived internally with the optional `PROXMOX_PORT`.
+`PROXMOX_LAN_IP` is the required PVE LAN address used only by Debian 13 builds
+for their temporary PVE-local preseed server; it is distinct from
+`PROXMOX_HOST` and is not part of the API connection schema.
 
 The implemented template's release URL and checksum are owned by
 `infra/packer/template-catalog.yaml` and injected by the catalog resolver; no
@@ -35,6 +38,7 @@ Set at **Settings → Secrets and variables → Actions → Variables**.
 | Variable | Example | Used by | Where to get it |
 |----------|---------|---------|-----------------|
 | `PROXMOX_HOST` | `<proxmox-host>` | Packer Build | Tailscale MagicDNS name. `hostname` on Proxmox host. |
+| `PROXMOX_LAN_IP` | `192.168.1.10` | Packer Build | Required PVE LAN IP reachable by the temporary Debian installer VM. |
 | `PROXMOX_PORT` | `8006` | Packer, OpenTofu | Optional API HTTPS port override. |
 | `PROXMOX_NODE_NAME` | `<proxmox-host>` | Packer, OpenTofu | Proxmox UI left sidebar (not always `pve`). |
 | `PROXMOX_INSECURE_TLS` | `true` | Packer, OpenTofu | Keep `true` for Proxmox default self-signed cert. |
@@ -92,6 +96,7 @@ Environments must exist even if secrets live at repository level.
 **Variables**
 
 - [ ] `PROXMOX_HOST`
+- [ ] `PROXMOX_LAN_IP` (required for Debian 13 Packer Build)
 - [ ] `PROXMOX_PORT` (optional; defaults to `8006`)
 - [ ] `PROXMOX_NODE_NAME`
 - [ ] `PROXMOX_INSECURE_TLS` = `true`

@@ -46,6 +46,10 @@ inputs:
     description: Comma-separated public SSH keys to inject via cloud-init
     required: false
     default: ''
+  pve_http_ip:
+    description: PVE LAN IP used for the temporary Debian preseed server
+    required: false
+    default: ''
   packer_version:
     description: Packer version to install
     required: false
@@ -97,6 +101,20 @@ runs:
         append_github_env "PKR_VAR_ssh_bastion_host" "${AUTOLAB_PROXMOX_HOST}"
         append_github_env "PKR_VAR_ssh_bastion_username" "${AUTOLAB_PVE_SSH_USERNAME}"
         append_github_env "PKR_VAR_ssh_bastion_private_key_file" "${HOME}/.ssh/pve_ci_key"
+
+    - name: Configure Debian PVE-local preseed address
+      if: inputs.template == 'debian-13'
+      shell: bash
+      env:
+        AUTOLAB_PVE_HTTP_IP: ${{ inputs.pve_http_ip }}
+      run: |
+        set -euo pipefail
+        if [[ -z "${AUTOLAB_PVE_HTTP_IP}" ]]; then
+          echo "ERROR: pve_http_ip (repository variable PROXMOX_LAN_IP) is required for Debian builds." >&2
+          exit 1
+        fi
+        source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
+        append_github_env "PKR_VAR_pve_http_ip" "${AUTOLAB_PVE_HTTP_IP}"
 
     - uses: ./.github/actions/configure-proxmox-connection
       with:

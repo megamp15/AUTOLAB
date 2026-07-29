@@ -56,19 +56,11 @@ source "proxmox-iso" "debian-13" {
     unmount          = true
   }
 
-  # Preseed config — served via Packer's HTTP server during install
-  http_content = {
-    "/preseed.cfg" = templatefile("${path.root}/debian-13-preseed.cfg.tpl", {
-      ssh_keys      = var.ssh_public_keys
-      root_password = var.root_password
-    })
-  }
-
   # Kernel boot params: point the installer at our preseed
   boot_wait = var.boot_wait
   boot_command = [
     "<esc><wait>",
-    "auto url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/preseed.cfg",
+    "auto url=http://${var.pve_http_ip}:8100/preseed.cfg",
     " netcfg/choose_interface=auto",
     " priority=critical",
     "<enter>"

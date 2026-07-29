@@ -141,11 +141,9 @@ variable "ssh_public_keys" {
   description = "Public SSH keys to inject via cloud-init"
 }
 
-variable "root_password" {
+variable "pve_http_ip" {
   type        = string
-  default     = "packer"
-  description = "Root password set during Packer build. The root account is locked after provisioning — this password is only used during the automated install."
-  sensitive   = true
+  description = "PVE LAN IP where CI stages the temporary Debian preseed HTTP server"
 }
 
 # ---- Network ----

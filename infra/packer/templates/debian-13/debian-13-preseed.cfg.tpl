@@ -32,13 +32,15 @@ d-i passwd/root-login                    boolean true
 d-i passwd/root-password                 password ${root_password}
 d-i passwd/root-password-again           password ${root_password}
 
-# Inject SSH public keys for root (from the ssh_public_keys variable).
+# Inject SSH public keys for root (from the ssh_public_keys variable). jsonencode
+# keeps key material safe inside the single-quoted late_command shell.
 # late_command runs once; we append all keys in a single shell command.
 d-i preseed/late_command                 string \
   in-target sh -c 'mkdir -p /root/.ssh && chmod 700 /root/.ssh && \
   touch /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys && \
-  %{ for key in ssh_keys ~} echo ${key} >> /root/.ssh/authorized_keys && \
-  %{ endfor ~} chmod 600 /root/.ssh/authorized_keys'
+  %{ for key in ssh_keys ~} echo ${jsonencode(key)} >> /root/.ssh/authorized_keys && \
+  %{ endfor ~} chmod 600 /root/.ssh/authorized_keys && \
+  mkdir -p /etc/ssh/sshd_config.d && printf "%s\n" "PermitRootLogin yes" "PasswordAuthentication yes" > /etc/ssh/sshd_config.d/packer-root-password.conf'
 
 # --- Clock / Time ---
 d-i clock/timezone                       string UTC

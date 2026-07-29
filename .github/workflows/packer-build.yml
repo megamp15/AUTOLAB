@@ -42,6 +42,30 @@ jobs:
           ssh_password: ${{ secrets.PACKER_SSH_PASSWORD }}
           pve_ssh_private_key: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
           ssh_public_keys: ${{ vars.SSH_PUBLIC_KEYS }}
+          pve_http_ip: ${{ vars.PROXMOX_LAN_IP }}
+
+      - name: Stage Debian preseed on PVE
+        if: inputs.template == 'debian-13'
+        env:
+          AUTOLAB_PRESEED_PASSWORD: ${{ secrets.PACKER_SSH_PASSWORD }}
+          AUTOLAB_PRESEED_KEYS: ${{ vars.SSH_PUBLIC_KEYS }}
+          AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
+        run: |
+          set -euo pipefail
+          bash scripts/render-debian-preseed.sh > "${RUNNER_TEMP}/debian-preseed.cfg"
+          remote_dir="/var/tmp/autolab-debian-preseed-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh_opts=(-i "${HOME}/.ssh/pve_ci_key" -o BatchMode=yes)
+          ssh "${ssh_opts[@]}" "root@${AUTOLAB_PVE_HOST}" \
+            "rm -rf '${remote_dir}' && install -d -m 700 '${remote_dir}'"
+          scp "${ssh_opts[@]}" "${RUNNER_TEMP}/debian-preseed.cfg" \
+            "root@${AUTOLAB_PVE_HOST}:${remote_dir}/preseed.cfg"
+          server_pid="$(ssh "${ssh_opts[@]}" "root@${AUTOLAB_PVE_HOST}" \
+            "nohup python3 -m http.server 8100 --bind 0.0.0.0 --directory '${remote_dir}' >/var/tmp/autolab-debian-preseed-${GITHUB_RUN_ID}.log 2>&1 </dev/null & echo \$!")"
+          source scripts/lib/github-env.sh
+          append_github_env AUTOLAB_PVE_PRESEED_DIR "${remote_dir}"
+          append_github_env AUTOLAB_PVE_PRESEED_PID "${server_pid}"
+          ssh "${ssh_opts[@]}" "root@${AUTOLAB_PVE_HOST}" \
+            "test -s '${remote_dir}/preseed.cfg' && kill -0 '${server_pid}' && sha256sum '${remote_dir}/preseed.cfg'"
 
       - name: Verify Tailscale connectivity
         run: |
@@ -91,5 +115,17 @@ jobs:
           echo ""
           echo "📝 Next Steps:"
           echo "   1. Run OpenTofu Plan to verify the template is available"
-          echo "   2. Run OpenTofu Apply to create VMs from this template"
+          echo "   2. Run OpenTofu Apply to create VMs from this Packer template"
           echo "========================================================"
+
+      - name: Cleanup Debian preseed server
+        if: always() && inputs.template == 'debian-13'
+        env:
+          AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
+        run: |
+          set +e
+          if [[ -n "${AUTOLAB_PVE_PRESEED_PID:-}" ]]; then
+            ssh -i "${HOME}/.ssh/pve_ci_key" -o BatchMode=yes \
+              "root@${AUTOLAB_PVE_HOST}" \
+              "kill '${AUTOLAB_PVE_PRESEED_PID}' 2>/dev/null || true; rm -rf '${AUTOLAB_PVE_PRESEED_DIR:-}' '/var/tmp/autolab-debian-preseed-${GITHUB_RUN_ID}.log'"
+          fi

@@ -14,6 +14,7 @@ Actions**. Do not commit them.
 | Name | Required | Value |
 |---|---:|---|
 | `PROXMOX_HOST` | Yes | Current Proxmox host's Tailscale MagicDNS name or Tailscale IP. It is both the API host and SSH bastion. |
+| `PROXMOX_LAN_IP` | Yes for Debian 13 | PVE's LAN IP, used by the temporary PVE-local preseed server; do not use the Tailscale/API host here. |
 | `PROXMOX_PORT` | No | API HTTPS port. Omit it to use `8006`; set only for a non-standard port. |
 | `PROXMOX_NODE_NAME` | Yes | Node name shown in the Proxmox UI. |
 | `PROXMOX_INSECURE_TLS` | No | `true` for the usual self-signed certificate. |
