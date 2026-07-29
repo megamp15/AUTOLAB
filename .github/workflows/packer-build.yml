@@ -42,7 +42,8 @@ jobs:
           ssh_password: ${{ secrets.PACKER_SSH_PASSWORD }}
           pve_ssh_private_key: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
           ssh_public_keys: ${{ vars.SSH_PUBLIC_KEYS }}
-          pve_http_ip: ${{ vars.PROXMOX_LAN_IP }}
+          pve_http_ip: ${{ vars.PROXMOX_PACKER_PRESEED_IP || vars.PROXMOX_LAN_IP }}
+          network_bridge: ${{ vars.PROXMOX_PACKER_NETWORK_BRIDGE || 'vmbr0' }}
 
       - name: Stage Debian preseed on PVE
         if: inputs.template == 'debian-13'

@@ -143,7 +143,7 @@ variable "ssh_public_keys" {
 
 variable "pve_http_ip" {
   type        = string
-  description = "PVE LAN IP where CI stages the temporary Debian preseed HTTP server"
+  description = "PVE IP reachable from the build VM where CI stages the temporary Debian preseed HTTP server"
 }
 
 # ---- Network ----

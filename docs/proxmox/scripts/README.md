@@ -37,6 +37,23 @@ bash configure-proxmox-network-env.sh                     # Wi-Fi (+ hotspot + m
 bash setup-proxmox-network.sh --apply                     # applies Wi-Fi, vmbr0, failover
 ```
 
+## Private VM network for Wi-Fi-only hosts
+
+Wi-Fi cannot bridge guest traffic onto the LAN. To give installer VMs DHCP and
+internet without changing management networking, run once on the Proxmox host:
+
+```bash
+bash setup-private-vm-network.sh --apply
+```
+
+It creates `vmbr1` at `10.42.0.1/24`, runs DHCP, and NATs guest traffic through
+the default-route interface. For Packer builds, set GitHub Actions variables:
+
+```text
+PROXMOX_PACKER_NETWORK_BRIDGE=vmbr1
+PROXMOX_PACKER_PRESEED_IP=10.42.0.1
+```
+
 | Task | Script |
 |------|--------|
 | Home Wi‑Fi + phone hotspot + more SSIDs | `configure-proxmox-network-env.sh` |

@@ -47,9 +47,13 @@ inputs:
     required: false
     default: ''
   pve_http_ip:
-    description: PVE LAN IP used for the temporary Debian preseed server
+    description: PVE IP reachable from the temporary build VM for the Debian preseed server
     required: false
     default: ''
+  network_bridge:
+    description: Proxmox bridge for the temporary build VM
+    required: false
+    default: vmbr0
   packer_version:
     description: Packer version to install
     required: false
@@ -115,6 +119,7 @@ runs:
         fi
         source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
         append_github_env "PKR_VAR_pve_http_ip" "${AUTOLAB_PVE_HTTP_IP}"
+        append_github_env "PKR_VAR_network_bridge" "${{ inputs.network_bridge }}"
 
     - uses: ./.github/actions/configure-proxmox-connection
       with:
