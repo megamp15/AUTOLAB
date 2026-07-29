@@ -55,7 +55,12 @@ runs:
           printf 'https://%s:%s' "$host" "$port"
         }
 
+        format_packer_proxmox_endpoint() {
+          printf '%s/api2/json' "$(format_proxmox_endpoint "$1" "$2")"
+        }
+
         proxmox_endpoint="$(format_proxmox_endpoint "$AUTOLAB_INPUT_PROXMOX_HOST" "$AUTOLAB_INPUT_PROXMOX_PORT")"
+        packer_proxmox_endpoint="$(format_packer_proxmox_endpoint "$AUTOLAB_INPUT_PROXMOX_HOST" "$AUTOLAB_INPUT_PROXMOX_PORT")"
 
         if [[ '${{ inputs.emit_tf_vars }}' == 'true' ]]; then
           append_github_env "TF_VAR_proxmox_host" "$AUTOLAB_INPUT_PROXMOX_HOST"
@@ -70,5 +75,5 @@ runs:
           append_github_env "PKR_VAR_proxmox_api_token" "$AUTOLAB_INPUT_PROXMOX_API_TOKEN"
           append_github_env "PKR_VAR_proxmox_node_name" "$AUTOLAB_INPUT_PROXMOX_NODE_NAME"
           append_github_env "PKR_VAR_proxmox_insecure_tls" "$AUTOLAB_INPUT_PROXMOX_INSECURE_TLS"
-          append_github_env "PKR_VAR_proxmox_endpoint" "$proxmox_endpoint"
+          append_github_env "PKR_VAR_proxmox_endpoint" "$packer_proxmox_endpoint"
         fi

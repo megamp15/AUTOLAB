@@ -47,10 +47,14 @@ setup() {
   [ "$(format_proxmox_endpoint pve.example.test 9443)" = "https://pve.example.test:9443" ]
   [ "$(format_proxmox_endpoint 2001:db8::10 8006)" = "https://[2001:db8::10]:8006" ]
   [ "$(format_proxmox_endpoint '[2001:db8::10]' 8006)" = "https://[2001:db8::10]:8006" ]
+  [ "$(format_packer_proxmox_endpoint pve.example.test 8006)" = "https://pve.example.test:8006/api2/json" ]
+  [ "$(format_packer_proxmox_endpoint '[2001:db8::10]' 8006)" = "https://[2001:db8::10]:8006/api2/json" ]
   action="${SCRIPT_DIR}/../../../.github/actions/configure-proxmox-connection/action.yml"
   grep -q 'format_proxmox_endpoint' "$action"
   grep -q 'AUTOLAB_INPUT_PROXMOX_PORT' "$action"
   grep -q "default: '8006'" "$action"
   grep -q 'host="\[\$host\]"' "$action"
+  grep -q 'packer_proxmox_endpoint' "$action"
+  grep -q 'PKR_VAR_proxmox_endpoint.*packer_proxmox_endpoint' "$action"
   ! grep -q 'PROXMOX_ENDPOINT' "$action"
 }

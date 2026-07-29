@@ -91,6 +91,10 @@ format_proxmox_endpoint() {
   printf 'https://%s:%s' "$host" "$port"
 }
 
+format_packer_proxmox_endpoint() {
+  printf '%s/api2/json' "$(format_proxmox_endpoint "$1" "$2")"
+}
+
 emit_hcl_validation() {
   local tmp="$1" var_name="$2" validation="$3" error_msg="$4" indent="$5"
   if [[ -n "$validation" ]] && [[ "$validation" != "null" ]]; then
@@ -428,7 +432,12 @@ STATIC_INPUTS
           printf 'https://%s:%s' "$host" "$port"
         }
 
+        format_packer_proxmox_endpoint() {
+          printf '%s/api2/json' "$(format_proxmox_endpoint "$1" "$2")"
+        }
+
         proxmox_endpoint="$(format_proxmox_endpoint "$AUTOLAB_INPUT_PROXMOX_HOST" "$AUTOLAB_INPUT_PROXMOX_PORT")"
+        packer_proxmox_endpoint="$(format_packer_proxmox_endpoint "$AUTOLAB_INPUT_PROXMOX_HOST" "$AUTOLAB_INPUT_PROXMOX_PORT")"
 
         if [[ '${{ inputs.emit_tf_vars }}' == 'true' ]]; then
 RUN_START
@@ -465,7 +474,7 @@ PACKER_START
     env_name="AUTOLAB_INPUT_$(schema_name_to_env_suffix "$name")"
     echo "          append_github_env \"PKR_VAR_${packer_var}\" \"\$${env_name}\"" >> "$tmp"
   done
-  echo '          append_github_env "PKR_VAR_proxmox_endpoint" "$proxmox_endpoint"' >> "$tmp"
+  echo '          append_github_env "PKR_VAR_proxmox_endpoint" "$packer_proxmox_endpoint"' >> "$tmp"
 
   cat >> "$tmp" << 'FOOTER'
         fi
