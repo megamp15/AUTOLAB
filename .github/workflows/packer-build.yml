@@ -69,7 +69,14 @@ jobs:
           echo "   • Template file: ${AUTOLAB_PACKER_TEMPLATE_FILE}"
           echo "========================================================"
 
-          packer build .
+          log="${RUNNER_TEMP}/packer-proxmox.log"
+          trap 'rm -f "$log"' EXIT
+
+          if ! PACKER_LOG=1 PACKER_LOG_PATH="$log" packer build .; then
+            grep -F 'failed to download iso from' "$log" ||
+              echo "No PVE API error line; inspect normal output for a checksum preflight error."
+            exit 1
+          fi
 
       - name: Build summary
         if: always()
