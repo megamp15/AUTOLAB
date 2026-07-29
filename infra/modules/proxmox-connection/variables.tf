@@ -18,11 +18,11 @@
 
 
 variable "endpoint" {
-  description = "Proxmox API endpoint URL (must be HTTPS)"
+  description = "Derived internal Proxmox API endpoint URL"
   type        = string
   validation {
     condition     = can(regex("^https://", var.endpoint))
-    error_message = "Proxmox endpoint must be an HTTPS URL."
+    error_message = "Derived Proxmox endpoint must be an HTTPS URL."
   }
 }
 

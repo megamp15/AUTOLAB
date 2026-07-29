@@ -25,7 +25,6 @@ jobs:
   build-template:
     name: Build ${{ inputs.template }} template
     runs-on: ubuntu-latest
-    env:
     steps:
       - uses: actions/checkout@v4
 
@@ -36,15 +35,12 @@ jobs:
           tailscale_oauth_secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
           proxmox_host: ${{ vars.PROXMOX_HOST }}
           pve_ssh_username: root
-          proxmox_endpoint: ${{ vars.PROXMOX_ENDPOINT }}
+          proxmox_port: ${{ vars.PROXMOX_PORT || '8006' }}
           proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
           proxmox_node_name: ${{ vars.PROXMOX_NODE_NAME }}
           proxmox_insecure_tls: ${{ vars.PROXMOX_INSECURE_TLS || 'true' }}
           ssh_password: ${{ secrets.PACKER_SSH_PASSWORD }}
           pve_ssh_private_key: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
-          storage_pool: ${{ vars.PROXMOX_STORAGE_POOL }}
-          network_bridge: ${{ vars.PROXMOX_NETWORK_BRIDGE }}
-          cloud_init_storage_pool: ${{ vars.PROXMOX_CLOUD_INIT_STORAGE_POOL }}
           ssh_public_keys: ${{ vars.SSH_PUBLIC_KEYS }}
 
       - name: Verify Tailscale connectivity

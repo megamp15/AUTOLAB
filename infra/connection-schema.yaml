@@ -14,16 +14,34 @@
 fields:
   # ---- Required ----
 
+  - name: proxmox_host
+    type: string
+    description: "Proxmox host name or IP address (IPv6 literals may be bracketed)"
+    validation: "^[^[:space:]]+$"
+    opentofu_var: proxmox_host
+    ci_env: PROXMOX_HOST
+    ci_source: variable
+    error_message: "Proxmox host must not contain whitespace."
+    sensitive: false
+
+  - name: proxmox_port
+    type: number
+    description: "Proxmox API HTTPS port"
+    default: 8006
+    opentofu_var: proxmox_port
+    ci_env: PROXMOX_PORT
+    ci_source: variable
+    sensitive: false
+
   - name: proxmox_endpoint
     type: string
-    description: "Proxmox API endpoint URL (must be HTTPS)"
+    description: "Derived internal Proxmox API endpoint URL"
+    derived: true
     validation: "^https://"
     opentofu_var: proxmox_endpoint
     module_var: endpoint
     packer_var: proxmox_endpoint
-    ci_env: PROXMOX_ENDPOINT
-    ci_source: variable
-    error_message: "Proxmox endpoint must be an HTTPS URL."
+    error_message: "Derived Proxmox endpoint must be an HTTPS URL."
     sensitive: false
 
   - name: proxmox_api_token

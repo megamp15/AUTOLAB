@@ -63,12 +63,14 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. The **stack code** lives
 5. [05 - R2 state backend](./05-r2-state-backend.md)
 6. [06 - GitHub Environments](./06-github-environments.md)
 7. [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.md)
-8. [Template experiment matrix](./template-lab-matrix.md)
-9. [Template lifecycle](./template-lifecycle.md)
-10. [Server hardening baseline](./server-hardening-baseline.md)
-11. [Security sources](./security-sources.md)
+8. [Manual GitHub UI Packer setup](./github-ui-packer-setup.md)
+9. [Template experiment matrix](./template-lab-matrix.md)
+10. [Template lifecycle](./template-lifecycle.md)
+11. [Server hardening baseline](./server-hardening-baseline.md)
+12. [Security sources](./security-sources.md)
 
 ## Setup checklist
 
-From "Proxmox is on Tailscale" to working CI pipelines and your first disposable VM:
+From "Proxmox is on Tailscale" to working CI pipelines and the Packer/template
+lifecycle:
 **[setup-checklist.md](./setup-checklist.md)**

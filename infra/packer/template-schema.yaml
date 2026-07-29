@@ -13,33 +13,6 @@ fields:
     sensitive: true
     required_in_ci: false
 
-  - name: storage_pool
-    type: string
-    description: "Proxmox storage pool for VM disks"
-    packer_var: storage_pool
-    ci_env: PROXMOX_STORAGE_POOL
-    ci_source: variable
-    sensitive: false
-    required_in_ci: false
-
-  - name: network_bridge
-    type: string
-    description: "Proxmox bridge for the build VM"
-    packer_var: network_bridge
-    ci_env: PROXMOX_NETWORK_BRIDGE
-    ci_source: variable
-    sensitive: false
-    required_in_ci: false
-
-  - name: cloud_init_storage_pool
-    type: string
-    description: "Optional separate storage pool for the cloud-init drive"
-    packer_var: cloud_init_storage_pool
-    ci_env: PROXMOX_CLOUD_INIT_STORAGE_POOL
-    ci_source: variable
-    sensitive: false
-    required_in_ci: false
-
   - name: ssh_public_keys
     type: list_string
     description: "Public SSH keys to inject via cloud-init"

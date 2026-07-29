@@ -36,8 +36,8 @@ See [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.
 
 | Variable | Meaning |
 |----------|---------|
-| `PROXMOX_HOST` | Tailscale hostname (Packer ping checks) |
-| `PROXMOX_ENDPOINT` | API URL, e.g. `https://<proxmox-host>:8006` |
+| `PROXMOX_HOST` | Proxmox host name/IP used by OpenTofu and the Packer bastion |
+| `PROXMOX_PORT` | Optional API HTTPS port; defaults to `8006` |
 | `PROXMOX_NODE_NAME` | Node name from Proxmox UI |
 | `PROXMOX_INSECURE_TLS` | `true` for default self-signed cert |
 
@@ -49,7 +49,8 @@ See [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.
 
 SSH public keys for cloned VMs are set in local `terraform.tfvars`
 (`identity_defaults.ssh_public_keys`), not in a GitHub secret. Packer template
-builds use the `SSH_PUBLIC_KEYS` repository variable.
+builds use the `SSH_PUBLIC_KEYS` repository variable. Consumers derive the
+internal HTTPS endpoint from `PROXMOX_HOST` and `PROXMOX_PORT`.
 
 Source:
 

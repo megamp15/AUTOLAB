@@ -6,7 +6,8 @@ audience: operator
 
 # Phase 2 setup checklist
 
-From "Proxmox is installed and on Tailscale" to working CI pipelines and your first disposable VM.
+From "Proxmox is installed and on Tailscale" to working CI pipelines and the
+Packer/template lifecycle.
 
 Complete these in order. Each step links to the relevant guide for details.
 
@@ -96,12 +97,10 @@ GitHub Environments group secrets. **Required reviewers is an Enterprise-only fe
 | Variable | Value |
 |----------|-------|
 | `PROXMOX_HOST` | Your Proxmox Tailscale hostname (e.g. `<proxmox-host>`) |
-| `PROXMOX_ENDPOINT` | `https://<tailscale-magicdns>:8006` (e.g. `https://<proxmox-tailnet-host>:8006`) |
+| `PROXMOX_PORT` | Optional API HTTPS port; defaults to `8006` |
 | `PROXMOX_NODE_NAME` | Your Proxmox node name (e.g. `pve`) |
 | `PROXMOX_INSECURE_TLS` | Optional; use `true` for Proxmox's default self-signed certificate |
 | `SSH_PUBLIC_KEYS` | SSH public keys for Packer template build (comma-separated) |
-| `PROXMOX_STORAGE_POOL` | Packer: storage pool for template disks (e.g. `local-lvm`) |
-| `PROXMOX_NETWORK_BRIDGE` | Packer: network bridge (e.g. `vmbr0`) |
 
 - [ ] Add these **secrets** (repository or environment level):
 
@@ -122,6 +121,9 @@ If you already added these as **repository secrets**, the workflows can still re
 - [ ] (Enterprise only) Add **required reviewers** to `autolab-apply` if you want manual approval before apply runs
 
 See [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.md) for per-field "where to get it" details, and [06 - GitHub Environments](./06-github-environments.md) for environment setup.
+
+For the complete GitHub UI entry steps, PVE SSH bastion key setup, and local
+SSH diagnosis, see [Manual GitHub UI Packer setup](./github-ui-packer-setup.md).
 
 ## 6. Proxmox VM template
 
@@ -151,6 +153,10 @@ packer build -var-file=debian-13.pkrvars.hcl .
 ```
 
 - [ ] Note the template VM ID (default 9000) — it must match `template_vm_id` in your `terraform.tfvars`. The default comes from `debian-13` in `infra/packer/template-catalog.yaml`.
+
+Current Packer defaults are API port `8006` (optional `PROXMOX_PORT` override),
+bridge `vmbr0`, and VM disk/cloud-init storage `local-lvm`. The catalog, not
+GitHub UI, owns the selected ISO URL and checksum.
 
 Keep the previous ISO/template available deliberately for rollback; this setup
 never auto-deletes old ISO files. Before switching VM definitions to a new
@@ -219,7 +225,8 @@ cp infra/stacks/lab/terraform.tfvars.example infra/stacks/lab/terraform.tfvars
 ```
 
 - [ ] Edit `terraform.tfvars` with your actual values:
-  - `proxmox_endpoint` — your Proxmox API URL (Tailscale hostname)
+  - `proxmox_host` — your Proxmox hostname or IP
+  - `proxmox_port` — optional API port; defaults to `8006`
   - `proxmox_api_token` — the token from step 3
   - `proxmox_node_name` — your Proxmox node name
   - `identity_defaults.ssh_public_keys` — your public key(s) for cloned VMs
@@ -253,8 +260,8 @@ tofu plan
 - [ ] Push to `main` (or your working branch) on GitHub
 - [ ] Check that the **OpenTofu CI** workflow runs on push (format + validate)
 - [ ] Manually trigger **OpenTofu Plan** (workflow dispatch) and verify the pipeline initializes, reads R2 backend credentials, and receives the Proxmox/Tailscale connection settings
-- [ ] Treat the first plan as a smoke test. With no committed `terraform.tfvars`, `var.machines` defaults to `{}`, so a clean **No changes** result is expected until you add VM/LXC entries locally.
-- [ ] To actually create a VM today, copy `terraform.tfvars.example` to a local `terraform.tfvars`, add your machine entry, then run `tofu plan` and `tofu apply` locally. CI injects Proxmox/R2 connection settings from GitHub secrets and variables, but not the `machines` map.
+- [ ] Treat the first plan as a pipeline smoke test. The current CI path has no committed machine inventory, so `var.machines` defaults to `{}` and a clean **No changes** result is expected. Machine inventory is part of the planned lifecycle, not a local apply step.
+- [ ] Do not run local `tofu apply` or `tofu destroy` for normal operation. Machine inventory and the planned `template-validation` → `integration-test` → `lab` path are documented in [template-lifecycle.md](./template-lifecycle.md); those machine stacks are not implemented yet.
 
 ---
 

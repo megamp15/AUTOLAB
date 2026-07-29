@@ -20,10 +20,14 @@ inputs:
     description: Tailscale OAuth secret
     required: false
     default: ''
-  proxmox_endpoint:
-    description: Proxmox API endpoint URL
+  proxmox_host:
+    description: Proxmox host name or IP address
     required: false
     default: ''
+  proxmox_port:
+    description: Proxmox API HTTPS port
+    required: false
+    default: '8006'
   proxmox_api_token:
     description: Proxmox API token
     required: false
@@ -81,9 +85,9 @@ runs:
         append_github_env "R2_ENDPOINT" "https://${AUTOLAB_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
     - uses: ./.github/actions/configure-proxmox-connection
-      if: inputs.proxmox_endpoint != ''
       with:
-        proxmox_endpoint: ${{ inputs.proxmox_endpoint }}
+        proxmox_host: ${{ inputs.proxmox_host }}
+        proxmox_port: ${{ inputs.proxmox_port }}
         proxmox_api_token: ${{ inputs.proxmox_api_token }}
         proxmox_node_name: ${{ inputs.proxmox_node_name }}
         proxmox_insecure_tls: ${{ inputs.proxmox_insecure_tls }}

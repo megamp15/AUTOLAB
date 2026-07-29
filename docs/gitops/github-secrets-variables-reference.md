@@ -17,12 +17,12 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 
 | Workflow | Variables (`vars.*`) | Secrets (`secrets.*`) |
 |----------|----------------------|------------------------|
-| **Packer Build** | `PROXMOX_ENDPOINT`, `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `PROXMOX_HOST`, `PROXMOX_STORAGE_POOL`, `PROXMOX_NETWORK_BRIDGE`, `PROXMOX_CLOUD_INIT_STORAGE_POOL`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `PVE_SSH_PRIVATE_KEY` |
-| **OpenTofu Plan** | `PROXMOX_ENDPOINT`, `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS` | `PROXMOX_API_TOKEN`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TAILSCALE_VM_AUTHKEY` (optional) |
+| **Packer Build** | `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `PVE_SSH_PRIVATE_KEY` |
+| **OpenTofu Plan** | `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS` | `PROXMOX_API_TOKEN`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TAILSCALE_VM_AUTHKEY` (optional) |
 | **OpenTofu Apply** | same as Plan | same as Plan |
 
-`PROXMOX_HOST` is only used for Tailscale ping / ssh-keyscan in Packer Build — not
-passed to the Proxmox API.
+`PROXMOX_HOST` is used for the Proxmox API endpoint and the Packer SSH bastion;
+the API endpoint is derived internally with the optional `PROXMOX_PORT`.
 
 The implemented template's release URL and checksum are owned by
 `infra/packer/template-catalog.yaml` and injected by the catalog resolver; no
@@ -35,13 +35,10 @@ Set at **Settings → Secrets and variables → Actions → Variables**.
 | Variable | Example | Used by | Where to get it |
 |----------|---------|---------|-----------------|
 | `PROXMOX_HOST` | `<proxmox-host>` | Packer Build | Tailscale MagicDNS name. `hostname` on Proxmox host. |
-| `PROXMOX_ENDPOINT` | `https://<proxmox-host>:8006` | Packer, OpenTofu | `https://<proxmox-host>:8006` |
+| `PROXMOX_PORT` | `8006` | Packer, OpenTofu | Optional API HTTPS port override. |
 | `PROXMOX_NODE_NAME` | `<proxmox-host>` | Packer, OpenTofu | Proxmox UI left sidebar (not always `pve`). |
 | `PROXMOX_INSECURE_TLS` | `true` | Packer, OpenTofu | Keep `true` for Proxmox default self-signed cert. |
 | `SSH_PUBLIC_KEYS` | `ssh-ed25519 AAAA...` | Packer Build | `cat ~/.ssh/id_ed25519.pub` on your laptop. |
-| `PROXMOX_STORAGE_POOL` | `local-lvm` | Packer Build | Proxmox → Datacenter → Storage. |
-| `PROXMOX_NETWORK_BRIDGE` | `vmbr0` | Packer Build | Proxmox → Node → Network. |
-| `PROXMOX_CLOUD_INIT_STORAGE_POOL` | `local-lvm` | Packer Build | Optional. Defaults to `PROXMOX_STORAGE_POOL`. |
 
 ## Secrets
 
@@ -72,12 +69,14 @@ These are **not** injected by CI today:
 Copy from `infra/stacks/lab/terraform.tfvars.example` and edit locally.
 `terraform.tfvars` is gitignored.
 
-## Creating a test VM
+## Packer Build and machine lifecycle
 
-1. **Packer Build** → creates template VM `9000` (`debian-13`) or `9001` (`ubuntu-26.04`)
-2. **OpenTofu Plan** → smoke test (expect no changes until `machines` is set locally)
-3. **Local `tofu apply`** with `terraform.tfvars` → creates the disposable VM
-4. Destroy the VM when done; keep the template
+1. **Packer Build** → creates a Debian `9000` or Ubuntu `9001` template candidate.
+2. Use the [template lifecycle](./template-lifecycle.md) for the staged
+   `template-validation`, `integration-test`, and `lab` process.
+3. Normal machine changes are written to git and applied by protected GitHub
+   Actions with R2-backed state. Do not use local `tofu apply` or `tofu destroy`
+   for normal operation.
 
 ## GitHub Environments (must exist)
 
@@ -93,7 +92,7 @@ Environments must exist even if secrets live at repository level.
 **Variables**
 
 - [ ] `PROXMOX_HOST`
-- [ ] `PROXMOX_ENDPOINT` = `https://<proxmox-host>:8006`
+- [ ] `PROXMOX_PORT` (optional; defaults to `8006`)
 - [ ] `PROXMOX_NODE_NAME`
 - [ ] `PROXMOX_INSECURE_TLS` = `true`
 - [ ] `SSH_PUBLIC_KEYS`
@@ -102,6 +101,7 @@ Environments must exist even if secrets live at repository level.
 
 - [ ] `PROXMOX_API_TOKEN`
 - [ ] `PACKER_SSH_PASSWORD` (Packer)
+- [ ] `PVE_SSH_PRIVATE_KEY` (Packer)
 - [ ] `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`
 - [ ] `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
 
@@ -111,6 +111,7 @@ Environments must exist even if secrets live at repository level.
 
 ## Related docs
 
+- [Manual GitHub UI Packer setup](./github-ui-packer-setup.md)
 - [Setup checklist](./setup-checklist.md)
 - [03 - Proxmox API token](./03-proxmox-api-token.md)
 - [06 - GitHub Environments](./06-github-environments.md)

@@ -8,7 +8,7 @@
 
 variable "proxmox_endpoint" {
   type        = string
-  description = "Proxmox API endpoint URL (must be HTTPS)"
+  description = "Derived internal Proxmox API endpoint URL"
 }
 
 variable "proxmox_api_token" {

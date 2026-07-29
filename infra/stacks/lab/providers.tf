@@ -2,6 +2,6 @@
 
 provider "proxmox" {
   api_token = var.proxmox_api_token
-  endpoint  = var.proxmox_endpoint
+  endpoint  = local.proxmox_endpoint
   insecure  = var.proxmox_insecure_tls
 }

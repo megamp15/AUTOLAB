@@ -1,12 +1,17 @@
 // TERRAMATE: GENERATED AUTOMATICALLY DO NOT EDIT
 
-variable "proxmox_endpoint" {
-  description = "Proxmox API endpoint URL (must be HTTPS)"
+variable "proxmox_host" {
+  description = "Proxmox host name or IP address (IPv6 literals may be bracketed)"
   type        = string
   validation {
-    condition     = can(regex("^https://", var.proxmox_endpoint))
-    error_message = "Proxmox endpoint must be an HTTPS URL."
+    condition     = can(regex("^[^[:space:]]+$", var.proxmox_host))
+    error_message = "Proxmox host must not contain whitespace."
   }
+}
+variable "proxmox_port" {
+  default     = 8006
+  description = "Proxmox API HTTPS port"
+  type        = number
 }
 variable "proxmox_api_token" {
   description = "Proxmox API token in USER@REALM!TOKENID=TOKEN_SECRET format"
@@ -29,4 +34,8 @@ variable "proxmox_insecure_tls" {
   default     = true
   description = "Allow self-signed Proxmox TLS certificates"
   type        = bool
+}
+locals {
+  proxmox_endpoint     = "https://${local.proxmox_host_for_url}:${var.proxmox_port}"
+  proxmox_host_for_url = strcontains(var.proxmox_host, ":") && !startswith(var.proxmox_host, "[") ? "[${var.proxmox_host}]" : var.proxmox_host
 }

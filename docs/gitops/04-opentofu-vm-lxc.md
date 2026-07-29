@@ -109,11 +109,12 @@ The `machine-normalization` module merges those defaults per machine. The lab
 stack provisions only `builder_target` machines. VMs get cloud-init from the
 `cloud-init` module (admin user, SSH keys, qemu-guest-agent, optional Tailscale).
 
-**CI today:** GitHub Actions injects Proxmox/R2 connection settings from secrets
-and variables. The `machines` map is **not** injected — it lives in local
-`terraform.tfvars` (gitignored). A CI plan with no local tfvars shows **No changes**.
-To create a VM, add a machine entry locally and run `tofu apply`, or use GitHub
-Apply after you have a tfvars file on the runner (not supported yet).
+**Current scaffold:** GitHub Actions injects Proxmox/R2 connection settings from
+secrets and variables, but the `machines` map is not yet a CI input. A CI plan
+therefore shows no machine changes. Do not use local `tofu apply` or
+`tofu destroy` for normal operation; the machine inventory and staged
+`template-validation` → `integration-test` → `lab` workflow are planned in
+[template-lifecycle.md](./template-lifecycle.md).
 
 To add a machine, add a key to `machines` with `type = "vm"` or `type = "lxc"`.
 Set `node_name` only when placing on a node other than the stack default.
@@ -131,10 +132,10 @@ tofu validate
 tofu plan
 ```
 
-Apply through GitHub Actions reconciles whatever is in `var.machines`. With the
-default empty map, apply changes nothing. To create VMs today, define machines in
-local `terraform.tfvars` and run `tofu apply` locally (or dispatch GitHub Apply
-once CI can read your inventory).
+The local commands above are validation and planning only. Normal apply and
+destroy operations belong to protected GitHub Actions once the reviewed machine
+inventory path is implemented; do not treat a local `terraform.tfvars` as a
+GitOps-managed inventory.
 
 The apply workflow uses `scripts/tofu-apply-with-retry.sh`, which delegates retry
 behaviour to `scripts/lib/retry.sh`.

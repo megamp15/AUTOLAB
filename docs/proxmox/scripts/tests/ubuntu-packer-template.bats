@@ -45,6 +45,18 @@ TEMPLATE_DIR="${SCRIPT_DIR}/../../../infra/packer/templates/ubuntu-26.04"
   grep -q 'xorriso' "${SCRIPT_DIR}/../../../.github/actions/setup-packer-pipeline/action.yml"
 }
 
+@test "Packer defaults do not require GitHub storage or bridge variables" {
+  for template in debian-13 ubuntu-26.04; do
+    vars="${SCRIPT_DIR}/../../../infra/packer/templates/${template}/template-vars.pkr.hcl"
+    grep -q 'default     = "local-lvm"' "$vars"
+    grep -q 'default     = "vmbr0"' "$vars"
+    grep -q 'coalesce(var.cloud_init_storage_pool, var.storage_pool)' \
+      "${SCRIPT_DIR}/../../../infra/packer/templates/${template}/${template}.pkr.hcl"
+  done
+  ! grep -q 'PROXMOX_STORAGE_POOL\|PROXMOX_NETWORK_BRIDGE\|PROXMOX_CLOUD_INIT_STORAGE_POOL' \
+    "${SCRIPT_DIR}/../../../.github/actions/setup-packer-pipeline/action.yml"
+}
+
 @test "Ubuntu zeroes free space before final hardening" {
   hcl="${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
   zero_line="$(grep -n 'dd if=/dev/zero' "$hcl" | cut -d: -f1)"

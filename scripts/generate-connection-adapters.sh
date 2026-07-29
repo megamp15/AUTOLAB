@@ -81,6 +81,16 @@ schema_name_to_env_suffix() {
   printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
 }
 
+format_proxmox_endpoint() {
+  local host="$1" port="$2"
+  if [[ "$host" == \[*\] ]]; then
+    :
+  elif [[ "$host" == *:* ]]; then
+    host="[$host]"
+  fi
+  printf 'https://%s:%s' "$host" "$port"
+}
+
 emit_hcl_validation() {
   local tmp="$1" var_name="$2" validation="$3" error_msg="$4" indent="$5"
   if [[ -n "$validation" ]] && [[ "$validation" != "null" ]]; then
@@ -156,6 +166,8 @@ HEADER
     module_var="$(schema_field "$i" '.module_var')"
     error_msg="$(schema_field_default "$i" '.error_message' "Validation failed for ${module_var}.")"
 
+    [[ -n "${module_var}" && "${module_var}" != "null" ]] || continue
+
     local hcl_type
     hcl_type="$(schema_type_to_hcl "$type")"
 
@@ -211,6 +223,8 @@ HEADER
     sensitive="$(schema_field "$i" '.sensitive')"
     default="$(schema_field "$i" '.default')"
     packer_var="$(schema_field "$i" '.packer_var')"
+
+    [[ -n "${packer_var}" && "${packer_var}" != "null" ]] || continue
 
     local pkr_type
     pkr_type="$(schema_type_to_hcl "$type")"
@@ -278,7 +292,7 @@ TMHCL_START
   count="$(field_count)"
 
   for ((i=0; i<count; i++)); do
-    local name desc type validation sensitive default opentofu_var ci_env error_msg
+    local name desc type validation sensitive default opentofu_var ci_env error_msg derived
     name="$(schema_field "$i" '.name')"
     desc="$(schema_field "$i" '.description')"
     type="$(schema_field "$i" '.type')"
@@ -288,6 +302,10 @@ TMHCL_START
     opentofu_var="$(schema_field "$i" '.opentofu_var')"
     ci_env="$(schema_field "$i" '.ci_env')"
     error_msg="$(schema_field_default "$i" '.error_message' "Validation failed for ${opentofu_var}.")"
+
+    [[ -n "${opentofu_var}" && "${opentofu_var}" != "null" ]] || continue
+    derived="$(schema_field "$i" '.derived')"
+    [[ "${derived}" != "true" ]] || continue
 
     local hcl_type
     hcl_type="$(schema_type_to_hcl "$type")"
@@ -313,6 +331,14 @@ TMHCL_START
 
     echo "    }" >> "$tmp"
   done
+
+  cat >> "$tmp" << 'DERIVED_ENDPOINT'
+
+    locals {
+      proxmox_host_for_url = strcontains(var.proxmox_host, ":") && !startswith(var.proxmox_host, "[") ? "[${var.proxmox_host}]" : var.proxmox_host
+      proxmox_endpoint     = "https://${local.proxmox_host_for_url}:${var.proxmox_port}"
+    }
+DERIVED_ENDPOINT
 
   echo "  }" >> "$tmp"
   echo "}" >> "$tmp"
@@ -341,10 +367,14 @@ HEADER
   count="$(field_count)"
 
   for ((i=0; i<count; i++)); do
-    local name desc default
+    local name desc default ci_env derived
     name="$(schema_field "$i" '.name')"
     desc="$(schema_field "$i" '.description')"
     default="$(schema_field "$i" '.default')"
+    ci_env="$(schema_field "$i" '.ci_env')"
+    derived="$(schema_field "$i" '.derived')"
+
+    [[ -n "${ci_env}" && "${ci_env}" != "null" && "${derived}" != "true" ]] || continue
 
     echo "  ${name}:" >> "$tmp"
     echo "    description: ${desc}" >> "$tmp"
@@ -375,8 +405,11 @@ runs:
 STATIC_INPUTS
 
   for ((i=0; i<count; i++)); do
-    local name env_name
+    local name env_name ci_env derived
     name="$(schema_field "$i" '.name')"
+    ci_env="$(schema_field "$i" '.ci_env')"
+    derived="$(schema_field "$i" '.derived')"
+    [[ -n "${ci_env}" && "${ci_env}" != "null" && "${derived}" != "true" ]] || continue
     env_name="AUTOLAB_INPUT_$(schema_name_to_env_suffix "$name")"
     echo "        ${env_name}: \${{ inputs.${name} }}" >> "$tmp"
   done
@@ -385,16 +418,32 @@ STATIC_INPUTS
       run: |
         source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
 
+        format_proxmox_endpoint() {
+          local host="$1" port="$2"
+          if [[ "$host" == \[*\] ]]; then
+            :
+          elif [[ "$host" == *:* ]]; then
+            host="[$host]"
+          fi
+          printf 'https://%s:%s' "$host" "$port"
+        }
+
+        proxmox_endpoint="$(format_proxmox_endpoint "$AUTOLAB_INPUT_PROXMOX_HOST" "$AUTOLAB_INPUT_PROXMOX_PORT")"
+
         if [[ '${{ inputs.emit_tf_vars }}' == 'true' ]]; then
 RUN_START
 
   for ((i=0; i<count; i++)); do
-    local name opentofu_var env_name
+    local name opentofu_var env_name ci_env derived
     name="$(schema_field "$i" '.name')"
     opentofu_var="$(schema_field "$i" '.opentofu_var')"
+    ci_env="$(schema_field "$i" '.ci_env')"
+    derived="$(schema_field "$i" '.derived')"
+    [[ -n "${ci_env}" && "${ci_env}" != "null" && "${derived}" != "true" ]] || continue
     env_name="AUTOLAB_INPUT_$(schema_name_to_env_suffix "$name")"
     echo "          append_github_env \"TF_VAR_${opentofu_var}\" \"\$${env_name}\"" >> "$tmp"
   done
+  echo '          append_github_env "TF_VAR_proxmox_endpoint" "$proxmox_endpoint"' >> "$tmp"
 
   cat >> "$tmp" << 'PACKER_START'
         fi
@@ -403,12 +452,20 @@ RUN_START
 PACKER_START
 
   for ((i=0; i<count; i++)); do
-    local name packer_var env_name
+    local name packer_var env_name ci_env derived
     name="$(schema_field "$i" '.name')"
     packer_var="$(schema_field "$i" '.packer_var')"
+    ci_env="$(schema_field "$i" '.ci_env')"
+    derived="$(schema_field "$i" '.derived')"
+    [[ -n "${packer_var}" && "${packer_var}" != "null" ]] || continue
+    if [[ "${derived}" == "true" ]]; then
+      continue
+    fi
+    [[ -n "${ci_env}" && "${ci_env}" != "null" ]] || continue
     env_name="AUTOLAB_INPUT_$(schema_name_to_env_suffix "$name")"
     echo "          append_github_env \"PKR_VAR_${packer_var}\" \"\$${env_name}\"" >> "$tmp"
   done
+  echo '          append_github_env "PKR_VAR_proxmox_endpoint" "$proxmox_endpoint"' >> "$tmp"
 
   cat >> "$tmp" << 'FOOTER'
         fi

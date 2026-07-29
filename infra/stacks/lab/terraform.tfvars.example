@@ -1,5 +1,6 @@
 # ---- Proxmox connection ----
-proxmox_endpoint       = "https://pve.example.ts.net:8006/"
+proxmox_host           = "pve.example.ts.net"
+proxmox_port           = 8006
 proxmox_api_token      = "USER@REALM!TOKENID=TOKEN_SECRET"
 proxmox_insecure_tls   = true
 proxmox_node_name      = "pve"

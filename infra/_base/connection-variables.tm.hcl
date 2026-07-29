@@ -14,13 +14,19 @@
 generate_hcl "_connection-variables.tf" {
   content {
 
-    variable "proxmox_endpoint" {
-      description = "Proxmox API endpoint URL (must be HTTPS)"
+    variable "proxmox_host" {
+      description = "Proxmox host name or IP address (IPv6 literals may be bracketed)"
       type        = string
       validation {
-        condition     = can(regex("^https://", var.proxmox_endpoint))
-        error_message = "Proxmox endpoint must be an HTTPS URL."
+        condition     = can(regex("^[^[:space:]]+$", var.proxmox_host))
+        error_message = "Proxmox host must not contain whitespace."
       }
+    }
+
+    variable "proxmox_port" {
+      description = "Proxmox API HTTPS port"
+      type        = number
+      default     = 8006
     }
 
     variable "proxmox_api_token" {
@@ -46,6 +52,11 @@ generate_hcl "_connection-variables.tf" {
       description = "Allow self-signed Proxmox TLS certificates"
       type        = bool
       default     = true
+    }
+
+    locals {
+      proxmox_host_for_url = strcontains(var.proxmox_host, ":") && !startswith(var.proxmox_host, "[") ? "[${var.proxmox_host}]" : var.proxmox_host
+      proxmox_endpoint     = "https://${local.proxmox_host_for_url}:${var.proxmox_port}"
     }
   }
 }

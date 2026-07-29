@@ -9,6 +9,7 @@ audience: operator
 GitHub Environments group secrets and optionally require approvals before sensitive workflows can run.
 
 For the full wired secrets/variables table, see [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.md).
+For the manual Packer entry and PVE SSH bastion setup, see [Manual GitHub UI Packer setup](./github-ui-packer-setup.md).
 
 > **Personal lab shortcut:** repository-level secrets and variables work because workflows read `secrets.NAME` and `vars.NAME` directly. The environments `autolab-plan` and `autolab-apply` must still **exist** — workflows target those names. Environment secrets are optional hardening for later.
 
@@ -25,18 +26,18 @@ Set at **Settings → Secrets and variables → Actions → Variables**:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `PROXMOX_HOST` | Tailscale hostname (ping checks in Packer) | `<proxmox-host>` |
-| `PROXMOX_ENDPOINT` | Proxmox API URL | `https://<proxmox-host>:8006` |
+| `PROXMOX_HOST` | Proxmox host name/IP used by OpenTofu and the Packer bastion | `<proxmox-host>` |
+| `PROXMOX_PORT` | Optional Proxmox API HTTPS port; defaults to `8006` | `8006` |
 | `PROXMOX_NODE_NAME` | Proxmox node name | `<proxmox-host>` |
 | `PROXMOX_INSECURE_TLS` | Skip self-signed cert verification | `true` |
 | `SSH_PUBLIC_KEYS` | Public SSH keys for Packer template build | `ssh-ed25519 AAAA...` |
-| `PROXMOX_STORAGE_POOL` | Packer: disk storage | `local-lvm` |
-| `PROXMOX_NETWORK_BRIDGE` | Packer: network bridge | `vmbr0` |
 
 The Debian Packer release URL and checksum come from the selected entry in
 `infra/packer/template-catalog.yaml`; they are not GitHub repository variables.
 
-Optional Packer variable: `PROXMOX_CLOUD_INIT_STORAGE_POOL`.
+Packer uses `local-lvm`, `vmbr0`, and its selected storage defaults internally;
+these are not GitHub variables. The internal API endpoint is derived as
+`https://${PROXMOX_HOST}:${PROXMOX_PORT}` (with IPv6 literals bracketed).
 
 ## Secrets
 
@@ -71,7 +72,7 @@ Free/Team: the manual `confirm = apply` workflow input is the gate.
 
 ## Notes
 
-- **PROXMOX_ENDPOINT** is a variable (`https://<proxmox-host>:8006`), not a secret.
+- **PROXMOX_PORT** is optional and defaults to `8006`; the API endpoint is derived internally.
 - **TAILSCALE_OAUTH_*** — create OAuth client with Keys → Auth Keys → Write, tag `tag:ci-runner`. ACL must allow `tag:ci-runner` → Proxmox on port 8006.
 
 Sources:

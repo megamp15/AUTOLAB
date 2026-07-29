@@ -9,18 +9,6 @@ inputs:
     description: Temporary SSH password used by Packer during provisioning
     required: false
     default: ''
-  storage_pool:
-    description: Proxmox storage pool for VM disks
-    required: false
-    default: ''
-  network_bridge:
-    description: Proxmox bridge for the build VM
-    required: false
-    default: ''
-  cloud_init_storage_pool:
-    description: Optional separate storage pool for the cloud-init drive
-    required: false
-    default: ''
   ssh_public_keys:
     description: Public SSH keys to inject via cloud-init
     required: false
@@ -33,9 +21,6 @@ runs:
       shell: bash
       env:
         AUTOLAB_INPUT_SSH_PASSWORD: ${{ inputs.ssh_password }}
-        AUTOLAB_INPUT_STORAGE_POOL: ${{ inputs.storage_pool }}
-        AUTOLAB_INPUT_NETWORK_BRIDGE: ${{ inputs.network_bridge }}
-        AUTOLAB_INPUT_CLOUD_INIT_STORAGE_POOL: ${{ inputs.cloud_init_storage_pool }}
         AUTOLAB_INPUT_SSH_PUBLIC_KEYS: ${{ inputs.ssh_public_keys }}
       run: |
         source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
@@ -68,18 +53,6 @@ runs:
 
         if [[ -n "$AUTOLAB_INPUT_SSH_PASSWORD" ]]; then
           append_github_env "PKR_VAR_ssh_password" "$AUTOLAB_INPUT_SSH_PASSWORD"
-        fi
-
-        if [[ -n "$AUTOLAB_INPUT_STORAGE_POOL" ]]; then
-          append_github_env "PKR_VAR_storage_pool" "$AUTOLAB_INPUT_STORAGE_POOL"
-        fi
-
-        if [[ -n "$AUTOLAB_INPUT_NETWORK_BRIDGE" ]]; then
-          append_github_env "PKR_VAR_network_bridge" "$AUTOLAB_INPUT_NETWORK_BRIDGE"
-        fi
-
-        if [[ -n "$AUTOLAB_INPUT_CLOUD_INIT_STORAGE_POOL" ]]; then
-          append_github_env "PKR_VAR_cloud_init_storage_pool" "$AUTOLAB_INPUT_CLOUD_INIT_STORAGE_POOL"
         fi
 
         if [[ -n "$AUTOLAB_INPUT_SSH_PUBLIC_KEYS" ]]; then

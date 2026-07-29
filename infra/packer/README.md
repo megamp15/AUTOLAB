@@ -20,8 +20,9 @@ You can also create a template manually as a quick start (see `docs/gitops/04-op
 Packer uses the HashiCorp Proxmox Packer plugin
 and connects to the Proxmox API over Tailscale (same network as OpenTofu).
 
-Your `proxmox_endpoint` should use the Tailscale MagicDNS name or Tailscale IP
-of the Proxmox host, e.g. `https://pve.example.ts.net:8006`.
+Your `PROXMOX_HOST` should use the Tailscale MagicDNS name or Tailscale IP of
+the Proxmox host. `PROXMOX_PORT` is optional and defaults to `8006`; consumers
+derive the internal HTTPS endpoint.
 
 The Packer connection variables mirror the `proxmox-connection` OpenTofu module
 so that both tools share the same conceptual schema for "how we connect to Proxmox".
@@ -31,12 +32,15 @@ required by the Proxmox Packer plugin.
 
 ## Before the first build
 
+For the manual GitHub UI entry screens and complete PVE SSH bastion key
+procedure, see [Manual GitHub UI Packer setup](../../docs/gitops/github-ui-packer-setup.md).
+
 The Debian template is ready to test once these operator-owned values exist:
 
 1. Proxmox can reach the pinned installer URL owned by the selected catalog
    entry and download it directly to the `local` storage pool.
 2. GitHub repository variables describe the Proxmox node:
-   `PROXMOX_HOST`, `PROXMOX_ENDPOINT`, `PROXMOX_NODE_NAME`, `PROXMOX_STORAGE_POOL`,
+   `PROXMOX_HOST`, optional `PROXMOX_PORT`, `PROXMOX_NODE_NAME`,
    `SSH_PUBLIC_KEYS`.
 3. GitHub repository secrets provide credentials:
    `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`,
@@ -94,6 +98,14 @@ for `PROXMOX_HOST`; direct host-to-guest routing is not assumed. The setup
 action installs `xorriso` because Packer uses it to create the temporary Ubuntu
 `cidata` seed CD.
 
+The bastion public key must already be in the intended PVE account's
+`authorized_keys`, and the matching private key must be tested by the local SSH
+client before it is pasted into GitHub. A key generated in Bitwarden is not
+automatically used by macOS `ssh`; diagnose with
+`ssh -vvv -o IdentitiesOnly=yes -i <private-key-file> root@<proxmox-host>`.
+The current defaults are SSH account `root`, API port `8006` (override with
+`PROXMOX_PORT`), bridge `vmbr0`, and VM disk/cloud-init storage `local-lvm`.
+
 Environment-specific variable files (`.pkrvars.hcl`) are **not committed** —
 they contain secrets like API tokens. Copy the `.example` file and fill in your
 values:
@@ -133,6 +145,9 @@ For local validation, obtain them with the resolver as shown above (or export
 equivalent temporary variables explicitly). CI resolves the catalog before
 Tailscale and Packer setup.
 
+Do not create GitHub variables for the ISO URL or checksum. Those values belong
+to the selected implemented entry in `template-catalog.yaml`.
+
 ## Configurable variables
 
 Connection variables are **auto-generated** from `infra/connection-schema.yaml` by `scripts/generate-connection-adapters.sh`. They live in each implemented template directory as `connection-vars.pkr.hcl` — do not edit those files manually.
@@ -143,17 +158,17 @@ For now, `template-schema.yaml` generates only the `configure-packer-template` a
 
 | Variable | Default | Secret? | Description |
 |---|---|---|---|
-| `proxmox_endpoint` | — | No | Proxmox API URL |
+| `proxmox_host` / `proxmox_port` | — / `8006` | No | External host and optional API port; the internal endpoint is derived |
 | `proxmox_api_token` | — | Yes | Proxmox API token in `USER@REALM!TOKENID=TOKEN_SECRET` format; the Packer template splits it for plugin auth |
 | `proxmox_node_name` | — | No | Proxmox node name |
 | `proxmox_insecure_tls` | `true` | No | Skip TLS verification |
-| `storage_pool` | `local-lvm` | No | Storage pool for VM disks |
-| `cloud_init_storage_pool` | `null` (defaults to `storage_pool`) | No | Separate pool for cloud-init drive |
+| `storage_pool` | `local-lvm` | No | Local Packer default for VM disks |
+| `cloud_init_storage_pool` | `null` (defaults to `storage_pool`) | No | Local Packer default for cloud-init drive |
 | `iso_url` | Catalog resolver | No | Pinned installer URL owned by the template catalog |
 | `iso_checksum` | Catalog resolver | No | Required checksum owned by the template catalog |
 | `boot_iso_type` | `scsi` | No | Packer boot ISO device type (`scsi`, `ide`, `sata`, `virtio`) |
-| `ssh_password` | `packer` | Yes | Temporary build-only SSH password for provisioning |
-| `network_bridge` | `vmbr0` | No | Proxmox bridge for build VM |
+| `ssh_password` | CI secret / local input | Yes | Temporary build-only SSH password for provisioning |
+| `network_bridge` | `vmbr0` | No | Local Packer default for build VM |
 | `vm_template_name` | Catalog resolver | No | Fixed template name owned by the catalog entry |
 | `vm_id` | Catalog resolver (`9000` Debian, `9001` Ubuntu) | No | Fixed Proxmox VM ID owned by the catalog entry |
 | `ssh_public_keys` | `[]` | No | SSH keys to inject |
@@ -174,14 +189,11 @@ In the Packer workflow, these map to GitHub repository variables and secrets:
 
 | Packer variable | GitHub type | GitHub name |
 |---|---|---|
-| `proxmox_endpoint` | Variable | `PROXMOX_ENDPOINT` |
+| `proxmox_endpoint` | Derived internal variable | `PROXMOX_HOST` + `PROXMOX_PORT` |
 | `proxmox_api_token` | Secret | `PROXMOX_API_TOKEN` |
 | `ssh_password` | Secret | `PACKER_SSH_PASSWORD` |
 | `proxmox_node_name` | Variable | `PROXMOX_NODE_NAME` |
 | `proxmox_insecure_tls` | Variable | `PROXMOX_INSECURE_TLS` |
-| `storage_pool` | Variable | `PROXMOX_STORAGE_POOL` |
-| `cloud_init_storage_pool` | Variable | `PROXMOX_CLOUD_INIT_STORAGE_POOL` |
-| `network_bridge` | Variable | `PROXMOX_NETWORK_BRIDGE` |
 | `ssh_public_keys` | Variable | `SSH_PUBLIC_KEYS` |
 
 ## Adding new templates

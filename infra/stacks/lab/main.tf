@@ -1,7 +1,7 @@
 module "proxmox" {
   source = "../../modules/proxmox-connection"
 
-  endpoint     = var.proxmox_endpoint
+  endpoint     = local.proxmox_endpoint
   api_token    = var.proxmox_api_token
   insecure_tls = var.proxmox_insecure_tls
   node_name    = var.proxmox_node_name

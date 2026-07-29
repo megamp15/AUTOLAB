@@ -106,7 +106,8 @@ jobs:
           env_dir: ${{ needs.preflight.outputs.env_dir }}
           tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           tailscale_oauth_secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
-          proxmox_endpoint: ${{ vars.PROXMOX_ENDPOINT }}
+          proxmox_host: ${{ vars.PROXMOX_HOST }}
+          proxmox_port: ${{ vars.PROXMOX_PORT || '8006' }}
           proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
           proxmox_insecure_tls: ${{ vars.PROXMOX_INSECURE_TLS || 'true' }}
           proxmox_node_name: ${{ vars.PROXMOX_NODE_NAME }}

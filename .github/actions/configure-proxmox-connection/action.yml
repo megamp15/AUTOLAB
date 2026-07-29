@@ -5,9 +5,13 @@ description: >
   infra/connection-schema.yaml. Do not edit manually.
 
 inputs:
-  proxmox_endpoint:
-    description: Proxmox API endpoint URL (must be HTTPS)
+  proxmox_host:
+    description: Proxmox host name or IP address (IPv6 literals may be bracketed)
     required: true
+  proxmox_port:
+    description: Proxmox API HTTPS port
+    required: false
+    default: '8006'
   proxmox_api_token:
     description: Proxmox API token in USER@REALM!TOKENID=TOKEN_SECRET format
     required: true
@@ -33,23 +37,38 @@ runs:
     - name: Configure Proxmox connection variables
       shell: bash
       env:
-        AUTOLAB_INPUT_PROXMOX_ENDPOINT: ${{ inputs.proxmox_endpoint }}
+        AUTOLAB_INPUT_PROXMOX_HOST: ${{ inputs.proxmox_host }}
+        AUTOLAB_INPUT_PROXMOX_PORT: ${{ inputs.proxmox_port }}
         AUTOLAB_INPUT_PROXMOX_API_TOKEN: ${{ inputs.proxmox_api_token }}
         AUTOLAB_INPUT_PROXMOX_NODE_NAME: ${{ inputs.proxmox_node_name }}
         AUTOLAB_INPUT_PROXMOX_INSECURE_TLS: ${{ inputs.proxmox_insecure_tls }}
       run: |
         source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
 
+        format_proxmox_endpoint() {
+          local host="$1" port="$2"
+          if [[ "$host" == \[*\] ]]; then
+            :
+          elif [[ "$host" == *:* ]]; then
+            host="[$host]"
+          fi
+          printf 'https://%s:%s' "$host" "$port"
+        }
+
+        proxmox_endpoint="$(format_proxmox_endpoint "$AUTOLAB_INPUT_PROXMOX_HOST" "$AUTOLAB_INPUT_PROXMOX_PORT")"
+
         if [[ '${{ inputs.emit_tf_vars }}' == 'true' ]]; then
-          append_github_env "TF_VAR_proxmox_endpoint" "$AUTOLAB_INPUT_PROXMOX_ENDPOINT"
+          append_github_env "TF_VAR_proxmox_host" "$AUTOLAB_INPUT_PROXMOX_HOST"
+          append_github_env "TF_VAR_proxmox_port" "$AUTOLAB_INPUT_PROXMOX_PORT"
           append_github_env "TF_VAR_proxmox_api_token" "$AUTOLAB_INPUT_PROXMOX_API_TOKEN"
           append_github_env "TF_VAR_proxmox_node_name" "$AUTOLAB_INPUT_PROXMOX_NODE_NAME"
           append_github_env "TF_VAR_proxmox_insecure_tls" "$AUTOLAB_INPUT_PROXMOX_INSECURE_TLS"
+          append_github_env "TF_VAR_proxmox_endpoint" "$proxmox_endpoint"
         fi
 
         if [[ '${{ inputs.emit_packer_vars }}' == 'true' ]]; then
-          append_github_env "PKR_VAR_proxmox_endpoint" "$AUTOLAB_INPUT_PROXMOX_ENDPOINT"
           append_github_env "PKR_VAR_proxmox_api_token" "$AUTOLAB_INPUT_PROXMOX_API_TOKEN"
           append_github_env "PKR_VAR_proxmox_node_name" "$AUTOLAB_INPUT_PROXMOX_NODE_NAME"
           append_github_env "PKR_VAR_proxmox_insecure_tls" "$AUTOLAB_INPUT_PROXMOX_INSECURE_TLS"
+          append_github_env "PKR_VAR_proxmox_endpoint" "$proxmox_endpoint"
         fi
