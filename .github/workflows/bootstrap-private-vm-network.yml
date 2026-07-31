@@ -1,0 +1,45 @@
+name: Bootstrap private VM network
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type bootstrap-vmbr1 to create the isolated VM DHCP/NAT network
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    if: inputs.confirm == 'bootstrap-vmbr1'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH to Proxmox
+        env:
+          PVE_HOST: ${{ vars.PROXMOX_HOST }}
+          PVE_SSH_PRIVATE_KEY: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${PVE_HOST}"
+          test -n "${PVE_SSH_PRIVATE_KEY}"
+          mkdir -p "${HOME}/.ssh"
+          chmod 700 "${HOME}/.ssh"
+          printf '%s\n' "${PVE_SSH_PRIVATE_KEY}" > "${HOME}/.ssh/pve_ci_key"
+          chmod 600 "${HOME}/.ssh/pve_ci_key"
+          ssh-keyscan -H "${PVE_HOST}" >> "${HOME}/.ssh/known_hosts" 2>/dev/null || true
+
+      - name: Install and apply private VM network
+        env:
+          PVE_HOST: ${{ vars.PROXMOX_HOST }}
+        run: |
+          set -euo pipefail
+          ssh_opts=(-i "${HOME}/.ssh/pve_ci_key" -o BatchMode=yes)
+          ssh "${ssh_opts[@]}" "root@${PVE_HOST}" 'mkdir -p /root/proxmox-setup/scripts'
+          scp "${ssh_opts[@]}" docs/proxmox/scripts/setup-private-vm-network.sh \
+            "root@${PVE_HOST}:/root/proxmox-setup/scripts/"
+          ssh "${ssh_opts[@]}" "root@${PVE_HOST}" \
+            'bash /root/proxmox-setup/scripts/setup-private-vm-network.sh --apply'

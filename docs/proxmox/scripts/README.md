@@ -40,7 +40,10 @@ bash setup-proxmox-network.sh --apply                     # applies Wi-Fi, vmbr0
 ## Private VM network for Wi-Fi-only hosts
 
 Wi-Fi cannot bridge guest traffic onto the LAN. To give installer VMs DHCP and
-internet without changing management networking, run once on the Proxmox host:
+internet without changing management networking, run the one-time GitHub Action
+**Bootstrap private VM network** and enter `bootstrap-vmbr1` as confirmation.
+
+If CI cannot reach Proxmox yet, run this directly on the host instead:
 
 ```bash
 bash setup-private-vm-network.sh --apply
