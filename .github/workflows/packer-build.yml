@@ -89,6 +89,30 @@ jobs:
         working-directory: ${{ env.AUTOLAB_PACKER_TEMPLATE_DIR }}
         run: packer validate .
 
+      - name: Remove retained failed build VM
+        if: inputs.force_rebuild && inputs.template == 'debian-13'
+        env:
+          AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
+        run: |
+          set -euo pipefail
+          vmid="${AUTOLAB_PACKER_TEMPLATE_VM_ID}"
+          ssh -i "${HOME}/.ssh/pve_ci_key" -o BatchMode=yes "root@${AUTOLAB_PVE_HOST}" \
+            "bash -s -- '${vmid}'" <<'REMOTE'
+          set -euo pipefail
+          vmid="$1"
+          qm status "$vmid" >/dev/null 2>&1 || exit 0
+          config="$(qm config "$vmid")"
+          if grep -qx 'template: 1' <<<"$config"; then
+            exit 0
+          fi
+          grep -qx 'description: Packer ephemeral build VM' <<<"$config" || {
+            echo "Refusing to remove VM $vmid: it is not an Autolab retained build VM." >&2
+            exit 1
+          }
+          qm stop "$vmid" --skiplock 1 2>/dev/null || true
+          qm destroy "$vmid" --purge 1 --destroy-unreferenced-disks 1
+          REMOTE
+
       - name: Build template
         working-directory: ${{ env.AUTOLAB_PACKER_TEMPLATE_DIR }}
         run: |
