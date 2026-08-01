@@ -18,15 +18,6 @@ on:
         options:
           - 'true'
           - 'false'
-      upload_binary_plan:
-        description: Upload sensitive binary plan artifact for a later saved-plan apply
-        required: true
-        default: 'false'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
-
 permissions:
   contents: read
 
@@ -45,7 +36,6 @@ jobs:
       environment: ${{ steps.context.outputs.environment }}
       env_dir: ${{ steps.context.outputs.env_dir }}
       text_artifact_name: ${{ steps.artifacts.outputs.text_artifact_name }}
-      binary_artifact_name: ${{ steps.artifacts.outputs.binary_artifact_name }}
     steps:
       - uses: actions/checkout@v7
 
@@ -58,7 +48,6 @@ jobs:
         id: artifacts
         run: |
           echo "text_artifact_name=opentofu-${{ steps.context.outputs.environment }}-plan-text" >> "$GITHUB_OUTPUT"
-          echo "binary_artifact_name=opentofu-${{ steps.context.outputs.environment }}-tfplan" >> "$GITHUB_OUTPUT"
 
       - name: Job summary
         run: |
@@ -104,14 +93,6 @@ jobs:
           path: ${{ needs.preflight.outputs.env_dir }}/plan.txt
           retention-days: 3
 
-      - name: Upload binary plan
-        if: inputs.upload_binary_plan == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ needs.preflight.outputs.binary_artifact_name }}
-          path: ${{ needs.preflight.outputs.env_dir }}/tfplan
-          retention-days: 1
-
       - name: Job summary
         if: always()
         working-directory: ${{ needs.preflight.outputs.env_dir }}
@@ -125,8 +106,4 @@ jobs:
             echo "- Summary: ${{ steps.plan.outputs.summary_line || 'Plan did not complete.' }}"
             echo "- Text artifact uploaded: \`${{ inputs.upload_plan_text }}\`"
             echo "- Text artifact name: \`${{ needs.preflight.outputs.text_artifact_name }}\`"
-            echo "- Binary plan uploaded: \`${{ inputs.upload_binary_plan }}\`"
-            echo "- Binary artifact name: \`${{ needs.preflight.outputs.binary_artifact_name }}\`"
-            echo
-            echo "Binary plans are sensitive. Use them only when you intentionally want apply to consume this exact plan."
           } >> "$GITHUB_STEP_SUMMARY"

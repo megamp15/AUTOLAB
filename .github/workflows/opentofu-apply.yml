@@ -10,21 +10,6 @@ on:
         type: choice
         options:
           - lab
-      plan_mode:
-        description: Plan handling mode
-        required: true
-        default: fresh
-        type: choice
-        options:
-          - fresh
-          - saved-plan
-      plan_run_id:
-        description: Workflow run ID that uploaded the saved binary plan. Required only for saved-plan mode.
-        required: false
-      plan_artifact_name:
-        description: Binary plan artifact name. Required only for saved-plan mode.
-        required: false
-        default: ''
       parallelism:
         description: "OpenTofu parallelism (1 = sequential, safe for Proxmox; 10 = default parallel)"
         type: choice
@@ -39,7 +24,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   group: opentofu-state
@@ -55,7 +39,6 @@ jobs:
     outputs:
       environment: ${{ steps.context.outputs.environment }}
       env_dir: ${{ steps.context.outputs.env_dir }}
-      plan_artifact_name: ${{ steps.artifacts.outputs.plan_artifact_name }}
     steps:
       - uses: actions/checkout@v7
 
@@ -71,20 +54,6 @@ jobs:
             exit 1
           fi
 
-          if [ "${{ inputs.plan_mode }}" = "saved-plan" ] && [ -z "${{ inputs.plan_run_id }}" ]; then
-            echo "saved-plan mode requires plan_run_id."
-            exit 1
-          fi
-
-      - name: Compute artifact names
-        id: artifacts
-        run: |
-          plan_artifact_name="${{ inputs.plan_artifact_name }}"
-          if [ -z "$plan_artifact_name" ]; then
-            plan_artifact_name="opentofu-${{ steps.context.outputs.environment }}-tfplan"
-          fi
-          echo "plan_artifact_name=$plan_artifact_name" >> "$GITHUB_OUTPUT"
-
       - name: Job summary
         if: always()
         run: |
@@ -92,7 +61,6 @@ jobs:
             echo "## OpenTofu Apply Preflight"
             echo
             echo "- Environment: \`${{ steps.context.outputs.environment }}\`"
-            echo "- Plan mode: \`${{ inputs.plan_mode }}\`"
             echo "- Directory: \`${{ steps.context.outputs.env_dir }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -119,41 +87,16 @@ jobs:
           r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           r2_account_id: ${{ secrets.R2_ACCOUNT_ID }}
 
-      - name: Download saved binary plan
-        if: inputs.plan_mode == 'saved-plan'
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ needs.preflight.outputs.plan_artifact_name }}
-          path: ${{ needs.preflight.outputs.env_dir }}/saved-plan
-          run-id: ${{ inputs.plan_run_id }}
-          github-token: ${{ github.token }}
-
-      - name: Fresh plan before apply
-        if: inputs.plan_mode == 'fresh'
-        id: fresh_plan
+      - name: Plan before apply
+        id: plan
         working-directory: ${{ needs.preflight.outputs.env_dir }}
-        run: bash ${{ github.workspace }}/scripts/tofu-plan.sh --parallelism "${{ inputs.parallelism || '1' }}" --summary-default "Fresh plan completed."
+        run: bash ${{ github.workspace }}/scripts/tofu-plan.sh --parallelism "${{ inputs.parallelism || '1' }}" --summary-default "Plan completed."
 
-      - name: Apply fresh plan
-        if: inputs.plan_mode == 'fresh'
-        working-directory: ${{ needs.preflight.outputs.env_dir }}
-        run: bash ${{ github.workspace }}/scripts/tofu-apply-with-retry.sh tfplan ${{ inputs.parallelism || '1' }}
-
-      - name: Show saved plan
-        if: inputs.plan_mode == 'saved-plan'
-        working-directory: ${{ needs.preflight.outputs.env_dir }}
-        run: |
-          cp saved-plan/tfplan tfplan
-          tofu show -no-color tfplan > plan.txt
-          cat plan.txt
-
-      - name: Apply saved plan
-        if: inputs.plan_mode == 'saved-plan'
+      - name: Apply plan
         working-directory: ${{ needs.preflight.outputs.env_dir }}
         run: bash ${{ github.workspace }}/scripts/tofu-apply-with-retry.sh tfplan ${{ inputs.parallelism || '1' }}
 
       - name: Verify Tailscale connectivity
-        if: inputs.plan_mode == 'fresh' || inputs.plan_mode == 'saved-plan'
         continue-on-error: true
         run: |
           echo "Waiting 2 minutes for VMs/LXCs to boot and run cloud-init..."
@@ -195,14 +138,10 @@ jobs:
             echo "## OpenTofu Apply"
             echo
             echo "- Environment: \`${{ needs.preflight.outputs.environment }}\`"
-            echo "- Plan mode: \`${{ inputs.plan_mode }}\`"
-            echo "- Saved plan artifact: \`${{ needs.preflight.outputs.plan_artifact_name }}\`"
             echo "- Result: \`${{ job.status }}\`"
-            echo "- Fresh plan changes: \`${{ steps.fresh_plan.outputs.has_changes || 'not applicable' }}\`"
-            echo "- Fresh plan summary: ${{ steps.fresh_plan.outputs.summary_line || 'not applicable' }}"
+            echo "- Plan changes: \`${{ steps.plan.outputs.has_changes || 'unknown' }}\`"
+            echo "- Plan summary: ${{ steps.plan.outputs.summary_line || 'Plan did not complete.' }}"
             echo "- Apply summary: ${apply_summary:-Review the uploaded apply log.}"
-            echo
-            echo "Use fresh mode for the safest default. Use saved-plan mode only when you intentionally uploaded a binary plan artifact from a trusted plan run."
           } >> "$GITHUB_STEP_SUMMARY"
 
   apply-rejected:
