@@ -12,6 +12,13 @@ generate_hcl "providers.tf" {
       endpoint  = local.proxmox_endpoint
       api_token = var.proxmox_api_token
       insecure  = var.proxmox_insecure_tls
+
+      ssh {
+        node {
+          name    = var.proxmox_node_name
+          address = var.proxmox_host
+        }
+      }
     }
   }
 }
