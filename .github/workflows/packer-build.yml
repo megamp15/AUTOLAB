@@ -13,6 +13,11 @@ on:
         options:
           - debian-13
           - ubuntu-26.04
+      force_rebuild:
+        description: "Replace the existing template or retained failed VM"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -97,10 +102,15 @@ jobs:
           log="${RUNNER_TEMP}/packer-proxmox.log"
           trap 'rm -f "$log"' EXIT
 
-          if ! PACKER_LOG=1 PACKER_LOG_PATH="$log" packer build -on-error=abort .; then
+          packer_args=(-on-error=abort)
+          if [[ "${{ inputs.force_rebuild }}" == "true" ]]; then
+            packer_args+=(-force)
+          fi
+
+          if ! PACKER_LOG=1 PACKER_LOG_PATH="$log" packer build "${packer_args[@]}" .; then
             grep -F 'failed to download iso from' "$log" ||
               echo "No PVE API error line; inspect normal output for a checksum preflight error."
-            echo "Packer retained the failed VM for diagnostics; rerun with -force after resolving the error."
+            echo "Packer retained the failed VM for diagnostics; select Force rebuild after resolving the error."
             exit 1
           fi
 
