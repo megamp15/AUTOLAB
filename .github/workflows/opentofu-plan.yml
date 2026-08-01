@@ -11,9 +11,9 @@ on:
         options:
           - lab
       upload_plan_text:
-        description: Upload redacted text plan artifact
+        description: Upload text plan artifact
         required: true
-        default: 'true'
+        default: 'false'
         type: choice
         options:
           - 'true'
