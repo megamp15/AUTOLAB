@@ -1,11 +1,11 @@
 // TERRAMATE: GENERATED AUTOMATICALLY DO NOT EDIT
 
 terraform {
-  required_version = ">= 1.9.0"
+  required_version = ">= 1.12.5"
   required_providers {
     proxmox = {
       source  = "bpg/proxmox"
-      version = "~> 0.107"
+      version = "~> 0.111"
     }
   }
   backend "s3" {

@@ -59,7 +59,7 @@ inputs:
   tofu_version:
     description: OpenTofu version to install
     required: false
-    default: '1.9.0'
+    default: '1.12.5'
 
 runs:
   using: composite
