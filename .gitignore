@@ -37,3 +37,4 @@ config.json
 
 # Local tool indexes
 .codegraph/
+.slim/deepwork/
