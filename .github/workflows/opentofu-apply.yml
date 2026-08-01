@@ -118,7 +118,7 @@ jobs:
 
       - name: Download saved binary plan
         if: inputs.plan_mode == 'saved-plan'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ needs.preflight.outputs.plan_artifact_name }}
           path: ${{ needs.preflight.outputs.env_dir }}/saved-plan
