@@ -54,7 +54,7 @@ jobs:
       env_dir: ${{ steps.context.outputs.env_dir }}
       plan_artifact_name: ${{ steps.artifacts.outputs.plan_artifact_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/opentofu-preflight
         id: context
@@ -99,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: autolab-apply
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-opentofu-pipeline
         with:
@@ -165,7 +165,7 @@ jobs:
 
       - name: Upload apply log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: opentofu-${{ needs.preflight.outputs.environment }}-apply
           path: ${{ needs.preflight.outputs.env_dir }}/apply.txt
@@ -173,7 +173,7 @@ jobs:
 
       - name: Upload applied plan text
         if: always() && hashFiles(format('{0}/plan.txt', needs.preflight.outputs.env_dir)) != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: opentofu-${{ needs.preflight.outputs.environment }}-applied-plan-text
           path: ${{ needs.preflight.outputs.env_dir }}/plan.txt

@@ -44,7 +44,7 @@ jobs:
       text_artifact_name: ${{ steps.artifacts.outputs.text_artifact_name }}
       binary_artifact_name: ${{ steps.artifacts.outputs.binary_artifact_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/opentofu-preflight
         id: context
@@ -71,7 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: autolab-plan
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-opentofu-pipeline
         with:
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload text plan
         if: inputs.upload_plan_text == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ needs.preflight.outputs.text_artifact_name }}
           path: ${{ needs.preflight.outputs.env_dir }}/plan.txt
@@ -103,7 +103,7 @@ jobs:
 
       - name: Upload binary plan
         if: inputs.upload_binary_plan == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ needs.preflight.outputs.binary_artifact_name }}
           path: ${{ needs.preflight.outputs.env_dir }}/tfplan

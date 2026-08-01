@@ -12,7 +12,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: opentofu/setup-opentofu@v1
+    - uses: opentofu/setup-opentofu@v2
       with:
         tofu_version: ${{ inputs.tofu_version }}
 
@@ -30,7 +30,7 @@ runs:
       shell: bash
       run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
-    - uses: actions/cache@v4
+    - uses: actions/cache@v6
       with:
         path: ${{ env.TF_PLUGIN_CACHE_DIR }}
         key: opentofu-${{ runner.os }}-${{ hashFiles('infra/**/.terraform.lock.hcl', 'infra/_base/**') }}
