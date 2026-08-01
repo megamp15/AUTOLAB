@@ -137,31 +137,10 @@ destroy operations belong to protected GitHub Actions once the reviewed machine
 inventory path is implemented; do not treat a local `terraform.tfvars` as a
 GitOps-managed inventory.
 
-The apply workflow uses `scripts/tofu-apply-with-retry.sh`, which delegates retry
-behaviour to `scripts/lib/retry.sh`.
-
-## GitHub apply modes
-
-The apply workflow has two modes:
-
-- `fresh`: generate and apply a new plan in the same workflow job.
-- `saved-plan`: download and apply a binary plan artifact from a previous plan workflow run.
-
-Use `fresh` as the default. It is simpler and avoids stale-plan issues between separate workflow runs.
-
-Use `saved-plan` only when you need the stricter review pattern:
-
-1. Run `OpenTofu Plan`.
-2. Set `upload_binary_plan` to `true`.
-3. Review the text plan artifact and job summary.
-4. Copy the plan workflow run ID.
-5. Run `OpenTofu Apply` with `plan_mode=saved-plan`, the run ID, and the binary artifact name.
-
-The default binary artifact name for the lab environment is:
-
-```text
-opentofu-lab-tfplan
-```
+Plan and Apply remain separate workflows. Apply creates a fresh plan, then applies
+that binary plan once and preserves the apply log, plan text artifact, and job
+summary. A binary plan is never retried: if an apply retry is needed, create a
+fresh plan first and apply the new plan.
 
 ## VM vs LXC guidance
 

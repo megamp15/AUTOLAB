@@ -2,13 +2,14 @@
 
 ## Status
 
-Accepted
+Accepted; updated 2026-08-01. The binary-plan retry approach is superseded: a
+binary plan is applied once, and any retry must create a fresh plan.
 
 ## Context
 
 Autolab is moving from alpha scaffold toward real use on a Proxmox host. Several production paths had behaviour that only failed at runtime:
 
-- Apply retry behaviour lived only inside `scripts/tofu-apply-with-retry.sh`.
+- Applying a saved binary plan across retries could reuse stale state.
 - Tailscale enrollment for cloud-init VMs was an opaque shell string.
 - R2 token setup passed credentials through text lines parsed with `grep` and `sed`.
 - Schema generators were checked for drift, but generated adapters were not semantically validated by their consumers.
@@ -19,7 +20,8 @@ These are all places where the interface is the test surface: if CI or scripts c
 
 Deepen the production seams that already have more than one caller or one operational failure mode:
 
-- Keep retry behaviour in `scripts/lib/retry.sh` and have `tofu-apply-with-retry.sh` use it.
+- Keep Plan and Apply as separate workflows, but apply each binary plan only once;
+  a retry starts by creating a fresh plan.
 - Keep Tailscale install, join, retry, and logging composition inside the `cloud-init` module while preserving the existing `tailscale_auth_key` caller path.
 - Use structured JSON output from `r2-create-token.sh` for automation; keep text output as the human adapter.
 - Add semantic validation in CI after drift checks so generated OpenTofu and Packer adapters are parsed by their real consumers.

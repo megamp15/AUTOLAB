@@ -82,6 +82,8 @@ jobs:
           proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
           proxmox_insecure_tls: ${{ vars.PROXMOX_INSECURE_TLS || 'true' }}
           proxmox_node_name: ${{ vars.PROXMOX_NODE_NAME }}
+          pve_ssh_private_key: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
+          pve_ssh_username: root
           tailscale_auth_key: ${{ secrets.TAILSCALE_VM_AUTHKEY }}
           r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
           r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -94,7 +96,7 @@ jobs:
 
       - name: Apply plan
         working-directory: ${{ needs.preflight.outputs.env_dir }}
-        run: bash ${{ github.workspace }}/scripts/tofu-apply-with-retry.sh tfplan ${{ inputs.parallelism || '1' }}
+        run: tofu apply -input=false -auto-approve -no-color -parallelism="${{ inputs.parallelism || '1' }}" tfplan | tee apply.txt
 
       - name: Verify Tailscale connectivity
         continue-on-error: true

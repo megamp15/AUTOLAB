@@ -40,6 +40,14 @@ inputs:
     description: Proxmox node name
     required: false
     default: ''
+  pve_ssh_private_key:
+    description: Optional private key for runtime Proxmox VE SSH access
+    required: false
+    default: ''
+  pve_ssh_username:
+    description: Optional Proxmox VE SSH username for runtime access
+    required: false
+    default: root
   tailscale_auth_key:
     description: Tailscale auth key for VMs
     required: false
@@ -93,6 +101,17 @@ runs:
         proxmox_insecure_tls: ${{ inputs.proxmox_insecure_tls }}
         emit_tf_vars: 'true'
         emit_packer_vars: 'false'
+
+    - name: Configure runtime Proxmox VE SSH variables
+      if: inputs.pve_ssh_private_key != ''
+      shell: bash
+      env:
+        AUTOLAB_PVE_SSH_PRIVATE_KEY: ${{ inputs.pve_ssh_private_key }}
+        AUTOLAB_PVE_SSH_USERNAME: ${{ inputs.pve_ssh_username }}
+      run: |
+        source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
+        append_github_env "PROXMOX_VE_SSH_PRIVATE_KEY" "$AUTOLAB_PVE_SSH_PRIVATE_KEY"
+        append_github_env "PROXMOX_VE_SSH_USERNAME" "$AUTOLAB_PVE_SSH_USERNAME"
 
     - name: Configure Tailscale variables
       if: inputs.tailscale_auth_key != ''
