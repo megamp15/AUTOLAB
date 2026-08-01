@@ -11,7 +11,7 @@ resource "proxmox_virtual_environment_file" "cloud_init" {
   count = var.type == "vm" && var.cloud_init_user_data != "" ? 1 : 0
 
   content_type = "snippets"
-  datastore_id = var.cloud_init_datastore_id
+  datastore_id = var.cloud_init_snippet_datastore_id
   node_name    = var.node_name
 
   source_raw {
@@ -21,8 +21,8 @@ resource "proxmox_virtual_environment_file" "cloud_init" {
 
   lifecycle {
     precondition {
-      condition     = var.cloud_init_user_data == "" || var.cloud_init_datastore_id != null
-      error_message = "cloud_init_datastore_id must be set when cloud_init_user_data is provided (type = \"vm\")."
+      condition     = var.cloud_init_user_data == "" || (var.cloud_init_datastore_id != null && var.cloud_init_snippet_datastore_id != null)
+      error_message = "cloud_init_datastore_id and cloud_init_snippet_datastore_id must be set when cloud_init_user_data is provided (type = \"vm\")."
     }
   }
 }

@@ -113,6 +113,12 @@ variable "cloud_init_datastore_id" {
   default     = null
 }
 
+variable "cloud_init_snippet_datastore_id" {
+  description = "Datastore for the cloud-init snippet file (VM only)."
+  type        = string
+  default     = null
+}
+
 variable "admin_username" {
   description = "Initial non-root admin user created by cloud-init (VM only)."
   type        = string

@@ -41,11 +41,12 @@ module "machine" {
   node_name = each.value.node_name
 
   # VM-specific
-  template_vm_id          = each.value.template_vm_id
-  template_node_name      = each.value.template_node_name
-  cloud_init_datastore_id = each.value.cloud_init_datastore_id
-  admin_username          = each.value.admin_username
-  cloud_init_user_data    = try(module.cloud_init[each.key].user_data, "")
+  template_vm_id                  = each.value.template_vm_id
+  template_node_name              = each.value.template_node_name
+  cloud_init_datastore_id         = each.value.cloud_init_datastore_id
+  cloud_init_snippet_datastore_id = var.cloud_init_snippet_datastore_id
+  admin_username                  = each.value.admin_username
+  cloud_init_user_data            = try(module.cloud_init[each.key].user_data, "")
 
   # LXC-specific
   template_file_id = each.value.template_file_id

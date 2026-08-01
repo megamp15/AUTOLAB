@@ -5,6 +5,7 @@
 .env
 .env.*
 *.tfvars
+!infra/stacks/lab/machines.auto.tfvars
 *.tfvars.json
 !*.tfvars.example
 *.pkrvars.hcl

@@ -17,6 +17,12 @@ variable "network_defaults" {
   }
 }
 
+variable "cloud_init_snippet_datastore_id" {
+  description = "Datastore for cloud-init snippet files uploaded for VMs."
+  type        = string
+  default     = "local"
+}
+
 # ---- Identity defaults ----
 
 variable "identity_defaults" {
