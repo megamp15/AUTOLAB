@@ -141,16 +141,6 @@ build {
     ]
   }
 
-  # Lock the packer user — it was only needed during the build
-  provisioner "shell" {
-    execute_command = "{{ .Vars }} bash -e '{{ .Path }}'"
-    inline = [
-      "sudo usermod -L packer",
-      "sudo usermod -p '!' packer",
-      "sudo usermod -s /usr/sbin/nologin packer"
-    ]
-  }
-
   # Lock root account — only needed during automated install
   provisioner "shell" {
     execute_command = "{{ .Vars }} bash -e '{{ .Path }}'"

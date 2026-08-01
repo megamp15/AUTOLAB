@@ -131,7 +131,7 @@ variable "boot_iso_type" {
 variable "ssh_password" {
   type        = string
   default     = "packer"
-  description = "Temporary installer SSH password used only while Packer provisions the build VM. The account is locked before the VM is converted to a template."
+  description = "Temporary root SSH password used only while Packer provisions the build VM. The root account is locked before the VM is converted to a template."
   sensitive   = true
 }
 
