@@ -97,26 +97,69 @@ jobs:
           log="${RUNNER_TEMP}/packer-proxmox.log"
           trap 'rm -f "$log"' EXIT
 
-          if ! PACKER_LOG=1 PACKER_LOG_PATH="$log" packer build .; then
+          if ! PACKER_LOG=1 PACKER_LOG_PATH="$log" packer build -on-error=abort .; then
             grep -F 'failed to download iso from' "$log" ||
               echo "No PVE API error line; inspect normal output for a checksum preflight error."
+            echo "Packer retained the failed VM for diagnostics; rerun with -force after resolving the error."
             exit 1
           fi
+
+      - name: Diagnose retained Debian build VM
+        if: failure() && inputs.template == 'debian-13'
+        env:
+          AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
+        run: |
+          set -euo pipefail
+          vmid="${AUTOLAB_PACKER_TEMPLATE_VM_ID}"
+          ssh -i "${HOME}/.ssh/pve_ci_key" -o BatchMode=yes "root@${AUTOLAB_PVE_HOST}" \
+            "bash -s -- '${vmid}'" <<'REMOTE'
+          set -u
+          vmid="$1"
+          echo '=== VM status ==='
+          qm status "$vmid" || true
+          echo '=== VM configuration ==='
+          qm config "$vmid" || true
+          echo '=== vmbr1 ==='
+          ip -br -4 addr show vmbr1 || true
+          ip route show 10.42.0.0/24 || true
+
+          mac="$(qm config "$vmid" 2>/dev/null | sed -n 's/^net0:.*virtio=\([^,]*\).*/\1/p' | head -n1)"
+          echo "=== DHCP lease for ${mac:-unknown MAC} ==="
+          guest_ip=""
+          if [[ -n "$mac" && -r /var/lib/misc/dnsmasq.leases ]]; then
+            grep -i " $mac " /var/lib/misc/dnsmasq.leases || true
+            guest_ip="$(awk -v mac="$mac" 'tolower($2) == tolower(mac) { ip = $3 } END { print ip }' /var/lib/misc/dnsmasq.leases)"
+          fi
+
+          echo '=== Recent DHCP events ==='
+          journalctl -u dnsmasq --since '-25 min' --no-pager || true
+          if [[ -n "$guest_ip" ]]; then
+            echo "=== Guest reachability: $guest_ip ==="
+            ping -c 1 -W 2 "$guest_ip" || true
+            timeout 5 bash -c "</dev/tcp/$guest_ip/22" && echo 'TCP port 22 is reachable.' || echo 'TCP port 22 is not reachable.'
+          else
+            echo 'No DHCP lease was found for the build VM.'
+          fi
+          REMOTE
 
       - name: Build summary
         if: always()
         run: |
           echo "========================================================"
-          echo "🏗️ PACKER BUILD COMPLETED"
+          echo "🏗️ PACKER BUILD FINISHED"
           echo "========================================================"
           echo "📋 Summary:"
           echo "   • Template: ${{ inputs.template }}"
           echo "   • Status: ${{ job.status }}"
           echo "========================================================"
           echo ""
-          echo "📝 Next Steps:"
-          echo "   1. Run OpenTofu Plan to verify the template is available"
-          echo "   2. Run OpenTofu Apply to create VMs from this Packer template"
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "📝 Next Steps:"
+            echo "   1. Run OpenTofu Plan to verify the template is available"
+            echo "   2. Run OpenTofu Apply to create VMs from this Packer template"
+          else
+            echo "The failed Debian build VM was retained for diagnostics."
+          fi
           echo "========================================================"
 
       - name: Cleanup Debian preseed server
