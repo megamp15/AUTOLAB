@@ -53,6 +53,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   agent {
     enabled = true
+
+    wait_for_ip {
+      disabled = true
+    }
   }
 
   cpu {
