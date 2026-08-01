@@ -109,4 +109,8 @@ if [[ "${APPLY}" -eq 1 ]]; then
 fi
 
 echo "Private VM network configured: ${BRIDGE} (${ADDRESS}), NAT via ${UPLINK}."
-echo "Run again with --apply to activate it now."
+if [[ "${APPLY}" -eq 1 ]]; then
+  echo "Private VM network is active."
+else
+  echo "Run again with --apply to activate it now."
+fi

@@ -2,18 +2,12 @@ name: Bootstrap private VM network
 
 on:
   workflow_dispatch:
-    inputs:
-      confirm:
-        description: Type bootstrap-vmbr1 to create the isolated VM DHCP/NAT network
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 jobs:
   bootstrap:
-    if: inputs.confirm == 'bootstrap-vmbr1'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,3 +42,5 @@ jobs:
             "root@${PVE_HOST}:/root/proxmox-setup/scripts/"
           ssh "${ssh_opts[@]}" "root@${PVE_HOST}" \
             'bash /root/proxmox-setup/scripts/setup-private-vm-network.sh --apply'
+          ssh "${ssh_opts[@]}" "root@${PVE_HOST}" \
+            'ip -br -4 addr show vmbr1; systemctl is-active dnsmasq autolab-private-vm-network.service'
