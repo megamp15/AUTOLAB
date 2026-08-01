@@ -96,7 +96,9 @@ jobs:
 
       - name: Apply plan
         working-directory: ${{ needs.preflight.outputs.env_dir }}
-        run: tofu apply -input=false -auto-approve -no-color -parallelism="${{ inputs.parallelism || '1' }}" tfplan | tee apply.txt
+        run: |
+          set -o pipefail
+          tofu apply -input=false -auto-approve -no-color -parallelism="${{ inputs.parallelism || '1' }}" tfplan | tee apply.txt
 
       - name: Verify Tailscale connectivity
         continue-on-error: true
