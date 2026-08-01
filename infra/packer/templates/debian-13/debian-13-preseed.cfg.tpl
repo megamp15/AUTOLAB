@@ -28,6 +28,7 @@ d-i mirror/http/directory                string /debian
 d-i mirror/http/proxy                    string
 
 # --- Account setup ---
+d-i passwd/make-user                     boolean false
 d-i passwd/root-login                    boolean true
 d-i passwd/root-password                 password ${root_password}
 d-i passwd/root-password-again           password ${root_password}
