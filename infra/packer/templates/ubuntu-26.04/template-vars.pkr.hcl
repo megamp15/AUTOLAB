@@ -17,7 +17,7 @@ variable "vm_id" {
 
 variable "boot_wait" {
   type        = string
-  default     = "10s"
+  default     = "5s"
   description = "Wait time before sending the boot command sequence"
 }
 
