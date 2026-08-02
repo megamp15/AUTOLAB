@@ -55,6 +55,7 @@ module "machine" {
   template_vm_id                  = each.value.template_vm_id
   template_node_name              = each.value.template_node_name
   cloud_init_datastore_id         = each.value.cloud_init_datastore_id
+  cloud_init_enabled              = each.value.type == "vm"
   cloud_init_snippet_datastore_id = var.cloud_init_snippet_datastore_id
   admin_username                  = each.value.admin_username
   cloud_init_user_data            = try(module.cloud_init[each.key].user_data, "")

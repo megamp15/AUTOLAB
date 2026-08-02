@@ -113,6 +113,12 @@ variable "cloud_init_datastore_id" {
   default     = null
 }
 
+variable "cloud_init_enabled" {
+  description = "Whether to manage a cloud-init snippet for this VM. This plan-known flag controls resource creation independently of the user-data content."
+  type        = bool
+  default     = false
+}
+
 variable "cloud_init_snippet_datastore_id" {
   description = "Datastore for the cloud-init snippet file (VM only)."
   type        = string
