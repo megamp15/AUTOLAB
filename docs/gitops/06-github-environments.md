@@ -17,8 +17,8 @@ Autolab uses two environments:
 
 | Environment | Workflow | Purpose |
 |-------------|----------|---------|
-| `autolab-plan` | `opentofu-plan.yml` | Run `tofu plan` against the real Proxmox host |
-| `autolab-apply` | `opentofu-apply.yml` | Run `tofu apply` — optionally protected by required reviewers |
+| `autolab-plan` | `03_opentofu-plan.yml` | Run `tofu plan` against the real Proxmox host |
+| `autolab-apply` | `04_opentofu-apply.yml` | Run `tofu apply` — optionally protected by required reviewers |
 
 ## Repository variables
 

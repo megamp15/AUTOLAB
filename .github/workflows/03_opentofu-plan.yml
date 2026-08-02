@@ -1,4 +1,4 @@
-name: OpenTofu Plan
+name: 03 - OpenTofu Plan
 
 on:
   workflow_dispatch:

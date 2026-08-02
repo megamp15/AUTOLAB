@@ -1,4 +1,4 @@
-name: Packer Build
+name: 02 - Packer Build
 
 run-name: Build ${{ inputs.template }} Packer template
 

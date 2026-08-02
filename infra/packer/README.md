@@ -154,7 +154,7 @@ Connection variables are **auto-generated** from `infra/connection-schema.yaml` 
 
 Template-specific Packer variables are **hand-maintained** in each template directory's `template-vars.pkr.hcl`. Their GitHub CI vocabulary is defined in `template-schema.yaml` and rendered to `.github/actions/configure-packer-template/action.yml` by `scripts/generate-packer-template-adapters.sh`. Override values via `.pkrvars.hcl` files, `PKR_VAR_` environment variables, or GitHub vars/secrets in CI.
 
-For now, `template-schema.yaml` generates only the `configure-packer-template` adapter. The `setup-packer-pipeline` inputs and the `packer-build.yml` `with:` block still forward shared values manually. That is intentional while this per-template forwarding remains small; generate it only after variable churn proves the manual forwarding is causing drift.
+For now, `template-schema.yaml` generates only the `configure-packer-template` adapter. The `setup-packer-pipeline` inputs and the `02_packer-build.yml` `with:` block still forward shared values manually. That is intentional while this per-template forwarding remains small; generate it only after variable churn proves the manual forwarding is causing drift.
 
 | Variable | Default | Secret? | Description |
 |---|---|---|---|

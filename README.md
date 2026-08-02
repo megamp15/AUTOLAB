@@ -6,7 +6,7 @@
 [![docs](https://img.shields.io/badge/docs-proxmox%20guides-0E8A16?style=flat-square&logo=gitbook&logoColor=white)](docs/proxmox/README.md)
 [![proxmox](https://img.shields.io/badge/hypervisor-Proxmox%20VE-E57000?style=flat-square&logo=proxmox&logoColor=white)](https://www.proxmox.com/)
 [![hosts](https://img.shields.io/badge/hosts-per%20machine-1f6feb?style=flat-square)](docs/proxmox/README.md)
-[![scripts CI](https://img.shields.io/github/actions/workflow/status/megamp15/AUTOLAB/scripts.yml?style=flat-square&logo=github&label=scripts)](https://github.com/megamp15/AUTOLAB/actions/workflows/scripts.yml)
+[![scripts CI](https://img.shields.io/github/actions/workflow/status/megamp15/AUTOLAB/90_scripts.yml?style=flat-square&logo=github&label=scripts)](https://github.com/megamp15/AUTOLAB/actions/workflows/90_scripts.yml)
 [![license](https://img.shields.io/github/license/megamp15/AUTOLAB?style=flat-square)](LICENSE)
 [![stars](https://img.shields.io/github/stars/megamp15/AUTOLAB?logo=github&logoColor=white&color=gold&style=flat-square)](https://github.com/megamp15/AUTOLAB)
 

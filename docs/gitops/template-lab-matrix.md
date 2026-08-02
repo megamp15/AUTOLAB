@@ -19,12 +19,12 @@ supported OS lines.
 
 | Target | Phase | What works | What does not |
 |--------|-------|------------|---------------|
-| `debian-13` | 2B Packer + 2A OpenTofu | Packer Build workflow; template VM ID `9000`; candidate can be reviewed before promotion | Machine inventory and template-validation stack; Ansible hardening |
+| `debian-13` | 2B Packer + 2A OpenTofu | 02 - Packer Build workflow; template VM ID `9000`; candidate can be reviewed before promotion | Machine inventory and template-validation stack; Ansible hardening |
 | `ubuntu-26.04` | 2B Packer + 2A OpenTofu | Buildable candidate; Subiquity autoinstall; distinct template VM ID `9001`; workflow selection is wired | First successful Packer build and `template-validation`; machine inventory; Ansible hardening |
 
 **Smoke test path:**
 
-1. Packer Build → select `debian-13` (`9000`) or `ubuntu-26.04` (`9001`)
+1. 02 - Packer Build → select `debian-13` (`9000`) or `ubuntu-26.04` (`9001`)
 2. Review the candidate through the staged lifecycle in
    [template-lifecycle.md](./template-lifecycle.md)
 

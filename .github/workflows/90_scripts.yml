@@ -1,4 +1,4 @@
-name: Scripts
+name: 90 - Scripts
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
       - 'infra/connection-schema.yaml'
       - 'infra/r2-config.yaml'
       - 'docs/proxmox/config/network-env-schema.yaml'
-      - '.github/workflows/scripts.yml'
+      - '.github/workflows/90_scripts.yml'
   pull_request:
     paths:
       - 'docs/proxmox/scripts/**'
@@ -20,7 +20,7 @@ on:
       - 'infra/connection-schema.yaml'
       - 'infra/r2-config.yaml'
       - 'docs/proxmox/config/network-env-schema.yaml'
-      - '.github/workflows/scripts.yml'
+      - '.github/workflows/90_scripts.yml'
 
 jobs:
   shell-syntax:

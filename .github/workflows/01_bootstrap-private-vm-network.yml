@@ -1,4 +1,4 @@
-name: Bootstrap private VM network
+name: 01 - Bootstrap private VM network
 
 on:
   workflow_dispatch:

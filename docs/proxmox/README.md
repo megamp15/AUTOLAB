@@ -6,7 +6,7 @@ audience: beginner
 
 [![back to Autolab](https://img.shields.io/badge/Autolab-root%20README-1f6feb?style=flat-square)](../README.md)
 [![status](https://img.shields.io/badge/status-alpha-orange?style=flat-square)](../../ROADMAP.md)
-[![scripts CI](https://img.shields.io/github/actions/workflow/status/megamp15/AUTOLAB/scripts.yml?style=flat-square&logo=github&label=scripts)](https://github.com/megamp15/AUTOLAB/actions/workflows/scripts.yml)
+[![scripts CI](https://img.shields.io/github/actions/workflow/status/megamp15/AUTOLAB/90_scripts.yml?style=flat-square&logo=github&label=scripts)](https://github.com/megamp15/AUTOLAB/actions/workflows/90_scripts.yml)
 
 # Proxmox homelab — documentation
 

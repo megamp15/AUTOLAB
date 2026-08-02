@@ -62,8 +62,8 @@ This gate is a **target** for alpha. It is not automated in CI today.
 
 For changes that affect **GitOps** (phase 2A):
 
-1. `tofu validate` passes for every changed stack and module — **runs in CI** (`scripts.yml`, `opentofu-ci.yml`).
-2. `tofu plan` against a real host — **manual dispatch** via `opentofu-plan.yml` today.
+1. `tofu validate` passes for every changed stack and module — **runs in CI** (`90_scripts.yml`, `98_opentofu-ci.yml`).
+2. `tofu plan` against a real host — **manual dispatch** via `03_opentofu-plan.yml` today.
 3. Plan output uploaded as an artifact when using the plan workflow.
 
 Run plan from the stack directory after `tofu init` with connection variables from GitHub secrets and variables.
@@ -73,7 +73,7 @@ Run plan from the stack directory after `tofu init` with connection variables fr
 For changes that affect **Packer templates** (phase 2B):
 
 1. `packer validate` for each catalog-resolved implemented template — **runs in CI** via `scripts/resolve-packer-template.sh`.
-2. Full `packer build` — **manual dispatch** via `packer-build.yml` against a real Proxmox host.
+2. Full `packer build` — **manual dispatch** via `02_packer-build.yml` against a real Proxmox host.
 
 ### 7 — One real Proxmox host smoke test
 
@@ -88,7 +88,7 @@ This gate is manual for alpha; it becomes automated in CI once an ephemeral Tail
 
 ## When gates apply
 
-**Implemented in CI today** (`.github/workflows/scripts.yml`): schema drift, Bats,
+**Implemented in CI today** (`.github/workflows/90_scripts.yml`): schema drift, Bats,
 `bash -n`, `tofu validate`, Packer validate for implemented catalog templates.
 
 **Manual / dispatch today:** `tofu plan`, `tofu apply`, `packer build`, real host

@@ -93,9 +93,9 @@ If your Proxmox host is tagged (e.g. `tag:autolab`), the runner needs a route to
 
 | Workflow | Runner | Secrets? | Purpose |
 |----------|--------|----------|---------|
-| `opentofu-ci.yml` | `ubuntu-latest` | No | format and static validation |
-| `opentofu-plan.yml` | `ubuntu-latest` | Yes | real plan against Proxmox, optional plan artifacts |
-| `opentofu-apply.yml` | `ubuntu-latest` | Yes | apply from a fresh plan or saved binary plan |
+| `98_opentofu-ci.yml` | `ubuntu-latest` | No | format and static validation |
+| `03_opentofu-plan.yml` | `ubuntu-latest` | Yes | real plan against Proxmox, optional plan artifacts |
+| `04_opentofu-apply.yml` | `ubuntu-latest` | Yes | apply from a fresh plan or saved binary plan |
 
 **The gate between plan and apply:**
 

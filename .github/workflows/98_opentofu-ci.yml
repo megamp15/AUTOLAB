@@ -1,4 +1,4 @@
-name: OpenTofu CI
+name: 98 - OpenTofu CI
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
       - '.github/actions/setup-opentofu/**'
       - '.github/actions/configure-proxmox-connection/**'
       - '.github/actions/setup-opentofu-pipeline/**'
-      - '.github/workflows/opentofu-ci.yml'
+      - '.github/workflows/98_opentofu-ci.yml'
   pull_request:
     paths:
       - 'infra/stacks/**'
@@ -20,7 +20,7 @@ on:
       - '.github/actions/setup-opentofu/**'
       - '.github/actions/configure-proxmox-connection/**'
       - '.github/actions/setup-opentofu-pipeline/**'
-      - '.github/workflows/opentofu-ci.yml'
+      - '.github/workflows/98_opentofu-ci.yml'
 
 permissions:
   contents: read

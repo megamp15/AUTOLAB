@@ -1,0 +1,168 @@
+name: 04 - OpenTofu Apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Stack name under infra/stacks
+        required: true
+        default: lab
+        type: choice
+        options:
+          - lab
+      parallelism:
+        description: "OpenTofu parallelism (1 = sequential, safe for Proxmox; 10 = default parallel)"
+        type: choice
+        required: false
+        default: "1"
+        options:
+          - "1"
+          - "10"
+      confirm:
+        description: Type apply to confirm
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opentofu-state
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: 'true'
+  TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.context.outputs.environment }}
+      env_dir: ${{ steps.context.outputs.env_dir }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/opentofu-preflight
+        id: context
+        with:
+          environment: ${{ inputs.environment }}
+
+      - name: Validate inputs
+        run: |
+          if [ "${{ inputs.confirm }}" != "apply" ]; then
+            echo "Type apply in the confirm input to run this workflow."
+            exit 1
+          fi
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## OpenTofu Apply Preflight"
+            echo
+            echo "- Environment: \`${{ steps.context.outputs.environment }}\`"
+            echo "- Directory: \`${{ steps.context.outputs.env_dir }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    needs: preflight
+    if: inputs.confirm == 'apply'
+    runs-on: ubuntu-latest
+    environment: autolab-apply
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-opentofu-pipeline
+        with:
+          env_dir: ${{ needs.preflight.outputs.env_dir }}
+          tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          tailscale_oauth_secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+          proxmox_host: ${{ vars.PROXMOX_HOST }}
+          proxmox_port: ${{ vars.PROXMOX_PORT || '8006' }}
+          proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
+          proxmox_insecure_tls: ${{ vars.PROXMOX_INSECURE_TLS || 'true' }}
+          proxmox_node_name: ${{ vars.PROXMOX_NODE_NAME }}
+          pve_ssh_private_key: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
+          pve_ssh_username: root
+          r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2_account_id: ${{ secrets.R2_ACCOUNT_ID }}
+
+      - name: Plan before apply
+        id: plan
+        working-directory: ${{ needs.preflight.outputs.env_dir }}
+        env:
+          TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_VM_OAUTH_CLIENT_ID }}
+          TAILSCALE_OAUTH_CLIENT_SECRET: ${{ secrets.TAILSCALE_VM_OAUTH_SECRET }}
+        run: bash ${{ github.workspace }}/scripts/tofu-plan.sh --parallelism "${{ inputs.parallelism || '1' }}" --summary-default "Plan completed."
+
+      - name: Apply plan
+        working-directory: ${{ needs.preflight.outputs.env_dir }}
+        env:
+          TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_VM_OAUTH_CLIENT_ID }}
+          TAILSCALE_OAUTH_CLIENT_SECRET: ${{ secrets.TAILSCALE_VM_OAUTH_SECRET }}
+        run: |
+          set -o pipefail
+          tofu apply -input=false -auto-approve -no-color -parallelism="${{ inputs.parallelism || '1' }}" tfplan | tee apply.txt
+
+      - name: Verify Tailscale connectivity
+        continue-on-error: true
+        run: |
+          echo "Waiting 2 minutes for VMs/LXCs to boot and run cloud-init..."
+          sleep 120
+
+          echo "Tailscale peers visible from CI runner:"
+          tailscale status
+
+          echo "Checking for expected Autolab VMs/LXCs in Tailscale..."
+          echo "Note: VMs/LXCs that just joined may take a few more minutes to appear."
+          echo "If some are missing, check cloud-init logs on the Proxmox host."
+
+      - name: Upload apply log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: opentofu-${{ needs.preflight.outputs.environment }}-apply
+          path: ${{ needs.preflight.outputs.env_dir }}/apply.txt
+          retention-days: 3
+
+      - name: Upload applied plan text
+        if: always() && hashFiles(format('{0}/plan.txt', needs.preflight.outputs.env_dir)) != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: opentofu-${{ needs.preflight.outputs.environment }}-applied-plan-text
+          path: ${{ needs.preflight.outputs.env_dir }}/plan.txt
+          retention-days: 3
+
+      - name: Job summary
+        if: always()
+        working-directory: ${{ needs.preflight.outputs.env_dir }}
+        run: |
+          apply_summary="Apply did not complete."
+          if [ -f apply.txt ]; then
+            apply_summary="$(grep -E '^Apply complete!' apply.txt | tail -n 1 || true)"
+          fi
+
+          {
+            echo "## OpenTofu Apply"
+            echo
+            echo "- Environment: \`${{ needs.preflight.outputs.environment }}\`"
+            echo "- Result: \`${{ job.status }}\`"
+            echo "- Plan changes: \`${{ steps.plan.outputs.has_changes || 'unknown' }}\`"
+            echo "- Plan summary: ${{ steps.plan.outputs.summary_line || 'Plan did not complete.' }}"
+            echo "- Apply summary: ${apply_summary:-Review the uploaded apply log.}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply-rejected:
+    name: Apply Rejected
+    runs-on: ubuntu-latest
+    if: inputs.confirm != 'apply'
+    steps:
+      - name: Rejection Notice
+        run: |
+          echo "========================================================"
+          echo "❌ OPENTOFU APPLY REJECTED"
+          echo "========================================================"
+          echo "You must type 'apply' in the confirm field to apply changes."
+          echo "========================================================"
+          exit 1

@@ -87,8 +87,8 @@ Copy from `infra/stacks/lab/terraform.tfvars.example` and edit locally.
 
 | Environment | Workflow |
 |-------------|----------|
-| `autolab-plan` | `opentofu-plan.yml` |
-| `autolab-apply` | `opentofu-apply.yml` |
+| `autolab-plan` | `03_opentofu-plan.yml` |
+| `autolab-apply` | `04_opentofu-apply.yml` |
 
 Environments must exist even if secrets live at repository level.
 

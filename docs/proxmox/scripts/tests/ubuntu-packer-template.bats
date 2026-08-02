@@ -30,7 +30,7 @@ TEMPLATE_DIR="${SCRIPT_DIR}/../../../infra/packer/templates/ubuntu-26.04"
 
 @test "hosted setup requires and wires the SSH bastion" {
   action="${SCRIPT_DIR}/../../../.github/actions/setup-packer-pipeline/action.yml"
-  workflow="${SCRIPT_DIR}/../../../.github/workflows/packer-build.yml"
+  workflow="${SCRIPT_DIR}/../../../.github/workflows/02_packer-build.yml"
   grep -q 'pve_ssh_private_key:' "$action"
   grep -q 'PVE_SSH_PRIVATE_KEY is required' "$action"
   grep -q 'PKR_VAR_ssh_bastion_host' "$action"
@@ -40,7 +40,7 @@ TEMPLATE_DIR="${SCRIPT_DIR}/../../../infra/packer/templates/ubuntu-26.04"
 }
 
 @test "Packer build does not force-overwrite catalog VM IDs" {
-  workflow="${SCRIPT_DIR}/../../../.github/workflows/packer-build.yml"
+  workflow="${SCRIPT_DIR}/../../../.github/workflows/02_packer-build.yml"
   ! grep -q 'force_rebuild\|-force' "$workflow"
   grep -q 'xorriso' "${SCRIPT_DIR}/../../../.github/actions/setup-packer-pipeline/action.yml"
 }

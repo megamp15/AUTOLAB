@@ -75,7 +75,7 @@ template.
    and checksum
    `sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7`.
    These are catalog fields, not GitHub repository variables.
-3. Manually dispatch **Packer Build** for `debian-13`. Use the normal
+3. Manually dispatch **02 - Packer Build** for `debian-13`. Use the normal
    repository variables and secrets; do not use a local Packer build as a
    substitute for the CI run.
 4. Watch the Packer and Proxmox task logs. Packer should ask PVE to download

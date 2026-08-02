@@ -99,7 +99,7 @@ injected into the temporary build VM. They are separate keys/uses.
 
 ## Run it
 
-Open **Actions → Packer Build → Run workflow**, select `debian-13` or
+Open **Actions → 02 - Packer Build → Run workflow**, select `debian-13` or
 `ubuntu-26.04`, and start the workflow. It joins Tailscale, connects to the
 current host, downloads the catalog-owned ISO into `local`, and uses `vmbr0`
 and `local-lvm` defaults.

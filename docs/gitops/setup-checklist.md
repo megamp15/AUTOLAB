@@ -260,7 +260,7 @@ tofu plan
 
 - [ ] Push to `main` (or your working branch) on GitHub
 - [ ] Check that the **OpenTofu CI** workflow runs on push (format + validate)
-- [ ] Manually trigger **OpenTofu Plan** (workflow dispatch) and verify the pipeline initializes, reads R2 backend credentials, and receives the Proxmox/Tailscale connection settings
+- [ ] Manually trigger **03 - OpenTofu Plan** (workflow dispatch) and verify the pipeline initializes, reads R2 backend credentials, and receives the Proxmox/Tailscale connection settings
 - [ ] Treat the first plan as a pipeline smoke test. The current CI path has no committed machine inventory, so `var.machines` defaults to `{}` and a clean **No changes** result is expected. Machine inventory is part of the planned lifecycle, not a local apply step.
 - [ ] Do not run local `tofu apply` or `tofu destroy` for normal operation. Machine inventory and the planned `template-validation` → `integration-test` → `lab` path are documented in [template-lifecycle.md](./template-lifecycle.md); those machine stacks are not implemented yet.
 
@@ -272,7 +272,7 @@ The Packer scaffold is in `infra/packer/`. To build templates:
 
 - [ ] Copy `infra/packer/templates/debian-13/debian-13.pkrvars.example` to `infra/packer/templates/debian-13/debian-13.pkrvars.hcl` and fill in values
 - [ ] Run `packer init`, `packer validate`, `packer build` from a machine that can reach Proxmox over Tailscale
-- [ ] Or run the existing **Packer Build** GitHub Actions workflow after adding the Packer CI variables/secrets from `infra/packer/README.md`; choose `debian-13` or the separately implemented `ubuntu-26.04` template
+- [ ] Or run the existing **02 - Packer Build** GitHub Actions workflow after adding the Packer CI variables/secrets from `infra/packer/README.md`; choose `debian-13` or the separately implemented `ubuntu-26.04` template
 
 ## Phase 2C manual steps (Ansible — not yet)
 
