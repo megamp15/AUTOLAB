@@ -90,7 +90,7 @@ jobs:
         run: packer validate .
 
       - name: Remove retained failed build VM
-        if: inputs.force_rebuild && inputs.template == 'debian-13'
+        if: inputs.force_rebuild
         env:
           AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
         run: |
@@ -192,7 +192,7 @@ jobs:
             echo "   1. Run OpenTofu Plan to verify the template is available"
             echo "   2. Run OpenTofu Apply to create VMs from this Packer template"
           else
-            echo "The failed Debian build VM was retained for diagnostics."
+            echo "The failed Packer build VM was retained for diagnostics."
           fi
           echo "========================================================"
 
