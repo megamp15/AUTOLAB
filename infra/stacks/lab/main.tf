@@ -17,6 +17,17 @@ module "machine_inputs" {
   common_tags       = var.common_tags
 }
 
+resource "tailscale_tailnet_key" "builder_target_vm" {
+  for_each = module.machine_inputs.builder_target_vm_machines
+
+  reusable            = false
+  ephemeral           = false
+  preauthorized       = true
+  expiry              = 3600
+  recreate_if_invalid = "never"
+  tags                = ["tag:autolab-vm"]
+}
+
 module "cloud_init" {
   for_each = module.machine_inputs.builder_target_vm_machines
 
@@ -25,7 +36,7 @@ module "cloud_init" {
   hostname           = each.value.name
   admin_username     = each.value.admin_username
   ssh_public_keys    = each.value.ssh_public_keys
-  tailscale_auth_key = var.tailscale_auth_key
+  tailscale_auth_key = tailscale_tailnet_key.builder_target_vm[each.key].key
 }
 
 module "machine" {

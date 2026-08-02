@@ -114,7 +114,8 @@ GitHub Environments group secrets. **Required reviewers is an Enterprise-only fe
 | `R2_ACCOUNT_ID` | Cloudflare account ID from step 4 |
 | `R2_ACCESS_KEY_ID` | R2 access key ID from step 4 |
 | `R2_SECRET_ACCESS_KEY` | R2 secret access key from step 4 |
-| `TAILSCALE_VM_AUTHKEY` | Optional for first plan smoke test; needed when VMs should join Tailscale |
+| `TAILSCALE_VM_OAUTH_CLIENT_ID` | Tailscale OAuth client ID with the `auth_keys` scope for per-VM enrollment |
+| `TAILSCALE_VM_OAUTH_SECRET` | Matching Tailscale OAuth client secret |
 
 If you already added these as **repository secrets**, the workflows can still read them. Keep going for a personal-lab smoke test, but prefer copying them into `autolab-plan` and `autolab-apply` environment secrets before doing real apply runs.
 

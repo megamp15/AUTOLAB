@@ -22,7 +22,7 @@ Deepen the production seams that already have more than one caller or one operat
 
 - Keep Plan and Apply as separate workflows, but apply each binary plan only once;
   a retry starts by creating a fresh plan.
-- Keep Tailscale install, join, retry, and logging composition inside the `cloud-init` module while preserving the existing `tailscale_auth_key` caller path.
+- Keep Tailscale install, join, retry, and logging composition inside the `cloud-init` module while having the lab stack create one unique, non-reusable enrollment key per builder VM through the Tailscale provider.
 - Use structured JSON output from `r2-create-token.sh` for automation; keep text output as the human adapter.
 - Add semantic validation in CI after drift checks so generated OpenTofu and Packer adapters are parsed by their real consumers.
 - Keep `proxmox-connection` aligned with ADR-0002: validation-only, with the Connection schema as the field source of truth.

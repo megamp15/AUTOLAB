@@ -11,3 +11,9 @@ provider "proxmox" {
     }
   }
 }
+provider "tailscale" {
+  scopes = [
+    "auth_keys",
+  ]
+  tailnet = "-"
+}

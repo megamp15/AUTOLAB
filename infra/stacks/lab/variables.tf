@@ -37,15 +37,6 @@ variable "identity_defaults" {
   }
 }
 
-# ---- Tailscale ----
-
-variable "tailscale_auth_key" {
-  description = "Tailscale auth key for VMs to join the tailnet on first boot. Use an ephemeral reusable key tagged for VMs. Empty string skips Tailscale enrollment (base cloud-init still applied)."
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
 # ---- Tags ----
 
 variable "common_tags" {
@@ -57,7 +48,7 @@ variable "common_tags" {
 # ---- Machines ----
 
 variable "machines" {
-  description = "Map of compute resources to create. Each entry has a type (vm or lxc), a provisioning_class (builder_target or cluster_os), and type-specific config. Shared defaults come from var.network_defaults, var.identity_defaults, var.common_tags, and var.tailscale_auth_key (via the cloud-init module for builder targets)."
+  description = "Map of compute resources to create. Each entry has a type (vm or lxc), a provisioning_class (builder_target or cluster_os), and type-specific config. Shared defaults come from var.network_defaults, var.identity_defaults, and var.common_tags. Builder target VMs receive per-machine Tailscale enrollment keys."
   type = map(object({
     type               = string
     provisioning_class = optional(string, "builder_target")

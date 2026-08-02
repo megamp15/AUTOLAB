@@ -8,6 +8,10 @@ generate_hcl "versions.tf" {
           source  = "bpg/proxmox"
           version = "~> 0.111"
         }
+        tailscale = {
+          source  = "tailscale/tailscale"
+          version = "0.29.2"
+        }
       }
 
       # State is stored in Cloudflare R2 (S3-compatible).

@@ -21,7 +21,7 @@ When OpenTofu clones a `builder_target` VM, the `cloud-init` module
 | SSH public keys only for admin user | Yes — from `identity_defaults.ssh_public_keys` in local `terraform.tfvars` |
 | Password login for admin user | Locked (`lock_passwd: true`) |
 | qemu-guest-agent | Installed and enabled |
-| Optional Tailscale join | Yes — when `tailscale_auth_key` is set (GitHub secret `TAILSCALE_VM_AUTHKEY` or tfvars) |
+| Tailscale join | Builder VMs receive a unique, non-reusable, preauthorized enrollment key from the Tailscale provider; keys expire after 3600 seconds and use `tag:autolab-vm` |
 | Resource tags | Yes — per-machine `tags` in `machines` map |
 | Unprivileged LXC default | Yes — `proxmox-compute` default for LXC type |
 
@@ -69,7 +69,7 @@ After Packer + local OpenTofu apply with a `builder_target` VM:
 ssh autolab@<vm-ip-or-tailscale-name>    # should work with your laptop key
 ```
 
-Optional if `tailscale_auth_key` was set:
+After a builder VM is applied:
 
 ```bash
 tailscale status                         # VM should appear on tailnet

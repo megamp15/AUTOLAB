@@ -49,10 +49,11 @@ Set at repository or environment level:
 | `PACKER_SSH_PASSWORD` | Packer Build | Temporary build-only password. |
 | `TAILSCALE_OAUTH_CLIENT_ID` | Packer, OpenTofu | CI runner Tailscale join. |
 | `TAILSCALE_OAUTH_SECRET` | Packer, OpenTofu | Shown once at creation. |
+| `TAILSCALE_VM_OAUTH_CLIENT_ID` | OpenTofu | OAuth client with `auth_keys` scope for VM enrollment. |
+| `TAILSCALE_VM_OAUTH_SECRET` | OpenTofu | Matching VM enrollment OAuth client secret. |
 | `R2_ACCOUNT_ID` | OpenTofu | State backend. |
 | `R2_ACCESS_KEY_ID` | OpenTofu | State backend. |
 | `R2_SECRET_ACCESS_KEY` | OpenTofu | Shown once at creation. |
-| `TAILSCALE_VM_AUTHKEY` | OpenTofu | Optional until VMs should join Tailscale. |
 | `PVE_SSH_PRIVATE_KEY` | Packer Build | Required SSH bastion key for hosted builds. |
 
 SSH keys for **cloned VMs** come from local `terraform.tfvars`
@@ -74,6 +75,7 @@ Free/Team: the manual `confirm = apply` workflow input is the gate.
 
 - **PROXMOX_PORT** is optional and defaults to `8006`; the API endpoint is derived internally.
 - **TAILSCALE_OAUTH_*** — create OAuth client with Keys → Auth Keys → Write, tag `tag:ci-runner`. ACL must allow `tag:ci-runner` → Proxmox on port 8006.
+- **TAILSCALE_VM_OAUTH_*** — create a separate OAuth client with the `auth_keys` scope. OpenTofu creates one non-reusable, preauthorized key per builder VM with `tag:autolab-vm`; configure that tag in the owner/policy ACL for VM access.
 
 Sources:
 

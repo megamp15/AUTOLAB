@@ -17,9 +17,6 @@ identity_defaults = {
   ssh_public_keys = ["ssh-ed25519 AAAA... your-key@host"]
 }
 
-# ---- Tailscale ----
-tailscale_auth_key = ""  # Set to an ephemeral reusable key for VMs
-
 # ---- Tags ----
 common_tags = ["autolab", "gitops", "phase-2a"]
 

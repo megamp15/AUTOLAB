@@ -48,10 +48,6 @@ inputs:
     description: Optional Proxmox VE SSH username for runtime access
     required: false
     default: root
-  tailscale_auth_key:
-    description: Tailscale auth key for VMs
-    required: false
-    default: ''
   r2_access_key_id:
     description: R2 access key ID for state backend
     required: false
@@ -112,15 +108,6 @@ runs:
         source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
         append_github_env "PROXMOX_VE_SSH_PRIVATE_KEY" "$AUTOLAB_PVE_SSH_PRIVATE_KEY"
         append_github_env "PROXMOX_VE_SSH_USERNAME" "$AUTOLAB_PVE_SSH_USERNAME"
-
-    - name: Configure Tailscale variables
-      if: inputs.tailscale_auth_key != ''
-      shell: bash
-      env:
-        AUTOLAB_TAILSCALE_AUTH_KEY: ${{ inputs.tailscale_auth_key }}
-      run: |
-        source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
-        append_github_env "TF_VAR_tailscale_auth_key" "$AUTOLAB_TAILSCALE_AUTH_KEY"
 
     - uses: ./.github/actions/setup-opentofu
       with:

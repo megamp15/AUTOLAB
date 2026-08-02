@@ -18,7 +18,7 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 | Workflow | Variables (`vars.*`) | Secrets (`secrets.*`) |
 |----------|----------------------|------------------------|
 | **Packer Build** | `PROXMOX_HOST`, `PROXMOX_LAN_IP`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `PVE_SSH_PRIVATE_KEY` |
-| **OpenTofu Plan** | `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS` | `PROXMOX_API_TOKEN`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TAILSCALE_VM_AUTHKEY` (optional) |
+| **OpenTofu Plan** | `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS` | `PROXMOX_API_TOKEN`, `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
 | **OpenTofu Apply** | same as Plan | same as Plan |
 
 `PROXMOX_HOST` is used for the Proxmox API endpoint and the Packer SSH bastion;
@@ -55,10 +55,11 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `PACKER_SSH_PASSWORD` | generated password | Packer Build | Temporary build-only password. Not your SSH key. |
 | `TAILSCALE_OAUTH_CLIENT_ID` | `tskey-client-...` | Packer, OpenTofu | Tailscale → Settings → OAuth clients. |
 | `TAILSCALE_OAUTH_SECRET` | `tskey-client-secret-...` | Packer, OpenTofu | Same screen. Shown once. |
+| `TAILSCALE_VM_OAUTH_CLIENT_ID` | `tskey-client-...` | OpenTofu | OAuth client with the `auth_keys` scope for per-VM enrollment. |
+| `TAILSCALE_VM_OAUTH_SECRET` | `tskey-client-secret-...` | OpenTofu | Matching VM enrollment OAuth client secret. |
 | `R2_ACCOUNT_ID` | `a1b2c3...` | OpenTofu | Cloudflare dashboard URL / R2 page. |
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |
 | `R2_SECRET_ACCESS_KEY` | `xyz789...` | OpenTofu | Same. Shown once. |
-| `TAILSCALE_VM_AUTHKEY` | `tskey-auth-...` | OpenTofu | Optional. VMs join Tailscale via `terraform.tfvars` + this secret. |
 | `PVE_SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH...` | Packer Build | Required. Packer uses it as the SSH bastion key for `PROXMOX_HOST`. |
 
 ## Local-only config (not GitHub)
@@ -108,6 +109,7 @@ Environments must exist even if secrets live at repository level.
 - [ ] `PACKER_SSH_PASSWORD` (Packer)
 - [ ] `PVE_SSH_PRIVATE_KEY` (Packer)
 - [ ] `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`
+- [ ] `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` (OAuth `auth_keys` scope)
 - [ ] `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
 
 **Environments**

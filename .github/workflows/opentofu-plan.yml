@@ -77,7 +77,6 @@ jobs:
           proxmox_node_name: ${{ vars.PROXMOX_NODE_NAME }}
           pve_ssh_private_key: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
           pve_ssh_username: root
-          tailscale_auth_key: ${{ secrets.TAILSCALE_VM_AUTHKEY }}
           r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
           r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           r2_account_id: ${{ secrets.R2_ACCOUNT_ID }}
@@ -85,6 +84,9 @@ jobs:
       - name: Plan
         id: plan
         working-directory: ${{ needs.preflight.outputs.env_dir }}
+        env:
+          TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_VM_OAUTH_CLIENT_ID }}
+          TAILSCALE_OAUTH_CLIENT_SECRET: ${{ secrets.TAILSCALE_VM_OAUTH_SECRET }}
         run: bash ${{ github.workspace }}/scripts/tofu-plan.sh
 
       - name: Upload text plan

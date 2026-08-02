@@ -103,7 +103,8 @@ The `terraform.tfvars.example` uses a `machines` map with `for_each`. Each machi
 has a `type` (`vm` or `lxc`) and `provisioning_class` (`builder_target` today;
 `cluster_os` is reserved for Talos experiments and **blocked at plan time** until
 wired). Shared settings come from `network_defaults`, `identity_defaults`,
-`tailscale_auth_key`, and `common_tags`.
+and `common_tags`. Builder target VMs receive a per-VM, single-use Tailscale
+enrollment key from the Tailscale provider; the LXC path does not create one.
 
 The `machine-normalization` module merges those defaults per machine. The lab
 stack provisions only `builder_target` machines. VMs get cloud-init from the

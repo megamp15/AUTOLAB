@@ -20,5 +20,10 @@ generate_hcl "providers.tf" {
         }
       }
     }
+
+    provider "tailscale" {
+      tailnet = "-"
+      scopes  = ["auth_keys"]
+    }
   }
 }
