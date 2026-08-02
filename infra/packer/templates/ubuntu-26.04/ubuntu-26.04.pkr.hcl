@@ -56,12 +56,14 @@ source "proxmox-iso" "ubuntu-2604" {
 
   boot_wait = var.boot_wait
   boot      = "order=scsi1;scsi0"
+  boot_key_interval = "150ms"
   boot_command = [
     "<esc><wait>",
-    "c<wait>",
-    "linux /casper/vmlinuz autoinstall ---<enter><wait>",
-    "initrd /casper/initrd<enter><wait>",
-    "boot<enter>"
+    "e<wait>",
+    "<down><down><down><end>",
+    "<bs><bs><bs><bs><wait>",
+    "autoinstall ds=nocloud ---<wait>",
+    "<f10><wait>"
   ]
 
   cores      = var.cores
