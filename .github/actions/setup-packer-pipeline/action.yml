@@ -52,8 +52,7 @@ inputs:
     default: ''
   network_bridge:
     description: Proxmox bridge for the temporary build VM
-    required: false
-    default: vmbr0
+    required: true
   packer_version:
     description: Packer version to install
     required: false
@@ -82,6 +81,19 @@ runs:
           echo "Direct host-to-guest routing is not assumed." >&2
           exit 1
         fi
+
+    - name: Validate Packer network bridge input
+      shell: bash
+      env:
+        AUTOLAB_NETWORK_BRIDGE: ${{ inputs.network_bridge }}
+      run: |
+        set -euo pipefail
+        if [[ -z "${AUTOLAB_NETWORK_BRIDGE}" ]]; then
+          echo "ERROR: network_bridge (repository variable PROXMOX_PACKER_NETWORK_BRIDGE) is required for Packer builds." >&2
+          exit 1
+        fi
+        source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
+        append_github_env "PKR_VAR_network_bridge" "${AUTOLAB_NETWORK_BRIDGE}"
 
     - uses: ./.github/actions/connect-tailscale
       with:
@@ -119,7 +131,6 @@ runs:
         fi
         source "${GITHUB_WORKSPACE:-${PWD}}/scripts/lib/github-env.sh"
         append_github_env "PKR_VAR_pve_http_ip" "${AUTOLAB_PVE_HTTP_IP}"
-        append_github_env "PKR_VAR_network_bridge" "${{ inputs.network_bridge }}"
 
     - uses: ./.github/actions/configure-proxmox-connection
       with:

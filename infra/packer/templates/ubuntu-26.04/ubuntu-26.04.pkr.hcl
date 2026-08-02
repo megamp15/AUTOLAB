@@ -55,6 +55,7 @@ source "proxmox-iso" "ubuntu-2604" {
   }
 
   boot_wait = var.boot_wait
+  boot      = "order=scsi1;scsi0"
   boot_command = [
     "<esc><wait>",
     "c<wait>",
