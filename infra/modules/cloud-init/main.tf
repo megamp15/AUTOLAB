@@ -20,13 +20,27 @@ locals {
     "curl -fsSL https://tailscale.com/install.sh | sh 2>&1 | tee -a ${var.tailscale_log_path}",
     <<EOT
 for i in $(seq 1 ${var.tailscale_retry_attempts}); do
-  if tailscale up --authkey=${var.tailscale_auth_key}${local.tailscale_accept_routes_flag} --hostname=${var.hostname}${local.tailscale_extra_args_str} 2>&1 | tee -a ${var.tailscale_log_path}; then
+  if tailscale up --auth-key=${var.tailscale_auth_key}${local.tailscale_accept_routes_flag} --hostname=${var.hostname}${local.tailscale_extra_args_str} >> ${var.tailscale_log_path} 2>&1; then
+    tailscale_joined=true
     echo "Tailscale joined successfully" | tee -a ${var.tailscale_log_path}
     break
   fi
   echo "Tailscale join attempt $i failed, retrying in ${var.tailscale_retry_delay_seconds} seconds..." | tee -a ${var.tailscale_log_path}
   sleep ${var.tailscale_retry_delay_seconds}
 done
+if [ "$${tailscale_joined:-false}" != "true" ]; then
+  echo "Tailscale enrollment failed after ${var.tailscale_retry_attempts} attempts." | tee -a ${var.tailscale_log_path}
+  exit 1
+fi
+if ! tailscale wait --timeout=60s >> ${var.tailscale_log_path} 2>&1; then
+  echo "Tailscale enrollment verification timed out or failed while waiting for connectivity." | tee -a ${var.tailscale_log_path}
+  exit 1
+fi
+if ! tailscale ip -4 >> ${var.tailscale_log_path} 2>&1; then
+  echo "Tailscale enrollment verification failed while reading the IPv4 address." | tee -a ${var.tailscale_log_path}
+  exit 1
+fi
+echo "Tailscale enrollment verified successfully." | tee -a ${var.tailscale_log_path}
 EOT
   ] : []
 
