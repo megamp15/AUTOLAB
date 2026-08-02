@@ -59,7 +59,7 @@ source "proxmox-iso" "ubuntu-2604" {
   boot_command = [
     "<esc><wait>",
     "c<wait>",
-    "linux /casper/vmlinuz --- autoinstall<enter><wait>",
+    "linux /casper/vmlinuz autoinstall ---<enter><wait>",
     "initrd /casper/initrd<enter><wait>",
     "boot<enter>"
   ]
