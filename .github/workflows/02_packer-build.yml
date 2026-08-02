@@ -138,8 +138,8 @@ jobs:
             exit 1
           fi
 
-      - name: Diagnose retained Debian build VM
-        if: failure() && inputs.template == 'debian-13'
+      - name: Diagnose retained build VM
+        if: failure() && (inputs.template == 'debian-13' || inputs.template == 'ubuntu-26.04')
         env:
           AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
         run: |

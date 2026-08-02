@@ -55,7 +55,7 @@ EOT
         ssh_authorized_keys = var.ssh_public_keys
       }
     ]
-    packages = ["qemu-guest-agent"]
+    packages = ["qemu-guest-agent", "curl", "ca-certificates"]
     runcmd   = concat(local.base_runcmd, local.tailscale_runcmd, var.extra_runcmd)
   }
 
