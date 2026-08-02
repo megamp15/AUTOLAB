@@ -11,7 +11,7 @@ TEMPLATE_DIR="${SCRIPT_DIR}/../../../infra/packer/templates/ubuntu-26.04"
     "${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
   [ "$status" -eq 0 ]
   ! grep -q 'http_content\|HTTPIP\|HTTPPort\|nocloud-net;s=http' "${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
-  grep -q 'linux /casper/vmlinuz autoinstall ---' "${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
+  grep -q 'autoinstall ds=nocloud ---' "${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
   grep -q 'cd_label[[:space:]]*= "cidata"' "${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
 }
 
