@@ -84,14 +84,14 @@ OpenTofu state is stored in Cloudflare R2 (S3-compatible, free tier).
 
 See [05 - R2 state backend](./05-r2-state-backend.md) for the full guide.
 
-## 5. GitHub Environments and secrets
+## 5. GitHub repository secrets
 
-GitHub Environments group secrets. **Required reviewers is an Enterprise-only feature** — not available on Free/Team plans for private repos.
+The current Plan, Apply, and Destroy workflows read repository-level secrets
+and use typed confirmations; they do not assign a GitHub Environment.
+Environments are optional future protection. **Required reviewers is an
+Enterprise-only feature** — not available on Free/Team plans for private repos.
 
-- [ ] Go to your GitHub repo → **Settings → Environments**
-- [ ] Create environment `autolab-plan`
-- [ ] Create environment `autolab-apply`
-- [ ] Leave **Required reviewers** off (Enterprise-only)
+- [ ] Optionally create `autolab-plan` and `autolab-apply` for future environment-scoped protection
 - [ ] Add these **Repository Variables** (non-sensitive) at the repository or organization level:
 
 | Variable | Value |
@@ -100,14 +100,15 @@ GitHub Environments group secrets. **Required reviewers is an Enterprise-only fe
 | `PROXMOX_PORT` | Optional API HTTPS port; defaults to `8006` |
 | `PROXMOX_NODE_NAME` | Your Proxmox node name (e.g. `pve`) |
 | `PROXMOX_INSECURE_TLS` | Optional; use `true` for Proxmox's default self-signed certificate |
+| `PROXMOX_PACKER_NETWORK_BRIDGE` | Required bridge for the temporary Packer VM (e.g. `vmbr1`); no `vmbr0` fallback |
 | `SSH_PUBLIC_KEYS` | SSH public keys for Packer template build (comma-separated) |
 
 - [ ] Add these **secrets** (repository or environment level):
 
 | Secret | Value |
 |--------|-------|
-| `TAILSCALE_OAUTH_CLIENT_ID` | Tailscale OAuth client ID from step 1 |
-| `TAILSCALE_OAUTH_SECRET` | Tailscale OAuth client secret from step 1 |
+| `TAILSCALE_OAUTH_CLIENT_ID` | Runner Tailscale OAuth client ID from step 1; the runner uses `tag:ci-runner` |
+| `TAILSCALE_OAUTH_SECRET` | Matching runner OAuth client secret from step 1 |
 | `PROXMOX_API_TOKEN` | Full Proxmox API token string from step 3, e.g. `gitops@pve!opentofu=SECRET` |
 | `PACKER_SSH_PASSWORD` | Generated password for Packer Build (temporary, build-only) |
 | `PVE_SSH_PRIVATE_KEY` | Private SSH key for the required Proxmox bastion connection |
@@ -115,11 +116,11 @@ GitHub Environments group secrets. **Required reviewers is an Enterprise-only fe
 | `R2_ACCESS_KEY_ID` | R2 access key ID from step 4 |
 | `R2_SECRET_ACCESS_KEY` | R2 secret access key from step 4 |
 | `TAILSCALE_VM_OAUTH_CLIENT_ID` | Tailscale OAuth client ID with the `auth_keys` scope for per-VM enrollment |
-| `TAILSCALE_VM_OAUTH_SECRET` | Matching Tailscale OAuth client secret |
+| `TAILSCALE_VM_OAUTH_SECRET` | Matching VM enrollment OAuth client secret; used only by OpenTofu, not the runner |
 
-If you already added these as **repository secrets**, the workflows can still read them. Keep going for a personal-lab smoke test, but prefer copying them into `autolab-plan` and `autolab-apply` environment secrets before doing real apply runs.
+Repository-level secrets are read directly by the workflows.
 
-- [ ] (Enterprise only) Add **required reviewers** to `autolab-apply` if you want manual approval before apply runs
+- [ ] (Enterprise only) Add **required reviewers** if you later assign a workflow to `autolab-apply`
 
 See [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.md) for per-field "where to get it" details, and [06 - GitHub Environments](./06-github-environments.md) for environment setup.
 

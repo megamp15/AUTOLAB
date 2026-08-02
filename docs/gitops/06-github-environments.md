@@ -11,14 +11,14 @@ GitHub Environments group secrets and optionally require approvals before sensit
 For the full wired secrets/variables table, see [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.md).
 For the manual Packer entry and PVE SSH bastion setup, see [Manual GitHub UI Packer setup](./github-ui-packer-setup.md).
 
-> **Personal lab shortcut:** repository-level secrets and variables work because workflows read `secrets.NAME` and `vars.NAME` directly. The environments `autolab-plan` and `autolab-apply` must still **exist** — workflows target those names. Environment secrets are optional hardening for later.
+> **Personal lab setup:** repository-level secrets and variables are read directly by the workflows. The current Plan, Apply, and Destroy workflows do not target a GitHub Environment; typed confirmations and the `opentofu-state` concurrency guard remain active. GitHub Environments may be added later if environment-scoped protection is required.
 
 Autolab uses two environments:
 
 | Environment | Workflow | Purpose |
 |-------------|----------|---------|
-| `autolab-plan` | `03_opentofu-plan.yml` | Run `tofu plan` against the real Proxmox host |
-| `autolab-apply` | `04_opentofu-apply.yml` | Run `tofu apply` — optionally protected by required reviewers |
+| `autolab-plan` | Not targeted | No current workflow assignment |
+| `autolab-apply` | Not targeted | No current workflow assignment; Apply/Destroy retain typed confirmations |
 
 ## Repository variables
 
@@ -30,6 +30,7 @@ Set at **Settings → Secrets and variables → Actions → Variables**:
 | `PROXMOX_PORT` | Optional Proxmox API HTTPS port; defaults to `8006` | `8006` |
 | `PROXMOX_NODE_NAME` | Proxmox node name | `<proxmox-host>` |
 | `PROXMOX_INSECURE_TLS` | Skip self-signed cert verification | `true` |
+| `PROXMOX_PACKER_NETWORK_BRIDGE` | Required bridge for the temporary Packer VM; no `vmbr0` fallback | `vmbr1` |
 | `SSH_PUBLIC_KEYS` | Public SSH keys for Packer template build | `ssh-ed25519 AAAA...` |
 
 The Debian Packer release URL and checksum come from the selected entry in
@@ -47,10 +48,10 @@ Set at repository or environment level:
 |--------|---------|-------|
 | `PROXMOX_API_TOKEN` | Packer, OpenTofu | Full token string. Not root password. |
 | `PACKER_SSH_PASSWORD` | Packer Build | Temporary build-only password. |
-| `TAILSCALE_OAUTH_CLIENT_ID` | Packer, OpenTofu | CI runner Tailscale join. |
-| `TAILSCALE_OAUTH_SECRET` | Packer, OpenTofu | Shown once at creation. |
-| `TAILSCALE_VM_OAUTH_CLIENT_ID` | OpenTofu | OAuth client with `auth_keys` scope for VM enrollment. |
-| `TAILSCALE_VM_OAUTH_SECRET` | OpenTofu | Matching VM enrollment OAuth client secret. |
+| `TAILSCALE_OAUTH_CLIENT_ID` | Packer, OpenTofu | CI runner OAuth client; runner tag is `tag:ci-runner`. |
+| `TAILSCALE_OAUTH_SECRET` | Packer, OpenTofu | Matching runner OAuth client secret. |
+| `TAILSCALE_VM_OAUTH_CLIENT_ID` | OpenTofu only | Separate OAuth client with `auth_keys` scope for VM enrollment. |
+| `TAILSCALE_VM_OAUTH_SECRET` | OpenTofu only | Matching VM enrollment OAuth client secret; not for the CI runner. |
 | `R2_ACCOUNT_ID` | OpenTofu | State backend. |
 | `R2_ACCESS_KEY_ID` | OpenTofu | State backend. |
 | `R2_SECRET_ACCESS_KEY` | OpenTofu | Shown once at creation. |
@@ -61,9 +62,9 @@ SSH keys for **cloned VMs** come from local `terraform.tfvars`
 
 ## If you already used repository secrets
 
-1. Create `autolab-plan` and `autolab-apply`.
+1. Optionally create `autolab-plan` and `autolab-apply` for future environment-scoped protection.
 2. Run workflows with repository-level secrets/variables.
-3. Later, copy secrets into environment scope if you want plan/apply separation.
+3. Add environment assignments later if plan/apply separation is required.
 
 ## Required reviewers (Enterprise only)
 

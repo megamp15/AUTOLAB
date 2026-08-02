@@ -15,13 +15,15 @@ Actions**. Do not commit them.
 |---|---:|---|
 | `PROXMOX_HOST` | Yes | Current Proxmox host's Tailscale MagicDNS name or Tailscale IP. It is both the API host and SSH bastion. |
 | `PROXMOX_LAN_IP` | Yes for Debian 13 | PVE's LAN IP, used by the temporary PVE-local preseed server; do not use the Tailscale/API host here. |
+| `PROXMOX_PACKER_NETWORK_BRIDGE` | Yes | Proxmox bridge for the temporary Packer VM, for example `vmbr1`; no `vmbr0` fallback is used. |
 | `PROXMOX_PORT` | No | API HTTPS port. Omit it to use `8006`; set only for a non-standard port. |
 | `PROXMOX_NODE_NAME` | Yes | Node name shown in the Proxmox UI. |
 | `PROXMOX_INSECURE_TLS` | No | `true` for the usual self-signed certificate. |
 | `SSH_PUBLIC_KEYS` | Yes | Public keys for the temporary build VM, comma-separated. |
 
-Current Packer defaults are API port `8006`, bridge `vmbr0`, and VM disk
-storage `local-lvm`. Cloud-init storage uses the same storage unless overridden.
+Current Packer defaults are API port `8006` and VM disk storage `local-lvm`.
+`PROXMOX_PACKER_NETWORK_BRIDGE` is required; cloud-init storage uses the same
+storage unless overridden.
 Do not add `PACKER_ISO_URL` or `PACKER_ISO_CHECKSUM`: the selected implemented
 entry in `infra/packer/template-catalog.yaml` owns the ISO URL and checksum.
 
@@ -29,8 +31,8 @@ entry in `infra/packer/template-catalog.yaml` owns the ISO URL and checksum.
 
 | Name | Required | Value |
 |---|---:|---|
-| `TAILSCALE_OAUTH_CLIENT_ID` | Yes | Tailscale OAuth client ID for the ephemeral CI runner. |
-| `TAILSCALE_OAUTH_SECRET` | Yes | Matching Tailscale OAuth client secret. |
+| `TAILSCALE_OAUTH_CLIENT_ID` | Yes | Tailscale OAuth client ID for the ephemeral CI runner, joined with `tag:ci-runner`. |
+| `TAILSCALE_OAUTH_SECRET` | Yes | Matching runner OAuth client secret. Do not use the separate VM enrollment OAuth credentials here. |
 | `PROXMOX_API_TOKEN` | Yes | Full token: `USER@REALM!TOKENID=TOKEN_SECRET`. |
 | `PACKER_SSH_PASSWORD` | Yes | Generated temporary build-VM password, not the PVE password or SSH key. |
 | `PVE_SSH_PRIVATE_KEY` | Yes | Private key for SSH from the runner to `PROXMOX_HOST`. |
@@ -95,14 +97,16 @@ and be pasted into GitHub.
    the `PVE_SSH_PRIVATE_KEY` GitHub secret. Do not paste the public key there.
 
 `PVE_SSH_PRIVATE_KEY` authenticates the CI runner to PVE; `SSH_PUBLIC_KEYS` is
-injected into the temporary build VM. They are separate keys/uses.
+injected into the temporary build VM. They are separate keys/uses. The
+`TAILSCALE_VM_OAUTH_CLIENT_ID` and `TAILSCALE_VM_OAUTH_SECRET` credentials are
+for OpenTofu VM enrollment only and are not required by Packer.
 
 ## Run it
 
 Open **Actions → 02 - Packer Build → Run workflow**, select `debian-13` or
 `ubuntu-26.04`, and start the workflow. It joins Tailscale, connects to the
-current host, downloads the catalog-owned ISO into `local`, and uses `vmbr0`
-and `local-lvm` defaults.
+current host, downloads the catalog-owned ISO into `local`, and uses the
+configured `PROXMOX_PACKER_NETWORK_BRIDGE` and `local-lvm` defaults.
 
 Normal machine lifecycle changes are not local `tofu apply` or `tofu destroy`;
 use the protected GitHub Actions flow.
