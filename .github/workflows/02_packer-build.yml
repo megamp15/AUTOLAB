@@ -12,7 +12,7 @@ on:
         type: choice
         options:
           - debian-13
-          - ubuntu-26.04
+          - ubuntu-24.04
       force_rebuild:
         description: "Replace the existing template or retained failed VM"
         required: true
@@ -139,7 +139,7 @@ jobs:
           fi
 
       - name: Diagnose retained build VM
-        if: failure() && (inputs.template == 'debian-13' || inputs.template == 'ubuntu-26.04')
+        if: failure() && (inputs.template == 'debian-13' || inputs.template == 'ubuntu-24.04')
         env:
           AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
         run: |

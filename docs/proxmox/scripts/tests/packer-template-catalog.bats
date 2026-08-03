@@ -48,27 +48,28 @@ load test_helper
   [[ "$output" == *"invalid iso_url"* ]]
 }
 
-@test "resolve-packer-template.sh resolves ubuntu-26.04 from catalog" {
-  run bash "${SCRIPT_DIR}/../../../scripts/resolve-packer-template.sh" ubuntu-26.04
+@test "resolve-packer-template.sh resolves runnable ubuntu-24.04 from catalog" {
+  run bash "${SCRIPT_DIR}/../../../scripts/resolve-packer-template.sh" ubuntu-24.04
   [ "$status" -eq 0 ]
-  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE=ubuntu-26.04"* ]]
-  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_FILE=infra/packer/templates/ubuntu-26.04/ubuntu-26.04.pkr.hcl"* ]]
-  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_DIR=infra/packer/templates/ubuntu-26.04"* ]]
-  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_RELEASE=26.04"* ]]
-  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_VM_ID=9001"* ]]
-  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_PROXMOX_NAME=autolab-ubuntu-26.04-template"* ]]
-  [[ "$output" == *"PKR_VAR_vm_id=9001"* ]]
-  [[ "$output" == *"PKR_VAR_vm_template_name=autolab-ubuntu-26.04-template"* ]]
-  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_ISO_URL=https://releases.ubuntu.com/26.04/ubuntu-26.04-live-server-amd64.iso"* ]]
-  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_ISO_CHECKSUM=sha256:dec49008a71f6098d0bcfc822021f4d042d5f2db279e4d75bdd981304f1ca5d9"* ]]
-  [[ "$output" == *"PKR_VAR_iso_url=https://releases.ubuntu.com/26.04/ubuntu-26.04-live-server-amd64.iso"* ]]
-  [[ "$output" == *"PKR_VAR_iso_checksum=sha256:dec49008a71f6098d0bcfc822021f4d042d5f2db279e4d75bdd981304f1ca5d9"* ]]
+  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE=ubuntu-24.04"* ]]
+  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_FILE=infra/packer/templates/ubuntu-24.04/ubuntu-24.04.pkr.hcl"* ]]
+  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_DIR=infra/packer/templates/ubuntu-24.04"* ]]
+  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_STATUS=implemented"* ]]
+  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_RELEASE=24.04.3"* ]]
+  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_VM_ID=9002"* ]]
+  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_PROXMOX_NAME=autolab-ubuntu-24.04-template"* ]]
+  [[ "$output" == *"PKR_VAR_vm_id=9002"* ]]
+  [[ "$output" == *"PKR_VAR_vm_template_name=autolab-ubuntu-24.04-template"* ]]
+  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_ISO_URL=https://releases.ubuntu.com/24.04.3/ubuntu-24.04.3-live-server-amd64.iso"* ]]
+  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_ISO_CHECKSUM=sha256:c3514bf0056180d09376462a7a1b4f213c1d6e8ea67fae5c25099c6fd3d8274b"* ]]
+  [[ "$output" == *"PKR_VAR_iso_url=https://releases.ubuntu.com/24.04.3/ubuntu-24.04.3-live-server-amd64.iso"* ]]
+  [[ "$output" == *"PKR_VAR_iso_checksum=sha256:c3514bf0056180d09376462a7a1b4f213c1d6e8ea67fae5c25099c6fd3d8274b"* ]]
 }
 
-@test "resolve-packer-template.sh rejects experiment-only templates" {
-  run bash "${SCRIPT_DIR}/../../../scripts/resolve-packer-template.sh" ubuntu-24.04
+@test "resolve-packer-template.sh rejects blocked ubuntu-26.04" {
+  run bash "${SCRIPT_DIR}/../../../scripts/resolve-packer-template.sh" ubuntu-26.04
   [ "$status" -ne 0 ]
-  [[ "$output" == *"disposable experiment target"* ]]
+  [[ "$output" == *"not implemented (status=blocked)"* ]]
 }
 
 @test "resolve-packer-template.sh rejects unknown templates" {

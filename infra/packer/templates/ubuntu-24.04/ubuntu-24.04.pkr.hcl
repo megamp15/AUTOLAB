@@ -1,6 +1,5 @@
 # ---------------------------------------------------------------------------
-# WARNING: blocked until Canonical reships an ISO fixing LP #2150636 / #2150640 (kernel 7.0.0-14).
-# Ubuntu 26.04 cloud-init VM template
+# Ubuntu 24.04 cloud-init VM template
 #
 # Builds a Proxmox VM template from the Ubuntu live-server ISO using
 # Subiquity autoinstall and a temporary NoCloud seed CD.
@@ -21,7 +20,7 @@ locals {
   proxmox_api_token_secret   = local.proxmox_api_token_parts[1]
 }
 
-source "proxmox-iso" "ubuntu-2604" {
+source "proxmox-iso" "ubuntu-2404" {
   proxmox_url              = var.proxmox_endpoint
   username                 = local.proxmox_api_token_username
   token                    = local.proxmox_api_token_secret
@@ -102,8 +101,8 @@ source "proxmox-iso" "ubuntu-2604" {
 }
 
 build {
-  name    = "autolab-ubuntu-26.04"
-  sources = ["source.proxmox-iso.ubuntu-2604"]
+  name    = "autolab-ubuntu-24.04"
+  sources = ["source.proxmox-iso.ubuntu-2404"]
 
   provisioner "shell" {
     execute_command = "{{ .Vars }} bash -e '{{ .Path }}'"

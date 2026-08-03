@@ -21,8 +21,8 @@ templates:
 
   - name: ubuntu-26.04
     release: 26.04
-    status: implemented
-    description: Ubuntu 26.04 cloud-init template
+    status: blocked
+    description: Ubuntu 26.04 cloud-init template (blocked pending Canonical-respun ISO)
     iso_url: https://releases.ubuntu.com/26.04/ubuntu-26.04-live-server-amd64.iso
     iso_checksum: sha256:dec49008a71f6098d0bcfc822021f4d042d5f2db279e4d75bdd981304f1ca5d9
     directory: infra/packer/templates/ubuntu-26.04
@@ -31,12 +31,21 @@ templates:
     proxmox_template_vm_id: 9001
     provisioning_class: builder_target
     installer: subiquity-autoinstall
-experiments:
+    blocker: "LP #2150636 / #2150640 affect kernel 7.0.0-14; await a Canonical-respun ISO."
+
   - name: ubuntu-24.04
-    status: experiment
-    description: Ubuntu 24.04 server template experiment
+    release: 24.04.3
+    status: implemented
+    description: Ubuntu 24.04.3 cloud-init template
+    iso_url: https://releases.ubuntu.com/24.04.3/ubuntu-24.04.3-live-server-amd64.iso
+    iso_checksum: sha256:c3514bf0056180d09376462a7a1b4f213c1d6e8ea67fae5c25099c6fd3d8274b
+    directory: infra/packer/templates/ubuntu-24.04
+    packer_file: ubuntu-24.04.pkr.hcl
+    proxmox_template_name: autolab-ubuntu-24.04-template
+    proxmox_template_vm_id: 9002
     provisioning_class: builder_target
     installer: subiquity-autoinstall
+experiments:
   - name: rocky-9
     status: experiment
     description: Rocky Linux 9 server template experiment

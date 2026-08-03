@@ -7,7 +7,7 @@ audience: operator
 # Template experiment matrix
 
 Autolab keeps two implemented Linux template paths (`debian-13` and
-`ubuntu-26.04`), plus a menu of **disposable experiments** to learn the
+`ubuntu-24.04`), plus a blocked Ubuntu 26.04 release and a menu of **disposable experiments** to learn the
 framework. Experiments are meant to be destroyed when done — not permanently
 supported OS lines.
 
@@ -20,17 +20,17 @@ supported OS lines.
 | Target | Phase | What works | What does not |
 |--------|-------|------------|---------------|
 | `debian-13` | 2B Packer + 2A OpenTofu | 02 - Packer Build workflow; template VM ID `9000`; candidate can be reviewed before promotion | Machine inventory and template-validation stack; Ansible hardening |
-| `ubuntu-26.04` | 2B Packer + 2A OpenTofu | Buildable candidate; Subiquity autoinstall; distinct template VM ID `9001`; workflow selection is wired | First successful Packer build and `template-validation`; machine inventory; Ansible hardening |
+| `ubuntu-24.04` | 2B Packer + 2A OpenTofu | Runnable Subiquity autoinstall template; distinct template VM ID `9002`; workflow selection is wired | First successful Packer build and `template-validation`; machine inventory; Ansible hardening |
+| `ubuntu-26.04` | Blocked | Preserved source and VM ID `9001` for later retry | LP #2150636 / #2150640 affect kernel `7.0.0-14`; do not run until Canonical provides a respun ISO |
 
 **Smoke test path:**
 
-1. 02 - Packer Build → select `debian-13` (`9000`) or `ubuntu-26.04` (`9001`)
+1. 02 - Packer Build → select `debian-13` (`9000`) or `ubuntu-24.04` (`9002`)
 2. Review the candidate through the staged lifecycle in
    [template-lifecycle.md](./template-lifecycle.md)
 
-Ubuntu 26.04 is a buildable candidate, not a claim of real-hardware
-validation. Treat it as promotable only after one successful Packer build and
-one successful `template-validation` run.
+Do not select Ubuntu 26.04 until the Canonical-respun ISO addresses LP
+#2150636 / #2150640 and kernel `7.0.0-14` is no longer affected.
 
 ## Documented experiments (not runnable yet)
 
@@ -39,7 +39,6 @@ workflow dropdown and `scripts/resolve-packer-template.sh` rejects them.
 
 | Target | `provisioning_class` | Blocker today | First step when promoted |
 |--------|---------------------|---------------|--------------------------|
-| `ubuntu-24.04` | `builder_target` | No Packer template dir; Subiquity autoinstall not written | Add `infra/packer/templates/ubuntu-24.04/` + catalog `status: implemented` |
 | `rocky-9` | `builder_target` | No kickstart template | Same pattern as Ubuntu |
 | `alpine` | `builder_target` | No minimal template | Same pattern |
 | `talos` | `cluster_os` | OpenTofu blocks `cluster_os` at plan time; no Talos module | OpenTofu VM resources + `talosctl` workflow (may skip Packer) |
@@ -48,7 +47,7 @@ workflow dropdown and `scripts/resolve-packer-template.sh` rejects them.
 
 | Layer | Owns | Status |
 |-------|------|--------|
-| **2B Packer** | ISO → Proxmox template | `debian-13` and `ubuntu-26.04` |
+| **2B Packer** | ISO → Proxmox template | `debian-13` and `ubuntu-24.04`; Ubuntu 26.04 blocked |
 | **2A OpenTofu** | Clone template → running VM/LXC | Works for `builder_target` with local tfvars |
 | **2A cloud-init** | Admin user, SSH keys, optional Tailscale join | Wired for builder-target VMs |
 | **2C Ansible** | OS hardening after SSH works | Scaffold only (`TODO` debug tasks) |
@@ -84,7 +83,8 @@ infra/packer/
   template-catalog.yaml
   templates/
     debian-13/          # implemented
-    ubuntu-26.04/       # implemented
+    ubuntu-24.04/       # implemented
+    ubuntu-26.04/       # blocked; preserved for a respun ISO
 ```
 
 Installer automation per OS (when built):
@@ -114,8 +114,8 @@ supports that environment.
 | Target | Smoke test (when runnable) | Destroy check |
 |--------|---------------------------|---------------|
 | `debian-13` | Packer build + OpenTofu clone + SSH as `autolab` | Destroy cloned VM; keep template `9000` |
-| `ubuntu-26.04` | Packer build + OpenTofu clone + SSH as `autolab` | Destroy cloned VM; keep template `9001` |
-| `ubuntu-24.04` | Packer build + clone + SSH | Destroy unless promoted to implemented |
+| `ubuntu-24.04` | Packer build + OpenTofu clone + SSH as `autolab` | Destroy cloned VM; keep template `9002` |
+| `ubuntu-26.04` | Not runnable until Canonical respins the ISO | Keep source and template ID `9001` reserved |
 | `rocky-9` / `alpine` | Packer build + Ansible fact gather (after 2C) | Destroy test host |
 | `talos` | `talosctl health`; `kubectl get nodes` Ready | Destroy all Talos VMs + local configs |
 

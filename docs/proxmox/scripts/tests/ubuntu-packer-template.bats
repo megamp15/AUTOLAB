@@ -4,21 +4,26 @@ bats_require_minimum_version 1.5.0
 
 load test_helper
 
-TEMPLATE_DIR="${SCRIPT_DIR}/../../../infra/packer/templates/ubuntu-26.04"
+TEMPLATE_DIR="${SCRIPT_DIR}/../../../infra/packer/templates/ubuntu-24.04"
 
 @test "Ubuntu template uses a cidata seed CD instead of runner HTTP" {
   run grep -E 'additional_iso_files|cd_content|cd_label[[:space:]]*= "cidata"|iso_storage_pool[[:space:]]*= "local"|"user-data"|"meta-data"' \
-    "${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
+    "${TEMPLATE_DIR}/ubuntu-24.04.pkr.hcl"
   [ "$status" -eq 0 ]
-  ! grep -q 'http_content\|HTTPIP\|HTTPPort\|nocloud-net;s=http' "${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
-  grep -q 'autoinstall ds=nocloud ---' "${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
-  grep -q 'cd_label[[:space:]]*= "cidata"' "${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
+  ! grep -q 'http_content\|HTTPIP\|HTTPPort\|nocloud-net;s=http' "${TEMPLATE_DIR}/ubuntu-24.04.pkr.hcl"
+  grep -q 'autoinstall ds=nocloud ---' "${TEMPLATE_DIR}/ubuntu-24.04.pkr.hcl"
+  grep -q 'cd_label[[:space:]]*= "cidata"' "${TEMPLATE_DIR}/ubuntu-24.04.pkr.hcl"
+  grep -q 'bios[[:space:]]*= "seabios"' "${TEMPLATE_DIR}/ubuntu-24.04.pkr.hcl"
+  grep -q 'boot[[:space:]]*= "c"' "${TEMPLATE_DIR}/ubuntu-24.04.pkr.hcl"
+  grep -q 'boot_wait[[:space:]]*= var.boot_wait' "${TEMPLATE_DIR}/ubuntu-24.04.pkr.hcl"
+  grep -q 'boot_key_interval[[:space:]]*= "150ms"' "${TEMPLATE_DIR}/ubuntu-24.04.pkr.hcl"
+  grep -q 'default[[:space:]]*= "5s"' "${TEMPLATE_DIR}/template-vars.pkr.hcl"
 }
 
 @test "Ubuntu seed handles SSH keys and grants temporary sudo" {
   grep -q 'authorized-keys: ${jsonencode(ssh_keys)}' "${TEMPLATE_DIR}/user-data"
   grep -q 'NOPASSWD:ALL' "${TEMPLATE_DIR}/user-data"
-  grep -q 'rm -f /etc/sudoers.d/90-autolab-packer' "${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
+  grep -q 'rm -f /etc/sudoers.d/90-autolab-packer' "${TEMPLATE_DIR}/ubuntu-24.04.pkr.hcl"
 }
 
 @test "setup action derives and exports the temporary password hash" {
@@ -46,7 +51,7 @@ TEMPLATE_DIR="${SCRIPT_DIR}/../../../infra/packer/templates/ubuntu-26.04"
 }
 
 @test "Packer defaults do not require GitHub storage or bridge variables" {
-  for template in debian-13 ubuntu-26.04; do
+  for template in debian-13 ubuntu-24.04; do
     vars="${SCRIPT_DIR}/../../../infra/packer/templates/${template}/template-vars.pkr.hcl"
     grep -q 'default     = "local-lvm"' "$vars"
     grep -q 'default     = "vmbr0"' "$vars"
@@ -58,7 +63,7 @@ TEMPLATE_DIR="${SCRIPT_DIR}/../../../infra/packer/templates/ubuntu-26.04"
 }
 
 @test "Ubuntu zeroes free space before final hardening" {
-  hcl="${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
+  hcl="${TEMPLATE_DIR}/ubuntu-24.04.pkr.hcl"
   zero_line="$(grep -n 'dd if=/dev/zero' "$hcl" | cut -d: -f1)"
   hardening_line="$(grep -n 'rm -f /etc/sudoers.d/90-autolab-packer' "$hcl" | cut -d: -f1)"
   [ "$zero_line" -lt "$hardening_line" ]
@@ -73,9 +78,7 @@ TEMPLATE_DIR="${SCRIPT_DIR}/../../../infra/packer/templates/ubuntu-26.04"
 }
 
 @test "Ubuntu source label is Packer-safe" {
-  hcl="${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
-  grep -q 'source "proxmox-iso" "ubuntu-2604"' "$hcl"
-  grep -q 'source.proxmox-iso.ubuntu-2604' "$hcl"
-  grep -q 'bios[[:space:]]*= "seabios"' "$hcl"
-  grep -q 'boot[[:space:]]*= "c"' "$hcl"
+  hcl="${TEMPLATE_DIR}/ubuntu-24.04.pkr.hcl"
+  grep -q 'source "proxmox-iso" "ubuntu-2404"' "$hcl"
+  grep -q 'source.proxmox-iso.ubuntu-2404' "$hcl"
 }
