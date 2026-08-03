@@ -29,6 +29,7 @@ source "proxmox-iso" "ubuntu-2604" {
 
   vm_id        = var.vm_id
   vm_name      = var.vm_template_name
+  bios         = "seabios"
   tags         = "autolab;template"
   task_timeout = "10m"
 
@@ -55,7 +56,7 @@ source "proxmox-iso" "ubuntu-2604" {
   }
 
   boot_wait = var.boot_wait
-  boot      = "order=scsi1;scsi0"
+  boot      = "c"
   boot_key_interval = "150ms"
   boot_command = [
     "<esc><wait>",

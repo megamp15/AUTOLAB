@@ -76,4 +76,6 @@ TEMPLATE_DIR="${SCRIPT_DIR}/../../../infra/packer/templates/ubuntu-26.04"
   hcl="${TEMPLATE_DIR}/ubuntu-26.04.pkr.hcl"
   grep -q 'source "proxmox-iso" "ubuntu-2604"' "$hcl"
   grep -q 'source.proxmox-iso.ubuntu-2604' "$hcl"
+  grep -q 'bios[[:space:]]*= "seabios"' "$hcl"
+  grep -q 'boot[[:space:]]*= "c"' "$hcl"
 }
