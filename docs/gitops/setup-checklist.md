@@ -262,8 +262,8 @@ tofu plan
 - [ ] Push to `main` (or your working branch) on GitHub
 - [ ] Check that the **OpenTofu CI** workflow runs on push (format + validate)
 - [ ] Manually trigger **03 - OpenTofu Plan** (workflow dispatch) and verify the pipeline initializes, reads R2 backend credentials, and receives the Proxmox/Tailscale connection settings
-- [ ] Treat the first plan as a pipeline smoke test. The current CI path has no committed machine inventory, so `var.machines` defaults to `{}` and a clean **No changes** result is expected. Machine inventory is part of the planned lifecycle, not a local apply step.
-- [ ] Do not run local `tofu apply` or `tofu destroy` for normal operation. Machine inventory and the planned `template-validation` → `integration-test` → `lab` path are documented in [template-lifecycle.md](./template-lifecycle.md); those machine stacks are not implemented yet.
+- [ ] Treat the first plan as a pipeline smoke test. The CI path reads the committed `infra/stacks/lab/machines.auto.tfvars` desired state, including the running `lab-01` VM; review the resulting changes rather than expecting an empty machine inventory.
+- [ ] Do not run local `tofu apply` or `tofu destroy` for normal operation. Use the GitHub Actions workflows for apply and destroy; `machines.auto.tfvars` is the committed GitOps-managed inventory.
 
 ---
 

@@ -44,6 +44,13 @@ variable "machines" {
     ])
     error_message = "Each Machine provisioning_class must be \"builder_target\" or \"cluster_os\"."
   }
+  validation {
+    condition = alltrue([
+      for _, machine in var.machines :
+      machine.provisioning_class != "builder_target" || machine.type == "vm"
+    ])
+    error_message = "Each builder_target Machine must have type = \"vm\"."
+  }
 }
 
 variable "default_node_name" {

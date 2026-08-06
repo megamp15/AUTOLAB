@@ -5,21 +5,29 @@ on:
     paths:
       - 'docs/proxmox/scripts/**'
       - 'scripts/**'
-      - 'infra/**'
-      - '.github/actions/**'
       - 'infra/connection-schema.yaml'
       - 'infra/r2-config.yaml'
+      - 'infra/terramate.tm.hcl'
+      - 'infra/_base/connection-variables.tm.hcl'
+      - 'infra/modules/proxmox-connection/variables.tf'
+      - 'infra/packer/**'
       - 'docs/proxmox/config/network-env-schema.yaml'
+      - '.github/actions/configure-packer-template/action.yml'
+      - '.github/actions/configure-proxmox-connection/action.yml'
       - '.github/workflows/90_scripts.yml'
   pull_request:
     paths:
       - 'docs/proxmox/scripts/**'
       - 'scripts/**'
-      - 'infra/**'
-      - '.github/actions/**'
       - 'infra/connection-schema.yaml'
       - 'infra/r2-config.yaml'
+      - 'infra/terramate.tm.hcl'
+      - 'infra/_base/connection-variables.tm.hcl'
+      - 'infra/modules/proxmox-connection/variables.tf'
+      - 'infra/packer/**'
       - 'docs/proxmox/config/network-env-schema.yaml'
+      - '.github/actions/configure-packer-template/action.yml'
+      - '.github/actions/configure-proxmox-connection/action.yml'
       - '.github/workflows/90_scripts.yml'
 
 jobs:

@@ -1,8 +1,10 @@
 # Autolab Ansible Builder
 
-Phase 2C configures Linux hosts after they exist. The host can come from the
-Proxmox track (VM/LXC created by OpenTofu) or from a future VPS provider track.
-Once SSH is reachable, the builder should apply the same server baseline.
+Phase 2C configures Linux hosts after they exist. Current Builder targets are
+cloud-init-capable Proxmox VMs. LXC Builder targets are deferred until they
+meet the same reachable-host contract; future provider-neutral reachable Linux
+hosts, including VPS hosts, remain intended. Once SSH is reachable, the builder
+should apply the same server baseline.
 
 ## Scope
 
@@ -57,8 +59,9 @@ eventually receive:
 - separate `gitops` deploy user
 - root/password SSH disabled
 - firewall defaults
-- Tailscale/private management access
+- Tailscale/private management access (VM install, join, and retry are owned by cloud-init)
 - optional Docker runtime
 
 Role tasks are placeholders until each role is implemented and tested. Keep each
-role idempotent and safe to run repeatedly.
+role idempotent and safe to run repeatedly. A future Tailscale role may only add
+post-join policy or configuration if it earns a real need.

@@ -1,4 +1,4 @@
 ---
 - name: Document Tailscale role scaffold
   ansible.builtin.debug:
-    msg: "TODO: install Tailscale, join with approved auth flow, and enable private access."
+    msg: "TODO: post-join Tailscale policy or configuration only if needed; cloud-init owns VM install, join, and retry."

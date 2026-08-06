@@ -23,8 +23,8 @@ The practice of declarative config in git with a controller that applies it. In 
 - **Stack** — a Terramate-managed OpenTofu environment directory under `infra/stacks/`. Each stack defines one environment (e.g., `lab`).
 - **GitOps lifecycle** — the planned path from an ephemeral `template-validation` candidate, through persistent `integration-test`, to long-lived `lab`; see `docs/gitops/template-lifecycle.md`.
 - **Integration test** — the persistent canary environment for later server layers such as Ansible, Docker, Kubernetes, or monitoring; it is not a builder-only smoke test.
-- **Machine** — a VM or LXC resource defined in a stack's `machines` variable (local `terraform.tfvars` today). Each machine has a `type` (`vm` or `lxc`), a `provisioning_class` (`builder_target` or `cluster_os`), and type-specific config.
-- **Provisioning class** — how a Machine is configured after Proxmox creates it. `builder_target` uses cloud-init and the Ansible builder path; `cluster_os` is reserved for disposable Talos-style experiments configured through `talosctl`.
+- **Machine** — a VM or LXC resource defined in a stack's `machines` variable. `infra/stacks/lab/machines.auto.tfvars` is committed desired state and includes the running `lab-01` VM. Each machine has a `type` (`vm` or `lxc`), a `provisioning_class` (`builder_target` or `cluster_os`), and type-specific config.
+- **Provisioning class** — how a Machine is configured after Proxmox creates it. `builder_target` currently supports cloud-init-capable VMs; LXC Builder targets are deferred until they meet the same reachable-host contract. `cluster_os` is reserved for disposable Talos-style experiments configured through `talosctl`.
 
 ### Provider Tracks
 
@@ -73,10 +73,10 @@ Builds VM templates from ISOs on the running Proxmox host. Connection variables 
 
 ### Builder
 
-The provider-neutral configuration phase that runs after provisioning. A builder target is any reachable Linux host with SSH: a Proxmox VM, a Proxmox LXC where the role supports containers, or a VPS. Autolab's first builder implementation is Ansible.
+The provider-neutral configuration phase that runs after provisioning. Current Builder targets are cloud-init-capable Proxmox VMs. LXC Builder targets are deferred until they meet the same reachable-host contract; future provider-neutral reachable Linux hosts, including VPS hosts, remain intended. Autolab's first builder implementation is Ansible.
 
 - **Builder inventory** — groups hosts by environment/provider (for example `lab` or `vps`) while keeping secrets and real IPs outside git.
-- **Builder role** — an idempotent unit of server configuration such as SSH hardening, firewall defaults, updates, Tailscale, Docker, or a `gitops` deploy user.
+- **Builder role** — an idempotent unit of server configuration such as SSH hardening, firewall defaults, updates, Docker, or a `gitops` deploy user. Cloud-init solely owns VM Tailscale install, join, and retry; a future Tailscale role may provide post-join policy or configuration only if needed.
 - **Server baseline** — the common roles every Autolab-managed Linux host should receive before project-specific services.
 
 ## Key Files

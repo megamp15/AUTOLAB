@@ -110,14 +110,14 @@ The `machine-normalization` module merges those defaults per machine. The lab
 stack provisions only `builder_target` machines. VMs get cloud-init from the
 `cloud-init` module (admin user, SSH keys, qemu-guest-agent, optional Tailscale).
 
-**Current scaffold:** GitHub Actions injects Proxmox/R2 connection settings from
-secrets and variables, but the `machines` map is not yet a CI input. A CI plan
-therefore shows no machine changes. Do not use local `tofu apply` or
-`tofu destroy` for normal operation; the machine inventory and staged
-`template-validation` → `integration-test` → `lab` workflow are planned in
-[template-lifecycle.md](./template-lifecycle.md).
+**Current desired state:** `infra/stacks/lab/machines.auto.tfvars` is committed
+and defines the running `lab-01` cloud-init-capable VM Builder target. GitHub
+Actions injects Proxmox/R2 connection settings from secrets and variables and
+plans this inventory. LXC Builder targets are deferred until they meet the same
+reachable-host contract. Do not use local `tofu apply` or `tofu destroy` for
+normal operation; use the GitHub Actions workflows.
 
-To add a machine, add a key to `machines` with `type = "vm"` or `type = "lxc"`.
+To add a Builder target, add a key to `machines` with `type = "vm"`. LXC Builder targets are deferred.
 Set `node_name` only when placing on a node other than the stack default.
 `proxmox-compute` validates type-specific fields at plan time.
 
@@ -134,9 +134,8 @@ tofu plan
 ```
 
 The local commands above are validation and planning only. Normal apply and
-destroy operations belong to protected GitHub Actions once the reviewed machine
-inventory path is implemented; do not treat a local `terraform.tfvars` as a
-GitOps-managed inventory.
+destroy operations belong to protected GitHub Actions; the committed
+`machines.auto.tfvars` is the GitOps-managed inventory.
 
 Plan and Apply remain separate workflows. Apply creates a fresh plan, then applies
 that binary plan once and preserves the apply log, plan text artifact, and job
