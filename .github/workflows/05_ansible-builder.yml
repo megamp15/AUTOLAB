@@ -64,7 +64,7 @@ jobs:
         with:
           env_dir: infra/stacks/${{ inputs.environment }}
           tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
-          tailscale_oidc_audience: ${{ vars.TAILSCALE_OIDC_AUDIENCE }}
+          tailscale_oauth_secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
           configure_proxmox: 'false'
           # ponytail: reuse state write credentials until the Builder canary passes;
           # replace with a Builder-only R2 Object Read token afterwards.
