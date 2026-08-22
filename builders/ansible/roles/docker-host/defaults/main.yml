@@ -1,0 +1,2 @@
+---
+autolab_docker_enabled: "{{ (autolab_builder | default({})).docker_enabled | default(false) }}"

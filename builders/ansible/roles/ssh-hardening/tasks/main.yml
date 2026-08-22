@@ -1,4 +1,12 @@
 ---
-- name: Document SSH hardening role scaffold
-  ansible.builtin.debug:
-    msg: "TODO: disable root SSH, disable password auth, and reload sshd safely."
+- name: Install Autolab SSH hardening policy
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/99-autolab.conf
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      ChallengeResponseAuthentication no
+      UsePAM yes
+    mode: "0644"
+  notify: Validate and reload SSH

@@ -73,6 +73,16 @@ variable "machines" {
     ipv4_gateway = optional(string, null)
     tags         = optional(list(string), [])
     started      = optional(bool, true)
+    # Builder policy is consumed after provisioning by Ansible, not Proxmox.
+    builder = optional(object({
+      enabled = optional(bool, true)
+      firewall_rules = optional(list(object({
+        port     = number
+        protocol = optional(string, "tcp")
+        source   = optional(string, "any")
+      })), [])
+      docker_enabled = optional(bool, false)
+    }), {})
   }))
   default = {}
   validation {
@@ -88,5 +98,14 @@ variable "machines" {
       machine.provisioning_class != "cluster_os"
     ])
     error_message = "Cluster OS machines are recognized as disposable experiments, but the Talos/OpenTofu implementation is not wired yet. Keep them in docs or comments until the cluster_os path is implemented."
+  }
+  validation {
+    condition = alltrue(flatten([
+      for _, machine in var.machines : [
+        for rule in machine.builder.firewall_rules :
+        rule.port >= 1 && rule.port <= 65535 && contains(["tcp", "udp"], rule.protocol)
+      ]
+    ]))
+    error_message = "Each Builder firewall rule requires a port from 1 through 65535 and protocol tcp or udp."
   }
 }

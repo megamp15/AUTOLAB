@@ -40,8 +40,7 @@ Autolab is a **custom, learning-first homelab** you build yourself: versioned do
 - [x] Packer VM template build workflow
 - [x] Schema-driven code generation (connection, Packer template, and network env schemas → generated adapters)
 - [x] Production-readiness checks for retry behaviour, R2 setup output, cloud-init Tailscale enrollment, and generated adapter validation
-- [x] Builder/Ansible scaffold for provider-neutral server baseline roles
-- [ ] Ansible hardening roles (users, SSH, firewall, updates, Tailscale, deploy user)
+- [x] Builder/Ansible baseline (users, SSH, firewall, updates, deploy user, optional Docker; Tailscale SSH transport via workflow 05)
 - [ ] VPS provider track using the same builder baseline after provisioning
 - [ ] Service/VM tutorials on top of PVE
 
@@ -81,7 +80,7 @@ bash setup-proxmox-network.sh --apply
 | [infra/modules/](infra/modules/) | Shared Proxmox compute and connection modules |
 | [infra/_base/](infra/_base/) | Terramate code generation (providers, backend) |
 | [infra/packer/](infra/packer/) | Packer VM template builds (phase 2B scaffold) |
-| [builders/ansible/](builders/ansible/) | Provider-neutral server configuration scaffold (phase 2C) |
+| [builders/ansible/](builders/ansible/) | Provider-neutral server hardening baseline (phase 2C) |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Now / next / non-goals |
 | [docs/production-readiness.md](docs/production-readiness.md) | Stop criteria for using Autolab (schema drift, tests, smoke test) |
 | [docs/proxmox/config/network.env.example](docs/proxmox/config/network.env.example) | Template → `/etc/default/proxmox-network.env` on host |

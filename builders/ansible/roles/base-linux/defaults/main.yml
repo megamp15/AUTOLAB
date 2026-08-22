@@ -1,0 +1,3 @@
+---
+autolab_baseline_packages: [ca-certificates, curl, unattended-upgrades]
+autolab_upgrade_packages: false

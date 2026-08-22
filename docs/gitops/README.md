@@ -38,7 +38,7 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. The **stack code** lives
 - An ephemeral GitHub-hosted runner that joins Tailscale for each job.
 - A Cloudflare R2 state backend for OpenTofu.
 - GitHub Environments (`autolab-plan`, `autolab-apply`) with secrets and variables.
-- Cloud-init baseline for builder-target VMs (admin user, SSH keys, qemu-guest-agent, optional Tailscale join).
+- Cloud-init baseline for builder-target VMs (admin user, qemu-guest-agent, Tailscale enrollment, and Tailscale SSH host feature).
 - Documentation for Proxmox API tokens, Tailscale, caching, artifacts, and state.
 
 ## What phase 2B includes (shipped scaffold)
@@ -48,11 +48,25 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. The **stack code** lives
 
 ## What is not included yet
 
-- Ansible hardening roles (phase 2C — roles are debug placeholders).
 - `cluster_os` provisioning (Talos experiments are documented but blocked at plan time).
 - CI-injected `machines` map (VM creation needs local `terraform.tfvars`).
 - Docker Compose, Docker Swarm, Talos/Kubernetes cluster deployment.
 - Public internet exposure.
+
+## What phase 2C includes
+
+- Ansible baseline for Debian-family Builder VMs: updates, dedicated `gitops`
+  automation access, SSH hardening, and a default-deny firewall. Builder
+  transport uses Tailscale SSH with the existing CI runner identity and
+  manually configured tailnet grants/SSH policy.
+- Per-machine Builder policy emitted from the OpenTofu `machines` map to a
+  generated Ansible inventory.
+- Manual GitHub Actions and local execution paths, with opt-in Docker. Tailscale
+  SSH is the standard Builder transport, not an optional playbook or machine
+  flag.
+- Workflow **05 - Ansible Builder** bootstraps the persistent canary as
+  `autolab`, then regular Builder runs use `gitops`; optional Docker follows a
+  healthy baseline.
 
 ## Recommended reading order
 

@@ -22,5 +22,8 @@ machines = {
     memory_mb               = 2048
     disk_size_gb            = 20
     ipv4_address            = "dhcp"
+    builder = {
+      # This VM inherits the universal baseline; no inbound service is exposed.
+    }
   }
 }

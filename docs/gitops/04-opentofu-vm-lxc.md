@@ -108,7 +108,10 @@ enrollment key from the Tailscale provider; the LXC path does not create one.
 
 The `machine-normalization` module merges those defaults per machine. The lab
 stack provisions only `builder_target` machines. VMs get cloud-init from the
-`cloud-init` module (admin user, SSH keys, qemu-guest-agent, optional Tailscale).
+`cloud-init` module (admin user, qemu-guest-agent, Tailscale enrollment, and
+the post-enrollment Tailscale SSH host feature). Builder VMs use
+`tag:autolab-vm`; CI reaches them as `tag:ci-runner` under the tailnet grants
+and SSH policy.
 
 **Current desired state:** `infra/stacks/lab/machines.auto.tfvars` is committed
 and defines the running `lab-01` cloud-init-capable VM Builder target. GitHub

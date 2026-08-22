@@ -1,4 +1,15 @@
 ---
-- name: Document gitops user role scaffold
-  ansible.builtin.debug:
-    msg: "TODO: create deploy user, install authorized keys, and restrict sudo intentionally."
+- name: Create the GitOps automation user
+  ansible.builtin.user:
+    name: "{{ autolab_gitops_user }}"
+    groups: sudo
+    append: true
+    shell: /bin/bash
+    create_home: true
+
+- name: Permit GitOps sudo without a password
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/90-{{ autolab_gitops_user }}"
+    content: "{{ autolab_gitops_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    mode: "0440"
+    validate: visudo -cf %s

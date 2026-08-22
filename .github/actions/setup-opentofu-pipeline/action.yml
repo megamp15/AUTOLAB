@@ -20,6 +20,14 @@ inputs:
     description: Tailscale OAuth secret
     required: false
     default: ''
+  tailscale_oidc_audience:
+    description: Tailscale OIDC audience
+    required: false
+    default: ''
+  configure_proxmox:
+    description: Whether to configure Proxmox provider variables
+    required: false
+    default: 'true'
   proxmox_host:
     description: Proxmox host name or IP address
     required: false
@@ -73,6 +81,7 @@ runs:
       with:
         oauth-client-id: ${{ inputs.tailscale_oauth_client_id }}
         oauth-secret: ${{ inputs.tailscale_oauth_secret }}
+        audience: ${{ inputs.tailscale_oidc_audience }}
 
     - name: Configure R2 credentials
       if: inputs.r2_access_key_id != ''
@@ -89,6 +98,7 @@ runs:
         append_github_env "R2_ENDPOINT" "https://${AUTOLAB_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
     - uses: ./.github/actions/configure-proxmox-connection
+      if: inputs.configure_proxmox == 'true'
       with:
         proxmox_host: ${{ inputs.proxmox_host }}
         proxmox_port: ${{ inputs.proxmox_port }}

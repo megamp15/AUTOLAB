@@ -28,7 +28,7 @@ Machine inventory (`machines` in `terraform.tfvars`) is **local-only today** —
 | CI-injected or committed machine inventory | `gitops`, `opentofu` | So GitHub Apply can provision without a local `terraform.tfvars` |
 | `template-validation` and `integration-test` environments | `gitops`, `packer`, `opentofu`, `integration-test` | Validate ephemeral candidates, then test later server layers on a persistent canary before promoting to `lab` |
 | Template experiment matrix | `packer`, `templates`, `talos`, `kubernetes` | Disposable OS and cluster experiments — [template matrix](gitops/template-lab-matrix.md) |
-| Builder phase 2C | `ansible`, `security`, `linux` | Enforce the provider-neutral server baseline — scaffold in `builders/ansible/` |
+| Builder phase 2C | `ansible`, `security`, `linux` | Enforce the Debian-family provider-neutral server baseline over Tailscale SSH; cloud-init enables the host feature after enrollment, CI uses GitHub OIDC/WIF as `tag:ci-runner`, Builder VMs use `tag:autolab-vm`, and workflow 05 bootstraps `autolab` before regular `gitops`; VPS/LXC support remains future work |
 | VPS provider track | `vps`, `opentofu`, `providers` | Future cloud-provider stacks replace Proxmox/Packer provisioning while reusing the builder baseline |
 | Second node / “real homelab” profile | `homelab` | Fork-friendly; keep this repo as the **learning** path |
 | VM / service tutorials | `learning`, `self-hosted` | Optional guides that consume a working PVE node |

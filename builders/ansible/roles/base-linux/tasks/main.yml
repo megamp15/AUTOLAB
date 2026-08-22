@@ -1,4 +1,17 @@
 ---
-- name: Document base Linux role scaffold
-  ansible.builtin.debug:
-    msg: "TODO: refresh packages, configure update policy, and install baseline tools."
+- name: Require a Debian-family Builder target
+  ansible.builtin.assert:
+    that: ansible_os_family == "Debian"
+    fail_msg: "Autolab Builder currently supports Debian-family hosts only."
+
+- name: Install universal baseline packages
+  ansible.builtin.apt:
+    name: "{{ autolab_baseline_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Apply package upgrades when explicitly enabled
+  ansible.builtin.apt:
+    upgrade: safe
+  when: autolab_upgrade_packages | bool

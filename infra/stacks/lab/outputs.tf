@@ -18,3 +18,15 @@ output "machines" {
     }
   }
 }
+
+output "builder_machines" {
+  description = "Non-sensitive Ansible inventory data for Builder-target VMs."
+  value = {
+    for key, machine in module.machine_inputs.builder_target_vm_machines : key => {
+      name           = machine.name
+      ansible_host   = machine.name
+      bootstrap_user = machine.admin_username
+      builder        = machine.builder
+    }
+  }
+}

@@ -9,6 +9,3 @@
     - role: gitops-user
     - role: ssh-hardening
     - role: firewall
-    - role: tailscale
-    - role: docker-host
-      when: autolab_enable_docker | default(false) | bool

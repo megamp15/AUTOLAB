@@ -1,4 +1,13 @@
 ---
-- name: Document Docker host role scaffold
-  ansible.builtin.debug:
-    msg: "TODO: install container runtime and configure safe defaults for service hosts."
+- name: Install Docker when enabled for this machine
+  ansible.builtin.apt:
+    name: docker.io
+    state: present
+  when: autolab_docker_enabled | bool
+
+- name: Enable Docker when enabled for this machine
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+  when: autolab_docker_enabled | bool

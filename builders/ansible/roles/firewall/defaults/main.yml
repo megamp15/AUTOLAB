@@ -1,0 +1,3 @@
+---
+autolab_firewall_rules: "{{ (autolab_builder | default({})).firewall_rules | default([]) }}"
+autolab_firewall_manifest_path: /var/lib/autolab/firewall-managed-rules.yml

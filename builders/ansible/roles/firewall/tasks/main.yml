@@ -1,4 +1,85 @@
 ---
-- name: Document firewall role scaffold
-  ansible.builtin.debug:
-    msg: "TODO: enforce default-deny inbound policy and allow management networks."
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Create firewall state directory
+  ansible.builtin.file:
+    path: "{{ autolab_firewall_manifest_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Check for Builder-managed firewall manifest
+  ansible.builtin.stat:
+    path: "{{ autolab_firewall_manifest_path }}"
+  register: autolab_firewall_manifest_stat
+
+- name: Read Builder-managed firewall manifest
+  ansible.builtin.slurp:
+    src: "{{ autolab_firewall_manifest_path }}"
+  register: autolab_firewall_manifest
+  changed_when: false
+  when: autolab_firewall_manifest_stat.stat.exists
+
+- name: Initialize managed firewall rules
+  ansible.builtin.set_fact:
+    autolab_firewall_managed_rules: []
+    autolab_firewall_desired_rules: []
+
+- name: Load previously managed firewall rules
+  ansible.builtin.set_fact:
+    autolab_firewall_managed_rules: "{{ autolab_firewall_manifest.content | b64decode | from_yaml }}"
+  when:
+    - autolab_firewall_manifest.content is defined
+
+- name: Normalize desired firewall rules
+  ansible.builtin.set_fact:
+    autolab_firewall_desired_rules: >-
+      {{ autolab_firewall_desired_rules + [{
+        'port': item.port | string,
+        'protocol': item.protocol | string,
+        'source': item.source | default('any', true) | string
+      }] }}
+  loop: "{{ autolab_firewall_rules }}"
+
+- name: Remove stale Builder-managed firewall rules
+  community.general.ufw:
+    rule: allow
+    delete: true
+    direction: in
+    port: "{{ item.port }}"
+    proto: "{{ item.protocol }}"
+    from_ip: "{{ item.source }}"
+  loop: "{{ autolab_firewall_managed_rules | difference(autolab_firewall_desired_rules) }}"
+
+- name: Allow inbound management over Tailscale
+  community.general.ufw:
+    rule: allow
+    direction: in
+    interface: tailscale0
+
+- name: Allow declared inbound services
+  community.general.ufw:
+    rule: allow
+    direction: in
+    port: "{{ item.port }}"
+    proto: "{{ item.protocol }}"
+    from_ip: "{{ item.source }}"
+  loop: "{{ autolab_firewall_desired_rules }}"
+
+- name: Enforce default-deny inbound firewall policy
+  community.general.ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
+
+- name: Atomically persist Builder-managed firewall rules
+  ansible.builtin.copy:
+    content: "{{ autolab_firewall_desired_rules | to_nice_yaml }}"
+    dest: "{{ autolab_firewall_manifest_path }}"
+    owner: root
+    group: root
+    mode: '0600'

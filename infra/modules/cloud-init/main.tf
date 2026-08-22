@@ -41,11 +41,17 @@ if ! tailscale ip -4 >> ${var.tailscale_log_path} 2>&1; then
   exit 1
 fi
 echo "Tailscale enrollment verified successfully." | tee -a ${var.tailscale_log_path}
+if ! tailscale set --ssh=true >> ${var.tailscale_log_path} 2>&1; then
+  echo "Failed to enable Tailscale SSH." | tee -a ${var.tailscale_log_path}
+  exit 1
+fi
+echo "Tailscale SSH enabled successfully." | tee -a ${var.tailscale_log_path}
 EOT
   ] : []
 
   cloud_config = {
-    hostname = var.hostname
+    hostname   = var.hostname
+    ssh_pwauth = false
     users = [
       {
         name                = var.admin_username

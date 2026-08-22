@@ -105,6 +105,15 @@ Add the R2 credentials as GitHub Environment secrets (see [Step 6 - GitHub Envir
 | `R2_ACCESS_KEY_ID` | The R2 access key ID from step 2 |
 | `R2_SECRET_ACCESS_KEY` | The R2 secret access key from step 2 |
 
+For the initial Builder canary validation, reuse `R2_ACCOUNT_ID`,
+`R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` with this same state bucket.
+This is temporary and does not claim that the canary has run.
+
+> **TODO after successful canary validation:** replace the shared credentials
+> with `BUILDER_R2_ACCESS_KEY_ID` and `BUILDER_R2_SECRET_ACCESS_KEY`, scoped to
+> Object Read-only on this state bucket. Do not make those Builder-specific
+> credentials an immediate prerequisite.
+
 The GitHub workflows map these to `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` when running `tofu plan` or `tofu apply`.
 
 ## State locking

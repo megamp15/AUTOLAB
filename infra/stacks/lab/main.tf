@@ -20,11 +20,11 @@ module "machine_inputs" {
 resource "tailscale_tailnet_key" "builder_target_vm" {
   for_each = module.machine_inputs.builder_target_vm_machines
 
-  reusable            = false
+  reusable            = true
   ephemeral           = false
   preauthorized       = true
   expiry              = 3600
-  recreate_if_invalid = "never"
+  recreate_if_invalid = "always"
   tags                = ["tag:autolab-vm"]
 }
 

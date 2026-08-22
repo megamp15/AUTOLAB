@@ -31,8 +31,7 @@ entry in `infra/packer/template-catalog.yaml` owns the ISO URL and checksum.
 
 | Name | Required | Value |
 |---|---:|---|
-| `TAILSCALE_OAUTH_CLIENT_ID` | Yes | Tailscale OAuth client ID for the ephemeral CI runner, joined with `tag:ci-runner`. |
-| `TAILSCALE_OAUTH_SECRET` | Yes | Matching runner OAuth client secret. Do not use the separate VM enrollment OAuth credentials here. |
+| GitHub OIDC/WIF trust | Yes | Short-lived CI identity joined with `tag:ci-runner`; no OAuth client secret is stored. |
 | `PROXMOX_API_TOKEN` | Yes | Full token: `USER@REALM!TOKENID=TOKEN_SECRET`. |
 | `PACKER_SSH_PASSWORD` | Yes | Generated temporary build-VM password, not the PVE password or SSH key. |
 | `PVE_SSH_PRIVATE_KEY` | Yes | Private key for SSH from the runner to `PROXMOX_HOST`. |
@@ -96,10 +95,10 @@ and be pasted into GitHub.
 6. Paste the complete private-key file, including `BEGIN` and `END` lines, into
    the `PVE_SSH_PRIVATE_KEY` GitHub secret. Do not paste the public key there.
 
-`PVE_SSH_PRIVATE_KEY` authenticates the CI runner to PVE; `SSH_PUBLIC_KEYS` is
-injected into the temporary build VM. They are separate keys/uses. The
-`TAILSCALE_VM_OAUTH_CLIENT_ID` and `TAILSCALE_VM_OAUTH_SECRET` credentials are
-for OpenTofu VM enrollment only and are not required by Packer.
+`PVE_SSH_PRIVATE_KEY` authenticates the CI runner to PVE only; it is never reused
+for a VM. `SSH_PUBLIC_KEYS` is injected into the temporary Packer build VM and
+is a separate build input, not the Builder transport credential. GitHub OIDC/WIF
+supplies the short-lived CI tailnet identity.
 
 ## Run it
 

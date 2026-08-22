@@ -15,26 +15,22 @@ Real `tofu plan` and `tofu apply` run on **ephemeral GitHub-hosted runners** tha
 ```mermaid
 flowchart LR
   GH[GitHub Actions] --> R[Ephemeral GitHub-hosted runner\nubuntu-latest]
-  R -- tailscale/github-action@v2 --> TS[Tailscale network]
+  R -- tailscale/github-action@v4 --> TS[Tailscale network]
   TS --> PVE[Proxmox API\nvia Tailscale hostname]
 ```
 
-The runner uses `tailscale/github-action@v2` to authenticate with an OAuth client and joins the tailnet for the duration of the job. When the job finishes — success or failure — the runner disconnects automatically.
+The runner uses GitHub OIDC/WIF to obtain short-lived tailnet access and joins
+the tailnet for the duration of the job. When the job finishes — success or
+failure — the runner disconnects automatically. No long-lived OAuth client
+secret is stored in GitHub.
 
-## Tailscale OAuth client setup
+## GitHub OIDC/WIF setup
 
-OAuth credentials are preferred over auth keys because they don't expire and don't need periodic rotation.
-
-Create an OAuth client in the [Tailscale admin console](https://login.tailscale.com/admin/settings/oauth):
-
-- Choose **Custom scopes**, not **All - Read & Write**.
-- Under **Keys**, grant only **Auth Keys → Write**. Leave DNS, policy file, users, devices, OAuth keys, logging, and settings unchecked.
-- Configure the client to create ephemeral nodes tagged with `tag:ci-runner` (or your chosen CI tag).
-- Save the **Client ID** and **Client Secret**.
-
-Then set these as GitHub secrets named `TAILSCALE_OAUTH_CLIENT_ID` and `TAILSCALE_OAUTH_SECRET` (see [Step 6 - GitHub Environments](./06-github-environments.md)).
-
-> **Note**: Auth keys still work but need periodic rotation. OAuth credentials are the recommended approach for CI/CD pipelines.
+Configure the Tailscale trust integration and GitHub Actions OIDC provider
+according to the tailnet's identity-provider procedure. Bind only the
+repository, workflow, ref, and environment claims required by the Builder
+workflows. The resulting runner identity must receive exactly
+`tag:ci-runner`; GitHub stores no OAuth client secret for this path.
 
 ### CI runner tag setup
 
@@ -52,42 +48,63 @@ Recommended tag-owner policy shape:
 ```json
 {
   "tagOwners": {
-    "tag:ci-runner": ["<your-github-identity>"],
-    "tag:autolab": ["<your-github-identity>"]
+    "tag:ci-runner": ["<tailnet-admin-or-approved-wif-principal>"],
+    "tag:autolab-vm": ["<tailnet-admin-or-provisioning-authority>"]
   }
 }
 ```
 
-Use `autogroup:admin` instead of your identity if you want any tailnet admin to manage these tags.
+Tag assignment is an authority boundary: only the tailnet administrator or
+the explicitly approved provisioning authority may assign these tags. Do not
+let Builder VMs assign tags to themselves.
 
-## Tailscale ACL
+## Tailscale grants and SSH policy
 
-The tailnet policy must allow the tagged CI runner to reach the Proxmox host on port 8006.
+The tailnet policy must allow the tagged CI runner to reach Proxmox on port
+8006 and Builder VMs over Tailscale SSH. SSH access must be limited to
+`autolab` for bootstrap and `gitops` for regular runs; never grant `root`.
 
-Example ACL snippet:
+Example policy snippet:
 
 ```json
 {
-  "acls": [
+  "grants": [
+    {
+      "src": ["tag:ci-runner"],
+      "dst": ["tag:autolab-vm"],
+      "ip": ["tcp:22"]
+    },
+    {
+      "src": ["tag:ci-runner"],
+      "dst": ["<proxmox-host>"],
+      "ip": ["tcp:8006"]
+    }
+  ],
+  "ssh": [
     {
       "action": "accept",
       "src": ["tag:ci-runner"],
-      "dst": ["tag:autolab:8006"]
+      "dst": ["tag:autolab-vm"],
+      "users": ["autolab", "gitops"]
     }
   ]
 }
 ```
 
-If your Proxmox host is tagged (e.g. `tag:autolab`), the runner needs a route to it. Adjust the ACL to match your tagging scheme. At minimum, the runner needs TCP access to the Proxmox host on port 8006.
+Use the Proxmox host's MagicDNS name or address for the `8006` destination. At
+minimum, the runner needs TCP access to the Proxmox host on port 8006.
 
 ## Recommended runner rules
 
 - Use `ubuntu-latest` runners — no self-hosted infrastructure to maintain.
-- Use `tailscale/github-action@v2` at the start of any job that needs tailnet access.
+- Use `tailscale/github-action@v4` at the start of any job that needs tailnet access.
 - Use GitHub Environments for apply approvals and secrets.
 - Use a least-privilege Proxmox API token.
 - Keep OpenTofu state, real tfvars, SSH private keys, and generated plans out of git.
-- Runners are ephemeral by nature — no cleanup or rotation needed.
+- Before replacing a Builder VM, retire its existing `tag:autolab-vm` device so
+  its stable MagicDNS target is not suffixed or stale. Terraform does not
+  automatically clean up Tailscale devices; revoke/expire the old enrollment
+  key after retirement or destruction.
 
 ## GitHub workflow split
 
@@ -96,6 +113,7 @@ If your Proxmox host is tagged (e.g. `tag:autolab`), the runner needs a route to
 | `98_opentofu-ci.yml` | `ubuntu-latest` | No | format and static validation |
 | `03_opentofu-plan.yml` | `ubuntu-latest` | Yes | real plan against Proxmox, optional plan artifacts |
 | `04_opentofu-apply.yml` | `ubuntu-latest` | Yes | apply from a fresh plan or saved binary plan |
+| `05_ansible-builder.yml` | `ubuntu-latest` | Yes | bootstrap as `autolab`, then run regular Builder automation as `gitops` |
 
 **The gate between plan and apply:**
 

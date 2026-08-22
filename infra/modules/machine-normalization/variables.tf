@@ -35,6 +35,15 @@ variable "machines" {
     ipv4_gateway = optional(string, null)
     tags         = optional(list(string), [])
     started      = optional(bool, true)
+    builder = optional(object({
+      enabled = optional(bool, true)
+      firewall_rules = optional(list(object({
+        port     = number
+        protocol = optional(string, "tcp")
+        source   = optional(string, "any")
+      })), [])
+      docker_enabled = optional(bool, false)
+    }), {})
   }))
   default = {}
   validation {
@@ -50,6 +59,15 @@ variable "machines" {
       machine.provisioning_class != "builder_target" || machine.type == "vm"
     ])
     error_message = "Each builder_target Machine must have type = \"vm\"."
+  }
+  validation {
+    condition = alltrue(flatten([
+      for _, machine in var.machines : [
+        for rule in machine.builder.firewall_rules :
+        rule.port >= 1 && rule.port <= 65535 && contains(["tcp", "udp"], rule.protocol)
+      ]
+    ]))
+    error_message = "Each Builder firewall rule requires a port from 1 through 65535 and protocol tcp or udp."
   }
 }
 

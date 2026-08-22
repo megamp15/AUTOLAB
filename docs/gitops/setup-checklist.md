@@ -17,25 +17,27 @@ Complete these in order. Each step links to the relevant guide for details.
 - [ ] Networking configured (USB Ethernet, Wi-Fi failover, or LAN)
 - [ ] Host packages updated (`apt update && apt upgrade`)
 - [ ] Tailscale installed and the host has joined the tailnet
-- [ ] Tailscale SSH enabled (`sudo tailscale set --ssh`)
+- [ ] Builder VM Tailscale SSH host feature is enabled by cloud-init after enrollment
 
-## 1. Tailscale OAuth client for CI
+## 1. Tailscale GitHub OIDC/WIF for CI
 
-The GitHub runner needs Tailscale OAuth credentials to join the tailnet temporarily during each workflow run.
+The GitHub runner uses GitHub OIDC/WIF to obtain short-lived tailnet access;
+do not create or store a long-lived OAuth client secret for Builder CI.
 
-- [ ] Go to [Tailscale admin console → OAuth clients](https://login.tailscale.com/admin/settings/oauth)
-- [ ] Create a new OAuth client with **Custom scopes**
-- [ ] Under **Keys**, grant only **Auth Keys → Write**. Leave all other scopes unchecked.
-- [ ] Configure the client to create ephemeral nodes tagged with `tag:ci-runner` (or a tag you choose — note it for the ACL step)
-- [ ] Save the **Client ID** and **Client Secret** — you will add them as `TAILSCALE_OAUTH_CLIENT_ID` and `TAILSCALE_OAUTH_SECRET` in GitHub
+- [ ] Configure the tailnet trust integration and GitHub OIDC provider for the repository and workflow claims
+- [ ] Bind the workflow identity to the exact `tag:ci-runner` tag
+- [ ] Restrict tag assignment to the tailnet administrator or approved provisioning authority
 
-- [ ] Create the `ci-runner` tag in Tailscale. For **Tag owner**, choose your own identity for a personal lab, or `autogroup:admin` for a team-managed lab. Avoid `autogroup:member` for CI tags.
+- [ ] Create `tag:ci-runner`; set `tagOwners` to the tailnet administrator or approved WIF principal, never a broad member group
 
 See [02 - Secure GitHub runner](./02-secure-runner.md) for the full runner model.
 
-## 2. Tailscale ACL
+## 2. Tailscale ACL and SSH policy
 
-The CI runner tag needs permission to reach the Proxmox host on port 8006.
+The CI runner tag needs permission to reach Proxmox on port 8006 and Builder
+VMs over Tailscale SSH. Tag the CI runner and every Builder VM explicitly. The
+SSH policy must grant access for `autolab` during canary bootstrap and for
+`gitops` after the first Builder run creates that account.
 
 - [ ] Open [Tailscale ACL editor](https://login.tailscale.com/admin/acls)
 - [ ] Add an ACL rule allowing the CI runner tag to reach the Proxmox host tag (or specific IP) on port 8006. Example:
@@ -46,13 +48,22 @@ The CI runner tag needs permission to reach the Proxmox host on port 8006.
     {
       "action": "accept",
       "src": ["tag:ci-runner"],
-      "dst": ["tag:autolab:8006"]
+      "dst": ["<proxmox-host>:8006"]
     }
   ]
 }
 ```
 
-- [ ] Make sure your Proxmox host is tagged (e.g. `tag:autolab`) in the Tailscale admin console under **Machines**
+- [ ] Add the Builder grant separately with `dst: ["tag:autolab-vm"]` and `ip: ["tcp:22"]`
+- [ ] Add a separate SSH accept rule for `tag:ci-runner` to `tag:autolab-vm`, with
+  `users: ["autolab", "gitops"]` only; never allow `root`
+
+- [ ] Record the Proxmox host's MagicDNS name or address for the `8006` grant
+- [ ] Tag the CI runner as `tag:ci-runner` and each Builder VM as `tag:autolab-vm`
+- [ ] Add tailnet grants from `tag:ci-runner` to Proxmox and `tag:autolab-vm`
+- [ ] Add SSH accept rules limited to `autolab` for bootstrap and `gitops` afterward; never grant `root`
+- [ ] Before replacing a Builder VM, retire its existing `tag:autolab-vm` device first so its stable MagicDNS target is not suffixed or stale
+- [ ] After retirement or destruction, revoke/expire its short-lived enrollment key; Terraform does not automatically clean up Tailscale devices
 
 See [02 - Secure GitHub runner](./02-secure-runner.md) for the full runner model.
 
@@ -102,23 +113,31 @@ Enterprise-only feature** — not available on Free/Team plans for private repos
 | `PROXMOX_INSECURE_TLS` | Optional; use `true` for Proxmox's default self-signed certificate |
 | `PROXMOX_PACKER_NETWORK_BRIDGE` | Required bridge for the temporary Packer VM (e.g. `vmbr1`); no `vmbr0` fallback |
 | `SSH_PUBLIC_KEYS` | SSH public keys for Packer template build (comma-separated) |
+| `TAILSCALE_OIDC_AUDIENCE` | Non-secret GitHub OIDC/WIF audience for the existing Tailscale client ID |
 
 - [ ] Add these **secrets** (repository or environment level):
 
 | Secret | Value |
 |--------|-------|
-| `TAILSCALE_OAUTH_CLIENT_ID` | Runner Tailscale OAuth client ID from step 1; the runner uses `tag:ci-runner` |
-| `TAILSCALE_OAUTH_SECRET` | Matching runner OAuth client secret from step 1 |
 | `PROXMOX_API_TOKEN` | Full Proxmox API token string from step 3, e.g. `gitops@pve!opentofu=SECRET` |
 | `PACKER_SSH_PASSWORD` | Generated password for Packer Build (temporary, build-only) |
-| `PVE_SSH_PRIVATE_KEY` | Private SSH key for the required Proxmox bastion connection |
+| `PVE_SSH_PRIVATE_KEY` | Private SSH key for the required Proxmox bastion connection only; never a Builder VM key |
+| `TAILSCALE_OAUTH_CLIENT_ID` | Existing Tailscale client ID used with GitHub OIDC/WIF; no Builder OAuth secret |
+| `TAILSCALE_VM_OAUTH_CLIENT_ID` | OpenTofu VM enrollment OAuth client ID |
+| `TAILSCALE_VM_OAUTH_SECRET` | OpenTofu VM enrollment OAuth client secret; Plan/Apply only |
 | `R2_ACCOUNT_ID` | Cloudflare account ID from step 4 |
 | `R2_ACCESS_KEY_ID` | R2 access key ID from step 4 |
 | `R2_SECRET_ACCESS_KEY` | R2 secret access key from step 4 |
-| `TAILSCALE_VM_OAUTH_CLIENT_ID` | Tailscale OAuth client ID with the `auth_keys` scope for per-VM enrollment |
-| `TAILSCALE_VM_OAUTH_SECRET` | Matching VM enrollment OAuth client secret; used only by OpenTofu, not the runner |
 
 Repository-level secrets are read directly by the workflows.
+
+For initial Builder canary validation, reuse `R2_ACCOUNT_ID`,
+`R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` with the existing state bucket.
+Builder-specific credentials are not an immediate prerequisite.
+
+> **TODO after successful canary validation:** add
+> `BUILDER_R2_ACCESS_KEY_ID` and `BUILDER_R2_SECRET_ACCESS_KEY` to the Builder
+> Environment with R2 Object Read-only scope on the existing state bucket.
 
 - [ ] (Enterprise only) Add **required reviewers** if you later assign a workflow to `autolab-apply`
 
@@ -275,11 +294,15 @@ The Packer scaffold is in `infra/packer/`. To build templates:
 - [ ] Run `packer init`, `packer validate`, `packer build` from a machine that can reach Proxmox over Tailscale
 - [ ] Or run the existing **02 - Packer Build** GitHub Actions workflow after adding the Packer CI variables/secrets from `infra/packer/README.md`; choose `debian-13` or the separately implemented `ubuntu-26.04` template
 
-## Phase 2C manual steps (Ansible — not yet)
+## Phase 2C manual steps (Ansible)
 
-These will be needed when Ansible hardening roles are added:
+Before the first Builder run:
 
-- [ ] Create a non-root admin user on each VM/LXC
-- [ ] Create a `gitops` deploy user for Ansible
-- [ ] Configure SSH key access for the `gitops` user
-- [ ] (These will be automated by Ansible once the roles are written)
+- [ ] Confirm the CI runner can use Tailscale SSH to the canary as `autolab` under the bootstrap SSH policy.
+- [ ] Run workflow **05 - Ansible Builder** once as `autolab`; it creates the `gitops` user before SSH policy changes.
+- [ ] Update/confirm the SSH policy for `gitops`, then run the regular Builder path as `gitops` and confirm the second run reports no changes.
+- [ ] Run optional Docker only after the baseline is healthy.
+- [ ] For each service VM, declare only its required `builder.firewall_rules` in `machines.auto.tfvars`.
+- [ ] Confirm the stack has at least one enabled Builder Machine before a Builder run; the run stops during inventory preparation, before Ansible, when none are enabled.
+- [ ] Treat malformed `builder_machines` output as an inventory error and correct the stack output before rerunning the Builder.
+- [ ] Use the persistent canary for the first Builder bootstrap and transport check; this checklist records the procedure, not an executed canary run.
