@@ -20,11 +20,14 @@ module "machine_inputs" {
 resource "tailscale_tailnet_key" "builder_target_vm" {
   for_each = module.machine_inputs.builder_target_vm_machines
 
-  reusable            = true
-  ephemeral           = false
-  preauthorized       = true
-  expiry              = 3600
-  recreate_if_invalid = "always"
+  reusable      = true
+  ephemeral     = false
+  preauthorized = true
+  expiry        = 3600
+  # Join key is for initial provisioning only; a running VM keeps its identity
+  # in /var/lib/tailscale/tailscaled.state. Replacing an expired key here would
+  # churn the cloud-init snippet and force-replace the VM on every apply.
+  recreate_if_invalid = "never"
   tags                = ["tag:autolab-vm"]
 }
 
