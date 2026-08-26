@@ -80,8 +80,9 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. The **stack code** lives
 8. [Manual GitHub UI Packer setup](./github-ui-packer-setup.md)
 9. [Template experiment matrix](./template-lab-matrix.md)
 10. [Template lifecycle](./template-lifecycle.md)
-11. [Server hardening baseline](./server-hardening-baseline.md)
-12. [Security sources](./security-sources.md)
+11. [Tailscale device lifecycle](./tailscale-device-lifecycle.md)
+12. [Server hardening baseline](./server-hardening-baseline.md)
+13. [Security sources](./security-sources.md)
 
 ## Setup checklist
 

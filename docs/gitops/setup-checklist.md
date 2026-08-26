@@ -123,8 +123,8 @@ Enterprise-only feature** — not available on Free/Team plans for private repos
 | `PACKER_SSH_PASSWORD` | Generated password for Packer Build (temporary, build-only) |
 | `PVE_SSH_PRIVATE_KEY` | Private SSH key for the required Proxmox bastion connection only; never a Builder VM key |
 | `TAILSCALE_OAUTH_CLIENT_ID` | Existing Tailscale client ID used with GitHub OIDC/WIF; no Builder OAuth secret |
-| `TAILSCALE_VM_OAUTH_CLIENT_ID` | OpenTofu VM enrollment OAuth client ID |
-| `TAILSCALE_VM_OAUTH_SECRET` | OpenTofu VM enrollment OAuth client secret; Plan/Apply only |
+| `TAILSCALE_VM_OAUTH_CLIENT_ID` | Dedicated Tailscale OAuth client ID for VM enrollment AND destroy-time device cleanup (Plan/Apply/Destroy). Create it in the admin console with **only** the `devices:core:read_write` scope — not the CI-runner client, never with `auth_keys` scope. |
+| `TAILSCALE_VM_OAUTH_SECRET` | Secret for the same client (`tskey-client-secret-...`, shown once). See `docs/gitops/tailscale-device-lifecycle.md`. |
 | `R2_ACCOUNT_ID` | Cloudflare account ID from step 4 |
 | `R2_ACCESS_KEY_ID` | R2 access key ID from step 4 |
 | `R2_SECRET_ACCESS_KEY` | R2 secret access key from step 4 |

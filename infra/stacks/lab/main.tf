@@ -80,3 +80,34 @@ module "machine" {
   tags            = each.value.tags
   started         = each.value.started
 }
+
+# Tailscale device cleanup — revoke the VM's device record when the VM dies.
+#
+# VMs join Tailscale asynchronously via cloud-init, so their device IDs are
+# unknowable at plan time. Instead of tracking IDs in state, destroy-time
+# resolution is by deterministic hostname + tag:autolab-vm (see
+# scripts/tailscale-device-delete.sh and docs/gitops/tailscale-device-lifecycle.md).
+#
+# Why this shape:
+#   - depends_on reverses on destroy, so the device is revoked BEFORE the
+#     disk is destroyed — while the VM still exists to be matched by name.
+#   - triggers_replace on vm_id also cleans up stale devices when the VM is
+#     rebuilt from a new template (old device revoked before the new one joins).
+#   - local-exec runs wherever tofu runs; TAILSCALE_OAUTH_CLIENT_ID/SECRET come
+#     from the destroy workflow's exported env (or your local shell).
+#
+# Destroy-time provisioners may only reference `self`, so the hostname is
+# stashed in `input` (persisted state) and read back as self.input.
+resource "terraform_data" "tailscale_device_cleanup" {
+  for_each = module.machine_inputs.builder_target_vm_machines
+
+  input            = each.value.name
+  triggers_replace = [module.machine[each.key].vm_id]
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "${path.module}/../../scripts/tailscale-device-delete.sh ${self.input}"
+  }
+
+  depends_on = [module.machine]
+}

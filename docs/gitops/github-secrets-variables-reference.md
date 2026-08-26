@@ -56,8 +56,8 @@ secrets work for a personal lab; environment secrets are optional hardening).
 |--------|---------|---------|-----------------|
 | `PROXMOX_API_TOKEN` | `gitops@pve!opentofu=SECRET` | Packer, OpenTofu | Proxmox → Permissions → API Tokens. Shown once. |
 | `TAILSCALE_OAUTH_CLIENT_ID` | `tskey-client-...` | Ansible Builder | Existing client ID used with GitHub OIDC/WIF; no OAuth secret is used for Builder. |
-| `TAILSCALE_VM_OAUTH_CLIENT_ID` | `tskey-client-...` | OpenTofu Plan/Apply | VM enrollment client ID. |
-| `TAILSCALE_VM_OAUTH_SECRET` | `tskey-client-secret-...` | OpenTofu Plan/Apply | VM enrollment client secret; not used by Builder. |
+| `TAILSCALE_VM_OAUTH_CLIENT_ID` | `tskey-client-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client ID; exported as `TAILSCALE_OAUTH_CLIENT_ID` into tofu steps and consumed by the destroy-time device cleanup script. |
+| `TAILSCALE_VM_OAUTH_SECRET` | `tskey-client-secret-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client secret; OAuth client must be scoped `devices:core:read_write` ONLY (see `docs/gitops/tailscale-device-lifecycle.md`). Not used by Builder. |
 | `PACKER_SSH_PASSWORD` | generated password | Packer Build | Temporary build-only password. Not your SSH key. |
 | `R2_ACCOUNT_ID` | `a1b2c3...` | OpenTofu | Cloudflare dashboard URL / R2 page. |
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |

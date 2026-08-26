@@ -25,6 +25,8 @@ The practice of declarative config in git with a controller that applies it. In 
 - **Integration test** — the persistent canary environment for later server layers such as Ansible, Docker, Kubernetes, or monitoring; it is not a builder-only smoke test.
 - **Machine** — a VM or LXC resource defined in a stack's `machines` variable. `infra/stacks/lab/machines.auto.tfvars` is committed desired state and includes the running `lab-01` VM. Each machine has a `type` (`vm` or `lxc`), a `provisioning_class` (`builder_target` or `cluster_os`), and type-specific config.
 - **Provisioning class** — how a Machine is configured after Proxmox creates it. `builder_target` currently supports cloud-init-capable VMs; LXC Builder targets are deferred until they meet the same reachable-host contract. `cluster_os` is reserved for disposable Talos-style experiments configured through `talosctl`.
+- **Device cleanup hook** — destroy-time `terraform_data` local-exec per VM that deletes the machine's Tailscale device record before the disk is destroyed. Resolution is by deterministic hostname + `tag:autolab-vm`, never a stored device ID: join is asynchronous, so the device ID is unknowable at plan time. Implemented by `scripts/tailscale-device-delete.sh`; see `docs/gitops/tailscale-device-lifecycle.md`.
+- **Orphaned device** — a Tailscale device record whose VM no longer exists (destroys predating the cleanup hook, or lost/renamed state). Cleaned manually with `scripts/tailscale-device-delete.sh <hostname>` or the admin console.
 
 ### Provider Tracks
 
@@ -76,7 +78,7 @@ Builds VM templates from ISOs on the running Proxmox host. Connection variables 
 The provider-neutral configuration phase that runs after provisioning. Current Builder targets are cloud-init-capable Proxmox VMs. LXC Builder targets are deferred until they meet the same reachable-host contract; future provider-neutral reachable Linux hosts, including VPS hosts, remain intended. Autolab's first builder implementation is Ansible.
 
 - **Builder inventory** — groups hosts by environment/provider (for example `lab` or `vps`) while keeping secrets and real IPs outside git.
-- **Builder role** — an idempotent unit of server configuration such as SSH hardening, firewall defaults, updates, Docker, or a `gitops` deploy user. Cloud-init solely owns VM Tailscale install, join, and retry; a future Tailscale role may provide post-join policy or configuration only if needed.
+- **Builder role** — an idempotent unit of server configuration such as SSH hardening, firewall defaults, updates, Docker, or a `gitops` deploy user. Cloud-init solely owns VM Tailscale install, join, and retry; the `tailscale-update` role owns post-provision Tailscale upgrades through the official apt repo.
 - **Server baseline** — the common roles every Autolab-managed Linux host should receive before project-specific services.
 
 ## Key Files
@@ -87,6 +89,7 @@ The provider-neutral configuration phase that runs after provisioning. Current B
 | `infra/packer/template-schema.yaml` | Single source of truth for Packer template CI vocabulary |
 | `infra/packer/template-catalog.yaml` | Implemented Packer templates and documented experiment targets |
 | `docs/gitops/template-lab-matrix.md` | Disposable template and Talos virtual cluster experiment matrix |
+| `docs/gitops/tailscale-device-lifecycle.md` | Tailscale enrollment/cleanup lifecycle, ephemeral-vs-persistent rationale, failure matrix |
 | `docs/proxmox/config/network-env-schema.yaml` | Single source of truth for network env fields |
 | `scripts/generate-connection-adapters.sh` | Generates OpenTofu and Packer adapters from connection schema |
 | `scripts/generate-packer-template-adapters.sh` | Generates the Packer template CI adapter from template schema |
