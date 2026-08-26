@@ -105,8 +105,10 @@ resource "terraform_data" "tailscale_device_cleanup" {
   triggers_replace = [module.machine[each.key].vm_id]
 
   provisioner "local-exec" {
-    when    = destroy
-    command = "${path.module}/../../scripts/tailscale-device-delete.sh ${self.input}"
+    when = destroy
+    # abspath: path.module is "." for a root stack, so the raw value would be a
+    # broken relative path. Three ../ from infra/stacks/lab reaches the repo root.
+    command = "${abspath(path.module)}/../../../scripts/tailscale-device-delete.sh ${self.input}"
   }
 
   depends_on = [module.machine]
