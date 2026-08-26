@@ -1,0 +1,6 @@
+---
+# Upgrades Tailscale via the official pkgs.tailscale.com apt repo.
+# Package/repo management ONLY: cloud-init solely owns Tailscale install
+# and join, so this role never touches auth keys or `tailscale up`.
+tailscale_track: stable
+tailscale_package_state: latest

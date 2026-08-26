@@ -14,7 +14,7 @@ on:
         required: true
         default: harden
         type: choice
-        options: [harden, docker]
+        options: [harden, docker, tailscale-update]
       limit:
         description: Optional Ansible host limit
         required: false
@@ -51,7 +51,7 @@ jobs:
       - name: Validate Builder mode
         shell: bash
         run: |
-          if [[ "${{ inputs.bootstrap }}" == "true" && "${{ inputs.playbook }}" == "docker" ]]; then
+          if [[ "${{ inputs.bootstrap }}" == "true" && "${{ inputs.playbook }}" != "harden" ]]; then
             echo 'bootstrap mode only supports the harden playbook' >&2
             exit 1
           fi

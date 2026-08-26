@@ -54,11 +54,12 @@ builders/ansible/
   playbooks/
     harden.yml
     docker.yml
+    tailscale-update.yml
   roles/
     base-linux/
     ssh-hardening/
     firewall/
-    tailscale/
+    tailscale-update/
     gitops-user/
     docker-host/
 ```
@@ -96,7 +97,12 @@ The `harden.yml` playbook is the common baseline every managed server receives:
 - Tailscale SSH transport (cloud-init installs/enables it after enrollment;
   tailnet policy grants CI access)
 
-`docker.yml` remains an opt-in playbook. Tailscale SSH is not an optional
+`docker.yml` remains an opt-in playbook. `tailscale-update.yml` is security
+maintenance: it upgrades Tailscale to the current stable release via the
+official `pkgs.tailscale.com` apt repo. Run it periodically (or after a
+Tailscale security advisory); join and enrollment stay owned by cloud-init,
+so this playbook never touches auth keys or `tailscale up`. Tailscale SSH is
+not an optional
 playbook or per-machine flag; it is the approved Builder transport. Do not
 use Tailscale SSH check mode `always` for the `gitops` automation identity.
 

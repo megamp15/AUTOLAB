@@ -1,0 +1,36 @@
+---
+- name: Require a Debian-family Builder target
+  ansible.builtin.assert:
+    that: ansible_os_family == "Debian"
+    fail_msg: "Autolab Builder currently supports Debian-family hosts only."
+
+# Pin to the `stable` track: `unstable`/`beta` tracks ship faster but are not
+# appropriate for unattended security maintenance on lab servers.
+- name: Ensure the apt keyring directory exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Install the Tailscale repository signing key
+  ansible.builtin.get_url:
+    url: "https://pkgs.tailscale.com/{{ tailscale_track }}/{{ ansible_facts['distribution'] | lower }}/{{ ansible_facts['distribution_release'] }}.noarmor.gpg"
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    mode: '0644'
+
+- name: Install the Tailscale apt repository definition
+  ansible.builtin.get_url:
+    url: "https://pkgs.tailscale.com/{{ tailscale_track }}/{{ ansible_facts['distribution'] | lower }}/{{ ansible_facts['distribution_release'] }}.tailscale-keyring.list"
+    dest: /etc/apt/sources.list.d/tailscale.list
+    mode: '0644'
+
+# CI-driven upgrades instead of `tailscale set --auto-update`: the built-in
+# updater races unattended-upgrades on the same dpkg lock (tailscale/tailscale
+# #10400) and can leave the package half-upgraded. One Ansible run per update
+# keeps upgrades serialized and observable.
+- name: Install or upgrade Tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    state: "{{ tailscale_package_state }}"
+    update_cache: true
+    cache_valid_time: 3600
