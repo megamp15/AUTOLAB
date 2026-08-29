@@ -59,6 +59,10 @@ fi
 is_list=0
 for a in "${args[@]}"; do [[ "$a" == */tailnet/-/devices ]] && is_list=1; done
 if [[ $is_list -eq 1 ]]; then
+  if [[ "$(python3 -c "import json; print(json.load(open('$SCENARIO_FILE')).get('list_status', 200))")" != "200" ]]; then
+    echo "simulated device-list failure" >&2
+    exit 22
+  fi
   python3 -c "import json; print(json.dumps(json.load(open('$SCENARIO_FILE'))['devices_response']))"
   exit 0
 fi
@@ -150,7 +154,18 @@ EOF
 run_scenario gone
 assert_eq "404 on delete exits 0" "0" "$RUN_RC"
 
-# --- (d) persistent 500 -> retries then nonzero exit ---
+# --- (d) device-list failure -> retries then nonzero exit ---
+rm -f "$CALL_LOG"
+cat > "$TEST_TMP/list-failure.json" << 'EOF'
+{"token_status": "ok",
+ "list_status": 404,
+ "devices_response": {"message": "tailnet not found"}}
+EOF
+run_scenario list-failure
+assert_eq "device-list failure exits nonzero" "1" "$RUN_RC"
+assert_eq "device-list failure retries 3 times" "3" "$(grep -c 'tailnet/-/devices' "$CALL_LOG")"
+
+# --- (e) persistent 500 -> retries then nonzero exit ---
 rm -f "$CALL_LOG"
 cat > "$TEST_TMP/persistent-500.json" << 'EOF'
 {"token_status": "ok",

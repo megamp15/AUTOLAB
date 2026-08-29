@@ -72,7 +72,9 @@ fi
 
 # --- Step 2: list all devices in the tailnet ---
 list_devices() {
-  curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$API_BASE/tailnet/-/devices"
+  # Without --fail, an API error JSON is valid input to the parser below and
+  # is mistaken for an empty device list.
+  curl -fsS -H "Authorization: Bearer $ACCESS_TOKEN" "$API_BASE/tailnet/-/devices"
 }
 
 DEVICES_JSON=""
