@@ -94,8 +94,8 @@ EOF
   die "Failed to list Tailscale devices after retries."
 fi
 
-# --- Step 3: filter client-side — first DNS label must equal hostname exactly,
-# and the device must carry our tag. Device names are FQDNs like
+# --- Step 3: filter client-side — match the hostname or Tailscale's numeric
+# collision suffix, and require our tag. Device names are FQDNs like
 # lab-01.tailnet-name.ts.net, so compare labels, not substrings. ---
 MATCHING_IDS="$(printf '%s' "$DEVICES_JSON" | python3 -c '
 import json, sys
@@ -105,7 +105,8 @@ devices = json.load(sys.stdin).get("devices", [])
 for d in devices:
     name = d.get("name", "")
     first_label = name.split(".")[0] if name else ""
-    if first_label == hostname and tag in d.get("tags", []):
+    suffix = first_label.removeprefix(hostname + "-")
+    if (first_label == hostname or (first_label.startswith(hostname + "-") and suffix.isdigit())) and tag in d.get("tags", []):
         print(d["id"])
 ' "$HOSTNAME_ARG" "$TAG_FILTER")"
 

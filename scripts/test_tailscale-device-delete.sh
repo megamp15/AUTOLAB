@@ -123,16 +123,20 @@ cat > "$TEST_TMP/multi-match.json" << 'EOF'
  "devices_response": {"devices": [
    {"id": "1", "name": "lab-01.tailnet.ts.net", "tags": ["tag:autolab-vm"]},
    {"id": "2", "name": "lab-01.other.ts.net", "tags": ["tag:autolab-vm"]},
+   {"id": "7", "name": "lab-01-1.tailnet.ts.net", "tags": ["tag:autolab-vm"]},
    {"id": "3", "name": "lab-01x.tailnet.ts.net", "tags": ["tag:autolab-vm"]},
+   {"id": "6", "name": "123.tailnet.ts.net", "tags": ["tag:autolab-vm"]},
    {"id": "4", "name": "lab-01.no-tag.ts.net", "tags": []}
  ]}}
 EOF
 run_scenario multi-match
 assert_eq "multiple matches exit 0" "0" "$RUN_RC"
-# ids 1 and 2 match exactly (3 is a substring trap, 4 lacks the tag)
-assert_eq "DELETE called once per match" "2" "$(grep -c 'DELETE' "$CALL_LOG")"
+# ids 1 and 2 match exactly, and 7 has Tailscale's collision suffix
+# (3 is a substring trap, 6 is unrelated and numeric, 4 lacks the tag).
+assert_eq "DELETE called once per match" "3" "$(grep -c 'DELETE' "$CALL_LOG")"
 assert_eq "matched device 1 deleted" "1" "$(grep -c 'device/1$' "$CALL_LOG")"
 assert_eq "matched device 2 deleted" "1" "$(grep -c 'device/2$' "$CALL_LOG")"
+assert_eq "matched suffixed device deleted" "1" "$(grep -c 'device/7$' "$CALL_LOG")"
 
 # --- (c) 404 on delete counts as success ---
 rm -f "$CALL_LOG"
