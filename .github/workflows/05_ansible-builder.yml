@@ -101,7 +101,7 @@ jobs:
           if [[ "${{ inputs.bootstrap }}" == "true" ]]; then user=autolab; fi
           for host in "${hosts[@]}"; do
             for attempt in {1..12}; do
-              if ! ping_output=$(tailscale ping --timeout=5s "$host" 2>&1); then
+              if ! ping_output=$(tailscale ping --until-direct=false --c 1 --timeout=5s "$host" 2>&1); then
                 failure="Tailscale reachability failed for $host: $ping_output"
               elif ! ssh_output=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 "$user@$host" true 2>&1); then
                 failure="SSH readiness failed for $user@$host: $ssh_output"
