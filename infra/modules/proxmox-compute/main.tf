@@ -10,6 +10,7 @@
 resource "proxmox_virtual_environment_file" "cloud_init" {
   count = var.type == "vm" && var.cloud_init_enabled ? 1 : 0
 
+  # Keep user-data as a separate snippets file because Proxmox initialization references it by file ID.
   content_type = "snippets"
   datastore_id = var.cloud_init_snippet_datastore_id
   node_name    = var.node_name
@@ -54,6 +55,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   agent {
     enabled = true
 
+    # Readiness is established by Tailscale/SSH checks after cloud-init, not Proxmox guest-agent IP discovery.
     wait_for_ip {
       disabled = true
     }
@@ -68,6 +70,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   disk {
+    # Full clones and this explicit disk keep each VM's managed boot disk independent.
     datastore_id = var.datastore_id
     interface    = "scsi0"
     size         = var.disk_size_gb
@@ -98,6 +101,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
 }
 
 # ---- LXC (type = "lxc") ----
+# LXC intentionally omits VM-only fields; Builder support remains deferred until its reachable-host contract is met.
 
 resource "proxmox_virtual_environment_container" "lxc" {
   count = var.type == "lxc" ? 1 : 0

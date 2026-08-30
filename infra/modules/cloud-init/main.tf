@@ -13,6 +13,7 @@ locals {
   ]
 
   # ---- Tailscale command composition ----
+  # Cloud-init owns initial enrollment and retry; the Builder only upgrades the installed client later.
   tailscale_accept_routes_flag = var.tailscale_accept_routes ? " --accept-routes" : ""
   tailscale_extra_args_str     = length(var.tailscale_extra_args) > 0 ? " ${join(" ", var.tailscale_extra_args)}" : ""
 

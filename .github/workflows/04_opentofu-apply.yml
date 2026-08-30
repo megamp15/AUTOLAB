@@ -87,6 +87,8 @@ jobs:
           r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           r2_account_id: ${{ secrets.R2_ACCOUNT_ID }}
 
+      # Plan and apply in one run so the approved plan is applied immediately; Tailscale credentials also
+      # authorize destroy-time device cleanup when resources are removed.
       - name: Plan before apply
         id: plan
         working-directory: ${{ needs.preflight.outputs.env_dir }}

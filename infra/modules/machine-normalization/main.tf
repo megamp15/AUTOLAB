@@ -1,4 +1,5 @@
 locals {
+  # Apply stack and identity defaults before partitioning so every downstream machine is complete.
   normalized_machines = {
     for key, machine in var.machines : key => merge(machine, {
       node_name       = coalesce(machine.node_name, var.default_node_name)
@@ -21,6 +22,7 @@ locals {
   }
 
   cluster_os_machines = {
+    # Cluster OS machines are separated from Builder targets for their control-plane provisioning path.
     for key, machine in local.normalized_machines : key => machine
     if machine.provisioning_class == "cluster_os"
   }

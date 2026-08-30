@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render an Ansible JSON inventory from `tofu output -json builder_machines`."""
+"""Render inventory from `builder_machines`; use `gitops` after bootstrap or `autolab` as break-glass."""
 
 import argparse
 import json
