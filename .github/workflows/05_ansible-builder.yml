@@ -103,6 +103,8 @@ jobs:
             for attempt in {1..12}; do
               if ! ping_output=$(tailscale ping --until-direct=false --c 1 --timeout=5s "$host" 2>&1); then
                 failure="Tailscale reachability failed for $host: $ping_output"
+              elif ! ssh-keygen -F "$host" >/dev/null && ! ssh-keyscan -H -t ed25519 -T 5 "$host" >> "$HOME/.ssh/known_hosts" 2>/dev/null; then
+                failure="Could not collect an ED25519 host key for $host"
               elif ! ssh_output=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 "$user@$host" true 2>&1); then
                 failure="SSH readiness failed for $user@$host: $ssh_output"
               else
