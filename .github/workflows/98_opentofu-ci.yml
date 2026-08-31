@@ -49,14 +49,13 @@ jobs:
       - name: Validate
         run: tofu validate
 
-      - name: Job summary
+      - name: Final job summary
         if: always()
         run: |
           {
             echo "## OpenTofu CI"
             echo
             echo "- Environment: \`lab\`"
-            echo "- Formatting: \`${{ job.status }}\`"
-            echo "- Validation: \`${{ job.status }}\`"
-            echo "- Provider cache: \`$TF_PLUGIN_CACHE_DIR\`"
+            echo "- Result: \`${{ job.status }}\`"
+            echo "- Checks: formatting, init, and validation"
           } >> "$GITHUB_STEP_SUMMARY"

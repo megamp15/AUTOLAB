@@ -105,3 +105,13 @@ jobs:
 
       - name: Run bats tests
         run: bats docs/proxmox/scripts/tests/
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Scripts validation"
+            echo
+            echo "- Result: \`${{ job.status }}\`"
+            echo "- Checks: Bash syntax, schema drift, OpenTofu, Packer, and Bats"
+          } >> "$GITHUB_STEP_SUMMARY"

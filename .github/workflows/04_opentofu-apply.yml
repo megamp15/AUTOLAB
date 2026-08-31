@@ -54,7 +54,7 @@ jobs:
             exit 1
           fi
 
-      - name: Job summary
+      - name: Final job summary
         if: always()
         run: |
           {
@@ -145,13 +145,12 @@ jobs:
           fi
 
           {
-            echo "## OpenTofu Apply"
+            echo "## OpenTofu apply"
             echo
             echo "- Environment: \`${{ needs.preflight.outputs.environment }}\`"
-            echo "- Result: \`${{ job.status }}\`"
-            echo "- Plan changes: \`${{ steps.plan.outputs.has_changes || 'unknown' }}\`"
-            echo "- Plan summary: ${{ steps.plan.outputs.summary_line || 'Plan did not complete.' }}"
-            echo "- Apply summary: ${apply_summary:-Review the uploaded apply log.}"
+            echo "- Result: \`${{ job.status }}\`; plan changes: \`${{ steps.plan.outputs.has_changes || 'unknown' }}\`"
+            echo "- Plan: ${{ steps.plan.outputs.summary_line || 'did not complete' }}"
+            echo "- Apply: ${apply_summary:-not available}"
           } >> "$GITHUB_STEP_SUMMARY"
 
   apply-rejected:
@@ -167,3 +166,13 @@ jobs:
           echo "You must type 'apply' in the confirm field to apply changes."
           echo "========================================================"
           exit 1
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## OpenTofu apply rejected"
+            echo
+            echo "- Result: \`${{ job.status }}\`"
+            echo "- Confirmation was not \`apply\`; no changes were made."
+          } >> "$GITHUB_STEP_SUMMARY"

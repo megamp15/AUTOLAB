@@ -50,6 +50,7 @@ jobs:
           echo "text_artifact_name=opentofu-${{ steps.context.outputs.environment }}-plan-text" >> "$GITHUB_OUTPUT"
 
       - name: Job summary
+        if: always()
         run: |
           {
             echo "## OpenTofu Plan Preflight"
@@ -96,17 +97,15 @@ jobs:
           path: ${{ needs.preflight.outputs.env_dir }}/plan.txt
           retention-days: 3
 
-      - name: Job summary
+      - name: Final job summary
         if: always()
         working-directory: ${{ needs.preflight.outputs.env_dir }}
         run: |
           {
-            echo "## OpenTofu Plan"
+            echo "## OpenTofu plan"
             echo
             echo "- Environment: \`${{ needs.preflight.outputs.environment }}\`"
-            echo "- Result: \`${{ job.status }}\`"
-            echo "- Changes detected: \`${{ steps.plan.outputs.has_changes || 'unknown' }}\`"
-            echo "- Summary: ${{ steps.plan.outputs.summary_line || 'Plan did not complete.' }}"
-            echo "- Text artifact uploaded: \`${{ inputs.upload_plan_text }}\`"
-            echo "- Text artifact name: \`${{ needs.preflight.outputs.text_artifact_name }}\`"
+            echo "- Result: \`${{ job.status }}\`; changes: \`${{ steps.plan.outputs.has_changes || 'unknown' }}\`"
+            echo "- Plan: ${{ steps.plan.outputs.summary_line || 'did not complete' }}"
+            echo "- Text artifact: \`${{ inputs.upload_plan_text }}\`"
           } >> "$GITHUB_STEP_SUMMARY"

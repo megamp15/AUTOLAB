@@ -176,26 +176,6 @@ jobs:
           fi
           REMOTE
 
-      - name: Build summary
-        if: always()
-        run: |
-          echo "========================================================"
-          echo "🏗️ PACKER BUILD FINISHED"
-          echo "========================================================"
-          echo "📋 Summary:"
-          echo "   • Template: ${{ inputs.template }}"
-          echo "   • Status: ${{ job.status }}"
-          echo "========================================================"
-          echo ""
-          if [[ "${{ job.status }}" == "success" ]]; then
-            echo "📝 Next Steps:"
-            echo "   1. Run OpenTofu Plan to verify the template is available"
-            echo "   2. Run OpenTofu Apply to create VMs from this Packer template"
-          else
-            echo "The failed Packer build VM was retained for diagnostics."
-          fi
-          echo "========================================================"
-
       - name: Cleanup Debian preseed server
         if: always() && inputs.template == 'debian-13'
         env:
@@ -207,3 +187,16 @@ jobs:
               "root@${AUTOLAB_PVE_HOST}" \
               "kill '${AUTOLAB_PVE_PRESEED_PID}' 2>/dev/null || true; rm -rf '${AUTOLAB_PVE_PRESEED_DIR:-}' '/var/tmp/autolab-debian-preseed-${GITHUB_RUN_ID}.log'"
           fi
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Packer build"
+            echo
+            echo "- Template: \`${{ inputs.template }}\`"
+            echo "- Result: \`${{ job.status }}\`"
+            if [[ "${{ job.status }}" != "success" ]]; then
+              echo "- Failed build VM retained for diagnostics."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -44,3 +44,13 @@ jobs:
             'bash /root/proxmox-setup/scripts/setup-private-vm-network.sh --apply'
           ssh "${ssh_opts[@]}" "root@${PVE_HOST}" \
             'ip -br -4 addr show vmbr1; systemctl is-active dnsmasq autolab-private-vm-network.service'
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Bootstrap private VM network"
+            echo
+            echo "- Proxmox host: \`${{ vars.PROXMOX_HOST }}\`"
+            echo "- Result: \`${{ job.status }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

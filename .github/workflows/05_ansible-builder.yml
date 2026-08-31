@@ -123,11 +123,32 @@ jobs:
       - name: Run Builder playbook
         working-directory: builders/ansible
         run: |
+          set -o pipefail
           args=(-i "$RUNNER_TEMP/inventory.json" "playbooks/${{ inputs.playbook }}.yml" --limit "$BUILDER_LIMIT")
           if [ "$BUILDER_CONFIRM" != "apply" ]; then args+=(--check); fi
-          ansible-playbook "${args[@]}"
+          ansible-playbook "${args[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/ansible-output.log"
         env:
           ANSIBLE_HOST_KEY_CHECKING: 'true'
           ANSIBLE_SSH_COMMON_ARGS: '-o StrictHostKeyChecking=yes'
           BUILDER_LIMIT: ${{ inputs.limit }}
           BUILDER_CONFIRM: ${{ inputs.confirm }}
+
+      - name: Job summary
+        if: always()
+        run: |
+          recap="unavailable (Ansible did not run or produced no host recap)"
+          if [ -f "$GITHUB_WORKSPACE/ansible-output.log" ]; then
+            recap_line="$(awk '/^PLAY RECAP/{getline; print; exit}' "$GITHUB_WORKSPACE/ansible-output.log")"
+            if [ -n "$recap_line" ]; then recap="$recap_line"; fi
+          fi
+          {
+            echo "## Ansible Builder"
+            echo
+            echo "- Environment: \`${{ inputs.environment }}\`"
+            echo "- Mode: \`${{ inputs.bootstrap == true && 'bootstrap' || 'regular' }}\`"
+            echo "- SSH user: \`${{ inputs.bootstrap == true && 'autolab' || 'gitops' }}\`"
+            echo "- Playbook: \`${{ inputs.playbook }}\`"
+            echo "- Limit: \`${{ inputs.limit || 'all' }}\`"
+            echo "- Result: \`${{ job.status }}\`"
+            echo "- Ansible recap: $recap"
+          } >> "$GITHUB_STEP_SUMMARY"
