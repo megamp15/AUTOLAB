@@ -1,0 +1,15 @@
+# Keeps pinned GitHub Actions current. Pinned SHAs with a "# vX.Y.Z" comment are
+# updated in place, so pins stay exact without manual bumps.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      github-actions:
+        patterns: ["*"]
+    labels: [ci, dependencies]
+    commit-message:
+      prefix: "ci"
