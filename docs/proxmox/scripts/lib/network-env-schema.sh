@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2034  # sourced library: arrays are consumed by callers
 # Network environment schema — AUTO-GENERATED from network-env-schema.yaml
 # by scripts/generate-network-env-adapters.sh. Do not edit manually.
 #
@@ -66,7 +67,7 @@ apply_network_env_defaults() {
     default="${kv#*=}"
     if [[ -z "${!key:-}" ]]; then
       printf -v "${key}" '%s' "${default}"
-      export "${key}"
+      export "${key?}"
     fi
   done
 }

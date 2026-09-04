@@ -136,6 +136,7 @@ generate_schema_sh() {
 
   {
     echo "#!/bin/bash"
+    echo "# shellcheck disable=SC2034  # sourced library: arrays are consumed by callers"
     echo "# Network environment schema — AUTO-GENERATED from network-env-schema.yaml"
     echo "# by scripts/generate-network-env-adapters.sh. Do not edit manually."
     echo "#"
@@ -218,7 +219,7 @@ apply_network_env_defaults() {
     default="${kv#*=}"
     if [[ -z "${!key:-}" ]]; then
       printf -v "${key}" '%s' "${default}"
-      export "${key}"
+      export "${key?}"
     fi
   done
 }

@@ -19,6 +19,7 @@ WIFI="${WIFI:-}"
 GW="${GW:-}"
 VMBR="${VMBR:-vmbr0}"
 VMBR_IP="${VMBR_IP:-}"
+# shellcheck disable=SC2034  # consumed by lib/failover-logic.sh
 MGMT_IP="${VMBR_IP%/*}"
 
 [[ -n "${GW}" && -n "${VMBR_IP}" && -n "${WIFI}" ]] \

@@ -166,7 +166,9 @@ RUN_START
       echo "          append_github_env \"PKR_VAR_${packer_var}\" \"\$${env_name}\"" >> "$tmp"
     fi
     echo "        fi" >> "$tmp"
-    echo "" >> "$tmp"
+    if (( i < count - 1 )); then
+      echo "" >> "$tmp"
+    fi
   done
 
   check_or_write "$out" "$tmp"

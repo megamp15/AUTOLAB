@@ -58,4 +58,3 @@ runs:
         if [[ -n "$AUTOLAB_INPUT_SSH_PUBLIC_KEYS" ]]; then
           append_github_env "PKR_VAR_ssh_public_keys" "$(csv_to_packer_string_list "$AUTOLAB_INPUT_SSH_PUBLIC_KEYS")"
         fi
-

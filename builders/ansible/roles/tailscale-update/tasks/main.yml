@@ -20,7 +20,10 @@
 
 - name: Install the Tailscale apt repository definition
   ansible.builtin.get_url:
-    url: "https://pkgs.tailscale.com/{{ tailscale_track }}/{{ ansible_facts['distribution'] | lower }}/{{ ansible_facts['distribution_release'] }}.tailscale-keyring.list"
+    url: >-
+      https://pkgs.tailscale.com/{{ tailscale_track }}/{{
+      ansible_facts['distribution'] | lower }}/{{
+      ansible_facts['distribution_release'] }}.tailscale-keyring.list
     dest: /etc/apt/sources.list.d/tailscale.list
     mode: '0644'
 

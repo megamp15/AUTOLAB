@@ -2,45 +2,35 @@ name: 90 - Scripts
 
 on:
   push:
-    paths:
-      - 'docs/proxmox/scripts/**'
-      - 'scripts/**'
-      - 'infra/connection-schema.yaml'
-      - 'infra/r2-config.yaml'
-      - 'infra/terramate.tm.hcl'
-      - 'infra/_base/connection-variables.tm.hcl'
-      - 'infra/modules/proxmox-connection/variables.tf'
-      - 'infra/packer/**'
-      - 'docs/proxmox/config/network-env-schema.yaml'
-      - '.github/actions/configure-packer-template/action.yml'
-      - '.github/actions/configure-proxmox-connection/action.yml'
-      - '.github/workflows/90_scripts.yml'
+    branches: [main]
   pull_request:
-    paths:
-      - 'docs/proxmox/scripts/**'
-      - 'scripts/**'
-      - 'infra/connection-schema.yaml'
-      - 'infra/r2-config.yaml'
-      - 'infra/terramate.tm.hcl'
-      - 'infra/_base/connection-variables.tm.hcl'
-      - 'infra/modules/proxmox-connection/variables.tf'
-      - 'infra/packer/**'
-      - 'docs/proxmox/config/network-env-schema.yaml'
-      - '.github/actions/configure-packer-template/action.yml'
-      - '.github/actions/configure-proxmox-connection/action.yml'
-      - '.github/workflows/90_scripts.yml'
 
 jobs:
   shell-syntax:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Bash syntax check (all scripts)
         run: |
           find docs/proxmox/scripts scripts -name '*.sh' -print0 | while IFS= read -r -d '' f; do
             echo "==> $f"
             bash -n "$f"
           done
+
+      - name: ShellCheck
+        run: |
+          shellcheck --version | sed -n 2p
+          find docs/proxmox/scripts scripts -name '*.sh' -print0 | xargs -0 shellcheck -S warning
+
+      - name: Install yamllint
+        run: python3 -m pip install --quiet yamllint
+
+      - name: yamllint (workflows, actions, schemas, Ansible)
+        run: |
+          yamllint .github/ builders/ansible/ \
+            infra/connection-schema.yaml infra/packer/template-schema.yaml \
+            infra/packer/template-catalog.yaml infra/r2-config.yaml \
+            docs/proxmox/config/network-env-schema.yaml
 
       - name: Install yq
         run: |
@@ -52,7 +42,7 @@ jobs:
         run: bash scripts/check-schema-drift.sh
 
       - name: Setup OpenTofu
-        uses: opentofu/setup-opentofu@v2
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
         with:
           tofu_version: 1.12.5
 
@@ -63,7 +53,7 @@ jobs:
           tofu -chdir=infra/stacks/lab validate
 
       - name: Setup Packer
-        uses: hashicorp/setup-packer@main
+        uses: hashicorp/setup-packer@ce93c3c08a6c2ff2275bf4b54ff0d9a75f6c9789 # v3.4.0
 
       - name: Install seed CD tooling
         run: |
@@ -73,8 +63,14 @@ jobs:
       - name: Validate generated Packer artifacts
         run: |
           ssh-keygen -q -t ed25519 -N '' -f /tmp/validation-bastion-key
-          for template in debian-13 ubuntu-26.04; do
-            eval "$(bash scripts/resolve-packer-template.sh "$template")"
+          # Validate every catalog entry with status: implemented. The resolver
+          # rejects blocked/experiment entries, and a resolver failure must fail
+          # the job instead of silently reusing the previous template's variables.
+          templates="$(yq -r '.templates[] | select(.status == "implemented") | .name' infra/packer/template-catalog.yaml)"
+          echo "Implemented templates: ${templates//$'\n'/ }"
+          for template in $templates; do
+            resolved="$(bash scripts/resolve-packer-template.sh "$template")"
+            eval "$resolved"
             export PKR_VAR_vm_id PKR_VAR_vm_template_name PKR_VAR_iso_url PKR_VAR_iso_checksum
             export PKR_VAR_ssh_bastion_host=pve.example.ts.net
             export PKR_VAR_ssh_bastion_username=root
@@ -106,6 +102,15 @@ jobs:
       - name: Run bats tests
         run: bats docs/proxmox/scripts/tests/
 
+      - name: Run Python unit tests
+        run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
+
+      - name: Run Tailscale device cleanup self-check
+        run: bash scripts/test_tailscale-device-delete.sh
+
+      - name: Bootstrap dry-run in a clean Debian container
+        run: bash scripts/bootstrap-dry-run.sh
+
       - name: Job summary
         if: always()
         run: |
@@ -113,5 +118,5 @@ jobs:
             echo "## Scripts validation"
             echo
             echo "- Result: \`${{ job.status }}\`"
-            echo "- Checks: Bash syntax, schema drift, OpenTofu, Packer, and Bats"
+            echo "- Checks: Bash syntax, ShellCheck, yamllint, schema drift, OpenTofu, Packer, Bats, Python unit tests, Tailscale cleanup self-check, and bootstrap dry-run"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,3 @@
+# Libraries are sourced relative to the calling script.
+source-path=SCRIPTDIR
+external-sources=true

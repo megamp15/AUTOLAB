@@ -1,0 +1,48 @@
+name: 97 - Ansible CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: builders/ansible
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.12'
+
+      - name: Install ansible-core and ansible-lint
+        run: python3 -m pip install --quiet ansible-core ansible-lint
+
+      - name: Install collections
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: Syntax-check every playbook against the example inventory
+        run: |
+          for playbook in playbooks/*.yml; do
+            echo "==> ${playbook}"
+            ansible-playbook -i inventories/lab/hosts.example.yml --syntax-check "${playbook}"
+          done
+
+      - name: ansible-lint (production profile, see .ansible-lint)
+        run: ansible-lint playbooks roles
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Ansible CI"
+            echo
+            echo "- Result: \`${{ job.status }}\`"
+            echo "- Checks: playbook syntax-check and ansible-lint (production profile)"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,10 @@
+---
+profile: production
+offline: true
+skip_list:
+  # Role directories use the repo-wide kebab-case naming (ssh-hardening,
+  # gitops-user). Renaming them buys nothing for a single-repo Builder.
+  - role-name
+  # Role variables are namespaced by project (autolab_firewall_*) so that a
+  # host_vars override is recognisable as Autolab policy, not by role name.
+  - var-naming[no-role-prefix]

@@ -2,25 +2,8 @@ name: 98 - OpenTofu CI
 
 on:
   push:
-    paths:
-      - 'infra/stacks/**'
-      - 'infra/modules/**'
-      - 'infra/_base/**'
-      - 'infra/terramate.tm.hcl'
-      - '.github/actions/setup-opentofu/**'
-      - '.github/actions/configure-proxmox-connection/**'
-      - '.github/actions/setup-opentofu-pipeline/**'
-      - '.github/workflows/98_opentofu-ci.yml'
+    branches: [main]
   pull_request:
-    paths:
-      - 'infra/stacks/**'
-      - 'infra/modules/**'
-      - 'infra/_base/**'
-      - 'infra/terramate.tm.hcl'
-      - '.github/actions/setup-opentofu/**'
-      - '.github/actions/configure-proxmox-connection/**'
-      - '.github/actions/setup-opentofu-pipeline/**'
-      - '.github/workflows/98_opentofu-ci.yml'
 
 permissions:
   contents: read
@@ -36,7 +19,7 @@ jobs:
       run:
         working-directory: infra/stacks/lab
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup-opentofu
 
