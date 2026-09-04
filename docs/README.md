@@ -15,7 +15,7 @@ Autolab docs are organized by **platform**, **lifecycle layer**, and **maturity*
 | Layer | Purpose | Current home |
 |-------|---------|--------------|
 | Bootstrap | Get the physical Proxmox node online before automation can reach it | [proxmox/](./proxmox/) |
-| Provision | OpenTofu stacks and modules in git; machine inventory in local `terraform.tfvars` | [gitops/](./gitops/) and `infra/` |
+| Provision | OpenTofu stacks, modules, and the committed `lab` machine map in git | [gitops/](./gitops/) and `infra/` |
 | Template | Build Proxmox VM templates from ISOs | `infra/packer/` |
 | Configure | Apply the reusable Linux server baseline over SSH | `../builders/ansible/` |
 
@@ -53,4 +53,4 @@ Planned work (IaC, CI, more nodes): [ROADMAP.md](./ROADMAP.md)
 
 ## Builder
 
-**[../builders/ansible/README.md](../builders/ansible/README.md)** - phase 2C scaffold for provider-neutral Linux hardening and runtime roles.
+**[../builders/ansible/README.md](../builders/ansible/README.md)** - phase 2C provider-neutral Linux hardening and runtime roles, run by workflow 05.

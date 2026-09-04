@@ -1,96 +1,122 @@
+<div align="center">
+
 # Autolab
 
-**[Features](#features) • [Get started](#get-started) • [Documentation](docs/README.md) • [Roadmap](docs/ROADMAP.md)**
+**A learning-first homelab you build yourself: Proxmox bootstrap, then infrastructure as code, CI, and a reusable Linux server baseline.**
 
-[![project status](https://img.shields.io/badge/status-alpha-orange?style=flat-square)](docs/ROADMAP.md)
-[![docs](https://img.shields.io/badge/docs-proxmox%20guides-0E8A16?style=flat-square&logo=gitbook&logoColor=white)](docs/proxmox/README.md)
-[![proxmox](https://img.shields.io/badge/hypervisor-Proxmox%20VE-E57000?style=flat-square&logo=proxmox&logoColor=white)](https://www.proxmox.com/)
-[![hosts](https://img.shields.io/badge/hosts-per%20machine-1f6feb?style=flat-square)](docs/proxmox/README.md)
-[![scripts CI](https://img.shields.io/github/actions/workflow/status/megamp15/AUTOLAB/90_scripts.yml?style=flat-square&logo=github&label=scripts)](https://github.com/megamp15/AUTOLAB/actions/workflows/90_scripts.yml)
-[![license](https://img.shields.io/github/license/megamp15/AUTOLAB?style=flat-square)](LICENSE)
-[![stars](https://img.shields.io/github/stars/megamp15/AUTOLAB?logo=github&logoColor=white&color=gold&style=flat-square)](https://github.com/megamp15/AUTOLAB)
+[Get started](#get-started) · [How it works](#how-it-works) · [Status](#status) · [Docs](docs/README.md) · [Roadmap](docs/ROADMAP.md) · [Contributing](CONTRIBUTING.md)
 
-Autolab is a **custom, learning-first homelab** you build yourself: versioned docs and bash automation for a **Proxmox** hypervisor—run the same flow again on a **second box** with that machine’s own config file, with secrets kept on each host—not in git. The path leads to **infrastructure as code**, **GitHub Actions**, and a reusable Linux server baseline that can later apply to both Proxmox-created hosts and VPS hosts, without pretending to be a one-size-fits-all product.
+[![Scripts CI](https://img.shields.io/github/actions/workflow/status/megamp15/AUTOLAB/90_scripts.yml?style=flat-square&logo=githubactions&logoColor=white&label=scripts)](https://github.com/megamp15/AUTOLAB/actions/workflows/90_scripts.yml)
+[![OpenTofu CI](https://img.shields.io/github/actions/workflow/status/megamp15/AUTOLAB/98_opentofu-ci.yml?style=flat-square&logo=opentofu&logoColor=white&label=opentofu)](https://github.com/megamp15/AUTOLAB/actions/workflows/98_opentofu-ci.yml)
+[![Status](https://img.shields.io/badge/status-alpha-orange?style=flat-square)](docs/ROADMAP.md)
+[![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-E57000?style=flat-square&logo=proxmox&logoColor=white)](https://www.proxmox.com/)
+[![License: MIT](https://img.shields.io/github/license/megamp15/AUTOLAB?style=flat-square)](LICENSE)
 
-> **How is this different from a full “homelab in a box” repo?**  
-> Projects like [khuedoan/homelab](https://github.com/khuedoan/homelab) target multi-node Kubernetes, GitOps, and a large app stack. **Autolab** starts smaller: one Proxmox hypervisor, reproducible networking (USB Ethernet + Wi‑Fi failover), and tutorials you can fork for your own hardware. Same *idea* (IaC + learn by doing); different **scope** (Proxmox-first, fully yours to extend).
+</div>
 
-> **Disclaimer** — Scripts change network config and may drop SSH briefly. Use at your own risk; keep local console or a second access path (e.g. Tailscale). Backups are written under `/root/proxmox-network-backup-*` before apply.
+---
 
-## Overview
+Autolab turns one spare machine (a laptop with a USB Ethernet adapter is enough) into a Proxmox hypervisor with predictable networking, then grows it into a small GitOps-managed lab. Every step is documented so you understand *why*, not just what to paste. Secrets and site-specific values stay on the host or in GitHub secrets, never in git, so the same repo works on your second box.
 
-| | |
-|--|--|
-| **Status** | **Alpha** — network path is usable; IaC/CI expanding ([roadmap](docs/ROADMAP.md)) |
-| **Hardware** | Repurposed laptop-class PC (e.g. Dell XPS) + USB Ethernet; Wi‑Fi for backup |
-| **Goal** | Portable lab: predictable management IP, failover, IaC provisioning, then reusable server configuration |
+> **How is this different from "homelab in a box" repos?**
+> Projects like [khuedoan/homelab](https://github.com/khuedoan/homelab) target multi-node Kubernetes and a large app catalog. Autolab starts smaller: one Proxmox host, reproducible networking with Wi-Fi failover, and tutorials you can fork for your own hardware. Same idea (IaC, learn by doing), narrower scope.
 
-## Features
+## How it works
 
-- [x] Proxmox bare-metal install guide
-- [x] Interactive network wizard (`/etc/default/proxmox-network.env`)
-- [x] One-shot apply: `interfaces`, `wpa_supplicant`, failover + `vmbr0-watch`
-- [x] USB Ethernet later (`enable-usb-ethernet.sh`) without redoing Wi‑Fi from scratch
-- [x] Extra Wi‑Fi networks (home, phone hotspot, more SSIDs)
-- [x] Host-only secrets; repo stays generic
-- [x] Troubleshooting runbook (incl. Wi‑Fi password / terminal pitfalls)
-- [x] GitOps phase 2A docs + OpenTofu VM/LXC scaffold
-- [x] GitHub Actions CI, plan, and apply workflows (ephemeral Tailscale runner)
-- [x] Cloudflare R2 state backend + Packer template scaffold
-- [x] Packer VM template build workflow
-- [x] Schema-driven code generation (connection, Packer template, and network env schemas → generated adapters)
-- [x] Production-readiness checks for retry behaviour, R2 setup output, cloud-init Tailscale enrollment, and generated adapter validation
-- [x] Builder/Ansible baseline (users, SSH, firewall, updates, deploy user, optional Docker; Tailscale SSH transport via workflow 05)
-- [ ] VPS provider track using the same builder baseline after provisioning
-- [ ] Service/VM tutorials on top of PVE
+Autolab is split into layers by *when* each one can run and what it depends on.
+
+```mermaid
+flowchart LR
+  A["1 · Bootstrap<br/>Proxmox install + network scripts<br/><i>bash, on the host</i>"]
+  B["2 · Template<br/>Build VM templates from ISOs<br/><i>Packer</i>"]
+  C["3 · Provision<br/>Declare VMs in git, apply from CI<br/><i>OpenTofu + Terramate</i>"]
+  D["4 · Configure<br/>Harden and configure over SSH<br/><i>Ansible</i>"]
+  A --> B --> C --> D
+```
+
+| Layer | What it does | Runs where | Lives in |
+|-------|--------------|------------|----------|
+| **Bootstrap** | Install Proxmox, configure USB Ethernet + Wi-Fi failover, join Tailscale | On the host, manually | [`docs/proxmox/`](docs/proxmox/) |
+| **Template** | Build Debian / Ubuntu cloud-init VM templates | GitHub Actions over Tailscale | [`infra/packer/`](infra/packer/) |
+| **Provision** | Create VMs from a committed machine map, state in Cloudflare R2 | GitHub Actions over Tailscale | [`infra/`](infra/) |
+| **Configure** | Users, SSH hardening, firewall, updates, optional Docker | GitHub Actions via Tailscale SSH | [`builders/ansible/`](builders/ansible/) |
+
+The bootstrap layer is manual on purpose: you cannot GitOps your way onto a host that has no working uplink yet. Everything after it is driven from git. A future VPS track skips the first two layers and reuses the last two.
 
 ## Get started
 
-1. **[docs/proxmox/README.md](docs/proxmox/README.md)** — index and glossary  
-2. **[01 Install Proxmox](docs/proxmox/01-bare-metal-install.md)**  
-3. **[00 Network over SSH](docs/proxmox/00-fresh-install-network.md)** — copy scripts, wizard, apply  
+### 1. Bootstrap the Proxmox host
+
+Follow [Install Proxmox](docs/proxmox/01-bare-metal-install.md), then copy the scripts to the host and run the network wizard:
 
 ```bash
 # On your laptop
 scp -r ./docs/proxmox/* root@PROXMOX_IP:/root/proxmox-setup/
 
-# On the Proxmox host (root)
+# On the Proxmox host, as root
 cd /root/proxmox-setup/scripts
-bash configure-proxmox-network-env.sh
-bash setup-proxmox-network.sh --apply
+bash configure-proxmox-network-env.sh     # writes /etc/default/proxmox-network.env
+bash setup-proxmox-network.sh --apply     # interfaces, wpa_supplicant, failover, vmbr0-watch
 ```
+
+Full walkthrough: [00 · Network over SSH](docs/proxmox/00-fresh-install-network.md). Add `--dry-run` to either script to preview changes first.
+
+> **Heads up.** These scripts rewrite network config and may drop your SSH session briefly. Keep a local console or a second path (Tailscale) available. A backup is written to `/root/proxmox-network-backup-*` before apply.
+
+### 2. Wire up GitOps
+
+Once the host is on Tailscale, work through the [phase 2 setup checklist](docs/gitops/setup-checklist.md). It covers the Tailscale CI identity, Proxmox API token, R2 state bucket, and GitHub environments. After that, the numbered workflows run in order from the Actions tab:
+
+| Workflow | Purpose |
+|----------|---------|
+| `01 · Bootstrap private VM network` | One-time `vmbr1` + NAT for Wi-Fi-only hosts |
+| `02 · Packer Build` | Build a VM template from the [catalog](infra/packer/template-catalog.yaml) |
+| `03 · OpenTofu Plan` / `04 · Apply` | Plan and apply the `lab` stack |
+| `05 · Ansible Builder` | Harden VMs; run `docker` or `tailscale-update` on demand |
+| `99 · OpenTofu Destroy` | Tear the stack down, cleaning Tailscale device records |
+
+`90 · Scripts` and `98 · OpenTofu CI` run automatically on push and pull request.
+
+## Status
+
+Autolab is **alpha**. The bootstrap path is used on real hardware; the GitOps layers run end-to-end against a single lab VM.
+
+| Phase | Scope | State |
+|-------|-------|-------|
+| 1 · Bootstrap | Install guide, network wizard, USB Ethernet + Wi-Fi failover, APT and Tailscale runbooks | Usable |
+| 2A · Provision | OpenTofu modules, Terramate stacks, R2 backend, plan / apply / destroy workflows, committed `lab` machine map | Usable |
+| 2B · Template | Packer catalog: `debian-13` and `ubuntu-24.04` implemented, `ubuntu-26.04` blocked on an upstream ISO fix | Usable |
+| 2C · Configure | Ansible baseline (users, SSH, firewall, updates, `gitops` user), opt-in Docker, Tailscale SSH transport | Usable |
+| VPS track | Cloud-provider stacks that reuse the configure layer | Planned |
+| Service tutorials | Guides for running things on the lab | Planned |
+
+Design decisions are recorded as ADRs in [`docs/adr/`](docs/adr/). Quality gates are in [production-readiness.md](docs/production-readiness.md).
 
 ## Design principles
 
-- **Learn homelabbing** — read why, not only copy-paste  
-- **Custom stack** — you choose SSIDs, IPs, and what to add next  
-- **Bootstrap first** — host must get online manually (install + network scripts); **GitOps comes after** the node can reach git/your automation  
-- **Repeat per machine** — each host gets its own `/etc/default/proxmox-network.env`  
-- **Portable** — move the box, re-run setup or `enable-usb-ethernet.sh` as needed  
-- **Provider-neutral baseline** — once a Linux host is reachable over SSH, configure it through reusable builder roles whether it came from Proxmox or a VPS provider  
+- **Learn by doing.** Every guide explains the reasoning, not only the commands.
+- **Bootstrap first, GitOps after.** The host gets online manually; automation takes over once it can reach GitHub.
+- **Host-only secrets.** Wi-Fi passwords, IPs, and tokens live on the host or in GitHub secrets. The repo stays generic.
+- **Schema-driven.** Connection, Packer, and network-env fields are defined once in YAML and generated into OpenTofu, Packer, bash, and CI adapters. Drift fails CI.
+- **Provider-neutral baseline.** Once a Linux host is reachable over SSH, the same Ansible roles apply whether it came from Proxmox or a VPS.
 
-## Repository map
+## Repository layout
 
-| Path | Purpose |
-|------|---------|
-| [docs/proxmox/](docs/proxmox/) | Guides + scripts (current focus) |
-| [docs/gitops/](docs/gitops/) | Phase 2A GitOps docs for secure VM/LXC creation |
-| [infra/](infra/) | Terramate + OpenTofu stacks and modules |
-| [infra/stacks/](infra/stacks/) | Environment stacks (lab, prod, etc.) |
-| [infra/modules/](infra/modules/) | Shared Proxmox compute and connection modules |
-| [infra/_base/](infra/_base/) | Terramate code generation (providers, backend) |
-| [infra/packer/](infra/packer/) | Packer VM template builds (phase 2B scaffold) |
-| [builders/ansible/](builders/ansible/) | Provider-neutral server hardening baseline (phase 2C) |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Now / next / non-goals |
-| [docs/production-readiness.md](docs/production-readiness.md) | Stop criteria for using Autolab (schema drift, tests, smoke test) |
-| [docs/proxmox/config/network.env.example](docs/proxmox/config/network.env.example) | Template → `/etc/default/proxmox-network.env` on host |
+```text
+docs/proxmox/      Bootstrap guides + the bash scripts that run on the host
+docs/gitops/       Tailscale, runner, API token, R2, environments, template lifecycle
+docs/adr/          Architecture decision records
+infra/             Terramate + OpenTofu stacks and modules
+infra/packer/      Packer template catalog and per-OS builds
+builders/ansible/  Provider-neutral server baseline (roles + playbooks)
+scripts/           Schema generators, R2 setup, Tailscale device cleanup, tests
+.github/           Numbered workflows and composite actions
+```
 
-## GitHub topics
+## Contributing
 
-Set on the repo for discoverability:
-
-`homelab` `proxmox` `networking` `wifi` `infrastructure-as-code` `learning` `documentation` `bash` `self-hosted` `portable`
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the local checks CI expects and the schema-first workflow for generated files.
 
 ## License
 
-[MIT](LICENSE) — see [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute.
+[MIT](LICENSE)

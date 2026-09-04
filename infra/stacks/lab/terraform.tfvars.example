@@ -21,6 +21,10 @@ identity_defaults = {
 common_tags = ["autolab", "gitops", "phase-2a"]
 
 # ---- Machines ----
+# NOTE: the lab stack's real inventory is the committed machines.auto.tfvars,
+# which OpenTofu loads *after* this file and therefore overrides any `machines`
+# block here. Edit machines.auto.tfvars to change the lab; this block is kept
+# only as a reference for the shape of an entry.
 # Add machines here. Each entry needs a type ("vm" or "lxc"), a
 # provisioning_class ("builder_target" today; "cluster_os" is reserved for
 # future Talos-style experiments), and type-specific fields. Shared defaults

@@ -66,9 +66,12 @@ tofu plan
 
 Do not commit `terraform.tfvars`, state files, plan files, or secrets.
 
-The `machines` map in `terraform.tfvars` defines which VMs/LXCs to create. It is
-gitignored and not injected by GitHub Actions today — CI plan/apply smoke tests
-run with `machines = {}` unless you apply locally.
+The `machines` map that defines which VMs/LXCs to create lives in
+`stacks/lab/machines.auto.tfvars`, which **is committed** as desired state and is
+what the plan, apply, destroy, and Builder workflows read. OpenTofu loads
+`*.auto.tfvars` after `terraform.tfvars`, so a `machines` block in your local
+`terraform.tfvars` is overridden by the committed map. Keep only connection
+values in `terraform.tfvars` and edit `machines.auto.tfvars` to change inventory.
 
 ## Adding a new environment
 

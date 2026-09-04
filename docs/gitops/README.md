@@ -19,7 +19,7 @@ This track starts after the manual Proxmox bootstrap works:
 3. The host is updated.
 4. The host has joined Tailscale.
 
-Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. The **stack code** lives in git; the **machine inventory** (`machines` map) lives in local `terraform.tfvars` today — CI does not inject it yet.
+Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** and the **machine inventory** (the `machines` map in `infra/stacks/lab/machines.auto.tfvars`) live in git; the plan, apply, destroy, and Builder workflows all read the committed map.
 
 ## Phase map
 
@@ -34,7 +34,7 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. The **stack code** lives
 
 - OpenTofu modules for VM and LXC resources (`proxmox-connection`, `machine-normalization`, `proxmox-compute`, `cloud-init`).
 - Terramate for stack management, code generation, and change detection.
-- GitHub Actions workflows: OpenTofu CI (validate), manual plan, manual apply.
+- GitHub Actions workflows: OpenTofu CI (validate), manual plan, apply, and destroy.
 - An ephemeral GitHub-hosted runner that joins Tailscale for each job.
 - A Cloudflare R2 state backend for OpenTofu.
 - GitHub Environments (`autolab-plan`, `autolab-apply`) with secrets and variables.
@@ -43,13 +43,12 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. The **stack code** lives
 
 ## What phase 2B includes (shipped scaffold)
 
-- Packer template catalog with implemented `debian-13` and `ubuntu-26.04` templates under `infra/packer/templates/`.
+- Packer template catalog under `infra/packer/templates/`: `debian-13` and `ubuntu-24.04` are implemented; `ubuntu-26.04` is blocked pending a Canonical-respun ISO.
 - Packer Build GitHub Actions workflow.
 
 ## What is not included yet
 
 - `cluster_os` provisioning (Talos experiments are documented but blocked at plan time).
-- CI-injected `machines` map (VM creation needs local `terraform.tfvars`).
 - Docker Compose, Docker Swarm, Talos/Kubernetes cluster deployment.
 - Public internet exposure.
 

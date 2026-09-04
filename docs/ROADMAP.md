@@ -10,25 +10,25 @@ This repo is meant to **grow** from a documented single node into a reusable hom
 
 ## Now (alpha — usable on real hardware)
 
-| Item | Tags |
-|------|------|
-| Proxmox bare-metal install guide | `proxmox`, `beginner` |
-| Network wizard + setup scripts (USB Ethernet + Wi‑Fi failover) | `networking`, `bash`, `stable` |
-| APT maintenance + optional Tailscale | `proxmox`, `operator` |
-| Host-only config (`/etc/default/proxmox-network.env`) | `security`, `portable` |
-| GitOps phase 2A scaffold | `gitops`, `opentofu`, `proxmox`, `terramate` | OpenTofu modules, CI validate/plan/apply workflows, R2 backend — [setup checklist](gitops/setup-checklist.md) |
-| Packer phase 2B scaffold | `packer`, `templates` | `debian-13` template in `infra/packer/templates/` + Packer Build workflow |
+| Item | Tags | Notes |
+|------|------|-------|
+| Proxmox bare-metal install guide | `proxmox`, `beginner` | |
+| Network wizard + setup scripts (USB Ethernet + Wi‑Fi failover) | `networking`, `bash`, `stable` | |
+| APT maintenance + optional Tailscale | `proxmox`, `operator` | |
+| Host-only config (`/etc/default/proxmox-network.env`) | `security`, `portable` | |
+| GitOps phase 2A | `gitops`, `opentofu`, `proxmox`, `terramate` | OpenTofu modules, CI validate/plan/apply/destroy workflows, R2 backend — [setup checklist](gitops/setup-checklist.md) |
+| Packer phase 2B | `packer`, `templates` | Catalog-driven builds: `debian-13` and `ubuntu-24.04` implemented, `ubuntu-26.04` blocked on a respun ISO ([catalog](../infra/packer/template-catalog.yaml)) |
+| Builder phase 2C | `ansible`, `security`, `linux` | Debian-family baseline over Tailscale SSH (updates, SSH hardening, firewall, `gitops` user), opt-in Docker, `tailscale-update`; workflow 05 bootstraps as `autolab` then runs as `gitops` |
 
-Machine inventory (`machines` in `terraform.tfvars`) is **local-only today** — CI injects connection settings but not which VMs/LXCs to create.
+Machine inventory is **committed desired state**: `infra/stacks/lab/machines.auto.tfvars` declares the `lab` VMs and is what the plan, apply, and Builder workflows read. Connection settings still come from GitHub secrets and variables.
 
 ## Next (planned)
 
 | Item | Tags | Notes |
 |------|------|--------|
-| CI-injected or committed machine inventory | `gitops`, `opentofu` | So GitHub Apply can provision without a local `terraform.tfvars` |
 | `template-validation` and `integration-test` environments | `gitops`, `packer`, `opentofu`, `integration-test` | Validate ephemeral candidates, then test later server layers on a persistent canary before promoting to `lab` |
 | Template experiment matrix | `packer`, `templates`, `talos`, `kubernetes` | Disposable OS and cluster experiments — [template matrix](gitops/template-lab-matrix.md) |
-| Builder phase 2C | `ansible`, `security`, `linux` | Enforce the Debian-family provider-neutral server baseline over Tailscale SSH; cloud-init enables the host feature after enrollment, CI uses GitHub OIDC/WIF as `tag:ci-runner`, Builder VMs use `tag:autolab-vm`, and workflow 05 bootstraps `autolab` before regular `gitops`; VPS/LXC support remains future work |
+| Builder for LXC targets | `ansible`, `lxc` | LXC Builder targets are deferred until they meet the same reachable-host contract as cloud-init VMs |
 | VPS provider track | `vps`, `opentofu`, `providers` | Future cloud-provider stacks replace Proxmox/Packer provisioning while reusing the builder baseline |
 | Second node / “real homelab” profile | `homelab` | Fork-friendly; keep this repo as the **learning** path |
 | VM / service tutorials | `learning`, `self-hosted` | Optional guides that consume a working PVE node |
@@ -52,8 +52,8 @@ The VPS path does not need Packer because the provider already returns a booted 
 |--|-------------------|------------|
 | **What it is** | Automation that runs when git events happen (push, PR, schedule) | Practice: **declarative config in git** is the source of truth; a controller **continuously or repeatedly applies** it until the system matches |
 | **Typical tools** | Actions workflows, `make test`, deploy scripts | Kubernetes: Argo CD, Flux; bare metal: Ansible + git, sometimes custom agents |
-| **Autolab today** | Scripts workflow (`bash -n`, schema drift, Bats); OpenTofu CI (validate); manual dispatch for plan, apply, and Packer build | Bootstrap: copy `docs/proxmox`, run wizard on host. GitOps: OpenTofu stacks in git; machine inventory in local `terraform.tfvars` |
-| **Autolab direction** | Actions for **lint/test/validate** and dispatch workflows against a Tailscale-reachable host | Declarative infra in git; apply reconciles Proxmox when `machines` is defined — grow toward full GitOps reconciliation |
+| **Autolab today** | Scripts workflow (`bash -n`, schema drift, OpenTofu and Packer validate, Bats); OpenTofu CI (validate); manual dispatch for Packer build, plan, apply, destroy, and the Ansible Builder | Bootstrap: copy `docs/proxmox`, run wizard on host. GitOps: OpenTofu stacks and the `lab` machine map in git; apply reconciles Proxmox on dispatch |
+| **Autolab direction** | Actions for **lint/test/validate** and dispatch workflows against a Tailscale-reachable host | Declarative infra in git; apply reconciles Proxmox from the committed `machines` map on dispatch — grow toward automatic reconciliation |
 
 Actions can be **part of** GitOps (e.g. validate PRs before merge), but saying “we use Actions” ≠ “we do GitOps” until something reliably applies what’s in git to the machines.
 
@@ -64,7 +64,7 @@ You **cannot** GitOps your way onto a host that has no working uplink yet. Somet
 | Layer | How it usually runs | Autolab today |
 |-------|---------------------|---------------|
 | **Bootstrap** | ISO install, local console, or SSH over whatever link works (installer Wi‑Fi/Ethernet); copy scripts via USB or `scp`; wizard writes `/etc/default/proxmox-network.env` | **This repo** — docs + bash, aimed at noobs |
-| **Steady state** | Host reaches git/Actions/OpenTofu; desired state in git; reconcile VMs, LXCs, storage, backups, and server hardening | **Alpha scaffold** — CI plan/apply works; VM inventory is local `terraform.tfvars` today; Ansible hardening is phase 2C |
+| **Steady state** | Host reaches git/Actions/OpenTofu; desired state in git; reconcile VMs, LXCs, storage, backups, and server hardening | **Alpha** — CI plan/apply/destroy works against the committed `lab` machine map; the Ansible Builder hardens the resulting VMs; storage and backups are not managed yet |
 
 So **host networking is not “no GitOps ever”** — it is **not GitOps until the node can reach the internet** (or at least your laptop on LAN). After failover and SSH work, GitOps applies to **what runs on Proxmox**, not to the first cable/Wi‑Fi bring-up.
 

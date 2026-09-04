@@ -24,6 +24,7 @@ builders/ansible/inventories/**/group_vars/
 builders/ansible/inventories/**/host_vars/
 
 # Editor / OS
+__pycache__/
 .DS_Store
 *.swp
 *~
@@ -33,6 +34,7 @@ docs/proxmox/hardware/local-*
 
 # IDE / local tool config
 .cursor/
+.opencode/
 config.json
 
 # Local tool indexes

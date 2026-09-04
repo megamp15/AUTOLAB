@@ -47,7 +47,7 @@ See [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.
 |--------|---------|
 | `PROXMOX_API_TOKEN` | Full API token string |
 
-SSH public keys for cloned VMs are set in local `terraform.tfvars`
+SSH public keys for cloned VMs are set in `infra/stacks/lab/machines.auto.tfvars`
 (`identity_defaults.ssh_public_keys`), not in a GitHub secret. Packer template
 builds use the `SSH_PUBLIC_KEYS` repository variable. Consumers derive the
 internal HTTPS endpoint from `PROXMOX_HOST` and `PROXMOX_PORT`.

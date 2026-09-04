@@ -56,7 +56,7 @@ The Proxmox API connection concept: endpoint URL, API token, TLS mode, node name
 - **Preflight** — validates the stack directory exists and computes paths.
 - **Pipeline setup** — connects Tailscale, configures Proxmox/R2 env vars, installs OpenTofu + Terramate, inits the stack.
 - **Plan** — runs `tofu plan` and uploads the plan artifact.
-- **Apply** — runs `tofu apply` with retry logic.
+- **Apply** — applies the saved plan artifact once with `tofu apply tfplan`; a retry must produce a fresh plan (ADR-0005).
 
 ### R2 Backend
 
@@ -104,7 +104,7 @@ The provider-neutral configuration phase that runs after provisioning. Current B
 | `docs/proxmox/scripts/` | Bootstrap-phase bash scripts |
 | `docs/proxmox/scripts/lib/` | Shared bash libraries (pure functions) |
 | `.github/actions/` | Reusable composite actions for CI |
-| `.github/workflows/` | CI workflows (CI, plan, apply, Packer, scripts) |
+| `.github/workflows/` | Numbered workflows: private VM network bootstrap, Packer build, plan, apply, Ansible Builder, scripts CI, OpenTofu CI, destroy |
 
 ## Phases
 
@@ -113,4 +113,4 @@ The provider-neutral configuration phase that runs after provisioning. Current B
 | 1 — Bootstrap | Bare-metal install, network wizard, failover | Alpha (usable) |
 | 2A — GitOps | OpenTofu VMs/LXCs via GitHub Actions + Tailscale | Alpha (scaffold) |
 | 2B — Packer | Automated VM template builds | Alpha (scaffold) |
-| 2C — Builder | Ansible hardening roles for Proxmox-created hosts and future VPS hosts | Scaffold |
+| 2C — Builder | Ansible hardening roles for Proxmox-created hosts and future VPS hosts | Alpha (usable via workflow 05) |

@@ -61,7 +61,7 @@ Set at repository or environment level:
 | `TAILSCALE_VM_OAUTH_SECRET` | OpenTofu Plan/Apply | VM enrollment client secret; not used by Builder CI. |
 | `PVE_SSH_PRIVATE_KEY` | Packer Build | Required only as the Proxmox SSH bastion key; never reuse it for VMs. |
 
-SSH keys for **cloned VMs** come from local `terraform.tfvars`
+SSH keys for **cloned VMs** come from `infra/stacks/lab/machines.auto.tfvars`
 (`identity_defaults.ssh_public_keys`), not from a GitHub secret.
 
 For initial Builder canary validation, reuse the existing `R2_ACCOUNT_ID`,
