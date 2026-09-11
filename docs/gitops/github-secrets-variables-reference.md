@@ -22,6 +22,10 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 | **OpenTofu Apply/Destroy** | same as Plan | same as Plan |
 | **Ansible Builder** | `TAILSCALE_OIDC_AUDIENCE` | `TAILSCALE_OAUTH_CLIENT_ID`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
 
+Every workflow that reaches the tailnet also passes `TAILSCALE_OAUTH_CLIENT_ID`
+and `TAILSCALE_OAUTH_SECRET` to the `connect-tailscale` action; the table above
+lists only what each workflow reads *beyond* that runner connection.
+
 `PROXMOX_HOST` is used for the Proxmox API endpoint and the Packer SSH bastion;
 the API endpoint is derived internally with the optional `PROXMOX_PORT`.
 `PROXMOX_LAN_IP` is the required PVE LAN address used only by Debian 13 builds
@@ -55,9 +59,10 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | Secret | Example | Used by | Where to get it |
 |--------|---------|---------|-----------------|
 | `PROXMOX_API_TOKEN` | `gitops@pve!opentofu=SECRET` | Packer, OpenTofu | Proxmox → Permissions → API Tokens. Shown once. |
-| `TAILSCALE_OAUTH_CLIENT_ID` | `tskey-client-...` | Ansible Builder | Existing client ID used with GitHub OIDC/WIF; no OAuth secret is used for Builder. |
+| `TAILSCALE_OAUTH_CLIENT_ID` | `tskey-client-...` | Packer, OpenTofu, Ansible Builder | CI-runner client ID, used with GitHub OIDC/WIF to bring the runner onto the tailnet as `tag:ci-runner`. |
+| `TAILSCALE_OAUTH_SECRET` | *(usually empty)* | Packer, OpenTofu, Ansible Builder | Passed to `connect-tailscale` by all six workflows, but **leave it unset when using the OIDC/WIF path** — the action then authenticates with `TAILSCALE_OIDC_AUDIENCE` instead. Set it only if you fall back to a classic OAuth client secret. Distinct from `TAILSCALE_VM_OAUTH_SECRET`. |
 | `TAILSCALE_VM_OAUTH_CLIENT_ID` | `tskey-client-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client ID; exported as `TAILSCALE_OAUTH_CLIENT_ID` into tofu steps and consumed by the destroy-time device cleanup script. |
-| `TAILSCALE_VM_OAUTH_SECRET` | `tskey-client-secret-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client secret; OAuth client must be scoped `devices:core:read_write` ONLY (see `docs/gitops/tailscale-device-lifecycle.md`). Not used by Builder. |
+| `TAILSCALE_VM_OAUTH_SECRET` | `tskey-client-secret-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client secret; the OAuth client needs **both** `auth_keys` (Write, with `tag:autolab-vm` selected) for key minting and `devices:core` (Write) for destroy-time cleanup (see `docs/gitops/tailscale-device-lifecycle.md`). Not used by Builder. |
 | `PACKER_SSH_PASSWORD` | generated password | Packer Build | Temporary build-only password. Not your SSH key. |
 | `R2_ACCOUNT_ID` | `a1b2c3...` | OpenTofu | Cloudflare dashboard URL / R2 page. |
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |
@@ -116,6 +121,8 @@ read repository secrets.
 - [ ] `PACKER_SSH_PASSWORD` (Packer)
 - [ ] `PVE_SSH_PRIVATE_KEY` (Packer)
 - [ ] `TAILSCALE_OAUTH_CLIENT_ID` with GitHub OIDC/WIF trust binding for `tag:ci-runner`
+- [ ] `TAILSCALE_OAUTH_SECRET` — leave unset on the OIDC/WIF path; workflows
+      reference it but the action falls back to `TAILSCALE_OIDC_AUDIENCE`
 - [ ] `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` (OpenTofu only)
 - [ ] `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
 - [ ] Ansible Builder temporarily reuses `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` for canary validation

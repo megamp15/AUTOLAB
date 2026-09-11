@@ -191,14 +191,37 @@ Deliberate choices:
 
 | Name | Where | Scope | Used by |
 |---|---|---|---|
-| `TAILSCALE_OAUTH_CLIENT_ID` / `TAILSCALE_OAUTH_CLIENT_SECRET` | GitHub secrets (`TAILSCALE_VM_OAUTH_*`), exported by plan/apply/destroy workflows | OAuth client scoped `devices:core:read_write` ONLY | Destroy-time cleanup hook (and manual runs) |
+| `TAILSCALE_OAUTH_CLIENT_ID` / `TAILSCALE_OAUTH_CLIENT_SECRET` | GitHub secrets (`TAILSCALE_VM_OAUTH_*`), exported by plan/apply/destroy workflows | `auth_keys` (write, tag `tag:autolab-vm`) **and** `devices:core` (write) | Provider key minting AND the destroy-time cleanup hook |
 | Per-machine auth key | Minted by `tailscale_tailnet_key`, embedded in cloud-init user-data | `tag:autolab-vm`, reusable, expires 3600s | First-boot join only |
 
 Setup instructions: create a dedicated OAuth client in the Tailscale admin
-console (Settings → OAuth clients) with **only** the `devices:core:read_write`
-scope — not the CI-runner client, and never with `auth_keys` scope (least
-privilege: cleanup can list/delete devices, nothing else). Store as GitHub
-secrets `TAILSCALE_VM_OAUTH_CLIENT_ID` / `TAILSCALE_VM_OAUTH_SECRET`.
+console (Settings → OAuth clients), separate from the CI-runner client, with
+**both** of these scopes:
+
+| Scope | Needed by | Why |
+|---|---|---|
+| `auth_keys` (Write), tag `tag:autolab-vm` | `provider "tailscale"` in the generated `providers.tf` | Mints the per-machine `tailscale_tailnet_key`. An `auth_keys` client must have tags selected at creation, and it can only mint keys carrying those tags. |
+| `devices:core` (Write) | `scripts/tailscale-device-delete.sh` | Lists and deletes devices at destroy time. |
+
+Store as GitHub secrets `TAILSCALE_VM_OAUTH_CLIENT_ID` /
+`TAILSCALE_VM_OAUTH_SECRET`.
+
+Both consumers read the same `TAILSCALE_OAUTH_CLIENT_ID` /
+`TAILSCALE_OAUTH_CLIENT_SECRET` environment pair, which the plan, apply, and
+destroy workflows export from those two secrets — so one client covers both and
+needs the union of their scopes. A client scoped to `devices:core` alone
+cannot mint the enrollment key and fails during apply at
+`tailscale_tailnet_key.builder_target_vm`.
+
+In the admin console you pick an operation and then **Read** or **Write** for
+each; both of these need **Write**. There is no `devices:core:read_write` scope
+string — read-only is `devices:core:read`, and read-write is plain
+`devices:core`.
+
+Splitting this into two single-scope clients would be tighter, but OpenTofu
+reads one credential pair from the environment; a split needs distinct variable
+names threaded through `providers.tf` and the cleanup script. Worth doing if
+the scope union ever becomes a real concern — not built today.
 
 Accepted tradeoff: the join key lands in OpenTofu state and plan artifacts
 (embedded in cloud-init user-data). Blast radius is capped by the 1-hour

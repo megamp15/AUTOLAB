@@ -38,20 +38,93 @@ The policy is configured manually by the tailnet administrator. Use exactly
 The runner needs a network grant to the VM tag and SSH accept rules limited to
 `autolab` for bootstrap and `gitops` afterward. Never include `root`.
 
-Example shape:
+Two sources need SSH rules, and both must be written explicitly: the CI runner
+and **you**. Neither is covered by the default policy — see the tagged-device
+note below.
 
-```json
-{
-  "ssh": [
+The tailnet policy file is HuJSON, so comments and trailing commas are valid.
+Comment every rule — the `src`/`dst`/`users` triple does not say *why* a rule
+exists, and these are security decisions someone will need to re-read later.
+
+```jsonc
+"ssh": [
+    // Stock rule: members SSH into their OWN devices, in check mode.
+    // Does NOT cover Builder VMs — they are tagged, so nobody owns them.
     {
-      "action": "accept",
-      "src": ["tag:ci-runner"],
-      "dst": ["tag:autolab-vm"],
-      "users": ["autolab", "gitops"]
-    }
-  ]
-}
+        "action": "check",
+        "src":    ["autogroup:member"],
+        "dst":    ["autogroup:self"],
+        "users":  ["autogroup:nonroot", "root"],
+    },
+    // Allow CI to SSH into Builder VMs. accept (not check): CI cannot
+    // satisfy an interactive browser check. autolab bootstraps, gitops
+    // runs afterward; never root.
+    {
+        "action": "accept",
+        "src":    ["tag:ci-runner"],
+        "dst":    ["tag:autolab-vm"],
+        "users":  ["autolab", "gitops"],
+    },
+    // Allow members to SSH into Builder VMs for ad-hoc access. check mode
+    // adds an IdP re-auth every 12h as a second factor. Never root: sshd's
+    // PermitRootLogin does not apply to Tailscale SSH, so this list is the
+    // only thing keeping root out. sudo -i covers the real need.
+    {
+        "action":      "check",
+        "src":         ["autogroup:member"],
+        "dst":         ["tag:autolab-vm"],
+        "users":       ["autolab", "gitops"],
+        "checkPeriod": "12h",
+    },
+],
 ```
+
+### Tagged devices are never `autogroup:self`
+
+The first rule above is what a new tailnet ships with, and it is the reason
+this trips people up. `autogroup:self` means *devices owned by the connecting
+user*. A Builder VM carries `tag:autolab-vm`, and **tagged devices have no user
+owner** — the admin console shows their owner as `tagged-devices`. The default
+rule therefore never matches a Builder VM, no matter who you are. Human access
+must name the tag in `dst`, exactly like the CI rule does.
+
+This fails in a confusing way. The admin console's per-machine *SSH quickstart*
+reports "Tailscale SSH is already allowed by your policy file" because it only
+checks that an `ssh` block exists, not that any rule matches the machine you are
+looking at. An allow-all `acls` block does not help either: `acls` governs
+network reachability, while Tailscale SSH is authorised *solely* by the `ssh`
+block. The symptom of a missing rule is a connection that is accepted and then
+refused:
+
+```
+tailscale: tailnet policy does not permit you to SSH to this node
+```
+
+A timeout instead of that message means an `acls` problem, not an `ssh` one.
+
+### Why `check` for humans and `accept` for CI
+
+`check` requires a browser re-authentication against your identity provider
+before the session opens, cached for `checkPeriod` (default `12h`). It is a
+second factor for interactive shell access, and it is deliberately not applied
+to the runner: `check` cannot be satisfied non-interactively, so CI, `scp`,
+and locally-run `ansible-playbook` need `accept`. Normal operation drives
+Builder through GitHub Actions, so the interactive gate costs nothing there.
+
+Use `accept` for the human rule too if you want ad-hoc scripting against lab
+machines from a workstation.
+
+### Never grant `root`, even though sshd forbids it
+
+`ssh-hardening` writes `PermitRootLogin no`, but that governs `sshd` — which
+Tailscale SSH bypasses entirely. Listing `root` in an `ssh` rule's `users`
+grants a real root shell regardless of the hardening. The tailnet policy is the
+only enforcement point, so `users` stays `["autolab", "gitops"]`.
+
+Nothing is lost: both accounts hold passwordless sudo (`autolab` from
+cloud-init, `gitops` from the `gitops-user` role), so root is one `sudo -i`
+away, with the escalation attributed to a named user in the sudo log instead of
+an anonymous root login.
 
 The `tagOwners` entry and tag assignment authority must be owned by the
 tailnet administrator, not by a VM or CI job. Keep this policy in the

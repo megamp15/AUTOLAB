@@ -57,6 +57,28 @@ SSH policy must grant access for `autolab` during canary bootstrap and for
 - [ ] Add the Builder grant separately with `dst: ["tag:autolab-vm"]` and `ip: ["tcp:22"]`
 - [ ] Add a separate SSH accept rule for `tag:ci-runner` to `tag:autolab-vm`, with
   `users: ["autolab", "gitops"]` only; never allow `root`
+- [ ] **Add a second SSH rule for human access** — `src: ["autogroup:member"]`,
+  `dst: ["tag:autolab-vm"]`, `users: ["autolab", "gitops"]`. Without it you
+  cannot SSH to your own Builder VMs:
+
+```jsonc
+{
+    "action":      "check",
+    "src":         ["autogroup:member"],
+    "dst":         ["tag:autolab-vm"],
+    "users":       ["autolab", "gitops"],
+    "checkPeriod": "12h",
+},
+```
+
+  The stock `dst: ["autogroup:self"]` rule does **not** cover Builder VMs:
+  tagged devices have no user owner (the console lists them under
+  `tagged-devices`), so `autogroup:self` never matches one. An allow-all `acls`
+  block does not help either — `acls` governs network reachability, while
+  Tailscale SSH is authorised solely by the `ssh` block. The symptom is
+  `tailscale: tailnet policy does not permit you to SSH to this node`, while
+  the admin console's SSH quickstart still claims "already allowed by your
+  policy file". See [01 - Tailscale SSH](./01-tailscale-ssh.md).
 
 - [ ] Record the Proxmox host's MagicDNS name or address for the `8006` grant
 - [ ] Tag the CI runner as `tag:ci-runner` and each Builder VM as `tag:autolab-vm`
@@ -123,7 +145,7 @@ Enterprise-only feature** — not available on Free/Team plans for private repos
 | `PACKER_SSH_PASSWORD` | Generated password for Packer Build (temporary, build-only) |
 | `PVE_SSH_PRIVATE_KEY` | Private SSH key for the required Proxmox bastion connection only; never a Builder VM key |
 | `TAILSCALE_OAUTH_CLIENT_ID` | Existing Tailscale client ID used with GitHub OIDC/WIF; no Builder OAuth secret |
-| `TAILSCALE_VM_OAUTH_CLIENT_ID` | Dedicated Tailscale OAuth client ID for VM enrollment AND destroy-time device cleanup (Plan/Apply/Destroy). Create it in the admin console with **only** the `devices:core:read_write` scope — not the CI-runner client, never with `auth_keys` scope. |
+| `TAILSCALE_VM_OAUTH_CLIENT_ID` | Dedicated Tailscale OAuth client ID for VM enrollment AND destroy-time device cleanup (Plan/Apply/Destroy). Create it in the admin console, separate from the CI-runner client, with **both** `auth_keys` (Write, `tag:autolab-vm` selected) for minting enrollment keys and `devices:core` (Write) for cleanup. |
 | `TAILSCALE_VM_OAUTH_SECRET` | Secret for the same client (`tskey-client-secret-...`, shown once). See `docs/gitops/tailscale-device-lifecycle.md`. |
 | `R2_ACCOUNT_ID` | Cloudflare account ID from step 4 |
 | `R2_ACCESS_KEY_ID` | R2 access key ID from step 4 |
