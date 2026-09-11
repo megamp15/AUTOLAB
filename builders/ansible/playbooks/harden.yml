@@ -4,8 +4,22 @@
   become: true
   gather_facts: true
 
+  vars:
+    # Named human operators for this lab. Kept here rather than in the role
+    # defaults so the list is committed, reviewable, and obvious in diffs.
+    # Use the local-part of the operator's tailnet login as the username so it
+    # lines up with the tailnet SSH policy (megamp15@github -> megamp15).
+    autolab_admin_users:
+      - name: megamp15
+
+    # Offboarding is explicit: removing a name above does NOT delete the
+    # account, it only stops managing it. List departures here, and drop them
+    # from the tailnet SSH policy's `users` list in the same change.
+    autolab_admin_users_absent: []
+
   roles:
     - role: base-linux
     - role: gitops-user
+    - role: admin-users
     - role: ssh-hardening
     - role: firewall

@@ -1,0 +1,29 @@
+---
+# Named human operator accounts, separate from the automation identities.
+#
+# Both lists are empty by default so the role is inert unless a site declares
+# operators. The lab's actual lists live in playbooks/harden.yml, which is
+# committed and reviewable; per-environment overrides belong in that playbook.
+#
+# Each entry accepts:
+#   name   (required) POSIX username, conventionally the local-part of the
+#          operator's tailnet login so the tailnet policy reads obviously
+#          (megamp15@github -> megamp15).
+#   shell  (optional, present only) login shell, default /bin/bash.
+#
+# Deliberately no SSH key field. Tailscale SSH authorises by tailnet policy and
+# never consults authorized_keys, and the Builder contract forbids adding VM SSH
+# keys; `autolab` is the single key-bearing break-glass account.
+autolab_admin_users: []
+
+# Operators to remove. Offboarding is an explicit list rather than "delete any
+# sudo account not in autolab_admin_users", because an inferred sweep would
+# delete `gitops`, `autolab`, and any distro account the moment a list is
+# mistyped or a var fails to load. Naming the departure keeps it a visible,
+# reviewable decision.
+#
+# Removing an operator has two halves, like adding one: drop them here AND drop
+# them from the tailnet SSH policy's `users` list. Neither half alone revokes
+# access — the account remains reachable while the policy still names it, and
+# the policy is inert once the account is gone.
+autolab_admin_users_absent: []

@@ -1,0 +1,65 @@
+---
+# Human operators get named accounts so interactive work is never done as
+# `gitops` (CI's identity) or `autolab` (the break-glass account that must stay
+# pristine for recovery). Tailscale SSH will only use accounts that already
+# exist on the host, so these must be provisioned before the tailnet policy
+# granting them access has any effect.
+
+- name: Refuse to add and remove the same operator
+  ansible.builtin.assert:
+    that: >-
+      autolab_admin_users | map(attribute='name') | list
+      | intersect(autolab_admin_users_absent | map(attribute='name') | list)
+      | length == 0
+    fail_msg: >-
+      An operator appears in both autolab_admin_users and
+      autolab_admin_users_absent. Task order would silently decide the outcome;
+      resolve the intent in playbooks/harden.yml instead.
+
+- name: Create named operator accounts
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: sudo
+    append: true
+    shell: "{{ item.shell | default('/bin/bash') }}"
+    create_home: true
+  loop: "{{ autolab_admin_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# Matches the gitops-user policy: sudo without a password. Root login stays
+# disabled, so escalation is always attributable to a named account in the
+# sudo log rather than an anonymous root session.
+- name: Permit operator sudo without a password
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/80-{{ item.name }}"
+    content: "{{ item.name }} ALL=(ALL) NOPASSWD:ALL\n"
+    mode: "0440"
+    validate: visudo -cf %s
+  loop: "{{ autolab_admin_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# Offboarding. Sudo is revoked BEFORE the account is removed so that an
+# interrupted run can never leave an account that still holds passwordless
+# root via a stale sudoers file.
+- name: Revoke sudo from removed operators
+  ansible.builtin.file:
+    path: "/etc/sudoers.d/80-{{ item.name }}"
+    state: absent
+  loop: "{{ autolab_admin_users_absent }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# remove=true also deletes the home directory and mail spool: an offboarded
+# operator should leave nothing behind that a later account could inherit by
+# UID reuse. force=true covers the account being logged in at the time.
+- name: Remove offboarded operator accounts
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    state: absent
+    remove: true
+    force: true
+  loop: "{{ autolab_admin_users_absent }}"
+  loop_control:
+    label: "{{ item.name }}"
