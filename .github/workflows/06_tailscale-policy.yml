@@ -1,0 +1,72 @@
+name: 06 - Tailscale Policy
+
+# The tailnet policy file is the one half of Autolab access control that lives
+# outside OpenTofu and Ansible. Syncing it from git closes the drift gap: an
+# operator change touches the Ansible roster and this policy in the same PR,
+# reviewed together, applied together.
+#
+# Pull requests run `test` (validate + sshTests, no changes). Pushes to main
+# run `apply`, which makes infra/tailscale/policy.hujson the tailnet's live
+# policy. Admin console edits are overwritten by the next apply.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - infra/tailscale/policy.hujson
+      - .github/workflows/06_tailscale-policy.yml
+  pull_request:
+    paths:
+      - infra/tailscale/policy.hujson
+      - .github/workflows/06_tailscale-policy.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tailscale-policy
+  cancel-in-progress: false
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Runs ACL and sshTests against the proposed policy without changing the
+      # tailnet. A deleted or narrowed SSH rule fails here, on the PR.
+      - name: Test policy
+        if: github.event_name == 'pull_request'
+        uses: tailscale/gitops-acl-action@5a4a17f5708e9bf96f4ee915a95e9f83c2eebe1a # v1.5.2
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_POLICY_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_POLICY_OAUTH_SECRET }}
+          tailnet: ${{ vars.TAILSCALE_TAILNET }}
+          policy-file: ./infra/tailscale/policy.hujson
+          action: test
+
+      - name: Apply policy
+        if: github.event_name == 'push'
+        uses: tailscale/gitops-acl-action@5a4a17f5708e9bf96f4ee915a95e9f83c2eebe1a # v1.5.2
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_POLICY_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_POLICY_OAUTH_SECRET }}
+          tailnet: ${{ vars.TAILSCALE_TAILNET }}
+          policy-file: ./infra/tailscale/policy.hujson
+          action: apply
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Tailscale Policy"
+            echo
+            echo "- Mode: \`${{ github.event_name == 'push' && 'apply' || 'test' }}\`"
+            echo "- Policy file: \`infra/tailscale/policy.hujson\`"
+            echo "- Result: \`${{ job.status }}\`"
+            if [ "${{ github.event_name }}" = "push" ]; then
+              echo "- The tailnet policy now matches this file. Admin console edits are overwritten."
+            else
+              echo "- Validation only; the tailnet was not changed."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
