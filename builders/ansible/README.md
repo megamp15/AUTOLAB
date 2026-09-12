@@ -141,6 +141,33 @@ The role revokes sudo before deleting the account, so an interrupted run cannot
 leave an account holding passwordless root through a stale sudoers file, and it
 removes the home directory so nothing survives to be inherited by UID reuse.
 
+### Running a slice of the baseline
+
+`harden.yml` roles are tagged, so an urgent change does not need a full
+baseline run. Workflow **05 - Ansible Builder** takes an optional `tags` input;
+locally it is `--tags`:
+
+| Tag | Roles |
+|---|---|
+| `base`, `packages` | `base-linux` |
+| `users` | `gitops-user`, `admin-users` |
+| `ssh` | `ssh-hardening` |
+| `firewall` | `firewall` |
+
+```bash
+ansible-playbook -i /tmp/autolab-inventory.json playbooks/harden.yml --tags users
+```
+
+A tagged run is a shortcut, never a substitute. State converges across every
+host only because `harden` runs untagged on the normal cadence — a host that
+was offline during a tagged run is only corrected by the next full run. Use
+tags to make a change land quickly, then let the untagged baseline catch the
+rest.
+
+For revoking access specifically, the tailnet policy is faster still: deleting
+the SSH rule cuts access immediately, with no playbook run at all. Removing the
+account is cleanup that can follow at baseline cadence.
+
 Leave the entry in `autolab_admin_users_absent` until every Builder target has
 had `harden.yml` applied; a VM that was offline for the run still has the
 account. Removing the entry too early makes the deletion silently skip that

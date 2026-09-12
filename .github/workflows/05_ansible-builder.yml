@@ -19,6 +19,13 @@ on:
         description: Optional Ansible host limit
         required: false
         default: all
+      tags:
+        description: >-
+          Optional Ansible tag filter for the harden playbook (e.g. users, ssh,
+          firewall, base). Leave blank to run the whole baseline. A tagged run
+          is a shortcut for urgent changes, not a substitute for the full run.
+        required: false
+        default: ''
       bootstrap:
         description: Use the cloud-init break-glass user for the initial hardening run
         required: true
@@ -125,6 +132,7 @@ jobs:
         run: |
           set -o pipefail
           args=(-i "$RUNNER_TEMP/inventory.json" "playbooks/${{ inputs.playbook }}.yml" --limit "$BUILDER_LIMIT")
+          if [ -n "$BUILDER_TAGS" ]; then args+=(--tags "$BUILDER_TAGS"); fi
           if [ "$BUILDER_CONFIRM" != "apply" ]; then args+=(--check); fi
           ansible-playbook "${args[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/ansible-output.log"
         env:
@@ -132,6 +140,7 @@ jobs:
           ANSIBLE_SSH_COMMON_ARGS: '-o StrictHostKeyChecking=yes'
           BUILDER_LIMIT: ${{ inputs.limit }}
           BUILDER_CONFIRM: ${{ inputs.confirm }}
+          BUILDER_TAGS: ${{ inputs.tags }}
 
       - name: Job summary
         if: always()
@@ -149,6 +158,7 @@ jobs:
             echo "- SSH user: \`${{ inputs.bootstrap == true && 'autolab' || 'gitops' }}\`"
             echo "- Playbook: \`${{ inputs.playbook }}\`"
             echo "- Limit: \`${{ inputs.limit || 'all' }}\`"
+            echo "- Tags: \`${{ inputs.tags || 'all roles' }}\`"
             echo "- Result: \`${{ job.status }}\`"
             echo "- Ansible recap: $recap"
           } >> "$GITHUB_STEP_SUMMARY"

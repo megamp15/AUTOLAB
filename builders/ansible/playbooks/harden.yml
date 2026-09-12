@@ -17,9 +17,19 @@
     # from the tailnet SSH policy's `users` list in the same change.
     autolab_admin_users_absent: []
 
+  # Tags let an urgent change run as a slice of the baseline rather than the
+  # whole thing — `--tags users` revokes an account in seconds without touching
+  # packages or firewall rules. The full playbook still runs every role, so a
+  # tagged run is a shortcut, never a substitute: state only converges across
+  # every host because harden runs untagged on the normal cadence.
   roles:
     - role: base-linux
+      tags: [base, packages]
     - role: gitops-user
+      tags: [users]
     - role: admin-users
+      tags: [users]
     - role: ssh-hardening
+      tags: [ssh]
     - role: firewall
+      tags: [firewall]
