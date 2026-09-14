@@ -22,20 +22,18 @@ on:
 
 permissions:
   contents: read
-  # GitHub mints the OIDC token that Tailscale exchanges for short-lived
-  # policy_file access. No OAuth client secret is stored in this repository.
-  #
-  # This reuses the CI-runner credential rather than a policy-only one, so that
-  # credential carries `policy_file` alongside `auth_keys` and is therefore
-  # ACL-write capable in every workflow that calls connect-tailscale (01, 02,
-  # 03, 04, 05, 99). Accepted for a single-operator lab. If a third party ever
-  # runs those workflows, split `policy_file` into its own trust credential —
-  # the client ID is not a secret, so the cost is one repo variable.
-  id-token: write
 
 concurrency:
   group: tailscale-policy
   cancel-in-progress: false
+
+# Authentication reuses the existing CI-runner OAuth client
+# (TAILSCALE_OAUTH_CLIENT_ID + TAILSCALE_OAUTH_SECRET), so no new credential or
+# secret is introduced. That client therefore carries `policy_file` alongside
+# `auth_keys`, and connect-tailscale hands it to every workflow that touches
+# the tailnet (01, 02, 03, 04, 05, 99) — so those runs are ACL-write capable
+# too. Accepted for a single-operator lab; see issue #4 for the split into a
+# policy-only credential and the triggers that should prompt it.
 
 jobs:
   policy:
@@ -50,7 +48,7 @@ jobs:
         uses: tailscale/gitops-acl-action@5a4a17f5708e9bf96f4ee915a95e9f83c2eebe1a # v1.5.2
         with:
           oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
-          audience: ${{ vars.TAILSCALE_OIDC_AUDIENCE }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
           # "-" means "the default tailnet for this credential", the same
           # shorthand the OpenTofu provider uses. gitops-pusher interpolates
           # this straight into /api/v2/tailnet/<v>/acl with no validation, so
@@ -66,7 +64,7 @@ jobs:
         uses: tailscale/gitops-acl-action@5a4a17f5708e9bf96f4ee915a95e9f83c2eebe1a # v1.5.2
         with:
           oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
-          audience: ${{ vars.TAILSCALE_OIDC_AUDIENCE }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
           # "-" means "the default tailnet for this credential", the same
           # shorthand the OpenTofu provider uses. gitops-pusher interpolates
           # this straight into /api/v2/tailnet/<v>/acl with no validation, so
