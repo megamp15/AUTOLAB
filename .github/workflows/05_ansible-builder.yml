@@ -14,7 +14,7 @@ on:
         required: true
         default: harden
         type: choice
-        options: [harden, docker, tailscale-update, nfs]
+        options: [harden, docker, tailscale-update, nfs, observability]
       limit:
         description: Optional Ansible host limit
         required: false

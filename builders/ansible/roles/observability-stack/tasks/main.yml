@@ -1,0 +1,184 @@
+---
+- name: Require a Debian-family Builder target
+  ansible.builtin.assert:
+    that: ansible_os_family == "Debian"
+    fail_msg: "Autolab Builder currently supports Debian-family hosts only."
+
+# The stack is containers; without Docker the rest of this role would fail
+# later and less clearly.
+# Reads the machine policy directly rather than autolab_docker_enabled, which
+# belongs to the docker-host role's defaults and is not in scope here. A role
+# that depends on another role's variables breaks depending on play order.
+- name: Require Docker on the stack host
+  ansible.builtin.assert:
+    that: (autolab_builder | default({})).docker_enabled | default(false) | bool
+    fail_msg: >-
+      The observability stack needs Docker. Set builder.docker_enabled = true
+      for this machine in machines.auto.tfvars and run the docker playbook
+      first.
+
+# Container ports bind to this address only. Docker writes its own iptables
+# rules ahead of ufw's, so publishing on 0.0.0.0 would reach the LAN despite the
+# host firewall's default-deny.
+- name: Discover this host's tailnet address
+  ansible.builtin.command: tailscale ip -4
+  register: autolab_tailscale_ip_raw
+  changed_when: false
+
+- name: Set the tailnet address fact
+  ansible.builtin.set_fact:
+    autolab_tailscale_ip: "{{ autolab_tailscale_ip_raw.stdout_lines[0] }}"
+
+- name: Create the observability directory tree
+  ansible.builtin.file:
+    path: "{{ autolab_obs_root }}/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - ""
+    - prometheus
+    - loki
+    - grafana/provisioning/datasources
+    - grafana/provisioning/dashboards
+    - grafana/dashboards
+
+# Grafana's container runs as uid 472 and will not start if it cannot write its
+# database.
+- name: Give Grafana ownership of its data directory
+  ansible.builtin.file:
+    path: "{{ autolab_obs_root }}/grafana/data"
+    state: directory
+    owner: "472"
+    group: "472"
+    mode: "0755"
+
+- name: Install Prometheus configuration
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: "{{ autolab_obs_root }}/prometheus/prometheus.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart observability stack
+
+- name: Install Loki configuration
+  ansible.builtin.template:
+    src: loki.yml.j2
+    dest: "{{ autolab_obs_root }}/loki/loki.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart observability stack
+
+# Datasources and dashboards are provisioned from files rather than clicked in.
+# A dashboard that exists only inside a container volume is one disk failure
+# from gone, and cannot be reviewed.
+- name: Provision Grafana datasources
+  ansible.builtin.template:
+    src: datasources.yml.j2
+    dest: "{{ autolab_obs_root }}/grafana/provisioning/datasources/autolab.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart observability stack
+
+- name: Provision the Grafana dashboard provider
+  ansible.builtin.copy:
+    src: dashboards-provider.yml
+    dest: "{{ autolab_obs_root }}/grafana/provisioning/dashboards/autolab.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart observability stack
+
+- name: Install dashboards
+  ansible.builtin.copy:
+    src: "dashboards/"
+    dest: "{{ autolab_obs_root }}/grafana/dashboards/"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart observability stack
+
+# The Proxmox API token is a file rather than an environment variable so it is
+# not visible in `docker inspect` or the process list.
+- name: Install the Proxmox exporter credentials
+  ansible.builtin.template:
+    src: pve.yml.j2
+    dest: "{{ autolab_obs_root }}/pve.yml"
+    owner: root
+    group: root
+    mode: "0600"
+  when: autolab_obs_pve_token_id | length > 0
+  notify: Restart observability stack
+
+- name: Install the compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ autolab_obs_root }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart observability stack
+
+- name: Bring the observability stack up
+  community.docker.docker_compose_v2:
+    project_src: "{{ autolab_obs_root }}"
+    state: present
+    pull: missing
+
+# The agent play that follows starts shipping immediately, and loki.write does
+# not recover from a refused connection. Waiting here rather than racing it.
+- name: Wait for Loki to accept writes
+  ansible.builtin.uri:
+    url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_loki_port }}/ready"
+    status_code: [200]
+  register: autolab_obs_loki_ready
+  until: autolab_obs_loki_ready.status == 200
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: Wait for Prometheus to accept writes
+  ansible.builtin.uri:
+    url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_prometheus_port }}/-/ready"
+    status_code: [200]
+  register: autolab_obs_prom_ready
+  until: autolab_obs_prom_ready.status == 200
+  retries: 30
+  delay: 5
+  changed_when: false
+
+# Prometheus keeps its own data on local disk; the NAS holds the copy that
+# survives losing this VM. Snapshots go through the admin API so the TSDB is
+# consistent, rather than copying files out from under a running database.
+- name: Install the snapshot script
+  ansible.builtin.template:
+    src: snapshot-to-nas.sh.j2
+    dest: /usr/local/bin/autolab-obs-snapshot
+    owner: root
+    group: root
+    mode: "0755"
+  when: autolab_obs_backup_dir | length > 0
+
+- name: Install the snapshot timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - autolab-obs-snapshot.service
+    - autolab-obs-snapshot.timer
+  when: autolab_obs_backup_dir | length > 0
+
+- name: Enable the snapshot timer
+  ansible.builtin.systemd_service:
+    name: autolab-obs-snapshot.timer
+    state: started
+    enabled: true
+    daemon_reload: true
+  when: autolab_obs_backup_dir | length > 0

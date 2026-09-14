@@ -7,3 +7,7 @@ collections:
   # to reconcile the two itself and gets it wrong on changed options.
   - name: ansible.posix
     version: ">=2.0.0,<3.0.0"
+  # community.docker.docker_compose_v2 drives the observability stack. Shelling
+  # out to `docker compose` would work but reports changed on every run.
+  - name: community.docker
+    version: ">=4.0.0,<5.0.0"

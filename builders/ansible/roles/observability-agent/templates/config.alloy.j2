@@ -1,0 +1,50 @@
+// Managed by Ansible — roles/observability-agent. Local edits are overwritten.
+//
+// Alloy is an OpenTelemetry Collector distribution. These are its Prometheus
+// pipelines; OTLP receivers for traces and profiles can be added here later
+// without changing anything else about collection.
+
+// ---------------------------------------------------------------------------
+// Metrics: the embedded node exporter, so there is no second package to install
+// or keep current.
+// ---------------------------------------------------------------------------
+
+prometheus.exporter.unix "node" {
+  // Filesystem metrics for overlay and tmpfs mounts describe containers and
+  // RAM disks rather than real storage, and drown out the mounts that matter.
+  filesystem {
+    fs_types_exclude = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"
+  }
+}
+
+prometheus.scrape "node" {
+  targets         = prometheus.exporter.unix.node.targets
+  forward_to      = [prometheus.remote_write.stack.receiver]
+  scrape_interval = "{{ autolab_obs_scrape_interval }}"
+}
+
+prometheus.remote_write "stack" {
+  endpoint {
+    url = "{{ autolab_obs_metrics_endpoint }}"
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Logs: journald rather than tailing files. Everything on these hosts logs
+// through systemd, and journald already carries unit and priority as
+// structured fields that file tailing would have to parse back out.
+// ---------------------------------------------------------------------------
+
+loki.source.journal "journal" {
+  forward_to = [loki.write.stack.receiver]
+  labels     = {
+    job  = "journald",
+    host = "{{ inventory_hostname }}",
+  }
+}
+
+loki.write "stack" {
+  endpoint {
+    url = "{{ autolab_obs_logs_endpoint }}"
+  }
+}

@@ -1,0 +1,16 @@
+# Managed by Ansible — roles/observability-stack. Local edits are overwritten.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: {{ autolab_obs_scrape_interval | default('15s') }}
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:{{ autolab_obs_loki_port }}

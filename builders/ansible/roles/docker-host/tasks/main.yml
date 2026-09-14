@@ -1,7 +1,7 @@
 ---
 - name: Install Docker when enabled for this machine
   ansible.builtin.apt:
-    name: docker.io
+    name: "{{ autolab_docker_packages }}"
     state: present
   when: autolab_docker_enabled | bool
 

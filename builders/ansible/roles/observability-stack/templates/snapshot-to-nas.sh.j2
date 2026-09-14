@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Managed by Ansible — roles/observability-stack. Local edits are overwritten.
+#
+# Copies a consistent Prometheus snapshot to the NAS. The TSDB itself stays on
+# local disk, where it needs to be; this is the copy that survives losing the
+# VM.
+#
+# Snapshots go through the admin API rather than copying the data directory:
+# rsyncing a live TSDB captures half-written blocks and restores to corruption.
+set -euo pipefail
+
+PROM="http://127.0.0.1:{{ autolab_obs_prometheus_port }}"
+DEST="{{ autolab_obs_backup_dir }}"
+
+if ! mountpoint -q "$(dirname "${DEST}")" 2>/dev/null && [[ ! -d "${DEST}" ]]; then
+  echo "snapshot: ${DEST} is not available; is the NAS mounted?" >&2
+  exit 1
+fi
+
+name="$(curl -sS -XPOST "${PROM}/api/v1/admin/tsdb/snapshot" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["name"])')"
+
+src="/var/lib/docker/volumes/observability_prometheus-data/_data/snapshots/${name}"
+mkdir -p "${DEST}"
+
+# --delete so the NAS mirrors the latest snapshot rather than accumulating every
+# one ever taken until the share fills.
+rsync -a --delete "${src}/" "${DEST}/prometheus/"
+
+# The snapshot is a hardlink farm against live blocks; leaving them pins disk
+# space that compaction would otherwise reclaim.
+rm -rf "${src}"
+
+echo "snapshot: ${name} -> ${DEST}/prometheus/"

@@ -1,0 +1,40 @@
+# Managed by Ansible — roles/observability-stack. Local edits are overwritten.
+global:
+  scrape_interval: {{ autolab_obs_scrape_interval | default('15s') }}
+  external_labels:
+    stack: autolab
+
+scrape_configs:
+  # Prometheus itself. Cheap, and the first thing worth checking when metrics
+  # look wrong is whether the scraper is healthy.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+{% if autolab_obs_pve_token_id | length > 0 %}
+
+  # Proxmox hypervisor metrics. The exporter scrapes the Proxmox API, so it runs
+  # here rather than on the PVE host — per-VM usage, storage pools and cluster
+  # state need no agent installed on Proxmox itself.
+  #
+  # The relabel dance is the exporter's documented calling convention: the
+  # target being scraped is passed as a query parameter, not as the address.
+  - job_name: pve
+    metrics_path: /pve
+    params:
+      module: [default]
+      cluster: ["1"]
+      node: ["1"]
+    static_configs:
+      - targets: ["{{ autolab_obs_pve_host }}"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: pve-exporter:{{ autolab_obs_pve_exporter_port }}
+{% endif %}
+
+# Host metrics arrive by remote_write from Alloy rather than being scraped.
+# Pull would mean Prometheus needs a route to every host and a target list to
+# maintain; push means a new machine starts reporting as soon as its agent runs.

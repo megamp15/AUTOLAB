@@ -1,0 +1,81 @@
+---
+# Grafana Alloy on every Builder host: metrics from the embedded node exporter,
+# logs from journald, shipped to the stack host.
+
+- name: Require a Debian-family Builder target
+  ansible.builtin.assert:
+    that: ansible_os_family == "Debian"
+    fail_msg: "Autolab Builder currently supports Debian-family hosts only."
+
+- name: Require a resolvable observability stack host
+  ansible.builtin.assert:
+    that: autolab_obs_stack_host | length > 0
+    fail_msg: >-
+      No host in this inventory has builder.observability.stack = true, so the
+      agent has nowhere to send telemetry. Set it on exactly one machine in
+      machines.auto.tfvars, or override autolab_obs_stack_host.
+
+- name: Ensure the apt keyring directory exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Install the Grafana repository signing key
+  ansible.builtin.get_url:
+    url: "{{ autolab_alloy_apt_repo }}/gpg.key"
+    dest: /usr/share/keyrings/grafana.asc
+    mode: "0644"
+
+# deb822 rather than the one-line format: apt_repository shells out to gpg or
+# apt-key, neither of which is present on a minimal Debian 13 image, and apt-key
+# is removed from modern Debian entirely. deb822_repository writes the sources
+# file directly and references the keyring by path.
+- name: Install the Grafana apt repository definition
+  ansible.builtin.deb822_repository:
+    name: grafana
+    types: [deb]
+    uris: "{{ autolab_alloy_apt_repo }}"
+    suites: [stable]
+    components: [main]
+    signed_by: /usr/share/keyrings/grafana.asc
+    state: present
+
+# No cache_valid_time here, deliberately. It means "skip the refresh if the
+# cache is younger than this", and harden.yml refreshes the cache minutes
+# earlier in a normal run — so the repository added just above would never be
+# fetched and the package would appear not to exist. After adding a repository
+# the refresh has to be unconditional.
+- name: Install Grafana Alloy
+  ansible.builtin.apt:
+    name: alloy
+    state: "{{ autolab_alloy_package_state }}"
+    update_cache: true
+
+# Alloy reads the whole directory, so a stale file left by a previous config
+# would still be loaded. One managed file keeps what runs equal to what is in
+# git.
+- name: Install the Alloy configuration
+  ansible.builtin.template:
+    src: config.alloy.j2
+    dest: /etc/alloy/config.alloy
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart alloy
+
+# Alloy reads journald through systemd-journal-gatewayd's socket group. Without
+# this it starts cleanly and silently ships no logs, which is worse than
+# failing.
+- name: Allow Alloy to read the system journal
+  ansible.builtin.user:
+    name: alloy
+    groups: systemd-journal
+    append: true
+  notify: Restart alloy
+
+- name: Enable and start Alloy
+  ansible.builtin.service:
+    name: alloy
+    state: started
+    enabled: true

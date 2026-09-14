@@ -1,0 +1,44 @@
+# Managed by Ansible — roles/observability-stack. Local edits are overwritten.
+#
+# Single-binary Loki on local disk. The filesystem backend is supported for this
+# deployment shape, unlike Mimir's, which is why metrics and logs are stored
+# differently here.
+auth_enabled: false
+
+server:
+  http_listen_port: {{ autolab_obs_loki_port }}
+  log_level: info
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-04-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  retention_period: {{ autolab_obs_retention_time }}
+  # A single busy host should not be able to fill the disk and take the whole
+  # stack down with it.
+  ingestion_rate_mb: 8
+  ingestion_burst_size_mb: 16
+
+compactor:
+  working_directory: /loki/compactor
+  delete_request_store: filesystem
+  retention_enabled: true
