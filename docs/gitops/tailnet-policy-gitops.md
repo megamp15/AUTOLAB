@@ -56,14 +56,19 @@ scope (read, validate, and modify).
 
 `policy_file:read` is enough for `test` but not for `apply`.
 
-### 2. Add one repository variable
+### 2. Nothing else
 
-| Name | Kind | Value |
-|---|---|---|
-| `TAILSCALE_TAILNET` | variable | Your tailnet name, from the admin console's top-left corner next to the logo (e.g. `megamp15.github`). An identifier, not a credential — hence a variable, not a secret. It cannot be `-`, unlike the OpenTofu provider's shorthand. |
+There is no second step. `TAILSCALE_OAUTH_CLIENT_ID` and
+`TAILSCALE_OIDC_AUDIENCE` already exist and are reused as-is, and the workflow
+passes `tailnet: '-'` — the same "default tailnet for this credential"
+shorthand the OpenTofu provider uses. `gitops-pusher` interpolates that value
+straight into `/api/v2/tailnet/<value>/acl` with no validation, so the
+credential resolves which tailnet it belongs to.
 
-`TAILSCALE_OAUTH_CLIENT_ID` and `TAILSCALE_OIDC_AUDIENCE` already exist and are
-reused as-is.
+If it ever fails to resolve, replace `'-'` in the workflow with the literal
+tailnet name from the admin console's top-left corner (`megamp15.github`) —
+note that is the *tailnet name*, not the MagicDNS suffix
+(`bobtail-dinosaur.ts.net`), which is a different thing.
 
 ### Deferred: split `policy_file` into its own credential
 

@@ -21,7 +21,7 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 | **OpenTofu Plan** | `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS` | `PROXMOX_API_TOKEN`, `PVE_SSH_PRIVATE_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
 | **OpenTofu Apply/Destroy** | same as Plan | same as Plan |
 | **Ansible Builder** | `TAILSCALE_OIDC_AUDIENCE` | `TAILSCALE_OAUTH_CLIENT_ID`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
-| **Tailscale Policy** | `TAILSCALE_TAILNET`, `TAILSCALE_OIDC_AUDIENCE` | `TAILSCALE_OAUTH_CLIENT_ID` (OIDC/WIF; no secret stored) |
+| **Tailscale Policy** | `TAILSCALE_OIDC_AUDIENCE` | `TAILSCALE_OAUTH_CLIENT_ID` (OIDC/WIF; no secret stored) |
 
 Every workflow that reaches the tailnet also passes `TAILSCALE_OAUTH_CLIENT_ID`
 and `TAILSCALE_OAUTH_SECRET` to the `connect-tailscale` action; the table above
@@ -51,7 +51,6 @@ Set at **Settings → Secrets and variables → Actions → Variables**.
 | `PROXMOX_INSECURE_TLS` | `true` | Packer, OpenTofu | Keep `true` for Proxmox default self-signed cert. |
 | `SSH_PUBLIC_KEYS` | `ssh-ed25519 AAAA...` | Packer Build | `cat ~/.ssh/id_ed25519.pub` on your laptop. |
 | `TAILSCALE_OIDC_AUDIENCE` | `https://tailscale.com/...` | Ansible Builder | Non-secret GitHub OIDC/WIF audience for the existing Tailscale client ID. |
-| `TAILSCALE_TAILNET` | `megamp15.github` | Tailscale Policy | Tailnet name from admin console → Settings → General. Not sensitive. |
 
 ## Secrets
 
@@ -116,7 +115,6 @@ read repository secrets.
 - [ ] `PROXMOX_PACKER_NETWORK_BRIDGE`
 - [ ] `SSH_PUBLIC_KEYS`
 - [ ] `TAILSCALE_OIDC_AUDIENCE` (non-secret)
-- [ ] `TAILSCALE_TAILNET` (non-secret; Tailscale Policy workflow)
 
 **Secrets**
 
