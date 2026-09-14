@@ -39,30 +39,60 @@ With the policy in git, both halves change in one reviewable PR, and
 **The repository becomes the source of truth.** Any edit made in the admin
 console is overwritten by the next apply. Change the policy here, not there.
 
-## One-time setup
+## Credentials: no new secrets
 
-### 1. Create the OAuth client
+This workflow authenticates with **GitHub OIDC/WIF**, the same way the CI
+runner joins the tailnet: GitHub mints a short-lived token, Tailscale exchanges
+it for scoped access. No OAuth client secret is stored in this repository.
 
-Admin console → **Settings → OAuth clients** (or Trust credentials) → create a
-client with the **`policy_file`** scope (read, validate, and modify).
+It reuses the existing CI-runner credential, so there is nothing new to create
+beyond adding a scope to it.
 
-This is a third, separate client. Do not reuse either existing one:
+### 1. Add `policy_file` to the CI-runner credential
 
-| Client | Scope | Used by |
-|---|---|---|
-| CI runner | `auth_keys` + `tag:ci-runner` | bringing the runner onto the tailnet |
-| VM enrollment | `auth_keys` (`tag:autolab-vm`) + `devices:core` | OpenTofu key minting and device cleanup |
-| **Policy** | **`policy_file`** | **this workflow** |
+Admin console → **Settings → OAuth clients / Trust credentials** → edit the
+credential behind `TAILSCALE_OAUTH_CLIENT_ID` and add the **`policy_file`**
+scope (read, validate, and modify).
 
-Read-only note: `policy_file:read` is enough for `test` but not for `apply`.
+`policy_file:read` is enough for `test` but not for `apply`.
 
-### 2. Add the GitHub secrets and variable
+### 2. Add one repository variable
 
 | Name | Kind | Value |
 |---|---|---|
-| `TAILSCALE_POLICY_OAUTH_CLIENT_ID` | secret | the client ID from step 1 |
-| `TAILSCALE_POLICY_OAUTH_SECRET` | secret | the client secret from step 1 (shown once) |
-| `TAILSCALE_TAILNET` | variable | your tailnet name from admin console → Settings → General (e.g. `megamp15.github`) — not sensitive, so a variable rather than a secret |
+| `TAILSCALE_TAILNET` | variable | Your tailnet name, from the admin console's top-left corner next to the logo (e.g. `megamp15.github`). An identifier, not a credential — hence a variable, not a secret. It cannot be `-`, unlike the OpenTofu provider's shorthand. |
+
+`TAILSCALE_OAUTH_CLIENT_ID` and `TAILSCALE_OIDC_AUDIENCE` already exist and are
+reused as-is.
+
+### Deferred: split `policy_file` into its own credential
+
+Reusing the CI-runner credential means it now holds `policy_file` **and**
+`auth_keys`, and `connect-tailscale` hands it to every workflow that touches
+the tailnet — 01, 02, 03, 04, 05, and 99. So a Packer build or a `tofu destroy`
+runs with a credential that could rewrite the entire tailnet policy, including
+the rules that gate recovery.
+
+Accepted deliberately for a single-operator lab, where the blast radius is one
+person's own infrastructure and the simplicity is worth more than the
+separation.
+
+Revisit when any of these becomes true:
+
+- someone other than the tailnet owner can run these workflows
+- the repo takes outside contributions that can trigger CI
+- a workflow starts using third-party actions that are not pinned by digest
+
+The fix is small and costs no secrets: create a second trust credential scoped
+to `policy_file` only, claim-matched to this repository, and point workflow 06
+at it via two repository **variables** (the client ID is not sensitive). The
+other five workflows then lose ACL-write entirely.
+
+| Credential | Scopes | Used by |
+|---|---|---|
+| CI runner | `auth_keys` (`tag:ci-runner`) + `policy_file` *(today)* | 01, 02, 03, 04, 05, 99, **and 06** |
+| VM enrollment | `auth_keys` (`tag:autolab-vm`) + `devices:core` | OpenTofu key minting and device cleanup |
+| *Policy (future)* | *`policy_file` only* | *06 alone* |
 
 ### 3. Confirm the file matches the live policy
 

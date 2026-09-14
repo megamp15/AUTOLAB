@@ -21,7 +21,7 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 | **OpenTofu Plan** | `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS` | `PROXMOX_API_TOKEN`, `PVE_SSH_PRIVATE_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
 | **OpenTofu Apply/Destroy** | same as Plan | same as Plan |
 | **Ansible Builder** | `TAILSCALE_OIDC_AUDIENCE` | `TAILSCALE_OAUTH_CLIENT_ID`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
-| **Tailscale Policy** | `TAILSCALE_TAILNET` | `TAILSCALE_POLICY_OAUTH_CLIENT_ID`, `TAILSCALE_POLICY_OAUTH_SECRET` |
+| **Tailscale Policy** | `TAILSCALE_TAILNET`, `TAILSCALE_OIDC_AUDIENCE` | `TAILSCALE_OAUTH_CLIENT_ID` (OIDC/WIF; no secret stored) |
 
 Every workflow that reaches the tailnet also passes `TAILSCALE_OAUTH_CLIENT_ID`
 and `TAILSCALE_OAUTH_SECRET` to the `connect-tailscale` action; the table above
@@ -61,12 +61,10 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | Secret | Example | Used by | Where to get it |
 |--------|---------|---------|-----------------|
 | `PROXMOX_API_TOKEN` | `gitops@pve!opentofu=SECRET` | Packer, OpenTofu | Proxmox → Permissions → API Tokens. Shown once. |
-| `TAILSCALE_OAUTH_CLIENT_ID` | `tskey-client-...` | Packer, OpenTofu, Ansible Builder | CI-runner client ID, used with GitHub OIDC/WIF to bring the runner onto the tailnet as `tag:ci-runner`. |
+| `TAILSCALE_OAUTH_CLIENT_ID` | `tskey-client-...` | Packer, OpenTofu, Ansible Builder, Tailscale Policy | CI-runner client ID, used with GitHub OIDC/WIF to bring the runner onto the tailnet as `tag:ci-runner`. Also carries `policy_file` so workflow 06 can sync the tailnet policy without a second credential — a deliberate, documented tradeoff. |
 | `TAILSCALE_OAUTH_SECRET` | *(usually empty)* | Packer, OpenTofu, Ansible Builder | Passed to `connect-tailscale` by all six workflows, but **leave it unset when using the OIDC/WIF path** — the action then authenticates with `TAILSCALE_OIDC_AUDIENCE` instead. Set it only if you fall back to a classic OAuth client secret. Distinct from `TAILSCALE_VM_OAUTH_SECRET`. |
 | `TAILSCALE_VM_OAUTH_CLIENT_ID` | `tskey-client-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client ID; exported as `TAILSCALE_OAUTH_CLIENT_ID` into tofu steps and consumed by the destroy-time device cleanup script. |
 | `TAILSCALE_VM_OAUTH_SECRET` | `tskey-client-secret-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client secret; the OAuth client needs **both** `auth_keys` (Write, with `tag:autolab-vm` selected) for key minting and `devices:core` (Write) for destroy-time cleanup (see `docs/gitops/tailscale-device-lifecycle.md`). Not used by Builder. |
-| `TAILSCALE_POLICY_OAUTH_CLIENT_ID` | `tskey-client-...` | Tailscale Policy | Third OAuth client, scoped `policy_file` ONLY. Separate from the CI-runner and VM-enrollment clients. |
-| `TAILSCALE_POLICY_OAUTH_SECRET` | `tskey-client-secret-...` | Tailscale Policy | Secret for the same client (shown once). `policy_file:read` suffices for `test`, but `apply` needs full `policy_file`. |
 | `PACKER_SSH_PASSWORD` | generated password | Packer Build | Temporary build-only password. Not your SSH key. |
 | `R2_ACCOUNT_ID` | `a1b2c3...` | OpenTofu | Cloudflare dashboard URL / R2 page. |
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |
@@ -129,7 +127,7 @@ read repository secrets.
 - [ ] `TAILSCALE_OAUTH_SECRET` — leave unset on the OIDC/WIF path; workflows
       reference it but the action falls back to `TAILSCALE_OIDC_AUDIENCE`
 - [ ] `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` (OpenTofu only)
-- [ ] `TAILSCALE_POLICY_OAUTH_CLIENT_ID`, `TAILSCALE_POLICY_OAUTH_SECRET` — `policy_file` scope; see [tailnet policy GitOps](./tailnet-policy-gitops.md)
+- [ ] Add the `policy_file` scope to the existing `TAILSCALE_OAUTH_CLIENT_ID` credential — no new secret; see [tailnet policy GitOps](./tailnet-policy-gitops.md)
 - [ ] `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
 - [ ] Ansible Builder temporarily reuses `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` for canary validation
 
