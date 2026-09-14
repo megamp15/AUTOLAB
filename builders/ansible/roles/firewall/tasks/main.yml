@@ -4,6 +4,17 @@
     name: ufw
     state: present
 
+# In check mode the install above reports what it would do without doing it, so
+# on a host that has never been hardened the ufw binary is still absent and
+# every community.general.ufw task below fails with "Failed to find required
+# executable". That turns a dry run against a brand-new machine — the case where
+# a dry run matters most — into an error rather than a preview.
+- name: Detect whether the UFW binary is present
+  ansible.builtin.stat:
+    path: /usr/sbin/ufw
+  register: autolab_ufw_binary
+  changed_when: false
+
 - name: Create firewall state directory
   ansible.builtin.file:
     path: "{{ autolab_firewall_manifest_path | dirname }}"
@@ -54,12 +65,16 @@
     proto: "{{ item.protocol }}"
     from_ip: "{{ item.source }}"
   loop: "{{ autolab_firewall_managed_rules | difference(autolab_firewall_desired_rules) }}"
+  when:
+    - not ansible_check_mode or autolab_ufw_binary.stat.exists
 
 - name: Allow inbound management over Tailscale
   community.general.ufw:
     rule: allow
     direction: in
     interface: tailscale0
+  when:
+    - not ansible_check_mode or autolab_ufw_binary.stat.exists
 
 - name: Allow declared inbound services
   community.general.ufw:
@@ -69,12 +84,16 @@
     proto: "{{ item.protocol }}"
     from_ip: "{{ item.source }}"
   loop: "{{ autolab_firewall_desired_rules }}"
+  when:
+    - not ansible_check_mode or autolab_ufw_binary.stat.exists
 
 - name: Enforce default-deny inbound firewall policy
   community.general.ufw:
     state: enabled
     policy: deny
     direction: incoming
+  when:
+    - not ansible_check_mode or autolab_ufw_binary.stat.exists
 
 - name: Atomically persist Builder-managed firewall rules
   ansible.builtin.copy:
