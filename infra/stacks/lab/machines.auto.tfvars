@@ -9,10 +9,10 @@ network_defaults = {
 }
 
 machines = {
-  lab_01 = {
+  sputnik = {
     type                    = "vm"
     provisioning_class      = "builder_target"
-    name                    = "lab-01"
+    name                    = "sputnik"
     vm_id                   = 100
     node_name               = "xps-pve"
     template_vm_id          = 9000
@@ -23,14 +23,13 @@ machines = {
     disk_size_gb            = 20
     ipv4_address            = "dhcp"
     builder = {
-      # This VM inherits the universal baseline; no inbound service is exposed.
+      # Disposable probe. Inherits the universal baseline and exposes nothing;
+      # its job is to be rebuilt often enough that the baseline stays honest.
     }
   }
 
-  # Second Builder target. Its immediate job is to prove the baseline is
-  # portable: admin-users, the firewall manifest, the inventory generator, and
-  # the NFS mount have only ever run against lab-01, so anything that merely
-  # happens to fit one host shows up here.
+  # Observability host. Named for what it does, not where it sits — see the
+  # naming scheme in docs/gitops/naming.md.
   #
   # Sized beyond lab-01's canary footprint because this is the intended home for
   # the observability stack, and growing CPU or memory later means a reboot
@@ -40,10 +39,10 @@ machines = {
   # rest, and a metrics backend that starts swapping stops being able to tell
   # you why anything is slow. Disk stays modest because Mimir and Loki both
   # persist blocks to R2 rather than to local disk.
-  lab_02 = {
+  jwst = {
     type                    = "vm"
     provisioning_class      = "builder_target"
-    name                    = "lab-02"
+    name                    = "jwst"
     vm_id                   = 101
     node_name               = "xps-pve"
     template_vm_id          = 9000

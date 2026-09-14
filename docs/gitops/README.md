@@ -85,8 +85,9 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
 11. [Tailscale device lifecycle](./tailscale-device-lifecycle.md)
 12. [Tailnet policy GitOps](./tailnet-policy-gitops.md)
 13. [NAS storage over the tailnet](./nas-storage.md)
-14. [Server hardening baseline](./server-hardening-baseline.md)
-15. [Security sources](./security-sources.md)
+14. [Naming](./naming.md)
+15. [Server hardening baseline](./server-hardening-baseline.md)
+16. [Security sources](./security-sources.md)
 
 ## Setup checklist
 
