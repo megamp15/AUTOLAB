@@ -41,63 +41,90 @@ console is overwritten by the next apply. Change the policy here, not there.
 
 ## Credentials: no new secrets
 
-This workflow authenticates with **GitHub OIDC/WIF**, the same way the CI
-runner joins the tailnet: GitHub mints a short-lived token, Tailscale exchanges
-it for scoped access. No OAuth client secret is stored in this repository.
+Workflow 06 reuses the existing CI-runner OAuth client —
+`TAILSCALE_OAUTH_CLIENT_ID` + `TAILSCALE_OAUTH_SECRET`, both already present.
+No new secret, variable, or client is introduced.
 
-It reuses the existing CI-runner credential, so there is nothing new to create
-beyond adding a scope to it.
+The tailnet is passed as `tailnet: '-'`, the "default tailnet for this
+credential" shorthand the OpenTofu provider also uses. `gitops-pusher` only
+checks that the value exists, then interpolates it into
+`/api/v2/tailnet/<value>/acl`, so the credential resolves its own tailnet and
+no name has to be configured. If it ever fails to resolve, substitute the
+literal tailnet name from the admin console's top-left corner
+(`megamp15.github`) — note that is the *tailnet name*, not the MagicDNS suffix
+(`bobtail-dinosaur.ts.net`), which is a different value.
 
-### 1. Add `policy_file` to the CI-runner credential
+### 1. Scope the CI-runner client
 
-Admin console → **Settings → OAuth clients / Trust credentials** → edit the
-credential behind `TAILSCALE_OAUTH_CLIENT_ID` and add the **`policy_file`**
-scope (read, validate, and modify).
+Admin console → **Settings → OAuth clients** → the client behind
+`TAILSCALE_OAUTH_CLIENT_ID` → under **General**, enable **Policy File: Write**
+(Write implies Read).
 
-`policy_file:read` is enough for `test` but not for `apply`.
+That client then holds:
+
+| Scope | Why |
+|---|---|
+| `auth_keys`, owning `tag:ci-runner` | `connect-tailscale` brings the runner onto the tailnet |
+| `policy_file` (Write) | this workflow reads, validates, and applies the policy |
+
+`policy_file` Read alone is enough for `test` but fails on `apply`.
 
 ### 2. Nothing else
 
-There is no second step. `TAILSCALE_OAUTH_CLIENT_ID` and
-`TAILSCALE_OIDC_AUDIENCE` already exist and are reused as-is, and the workflow
-passes `tailnet: '-'` — the same "default tailnet for this credential"
-shorthand the OpenTofu provider uses. `gitops-pusher` interpolates that value
-straight into `/api/v2/tailnet/<value>/acl` with no validation, so the
-credential resolves which tailnet it belongs to.
+There is no second step.
 
-If it ever fails to resolve, replace `'-'` in the workflow with the literal
-tailnet name from the admin console's top-left corner (`megamp15.github`) —
-note that is the *tailnet name*, not the MagicDNS suffix
-(`bobtail-dinosaur.ts.net`), which is a different thing.
+## Credential inventory
 
-### Deferred: split `policy_file` into its own credential
+Three Tailscale credentials exist, and only the first is shared:
 
-Reusing the CI-runner credential means it now holds `policy_file` **and**
-`auth_keys`, and `connect-tailscale` hands it to every workflow that touches
-the tailnet — 01, 02, 03, 04, 05, and 99. So a Packer build or a `tofu destroy`
-runs with a credential that could rewrite the entire tailnet policy, including
-the rules that gate recovery.
+| Credential | Scopes | Used by |
+|---|---|---|
+| CI runner (`TAILSCALE_OAUTH_CLIENT_ID`) | `auth_keys` (`tag:ci-runner`) + `policy_file` | 01, 02, 03, 04, 05, 99 for tailnet access; **06** for the policy |
+| VM enrollment (`TAILSCALE_VM_OAUTH_CLIENT_ID`) | `auth_keys` (`tag:autolab-vm`) + `devices:core` | OpenTofu key minting and destroy-time device cleanup |
+| *Policy-only (future)* | *`policy_file`* | *06 alone — see below* |
+
+### Deferred: split `policy_file` into a third client
+
+Reusing the CI-runner client means `policy_file` rides along wherever that
+client goes — and `connect-tailscale` hands it to **every** workflow that
+touches the tailnet: 01, 02, 03, 04, 05, 99. So a Packer build or a
+`tofu destroy` runs with a credential that could rewrite the entire tailnet
+policy, including the SSH rules that gate recovery.
 
 Accepted deliberately for a single-operator lab, where the blast radius is one
-person's own infrastructure and the simplicity is worth more than the
-separation.
+person's own infrastructure.
 
 Revisit when any of these becomes true:
 
 - someone other than the tailnet owner can run these workflows
 - the repo takes outside contributions that can trigger CI
-- a workflow starts using third-party actions that are not pinned by digest
+- a workflow starts using third-party actions not pinned by digest
 
-The fix is small and costs no secrets: create a second trust credential scoped
-to `policy_file` only, claim-matched to this repository, and point workflow 06
-at it via two repository **variables** (the client ID is not sensitive). The
-other five workflows then lose ACL-write entirely.
+The fix is a third OAuth client scoped `policy_file` only, alongside the
+CI-runner and VM-enrollment clients, with workflow 06 pointed at it and
+`policy_file` removed from the CI-runner client.
 
-| Credential | Scopes | Used by |
-|---|---|---|
-| CI runner | `auth_keys` (`tag:ci-runner`) + `policy_file` *(today)* | 01, 02, 03, 04, 05, 99, **and 06** |
-| VM enrollment | `auth_keys` (`tag:autolab-vm`) + `devices:core` | OpenTofu key minting and device cleanup |
-| *Policy (future)* | *`policy_file` only* | *06 alone* |
+**This costs a new secret.** CI authenticates with a classic OAuth client ID
+and secret, so a separate client means a `TAILSCALE_POLICY_OAUTH_SECRET`
+alongside its ID. (It would cost nothing if CI moved to OIDC/WIF first, where
+there is no secret to store — see below.) Tracked in
+[issue #4](https://github.com/megamp15/AUTOLAB/issues/4).
+
+### Deferred: move CI to OIDC/WIF
+
+`connect-tailscale` and `setup-opentofu-pipeline` both accept an `audience`
+input, and `gitops-acl-action` supports OIDC too — but no workflow passes one
+and no `TAILSCALE_OIDC_AUDIENCE` variable is set. The path is wired and unused.
+
+Adopting it would delete `TAILSCALE_OAUTH_SECRET` outright: GitHub mints a
+short-lived token per run, Tailscale exchanges it, and no long-lived Tailscale
+credential is stored in the repository at all. It would also make the
+policy-only client split free, since a client ID is not sensitive and needs
+only a repository variable.
+
+The work is a Tailscale trust credential with claim matching for this
+repository, plus passing the audience through six workflows. Not done today;
+the current OAuth client path is proven working.
 
 ### 3. Confirm the file matches the live policy
 
