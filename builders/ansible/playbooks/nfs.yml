@@ -22,9 +22,18 @@
     # The mount point is named after the share, not the device. Hardware gets
     # replaced and a device-named mount point outlives it.
     autolab_nfs_mounts:
+      # owner: the export uses "No mapping" (no root squash), so UIDs pass
+      # through untouched and the NAS records whatever number the client sends.
+      # Without an owner the directory stays root-owned and only root can
+      # write. Set by name, resolved on the client — which means a second host
+      # whose megamp15 has a different UID would write files this one cannot
+      # read. Keep the UID consistent across Builder hosts, or move to NFSv4
+      # with idmapping when the NAS supports it.
       - server: singularity
         export: /volume1/autolab
         path: /mnt/autolab
+        owner: megamp15
+        group: megamp15
         directories:
           - lab-01
 
