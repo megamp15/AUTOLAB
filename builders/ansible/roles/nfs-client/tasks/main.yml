@@ -44,6 +44,26 @@
     label: "{{ item.path }}"
   when: item.state | default('mounted') != 'absent'
 
+# A `hard` mount to an unreachable server blocks rather than failing, which
+# hangs the run and leaves an fstab entry that can stall the next boot. Probe
+# the NFS port first so an offline NAS is a fast, readable failure instead.
+# This is the guardrail for the hazard documented in defaults/main.yml.
+- name: Verify each NFS server is reachable before mounting
+  ansible.builtin.wait_for:
+    host: "{{ item.server }}"
+    port: 2049
+    timeout: "{{ autolab_nfs_reachability_timeout }}"
+    msg: >-
+      {{ item.server }} is not answering on NFS port 2049 within
+      {{ autolab_nfs_reachability_timeout }}s. Refusing to mount: a hard mount
+      to an unreachable server would block this run and leave an fstab entry
+      that stalls the next boot. Check the NAS is up and reachable from this
+      host, then re-run.
+  loop: "{{ autolab_nfs_mounts }}"
+  loop_control:
+    label: "{{ item.server }}"
+  when: item.state | default('mounted') != 'absent'
+
 # Manages /etc/fstab and the live mount together, so a reboot reproduces what
 # this run created.
 - name: Mount NFS shares and persist them in fstab

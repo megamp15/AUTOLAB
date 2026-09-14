@@ -50,6 +50,13 @@ autolab_nfs_mounts: []
 # mid-write and risks silent corruption, which is worse than blocking.
 autolab_nfs_mount_options: "hard,_netdev,noatime,nosuid,nodev,rsize=131072,wsize=131072,timeo=600,retrans=5"
 
+# Seconds to wait for the NFS server's port 2049 before giving up. This is a
+# preflight check, not a mount timeout: a `hard` mount to an unreachable server
+# blocks indefinitely, so probing first turns a hung run into a fast, readable
+# failure. Keep it short — a NAS that cannot answer in a few seconds is down,
+# not slow.
+autolab_nfs_reachability_timeout: 10
+
 # Verify each mount is actually writable after mounting. A share can mount
 # cleanly and still be read-only or have the wrong ownership, which otherwise
 # only surfaces when a workload fails at runtime.
