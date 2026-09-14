@@ -130,11 +130,33 @@ read repository secrets.
 - [ ] `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` (OpenTofu only)
 - [ ] Add the `policy_file` scope to the existing `TAILSCALE_OAUTH_CLIENT_ID` credential — no new secret; see [tailnet policy GitOps](./tailnet-policy-gitops.md)
 - [ ] `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
-- [ ] Ansible Builder temporarily reuses `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` for canary validation
+- [ ] Ansible Builder still reuses `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`; see *Open: scope Builder's R2 access to read-only* below
 
-> **TODO after successful canary validation:** introduce
-> `BUILDER_R2_ACCESS_KEY_ID` and `BUILDER_R2_SECRET_ACCESS_KEY` as Builder
-> Environment secrets with Object Read-only scope on the existing state bucket.
+### Open: scope Builder's R2 access to read-only
+
+Workflow 05 only reads OpenTofu state (`tofu output builder_machines`) but is
+given `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`, the read-write keys that
+plan, apply, and destroy use to *write* state. The canary that this was waiting
+on has since passed, so the work is unblocked: create an R2 API token with
+**Object Read-only** scope on the state bucket and wire it in as
+`BUILDER_R2_ACCESS_KEY_ID` / `BUILDER_R2_SECRET_ACCESS_KEY`.
+
+Partially mitigated already: `setup-opentofu-pipeline` writes the keys to
+`GITHUB_ENV`, which is job-wide, so every later step inherited them — including
+the step that runs arbitrary Ansible against the VMs. Workflow 05 now blanks
+them once the inventory is rendered, so they no longer reach the playbook.
+
+Be accurate about what remains. Today's code never writes state, so this is not
+a live defect. Narrowing the token is **defense in depth**: it protects against
+a future edit, a playbook doing something unexpected, or a compromised action
+in the job — cases where something other than the current code runs with those
+credentials in scope.
+
+It does **not** create a hard boundary. Any workflow can still reference
+`secrets.R2_ACCESS_KEY_ID` directly, so anyone who can edit workflows can
+recover write access. The value is that doing so becomes an explicit line in a
+reviewable diff rather than an ambient default. The same caveat applies to
+[issue #4](https://github.com/megamp15/AUTOLAB/issues/4).
 
 **Environments**
 
