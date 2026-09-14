@@ -1,5 +1,10 @@
-# Keeps pinned GitHub Actions current. Pinned SHAs with a "# vX.Y.Z" comment are
-# updated in place, so pins stay exact without manual bumps.
+# Keeps pinned dependencies current. Pinned Action SHAs with a "# vX.Y.Z"
+# comment are updated in place, so pins stay exact without manual bumps.
+#
+# NOT covered, and therefore a manual check: Ansible collections in
+# builders/ansible/requirements.yml. Dependabot has no Galaxy ecosystem, which
+# is how community.general drifted three majors behind while Action pins stayed
+# current. Review it when touching the Builder.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -13,3 +18,17 @@ updates:
     labels: [ci, dependencies]
     commit-message:
       prefix: "ci"
+
+  # Terraform/OpenTofu providers. bpg/proxmox is a 0.x release line where minor
+  # bumps can break, so these open as PRs to be reviewed against a real plan
+  # rather than merged on sight.
+  - package-ecosystem: terraform
+    directories:
+      - /infra/stacks/lab
+      - /infra/modules/proxmox-compute
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [infra, dependencies]
+    commit-message:
+      prefix: "infra"
