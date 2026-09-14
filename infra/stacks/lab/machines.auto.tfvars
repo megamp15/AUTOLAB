@@ -9,10 +9,10 @@ network_defaults = {
 }
 
 machines = {
-  voyager_01 = {
+  sputnik = {
     type                    = "vm"
     provisioning_class      = "builder_target"
-    name                    = "voyager-01"
+    name                    = "sputnik"
     vm_id                   = 100
     node_name               = "xps-pve"
     template_vm_id          = 9000
@@ -39,10 +39,10 @@ machines = {
   # rest, and a metrics backend that starts swapping stops being able to tell
   # you why anything is slow. Disk stays modest because Mimir and Loki both
   # persist blocks to R2 rather than to local disk.
-  hubble = {
+  jwst = {
     type                    = "vm"
     provisioning_class      = "builder_target"
-    name                    = "hubble"
+    name                    = "jwst"
     vm_id                   = 101
     node_name               = "xps-pve"
     template_vm_id          = 9000
