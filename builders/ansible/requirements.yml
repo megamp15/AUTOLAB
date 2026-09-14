@@ -1,7 +1,7 @@
 ---
 collections:
   - name: community.general
-    version: ">=10.0.0,<11.0.0"
+    version: ">=13.0.0,<14.0.0"
   # ansible.posix.mount manages the mount and its fstab entry as one idempotent
   # operation. Doing it by hand (lineinfile on fstab plus a mount command) has
   # to reconcile the two itself and gets it wrong on changed options.
