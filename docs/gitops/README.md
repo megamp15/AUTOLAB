@@ -63,7 +63,7 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
   manually configured tailnet grants/SSH policy.
 - Per-machine Builder policy emitted from the OpenTofu `machines` map to a
   generated Ansible inventory.
-- Manual GitHub Actions and local execution paths, with opt-in Docker. Tailscale
+- Manual GitHub Actions and local execution paths, with opt-in Docker and opt-in NFS storage from the NAS over the tailnet. Tailscale
   SSH is the standard Builder transport, not an optional playbook or machine
   flag.
 - Workflow **05 - Ansible Builder** bootstraps the persistent canary as
@@ -84,8 +84,9 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
 10. [Template lifecycle](./template-lifecycle.md)
 11. [Tailscale device lifecycle](./tailscale-device-lifecycle.md)
 12. [Tailnet policy GitOps](./tailnet-policy-gitops.md)
-13. [Server hardening baseline](./server-hardening-baseline.md)
-14. [Security sources](./security-sources.md)
+13. [NAS storage over the tailnet](./nas-storage.md)
+14. [Server hardening baseline](./server-hardening-baseline.md)
+15. [Security sources](./security-sources.md)
 
 ## Setup checklist
 

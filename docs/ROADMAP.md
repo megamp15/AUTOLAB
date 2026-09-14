@@ -18,7 +18,7 @@ This repo is meant to **grow** from a documented single node into a reusable hom
 | Host-only config (`/etc/default/proxmox-network.env`) | `security`, `portable` | |
 | GitOps phase 2A | `gitops`, `opentofu`, `proxmox`, `terramate` | OpenTofu modules, CI validate/plan/apply/destroy workflows, R2 backend — [setup checklist](gitops/setup-checklist.md) |
 | Packer phase 2B | `packer`, `templates` | Catalog-driven builds: `debian-13` and `ubuntu-24.04` implemented, `ubuntu-26.04` blocked on a respun ISO ([catalog](../infra/packer/template-catalog.yaml)) |
-| Builder phase 2C | `ansible`, `security`, `linux` | Debian-family baseline over Tailscale SSH (updates, SSH hardening, firewall, `gitops` user), opt-in Docker, `tailscale-update`; workflow 05 bootstraps as `autolab` then runs as `gitops` |
+| Builder phase 2C | `ansible`, `security`, `linux` | Debian-family baseline over Tailscale SSH (updates, SSH hardening, firewall, `gitops` user, named operator accounts), opt-in Docker and NFS storage, `tailscale-update`; workflow 05 bootstraps as `autolab` then runs as `gitops` |
 
 Machine inventory is **committed desired state**: `infra/stacks/lab/machines.auto.tfvars` declares the `lab` VMs and is what the plan, apply, and Builder workflows read. Connection settings still come from GitHub secrets and variables.
 
@@ -64,7 +64,7 @@ You **cannot** GitOps your way onto a host that has no working uplink yet. Somet
 | Layer | How it usually runs | Autolab today |
 |-------|---------------------|---------------|
 | **Bootstrap** | ISO install, local console, or SSH over whatever link works (installer Wi‑Fi/Ethernet); copy scripts via USB or `scp`; wizard writes `/etc/default/proxmox-network.env` | **This repo** — docs + bash, aimed at noobs |
-| **Steady state** | Host reaches git/Actions/OpenTofu; desired state in git; reconcile VMs, LXCs, storage, backups, and server hardening | **Alpha** — CI plan/apply/destroy works against the committed `lab` machine map; the Ansible Builder hardens the resulting VMs; storage and backups are not managed yet |
+| **Steady state** | Host reaches git/Actions/OpenTofu; desired state in git; reconcile VMs, LXCs, storage, backups, and server hardening | **Alpha** — CI plan/apply/destroy works against the committed `lab` machine map; the Ansible Builder hardens the resulting VMs and mounts NAS storage over the tailnet; backups are not managed yet |
 
 So **host networking is not “no GitOps ever”** — it is **not GitOps until the node can reach the internet** (or at least your laptop on LAN). After failover and SSH work, GitOps applies to **what runs on Proxmox**, not to the first cable/Wi‑Fi bring-up.
 
