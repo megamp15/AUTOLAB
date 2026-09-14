@@ -30,6 +30,59 @@ tailscale ssh gitops@HOSTNAME
 
 `HOSTNAME` can be the MagicDNS name or the Tailscale IP.
 
+## How a connection is authorised
+
+Three independent gates. Each one is a different failure message, which is the
+fastest way to tell them apart:
+
+```mermaid
+flowchart TD
+    A["ssh megamp15@lab-01"] --> B{"acls block<br/>can the packet reach :22?"}
+    B -- no --> B1["⏱ connection times out<br/><i>fix: acls</i>"]
+    B -- yes --> C{"ssh block<br/>is there a rule matching<br/>src → dst → user?"}
+    C -- no --> C1["🚫 tailnet policy does not permit<br/>you to SSH to this node<br/><i>fix: add an ssh rule</i>"]
+    C -- yes --> D{"does the Unix account<br/>exist on the host?"}
+    D -- no --> D1["❓ failed to look up local user<br/><i>fix: run harden.yml</i>"]
+    D -- yes --> E{"action: check?"}
+    E -- yes --> F["🌐 browser re-auth<br/>cached for checkPeriod"]
+    E -- no --> G["✅ shell"]
+    F --> G
+```
+
+The middle two gates are the ones that bite. An allow-all `acls` block does
+**not** grant SSH — `acls` governs reachability, the `ssh` block governs SSH,
+and they are evaluated separately. And a policy rule for an account that does
+not exist yet is inert: Tailscale only uses accounts already present on the
+host, it never creates them.
+
+## Who may reach what
+
+```mermaid
+flowchart LR
+    subgraph Sources
+        H["👤 megamp15@github<br/><small>autogroup:member</small>"]
+        R["🤖 tag:ci-runner<br/><small>GitHub Actions</small>"]
+    end
+    subgraph Target["tag:autolab-vm"]
+        U1["megamp15<br/><small>named operator</small>"]
+        U2["autolab<br/><small>break-glass</small>"]
+        U3["gitops<br/><small>CI automation</small>"]
+        RT["root"]
+    end
+    H -- "check · 12h" --> U1
+    H -- "check · 12h" --> U2
+    H -- "check · 12h" --> U3
+    R -- "accept" --> U2
+    R -- "accept" --> U3
+    H -.->|denied| RT
+    R -.->|denied| RT
+```
+
+`root` is denied on both paths and asserted denied in `sshTests`. That matters
+because `ssh-hardening` writes `PermitRootLogin no` into `sshd_config`, which
+Tailscale SSH bypasses entirely — the tailnet policy is the only thing keeping
+root out.
+
 ## Tailnet policy
 
 Tailscale SSH is controlled by the tailnet policy, not by VM `authorized_keys`.
