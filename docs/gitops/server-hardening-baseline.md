@@ -29,6 +29,7 @@ When OpenTofu clones a `builder_target` VM, the `cloud-init` module
 
 - Disable root SSH login
 - Separate `gitops` deploy user
+- Named human operator accounts (never share `gitops` or `autolab` interactively)
 - Firewall (ufw/nftables)
 - Fail2Ban
 - Security update policy
@@ -42,7 +43,22 @@ temporary `packer` user before templating — see `infra/packer/templates/debian
 
 Ansible roles in `builders/ansible/roles/` now own convergent OS policy after
 cloud-init bootstrap. The first run connects as `autolab`; it creates the
-`gitops` automation user before applying SSH hardening. Builder transport is
+`gitops` automation user and the named operator accounts before applying SSH
+hardening.
+
+Three account kinds, deliberately not interchangeable:
+
+```mermaid
+flowchart LR
+    CI["cloud-init<br/><small>first boot</small>"] --> A["autolab<br/><small>SSH key · break-glass</small>"]
+    H["harden.yml<br/><small>Ansible</small>"] --> G["gitops<br/><small>no key · CI only</small>"]
+    H --> M["megamp15<br/><small>no key · you</small>"]
+    A -. "bootstrap run only" .-> H
+```
+
+`autolab` is the only key-bearing account and exists from first boot, so it is
+the way in if Tailscale itself is unavailable. `gitops` and operator accounts
+have no `authorized_keys` at all and are reachable only over the tailnet. Builder transport is
 Tailscale SSH, using the CI runner's existing Tailscale OAuth identity and
 tailnet policy. Keep `autolab` as bootstrap/break-glass access.
 
@@ -53,6 +69,7 @@ The universal baseline adds:
 | Package refresh + update policy | `base-linux` |
 | Human admin user hardening | `base-linux` / `ssh-hardening` |
 | `gitops` deploy user + restricted sudo | `gitops-user` |
+| Named operator accounts + sudo | `admin-users` |
 | Disable root SSH | `ssh-hardening` |
 | Disable password SSH | `ssh-hardening` |
 | Default-deny firewall | `firewall` |

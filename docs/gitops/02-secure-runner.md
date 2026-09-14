@@ -19,18 +19,28 @@ flowchart LR
   TS --> PVE[Proxmox API\nvia Tailscale hostname]
 ```
 
-The runner uses GitHub OIDC/WIF to obtain short-lived tailnet access and joins
-the tailnet for the duration of the job. When the job finishes — success or
-failure — the runner disconnects automatically. No long-lived OAuth client
-secret is stored in GitHub.
+The runner joins the tailnet for the duration of the job. When the job
+finishes — success or failure — it disconnects automatically.
 
-## GitHub OIDC/WIF setup
+## Runner authentication
 
-Configure the Tailscale trust integration and GitHub Actions OIDC provider
-according to the tailnet's identity-provider procedure. Bind only the
-repository, workflow, ref, and environment claims required by the Builder
-workflows. The resulting runner identity must receive exactly
-`tag:ci-runner`; GitHub stores no OAuth client secret for this path.
+The runner authenticates with a **classic OAuth client**:
+`TAILSCALE_OAUTH_CLIENT_ID` + `TAILSCALE_OAUTH_SECRET`, passed to
+`connect-tailscale` by every workflow that touches the tailnet. The resulting
+runner identity receives exactly `tag:ci-runner`.
+
+That client also carries the `policy_file` scope, because workflow
+**06 - Tailscale Policy** reuses it to sync the tailnet policy. See
+[tailnet policy GitOps](./tailnet-policy-gitops.md) for the full credential
+inventory and the tradeoff that reuse implies.
+
+> **OIDC/WIF is wired but unused.** `connect-tailscale` and
+> `setup-opentofu-pipeline` both accept an `audience` input, but no workflow
+> passes one and no `TAILSCALE_OIDC_AUDIENCE` variable exists. Earlier
+> revisions of this document claimed the runner used OIDC/WIF with no stored
+> secret; that was never true. Adopting it would remove
+> `TAILSCALE_OAUTH_SECRET` entirely — tracked in
+> [issue #4](https://github.com/megamp15/AUTOLAB/issues/4).
 
 ### CI runner tag setup
 
@@ -64,6 +74,14 @@ The tailnet policy must allow the tagged CI runner to reach Proxmox on port
 8006 and Builder VMs over Tailscale SSH. SSH access must be limited to
 `autolab` for bootstrap and `gitops` for regular runs; never grant `root`.
 
+Human operators need a **separate** rule — the CI rule below does not cover
+them, and neither does the stock `autogroup:self` rule, because tagged devices
+have no owner. See [01 - Tailscale SSH](./01-tailscale-ssh.md).
+
+The live policy is versioned at `infra/tailscale/policy.hujson` and applied by
+workflow 06; the snippet below is the runner-relevant excerpt, not the whole
+file.
+
 Example policy snippet:
 
 ```json
@@ -86,10 +104,20 @@ Example policy snippet:
       "src": ["tag:ci-runner"],
       "dst": ["tag:autolab-vm"],
       "users": ["autolab", "gitops"]
+    },
+    {
+      "action": "check",
+      "src": ["autogroup:member"],
+      "dst": ["tag:autolab-vm"],
+      "users": ["megamp15", "autolab", "gitops"],
+      "checkPeriod": "12h"
     }
   ]
 }
 ```
+
+CI gets `accept` because it cannot satisfy an interactive browser check;
+humans get `check`, which adds an identity-provider re-auth every 12 hours.
 
 Use the Proxmox host's MagicDNS name or address for the `8006` destination. At
 minimum, the runner needs TCP access to the Proxmox host on port 8006.

@@ -10,6 +10,27 @@ The tailnet policy is the half of Autolab access control that lives outside
 OpenTofu and Ansible. `infra/tailscale/policy.hujson` is the source of truth,
 applied by workflow **06 - Tailscale Policy**.
 
+## At a glance
+
+```mermaid
+flowchart LR
+    subgraph git["Git — source of truth"]
+        A["harden.yml<br/><small>autolab_admin_users</small><br/><b>the account</b>"]
+        B["policy.hujson<br/><small>ssh block</small><br/><b>the rule</b>"]
+    end
+    PR["Pull request"] --> T["06 · test<br/><small>validate + sshTests</small>"]
+    T -->|"green"| M["Merge to main"]
+    M --> AP["06 · apply<br/><small>policy → tailnet</small>"]
+    M --> W5["05 · Ansible Builder<br/><small>harden.yml → VM</small>"]
+    A -.-> PR
+    B -.-> PR
+    AP --> VM["🖥 lab-01<br/>reachable as megamp15"]
+    W5 --> VM
+```
+
+Both halves ship in one pull request. `test` runs on the PR and blocks a merge
+that would break access; `apply` runs on merge.
+
 ## Why this exists
 
 Access to a Builder VM has two halves that must agree:
@@ -20,7 +41,18 @@ Access to a Builder VM has two halves that must agree:
 | The tailnet rule | the `ssh` block in `infra/tailscale/policy.hujson` | that account may be reached |
 
 Neither works alone. An account with no rule is unreachable; a rule with no
-account is inert. While the policy lived only in the admin console, the two
+account is inert — and each failure has its own distinct error:
+
+```mermaid
+flowchart TD
+    Q{"account exists?"} -- no --> N1
+    Q -- yes --> R{"policy rule exists?"}
+    R -- no --> N2
+    R -- yes --> OK["✅ shell"]
+    N1["❓ <i>failed to look up local user</i><br/>run harden.yml"]
+    N2["🚫 <i>tailnet policy does not permit…</i><br/>add the ssh rule"]
+```
+ While the policy lived only in the admin console, the two
 could drift silently — and did: the policy had a rule for `tag:ci-runner` but
 none for human operators, so nobody could SSH to their own Builder VMs while
 the console's SSH quickstart still reported that Tailscale SSH was "already

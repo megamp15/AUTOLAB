@@ -73,8 +73,11 @@ jobs:
           tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           tailscale_oauth_secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
           configure_proxmox: 'false'
-          # ponytail: reuse state write credentials until the Builder canary passes;
-          # replace with a Builder-only R2 Object Read token afterwards.
+          # Builder needs to READ state (tofu output builder_machines) but is
+          # handed the read-write keys. Replacing these with an R2 Object
+          # Read-only token is still open; in the meantime the keys are blanked
+          # from GITHUB_ENV immediately after the inventory is rendered, so they
+          # do not reach the playbook step.
           r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
           r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           r2_account_id: ${{ secrets.R2_ACCOUNT_ID }}
@@ -102,6 +105,23 @@ jobs:
           if [ "${{ inputs.bootstrap }}" = "true" ]; then user=autolab; fi
           python3 "$GITHUB_WORKSPACE/scripts/generate-ansible-inventory.py" \
             "$RUNNER_TEMP/builder-machines.json" --output "$RUNNER_TEMP/inventory.json" --user "$user"
+
+      - name: Drop state credentials before Ansible runs
+        run: |
+          # setup-opentofu-pipeline writes the R2 keys to GITHUB_ENV, which is
+          # job-wide, so every later step inherits them — including the playbook
+          # step, which executes arbitrary Ansible content against the VMs. Only
+          # `tofu init` and `tofu output` above need them. Blank them here so
+          # Builder cannot reach the state bucket at all once the inventory has
+          # been rendered. GITHUB_ENV is applied in order, so an empty
+          # assignment overrides the earlier value for subsequent steps.
+          #
+          # This limits how far the credentials travel; it does not narrow the
+          # credentials themselves. Scoping Builder to an R2 Object Read-only
+          # token is still open — see the note in
+          # docs/gitops/github-secrets-variables-reference.md.
+          echo "AWS_ACCESS_KEY_ID=" >> "$GITHUB_ENV"
+          echo "AWS_SECRET_ACCESS_KEY=" >> "$GITHUB_ENV"
 
       - name: Wait for Tailscale and SSH readiness
         run: |

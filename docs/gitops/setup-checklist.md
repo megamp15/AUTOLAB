@@ -34,6 +34,17 @@ See [02 - Secure GitHub runner](./02-secure-runner.md) for the full runner model
 
 ## 2. Tailscale ACL and SSH policy
 
+> **The policy is versioned.** `infra/tailscale/policy.hujson` is the source of
+> truth, applied by workflow **06 - Tailscale Policy** on every push to `main`,
+> with `sshTests` gating pull requests. Edit that file, not the admin console —
+> console edits are overwritten by the next apply. The steps below describe the
+> policy's required *shape*; see
+> [tailnet policy GitOps](./tailnet-policy-gitops.md) for the workflow, the
+> credential scopes, and the break-glass path.
+>
+> On a fresh tailnet, do this in the console first, then copy the working
+> policy into the repo and enable the sync.
+
 The CI runner tag needs permission to reach Proxmox on port 8006 and Builder
 VMs over Tailscale SSH. Tag the CI runner and every Builder VM explicitly. The
 SSH policy must grant access for `autolab` during canary bootstrap and for
@@ -87,7 +98,16 @@ SSH policy must grant access for `autolab` during canary bootstrap and for
 - [ ] Before replacing a Builder VM, retire its existing `tag:autolab-vm` device first so its stable MagicDNS target is not suffixed or stale
 - [ ] After retirement or destruction, revoke/expire its short-lived enrollment key; Terraform does not automatically clean up Tailscale devices
 
-See [02 - Secure GitHub runner](./02-secure-runner.md) for the full runner model.
+- [ ] Add the `policy_file` (Write) scope to the CI-runner OAuth client so
+  workflow 06 can sync the policy — Read alone passes `test` and fails `apply`
+- [ ] Copy the working policy into `infra/tailscale/policy.hujson` and let
+  workflow 06 apply it
+- [ ] Only after a successful apply: admin console → Policy file management →
+  enable "Prevent edits in the admin console", with this repo as the External
+  reference
+
+See [02 - Secure GitHub runner](./02-secure-runner.md) for the full runner model
+and [tailnet policy GitOps](./tailnet-policy-gitops.md) for the sync.
 
 ## 3. Proxmox API token
 

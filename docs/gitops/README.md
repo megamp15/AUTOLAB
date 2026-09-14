@@ -35,6 +35,8 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
 - OpenTofu modules for VM and LXC resources (`proxmox-connection`, `machine-normalization`, `proxmox-compute`, `cloud-init`).
 - Terramate for stack management, code generation, and change detection.
 - GitHub Actions workflows: OpenTofu CI (validate), manual plan, apply, and destroy.
+- Tailnet policy GitOps: `infra/tailscale/policy.hujson` is the source of truth,
+  applied by workflow 06 with `sshTests` gating every pull request.
 - An ephemeral GitHub-hosted runner that joins Tailscale for each job.
 - A Cloudflare R2 state backend for OpenTofu.
 - GitHub Environments (`autolab-plan`, `autolab-apply`) with secrets and variables.
@@ -55,7 +57,8 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
 ## What phase 2C includes
 
 - Ansible baseline for Debian-family Builder VMs: updates, dedicated `gitops`
-  automation access, SSH hardening, and a default-deny firewall. Builder
+  automation access, named human operator accounts (`admin-users`, with
+  explicit offboarding), SSH hardening, and a default-deny firewall. Builder
   transport uses Tailscale SSH with the existing CI runner identity and
   manually configured tailnet grants/SSH policy.
 - Per-machine Builder policy emitted from the OpenTofu `machines` map to a
@@ -80,8 +83,9 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
 9. [Template experiment matrix](./template-lab-matrix.md)
 10. [Template lifecycle](./template-lifecycle.md)
 11. [Tailscale device lifecycle](./tailscale-device-lifecycle.md)
-12. [Server hardening baseline](./server-hardening-baseline.md)
-13. [Security sources](./security-sources.md)
+12. [Tailnet policy GitOps](./tailnet-policy-gitops.md)
+13. [Server hardening baseline](./server-hardening-baseline.md)
+14. [Security sources](./security-sources.md)
 
 ## Setup checklist
 

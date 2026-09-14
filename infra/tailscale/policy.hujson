@@ -95,9 +95,15 @@
         // so this users list is the only thing keeping root out. sudo -i covers it.
         //
         // megamp15 is the named operator account created by the admin-users
-        // Ansible role. autolab and gitops remain listed for now so access is
-        // not lost before harden.yml has created megamp15 on every Builder VM;
-        // drop them from this list once that has happened everywhere.
+        // Ansible role, and is the account to use for interactive work.
+        //
+        // autolab and gitops are deliberately KEPT here as a safety net, not
+        // left over by accident. autolab is the break-glass account and gitops
+        // is CI's; being able to reach both by hand is what makes a broken
+        // megamp15 recoverable without the Proxmox console.
+        //
+        // To narrow later: remove them from this list AND from the first
+        // sshTest's `check` list below, in the same change, or the test fails.
         {
             "action":      "check",
             "src":         ["autogroup:member"],
@@ -124,8 +130,11 @@
     // tag:autolab-vm at all while the admin console still reported SSH as
     // "already allowed". Deleting that rule now fails CI instead of production.
     "sshTests": [
-        // A human operator reaches Builder VMs as their named account, in
-        // check mode, and never as root.
+        // A human operator reaches Builder VMs in check mode as any of the
+        // three accounts, and never as root. All three are asserted because
+        // all three are intentionally permitted: megamp15 for normal work,
+        // autolab and gitops as the recovery path. If the ssh rule above is
+        // narrowed, narrow this list in the same change.
         {
             "src":    "megamp15@github",
             "dst":    ["tag:autolab-vm"],
