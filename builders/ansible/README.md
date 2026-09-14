@@ -54,6 +54,7 @@ builders/ansible/
   playbooks/
     harden.yml
     docker.yml
+    nfs.yml
     tailscale-update.yml
   roles/
     base-linux/
@@ -62,6 +63,7 @@ builders/ansible/
     tailscale-update/
     gitops-user/
     admin-users/
+    nfs-client/
     docker-host/
 ```
 
@@ -189,6 +191,61 @@ The `harden.yml` playbook is the common baseline every managed server receives:
 - Tailscale/private management firewall access
 - Tailscale SSH transport (cloud-init installs/enables it after enrollment;
   tailnet policy grants CI access)
+
+## NAS storage (`nfs.yml`)
+
+Opt-in. Mounts NFS shares from a NAS onto Builder hosts — client only; Autolab
+consumes shares, it does not export them.
+
+Declare mounts in `playbooks/nfs.yml`, or in `host_vars` when hosts need
+different shares:
+
+```yaml
+autolab_nfs_mounts:
+  - server: singularity         # MagicDNS name, not a LAN IP
+    export: /volume1/qnta
+    path: /mnt/qnta
+    directories:                # created after mounting, so they land on the NAS
+      - backups
+      - postgres
+```
+
+`singularity` is the Ugreen NAS. Name the mount point after the share, not the
+device — `/mnt/qnta`, not `/mnt/<nas-name>-qnta`. Hardware gets replaced and a
+device-named mount point outlives the device: QNTA360 still mounts at
+`/mnt/zima-qnta` from a ZimaBoard that no longer serves it.
+
+Use the **Tailscale MagicDNS name**, not a LAN IP. The address then follows the
+device rather than the subnet, and the traffic stays on the tailnet like every
+other Autolab path — no firewall change needed, since the baseline already
+allows everything on `tailscale0`.
+
+The role validates each entry before touching `/etc/fstab` (absolute paths, a
+non-empty server, a legal state), mounts and persists in one idempotent
+operation, and then verifies the mount is actually **writable** — a share can
+mount cleanly and still be read-only or squash your UID, which otherwise only
+surfaces when a workload fails later.
+
+Default options are `hard,_netdev,noatime,nosuid,nodev` plus sizing. `nosuid`
+and `nodev` mean a setuid binary or device node on the NAS cannot be used to
+escalate on the host. `intr` is deliberately absent: it has been a no-op since
+Linux 2.6.25, and carrying it implies an interruptibility guarantee that does
+not exist.
+
+> **Before applying, check the NAS is online.** A `hard` mount to an
+> unreachable server blocks rather than failing, so applying while the NAS is
+> down can hang the run, and the `fstab` entry it leaves can stall the next
+> boot. Run with `confirm: check` first.
+>
+> For a NAS that is routinely offline, add
+> `x-systemd.automount,x-systemd.idle-timeout=600,x-systemd.mount-timeout=30`
+> to that mount's `options` — it then mounts on first access and times out
+> instead of blocking. Do not use `soft`, which fails I/O mid-write and risks
+> silent corruption.
+
+To unmount and drop the fstab entry, set `state: absent` on the entry rather
+than deleting it — same reasoning as operator offboarding: removing a
+declaration stops managing it, it does not undo it.
 
 `docker.yml` remains an opt-in playbook. `tailscale-update.yml` is security
 maintenance: it upgrades Tailscale to the current stable release via the

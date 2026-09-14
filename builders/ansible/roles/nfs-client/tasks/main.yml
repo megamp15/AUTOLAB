@@ -1,0 +1,117 @@
+---
+# Mount NFS shares from a NAS onto Builder hosts.
+#
+# Client only: Autolab consumes shares exported by an appliance, it does not
+# serve them. The server is managed by whatever runs the NAS.
+
+- name: Require a Debian-family Builder target
+  ansible.builtin.assert:
+    that: ansible_os_family == "Debian"
+    fail_msg: "Autolab Builder currently supports Debian-family hosts only."
+
+# Fail on a malformed entry before touching fstab. A mount with a missing path
+# would otherwise surface as a confusing module error, or worse, a mount in the
+# wrong place that persists across reboots.
+- name: Validate declared NFS mounts
+  ansible.builtin.assert:
+    that:
+      - item.server is defined and item.server | length > 0
+      - item.export is defined and item.export.startswith('/')
+      - item.path is defined and item.path.startswith('/')
+      - item.state | default('mounted') in ['mounted', 'absent']
+    fail_msg: >-
+      Invalid NFS mount entry {{ item }}. Each mount needs a non-empty `server`,
+      an absolute `export`, an absolute `path`, and state mounted or absent.
+  loop: "{{ autolab_nfs_mounts }}"
+  loop_control:
+    label: "{{ item.path | default('<no path>') }}"
+
+- name: Install NFS client packages
+  ansible.builtin.apt:
+    name: nfs-common
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: autolab_nfs_mounts | length > 0
+
+- name: Create NFS mount points
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ autolab_nfs_mounts }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: item.state | default('mounted') != 'absent'
+
+# A `hard` mount to an unreachable server blocks rather than failing, which
+# hangs the run and leaves an fstab entry that can stall the next boot. Probe
+# the NFS port first so an offline NAS is a fast, readable failure instead.
+# This is the guardrail for the hazard documented in defaults/main.yml.
+- name: Verify each NFS server is reachable before mounting
+  ansible.builtin.wait_for:
+    host: "{{ item.server }}"
+    port: 2049
+    timeout: "{{ autolab_nfs_reachability_timeout }}"
+    msg: >-
+      {{ item.server }} is not answering on NFS port 2049 within
+      {{ autolab_nfs_reachability_timeout }}s. Refusing to mount: a hard mount
+      to an unreachable server would block this run and leave an fstab entry
+      that stalls the next boot. Check the NAS is up and reachable from this
+      host, then re-run.
+  loop: "{{ autolab_nfs_mounts }}"
+  loop_control:
+    label: "{{ item.server }}"
+  when: item.state | default('mounted') != 'absent'
+
+# Manages /etc/fstab and the live mount together, so a reboot reproduces what
+# this run created.
+- name: Mount NFS shares and persist them in fstab
+  ansible.posix.mount:
+    src: "{{ item.server }}:{{ item.export }}"
+    path: "{{ item.path }}"
+    fstype: nfs
+    opts: "{{ item.options | default(autolab_nfs_mount_options) }}"
+    state: "{{ item.state | default('mounted') }}"
+  loop: "{{ autolab_nfs_mounts }}"
+  loop_control:
+    label: "{{ item.server }}:{{ item.export }} -> {{ item.path }}"
+
+# A share can mount cleanly and still be unusable — exported read-only, or
+# squashing this host's UID to one without write access. Catch that here rather
+# than when a workload fails at 3am.
+- name: Verify each mount is writable
+  ansible.builtin.tempfile:
+    path: "{{ item.path }}"
+    state: file
+    prefix: .autolab-write-check-
+  loop: "{{ autolab_nfs_mounts }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when:
+    - autolab_nfs_verify_writable | bool
+    - item.state | default('mounted') != 'absent'
+    - not ansible_check_mode
+  register: autolab_nfs_write_check
+  changed_when: false
+
+- name: Remove the write-check files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ autolab_nfs_write_check.results | default([]) | selectattr('path', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.path }}"
+  changed_when: false
+
+# Created after the mount, so they land on the NAS rather than on the local
+# disk underneath an unmounted mount point.
+- name: Ensure declared directories exist on the share
+  ansible.builtin.file:
+    path: "{{ item.0.path }}/{{ item.1 }}"
+    state: directory
+    mode: "{{ item.0.mode | default('0755') }}"
+  loop: "{{ autolab_nfs_mounts | subelements('directories', skip_missing=True) }}"
+  loop_control:
+    label: "{{ item.0.path }}/{{ item.1 }}"
+  when: item.0.state | default('mounted') != 'absent'
