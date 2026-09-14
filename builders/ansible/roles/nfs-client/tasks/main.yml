@@ -34,6 +34,19 @@
     cache_valid_time: 3600
   when: autolab_nfs_mounts | length > 0
 
+# Which paths already have something mounted on them. Needed by the next task:
+# once a share is mounted, the mount point is no longer a local directory, and
+# managing its mode would reach through and change permissions on the NAS.
+- name: List currently mounted paths
+  ansible.builtin.command: findmnt --raw --noheadings --output TARGET
+  changed_when: false
+  failed_when: false
+  register: autolab_nfs_mounted_paths
+
+# Only for paths that are not yet mount points. A mount point's own permissions
+# are invisible once something is mounted over it, so re-applying a mode here
+# would silently chmod the share root on the server instead — which is not this
+# role's to change, and on a shared NAS could widen access for every client.
 - name: Create NFS mount points
   ansible.builtin.file:
     path: "{{ item.path }}"
@@ -42,7 +55,9 @@
   loop: "{{ autolab_nfs_mounts }}"
   loop_control:
     label: "{{ item.path }}"
-  when: item.state | default('mounted') != 'absent'
+  when:
+    - item.state | default('mounted') != 'absent'
+    - item.path not in (autolab_nfs_mounted_paths.stdout_lines | default([]))
 
 # A `hard` mount to an unreachable server blocks rather than failing, which
 # hangs the run and leaves an fstab entry that can stall the next boot. Probe
@@ -111,7 +126,41 @@
     path: "{{ item.0.path }}/{{ item.1 }}"
     state: directory
     mode: "{{ item.0.mode | default('0755') }}"
+    owner: "{{ item.0.owner | default(omit) }}"
+    group: "{{ item.0.group | default(omit) }}"
   loop: "{{ autolab_nfs_mounts | subelements('directories', skip_missing=True) }}"
   loop_control:
     label: "{{ item.0.path }}/{{ item.1 }}"
   when: item.0.state | default('mounted') != 'absent'
+
+# Ansible runs as root, and root bypasses permission checks — so the writable
+# check above passes even when the share is unusable by everyone else. Warn
+# when the mount root denies traversal to non-root users, since that is only
+# fixable on the NAS: no ownership applied here can help when the parent
+# directory itself cannot be entered.
+- name: Check whether the share root allows non-root traversal
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop: "{{ autolab_nfs_mounts }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: item.state | default('mounted') != 'absent'
+  register: autolab_nfs_root_stat
+  changed_when: false
+
+- name: Warn when the share root is not traversable by non-root users
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.item.path }} is mode {{ item.stat.mode }} owned by
+      uid {{ item.stat.uid }}. Non-root users cannot enter it, so only root can
+      use this share. Directory traversal needs execute permission on every
+      parent, which no setting in this role can grant — fix the export's
+      permissions on the NAS if unprivileged access is required.
+  loop: "{{ autolab_nfs_root_stat.results | default([]) | selectattr('stat', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+  # The last octal digit is the "other" permission set; its low bit is execute,
+  # which is what grants directory traversal. Even means no execute for other.
+  when:
+    - item.stat.exists | default(false)
+    - (item.stat.mode | default('0755'))[-1] | int % 2 == 0
