@@ -13,9 +13,10 @@
     # Empty by default — a host mounts nothing until a share is declared. Put
     # per-host differences in host_vars rather than branching here.
     autolab_nfs_mounts: []
-    # Example:
+    # Example — `singularity` is the Ugreen NAS, reached by MagicDNS name so
+    # the address follows the device rather than the subnet:
     # autolab_nfs_mounts:
-    #   - server: zimaboard2
+    #   - server: singularity
     #     export: /volume1/qnta
     #     path: /mnt/qnta
     #     directories:

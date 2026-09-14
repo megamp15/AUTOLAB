@@ -202,13 +202,18 @@ different shares:
 
 ```yaml
 autolab_nfs_mounts:
-  - server: zimaboard2          # MagicDNS name, not a LAN IP
+  - server: singularity         # MagicDNS name, not a LAN IP
     export: /volume1/qnta
     path: /mnt/qnta
     directories:                # created after mounting, so they land on the NAS
       - backups
       - postgres
 ```
+
+`singularity` is the Ugreen NAS. Name the mount point after the share, not the
+device — `/mnt/qnta`, not `/mnt/<nas-name>-qnta`. Hardware gets replaced and a
+device-named mount point outlives the device: QNTA360 still mounts at
+`/mnt/zima-qnta` from a ZimaBoard that no longer serves it.
 
 Use the **Tailscale MagicDNS name**, not a LAN IP. The address then follows the
 device rather than the subnet, and the traffic stays on the tailnet like every
