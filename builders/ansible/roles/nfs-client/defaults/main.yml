@@ -1,0 +1,56 @@
+---
+# NFS shares to mount on this host.
+#
+# Empty by default so the role is inert unless a site declares mounts. Declare
+# them in playbooks/nfs.yml, or per-host via host_vars when hosts need
+# different shares.
+#
+# Each entry:
+#   server      (required) NFS server. Prefer a Tailscale MagicDNS name over a
+#               LAN IP: the address then follows the device rather than the
+#               subnet, and the traffic stays on the tailnet like every other
+#               Autolab path.
+#   export      (required) export path on the server, e.g. /volume1/qnta
+#   path        (required) local mount point, e.g. /mnt/qnta
+#   options     (optional) mount options; defaults to autolab_nfs_mount_options
+#   state       (optional) mounted (default) or absent, to unmount and drop the
+#               fstab entry
+#   directories (optional) paths to ensure beneath `path` once mounted, as
+#               plain strings relative to the mount point
+#   mode        (optional) mode for those directories, default 0755
+autolab_nfs_mounts: []
+
+# Defaults applied to any mount that does not override `options`.
+#
+#   hard      — retry indefinitely rather than failing I/O on a blip. The right
+#               choice for data mounts; soft risks silent corruption.
+#   _netdev   — wait for the network at boot, so the mount does not fail before
+#               the tailnet is up.
+#   nosuid    — a setuid binary on the NAS cannot escalate on this host.
+#   nodev     — device nodes on the share are not honoured.
+#   noatime   — no write per read.
+#
+# Deliberately NOT included: `intr`. It has been a no-op since Linux 2.6.25 and
+# is silently ignored; carrying it implies an interruptibility guarantee that
+# does not exist.
+#
+# HAZARD — a `hard` mount whose server is unreachable blocks rather than fails.
+# Applying a mount while the NAS is offline can hang the Ansible task, and the
+# fstab entry it leaves behind can stall the next boot waiting for a server
+# that is not coming back. Confirm the NAS is up before applying, and prefer
+# `--check` first.
+#
+# For a NAS that is routinely offline (a homelab box that sleeps, say), add
+# systemd automount to a mount's `options` instead of changing `hard`:
+#
+#     x-systemd.automount,x-systemd.idle-timeout=600,x-systemd.mount-timeout=30
+#
+# The share is then mounted on first access rather than at boot, and a missing
+# server times out instead of blocking. Do NOT reach for `soft` — it fails I/O
+# mid-write and risks silent corruption, which is worse than blocking.
+autolab_nfs_mount_options: "hard,_netdev,noatime,nosuid,nodev,rsize=131072,wsize=131072,timeo=600,retrans=5"
+
+# Verify each mount is actually writable after mounting. A share can mount
+# cleanly and still be read-only or have the wrong ownership, which otherwise
+# only surfaces when a workload fails at runtime.
+autolab_nfs_verify_writable: true

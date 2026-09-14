@@ -1,0 +1,27 @@
+---
+- name: Mount NAS storage on Builder machines
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+
+  vars:
+    # Shares to mount. Declared here so the layout is committed and reviewable.
+    # Use a Tailscale MagicDNS name rather than a LAN IP: the address follows
+    # the device instead of the subnet, and the traffic stays on the tailnet
+    # like every other Autolab path.
+    #
+    # Empty by default — a host mounts nothing until a share is declared. Put
+    # per-host differences in host_vars rather than branching here.
+    autolab_nfs_mounts: []
+    # Example:
+    # autolab_nfs_mounts:
+    #   - server: zimaboard2
+    #     export: /volume1/qnta
+    #     path: /mnt/qnta
+    #     directories:
+    #       - backups
+    #       - postgres
+
+  roles:
+    - role: nfs-client
+      tags: [nfs, storage]
