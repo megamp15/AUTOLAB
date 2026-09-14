@@ -10,18 +10,32 @@
     # the device instead of the subnet, and the traffic stays on the tailnet
     # like every other Autolab path.
     #
-    # Empty by default — a host mounts nothing until a share is declared. Put
-    # per-host differences in host_vars rather than branching here.
-    autolab_nfs_mounts: []
-    # Example — `singularity` is the Ugreen NAS, reached by MagicDNS name so
-    # the address follows the device rather than the subnet:
-    # autolab_nfs_mounts:
-    #   - server: singularity
-    #     export: /volume1/qnta
-    #     path: /mnt/qnta
-    #     directories:
-    #       - backups
-    #       - postgres
+    # `singularity` is the Ugreen NAS. Over the tailnet the NAS sees each VM's
+    # own address, so its export can be scoped per host — on the LAN path the
+    # Proxmox NAT collapses every VM into one source IP and that distinction is
+    # lost.
+    #
+    # /volume1/autolab is deliberately separate from QNTA360's /volume1/qnta:
+    # lab machines are disposable and must not be able to write into another
+    # project's data.
+    #
+    # The mount point is named after the share, not the device. Hardware gets
+    # replaced and a device-named mount point outlives it.
+    autolab_nfs_mounts:
+      # owner: the export uses "No mapping" (no root squash), so UIDs pass
+      # through untouched and the NAS records whatever number the client sends.
+      # Without an owner the directory stays root-owned and only root can
+      # write. Set by name, resolved on the client — which means a second host
+      # whose megamp15 has a different UID would write files this one cannot
+      # read. Keep the UID consistent across Builder hosts, or move to NFSv4
+      # with idmapping when the NAS supports it.
+      - server: singularity
+        export: /volume1/autolab
+        path: /mnt/autolab
+        owner: megamp15
+        group: megamp15
+        directories:
+          - lab-01
 
   roles:
     - role: nfs-client

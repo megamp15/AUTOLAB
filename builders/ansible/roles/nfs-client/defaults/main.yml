@@ -18,6 +18,15 @@
 #   directories (optional) paths to ensure beneath `path` once mounted, as
 #               plain strings relative to the mount point
 #   mode        (optional) mode for those directories, default 0755
+#   owner/group (optional) ownership for those directories. NFSv3 with sec=sys
+#               matches on numeric UID/GID, so these must correspond to the
+#               same numbers on the NAS, not merely the same names.
+#
+# Note on versions: this role does not pin an NFS version, so the client and
+# server negotiate. Against the current NAS that settles on v3 — v4.2 was
+# tested and the server rejects the export with "No such file or directory",
+# because advertising v4 is not the same as configuring an export for it. Do
+# not add `nfsvers=4` without testing the mount first.
 autolab_nfs_mounts: []
 
 # Defaults applied to any mount that does not override `options`.

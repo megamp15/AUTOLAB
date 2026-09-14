@@ -176,7 +176,8 @@ account. Removing the entry too early makes the deletion silently skip that
 host.
 
 See [01 - Tailscale SSH](../../docs/gitops/01-tailscale-ssh.md) for the policy
-side.
+side, and [NAS storage](../../docs/gitops/nas-storage.md) for the storage
+layer, including the failure modes that look like something else.
 
 ## Baseline contract
 

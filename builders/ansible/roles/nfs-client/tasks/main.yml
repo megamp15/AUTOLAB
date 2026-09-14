@@ -34,6 +34,19 @@
     cache_valid_time: 3600
   when: autolab_nfs_mounts | length > 0
 
+# Which paths already have something mounted on them. Needed by the next task:
+# once a share is mounted, the mount point is no longer a local directory, and
+# managing its mode would reach through and change permissions on the NAS.
+- name: List currently mounted paths
+  ansible.builtin.command: findmnt --raw --noheadings --output TARGET
+  changed_when: false
+  failed_when: false
+  register: autolab_nfs_mounted_paths
+
+# Only for paths that are not yet mount points. A mount point's own permissions
+# are invisible once something is mounted over it, so re-applying a mode here
+# would silently chmod the share root on the server instead — which is not this
+# role's to change, and on a shared NAS could widen access for every client.
 - name: Create NFS mount points
   ansible.builtin.file:
     path: "{{ item.path }}"
@@ -42,7 +55,9 @@
   loop: "{{ autolab_nfs_mounts }}"
   loop_control:
     label: "{{ item.path }}"
-  when: item.state | default('mounted') != 'absent'
+  when:
+    - item.state | default('mounted') != 'absent'
+    - item.path not in (autolab_nfs_mounted_paths.stdout_lines | default([]))
 
 # A `hard` mount to an unreachable server blocks rather than failing, which
 # hangs the run and leaves an fstab entry that can stall the next boot. Probe
@@ -80,9 +95,27 @@
 # A share can mount cleanly and still be unusable — exported read-only, or
 # squashing this host's UID to one without write access. Catch that here rather
 # than when a workload fails at 3am.
+# Created after the mount, so they land on the NAS rather than on the local
+# disk underneath an unmounted mount point.
+- name: Ensure declared directories exist on the share
+  ansible.builtin.file:
+    path: "{{ item.0.path }}/{{ item.1 }}"
+    state: directory
+    mode: "{{ item.0.mode | default('0755') }}"
+    owner: "{{ item.0.owner | default(omit) }}"
+    group: "{{ item.0.group | default(omit) }}"
+  loop: "{{ autolab_nfs_mounts | subelements('directories', skip_missing=True) }}"
+  loop_control:
+    label: "{{ item.0.path }}/{{ item.1 }}"
+  when: item.0.state | default('mounted') != 'absent'
+
+# Probe inside a declared directory rather than the share root. Writing to the
+# share root is both unnecessary — nothing writes there — and disruptive: on a
+# NAS that synthesises POSIX modes from ACLs, modifying that directory changes
+# the mode reported back over NFS.
 - name: Verify each mount is writable
   ansible.builtin.tempfile:
-    path: "{{ item.path }}"
+    path: "{{ item.path }}/{{ (item.directories | default([]))[0] | default('') }}"
     state: file
     prefix: .autolab-write-check-
   loop: "{{ autolab_nfs_mounts }}"
@@ -103,15 +136,3 @@
   loop_control:
     label: "{{ item.path }}"
   changed_when: false
-
-# Created after the mount, so they land on the NAS rather than on the local
-# disk underneath an unmounted mount point.
-- name: Ensure declared directories exist on the share
-  ansible.builtin.file:
-    path: "{{ item.0.path }}/{{ item.1 }}"
-    state: directory
-    mode: "{{ item.0.mode | default('0755') }}"
-  loop: "{{ autolab_nfs_mounts | subelements('directories', skip_missing=True) }}"
-  loop_control:
-    label: "{{ item.0.path }}/{{ item.1 }}"
-  when: item.0.state | default('mounted') != 'absent'
