@@ -82,7 +82,16 @@ jobs:
       - name: Install Ansible and its collections
         working-directory: builders/ansible
         run: |
-          python -m pip install 'ansible-core>=2.18,<2.19'
+          # Pinned to match 97_ansible-ci.yml — lint and runtime must agree, or a
+          # version-specific break passes lint and fails on a real host.
+          #
+          # 2.18 is not usable here: its apt module emits a DeprecationWarning
+          # under Python 3.13 (Debian 13's default) which contaminates the
+          # module response, so Ansible misreports a successful upgrade as
+          # UNREACHABLE. `state: present` misses the affected code path, so
+          # harden.yml passed while tailscale-update.yml failed after doing its
+          # work — a red run for a job that succeeded.
+          python -m pip install 'ansible-core>=2.21,<2.22'
           ansible-galaxy collection install -r requirements.yml
 
       - name: Render Builder inventory
