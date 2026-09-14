@@ -20,11 +20,18 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 | **Packer Build** | `PROXMOX_HOST`, `PROXMOX_LAN_IP`, `PROXMOX_PACKER_NETWORK_BRIDGE`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `PVE_SSH_PRIVATE_KEY` |
 | **OpenTofu Plan** | `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS` | `PROXMOX_API_TOKEN`, `PVE_SSH_PRIVATE_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
 | **OpenTofu Apply/Destroy** | same as Plan | same as Plan |
-| **Ansible Builder** | `TAILSCALE_OIDC_AUDIENCE` | `TAILSCALE_OAUTH_CLIENT_ID`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
+| **Ansible Builder** | — | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
+| **Tailscale Policy** | — | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET` |
 
 Every workflow that reaches the tailnet also passes `TAILSCALE_OAUTH_CLIENT_ID`
 and `TAILSCALE_OAUTH_SECRET` to the `connect-tailscale` action; the table above
 lists only what each workflow reads *beyond* that runner connection.
+
+CI authenticates to Tailscale with a **classic OAuth client ID and secret**.
+`connect-tailscale` and `setup-opentofu-pipeline` both accept an OIDC audience
+input, but no workflow passes one and no `TAILSCALE_OIDC_AUDIENCE` variable is
+set, so the OIDC/WIF path is wired but unused. Earlier revisions of these docs
+claimed Builder used OIDC/WIF with no stored secret; that was never true.
 
 `PROXMOX_HOST` is used for the Proxmox API endpoint and the Packer SSH bastion;
 the API endpoint is derived internally with the optional `PROXMOX_PORT`.
@@ -49,7 +56,6 @@ Set at **Settings → Secrets and variables → Actions → Variables**.
 | `PROXMOX_NODE_NAME` | `<proxmox-host>` | Packer, OpenTofu | Proxmox UI left sidebar (not always `pve`). |
 | `PROXMOX_INSECURE_TLS` | `true` | Packer, OpenTofu | Keep `true` for Proxmox default self-signed cert. |
 | `SSH_PUBLIC_KEYS` | `ssh-ed25519 AAAA...` | Packer Build | `cat ~/.ssh/id_ed25519.pub` on your laptop. |
-| `TAILSCALE_OIDC_AUDIENCE` | `https://tailscale.com/...` | Ansible Builder | Non-secret GitHub OIDC/WIF audience for the existing Tailscale client ID. |
 
 ## Secrets
 
@@ -59,8 +65,8 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | Secret | Example | Used by | Where to get it |
 |--------|---------|---------|-----------------|
 | `PROXMOX_API_TOKEN` | `gitops@pve!opentofu=SECRET` | Packer, OpenTofu | Proxmox → Permissions → API Tokens. Shown once. |
-| `TAILSCALE_OAUTH_CLIENT_ID` | `tskey-client-...` | Packer, OpenTofu, Ansible Builder | CI-runner client ID, used with GitHub OIDC/WIF to bring the runner onto the tailnet as `tag:ci-runner`. |
-| `TAILSCALE_OAUTH_SECRET` | *(usually empty)* | Packer, OpenTofu, Ansible Builder | Passed to `connect-tailscale` by all six workflows, but **leave it unset when using the OIDC/WIF path** — the action then authenticates with `TAILSCALE_OIDC_AUDIENCE` instead. Set it only if you fall back to a classic OAuth client secret. Distinct from `TAILSCALE_VM_OAUTH_SECRET`. |
+| `TAILSCALE_OAUTH_CLIENT_ID` | `tskey-client-...` | Packer, OpenTofu, Ansible Builder, Tailscale Policy | CI-runner OAuth client ID. Paired with `TAILSCALE_OAUTH_SECRET` — **not** OIDC/WIF. Scopes: `auth_keys` owning `tag:ci-runner` (runner joins the tailnet) **and** `policy_file` (workflow 06 syncs the policy). |
+| `TAILSCALE_OAUTH_SECRET` | `tskey-client-secret-...` | Packer, OpenTofu, Ansible Builder, Tailscale Policy | Secret for the CI-runner client. **Required** — it is how the runner authenticates; every tailnet-touching workflow passes it. Distinct from `TAILSCALE_VM_OAUTH_SECRET`. |
 | `TAILSCALE_VM_OAUTH_CLIENT_ID` | `tskey-client-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client ID; exported as `TAILSCALE_OAUTH_CLIENT_ID` into tofu steps and consumed by the destroy-time device cleanup script. |
 | `TAILSCALE_VM_OAUTH_SECRET` | `tskey-client-secret-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client secret; the OAuth client needs **both** `auth_keys` (Write, with `tag:autolab-vm` selected) for key minting and `devices:core` (Write) for destroy-time cleanup (see `docs/gitops/tailscale-device-lifecycle.md`). Not used by Builder. |
 | `PACKER_SSH_PASSWORD` | generated password | Packer Build | Temporary build-only password. Not your SSH key. |
@@ -113,17 +119,16 @@ read repository secrets.
 - [ ] `PROXMOX_INSECURE_TLS` = `true`
 - [ ] `PROXMOX_PACKER_NETWORK_BRIDGE`
 - [ ] `SSH_PUBLIC_KEYS`
-- [ ] `TAILSCALE_OIDC_AUDIENCE` (non-secret)
 
 **Secrets**
 
 - [ ] `PROXMOX_API_TOKEN`
 - [ ] `PACKER_SSH_PASSWORD` (Packer)
 - [ ] `PVE_SSH_PRIVATE_KEY` (Packer)
-- [ ] `TAILSCALE_OAUTH_CLIENT_ID` with GitHub OIDC/WIF trust binding for `tag:ci-runner`
-- [ ] `TAILSCALE_OAUTH_SECRET` — leave unset on the OIDC/WIF path; workflows
-      reference it but the action falls back to `TAILSCALE_OIDC_AUDIENCE`
+- [ ] `TAILSCALE_OAUTH_CLIENT_ID` + `TAILSCALE_OAUTH_SECRET` — OAuth client scoped `auth_keys` (owning `tag:ci-runner`) **and** `policy_file`
+- [ ] `TAILSCALE_OAUTH_SECRET` — required; how the runner authenticates
 - [ ] `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` (OpenTofu only)
+- [ ] Add the `policy_file` scope to the existing `TAILSCALE_OAUTH_CLIENT_ID` credential — no new secret; see [tailnet policy GitOps](./tailnet-policy-gitops.md)
 - [ ] `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
 - [ ] Ansible Builder temporarily reuses `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` for canary validation
 
@@ -141,3 +146,4 @@ read repository secrets.
 - [Setup checklist](./setup-checklist.md)
 - [03 - Proxmox API token](./03-proxmox-api-token.md)
 - [06 - GitHub Environments](./06-github-environments.md)
+- [Tailnet policy GitOps](./tailnet-policy-gitops.md)

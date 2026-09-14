@@ -1,0 +1,143 @@
+// Autolab tailnet policy file.
+//
+// THIS FILE IS THE SOURCE OF TRUTH for the tailnet policy. It is applied by
+// .github/workflows/06_tailscale-policy.yml on every push to main. Edits made
+// in the Tailscale admin console are overwritten by the next sync — change the
+// policy here, in a PR, where the diff is reviewable and `sshTests` gate it.
+//
+// HuJSON: comments and trailing commas are valid.
+{
+    // Declare static groups of users. Use autogroups for all users or users with a specific role.
+    // "groups": {
+    //   "group:example": ["alice@example.com", "bob@example.com"],
+    // },
+
+    // Define the tags which can be applied to devices and by which users.
+    "tagOwners": {
+        "tag:cicd":      ["autogroup:admin"],
+        "tag:ci":        ["autogroup:admin"],
+        "tag:ci-runner": ["megamp15@github"],
+
+        // Zima Tailscale
+        "tag:zima": ["autogroup:admin"],
+
+        "tag:autolab-vm": ["autogroup:admin"],
+    },
+
+    // Define access control lists for users, groups, autogroups, tags,
+    // Tailscale IP addresses, and subnet ranges.
+    "acls": [
+        // Allow all connections.
+        // Comment this section out if you want to define specific restrictions.
+        //
+        // NOTE: this governs network reachability ONLY. Tailscale SSH is
+        // authorised solely by the "ssh" block below — an allow-all here grants
+        // no SSH access whatsoever.
+        {
+            "action": "accept",
+            "src":    ["*"],
+            "dst":    ["*:*"],
+        },
+
+        // Allow users in "group:example" to access "tag:example", but only from
+        // devices that are running macOS and have enabled Tailscale client auto-updating.
+        // {"action": "accept", "src": ["group:example"], "dst": ["tag:example:*"], "srcPosture":["posture:autoUpdateMac"]},
+    ],
+
+    // Define postures that will be applied to all rules without any specific
+    // srcPosture definition.
+    // "defaultSrcPosture": [
+    //      "posture:anyMac",
+    // ],
+
+    // Define device posture rules requiring devices to meet
+    // certain criteria to access parts of your system.
+    // "postures": {
+    //      // Require devices running macOS, a stable Tailscale
+    //      // version and auto update enabled for Tailscale.
+    //  "posture:autoUpdateMac": [
+    //      "node:os == 'macos'",
+    //      "node:tsReleaseTrack == 'stable'",
+    //      "node:tsAutoUpdate",
+    //  ],
+    //      // Require devices running macOS and a stable
+    //      // Tailscale version.
+    //  "posture:anyMac": [
+    //      "node:os == 'macos'",
+    //      "node:tsReleaseTrack == 'stable'",
+    //  ],
+    // },
+
+    // Define users and devices that can use Tailscale SSH.
+    "ssh": [
+        // Allow all users to SSH into their own devices in check mode.
+        // Comment this section out if you want to define specific restrictions.
+        // NOTE: does NOT cover tag:autolab-vm — tagged devices have no owner,
+        // so autogroup:self never matches them.
+        {
+            "action": "check",
+            "src":    ["autogroup:member"],
+            "dst":    ["autogroup:self"],
+            "users":  ["autogroup:nonroot", "root"],
+        },
+        // Allow CI runners to SSH into Autolab Builder VMs.
+        // accept, not check: CI cannot satisfy an interactive browser re-auth.
+        // autolab bootstraps the host, gitops runs everything after; never root.
+        {
+            "action": "accept",
+            "src":    ["tag:ci-runner"],
+            "dst":    ["tag:autolab-vm"],
+            "users":  ["autolab", "gitops"],
+        },
+        // Allow all members to SSH into Autolab Builder VMs for ad-hoc access.
+        // check mode forces an IdP re-auth every 12h as a second factor.
+        // Never root: sshd's PermitRootLogin does not apply to Tailscale SSH,
+        // so this users list is the only thing keeping root out. sudo -i covers it.
+        //
+        // megamp15 is the named operator account created by the admin-users
+        // Ansible role. autolab and gitops remain listed for now so access is
+        // not lost before harden.yml has created megamp15 on every Builder VM;
+        // drop them from this list once that has happened everywhere.
+        {
+            "action":      "check",
+            "src":         ["autogroup:member"],
+            "dst":         ["tag:autolab-vm"],
+            "users":       ["megamp15", "autolab", "gitops"],
+            "checkPeriod": "12h",
+        },
+    ],
+
+    "nodeAttrs": [
+        {
+            // Funnel policy, which lets tailnet members control Funnel
+            // for their own devices.
+            // Learn more at https://tailscale.com/kb/1223/tailscale-funnel/
+            "target": ["autogroup:member"],
+
+            "attr": ["funnel"],
+        },
+    ],
+
+    // SSH access tests. These run on every PR and block a merge that would
+    // break access, and they encode the exact outage this policy has already
+    // suffered: the human-access rule was missing, so operators could not reach
+    // tag:autolab-vm at all while the admin console still reported SSH as
+    // "already allowed". Deleting that rule now fails CI instead of production.
+    "sshTests": [
+        // A human operator reaches Builder VMs as their named account, in
+        // check mode, and never as root.
+        {
+            "src":    "megamp15@github",
+            "dst":    ["tag:autolab-vm"],
+            "check":  ["megamp15", "autolab", "gitops"],
+            "deny":   ["root"],
+        },
+        // CI reaches Builder VMs without an interactive check, and never as root.
+        {
+            "src":    "tag:ci-runner",
+            "dst":    ["tag:autolab-vm"],
+            "accept": ["autolab", "gitops"],
+            "deny":   ["root"],
+        },
+    ],
+}

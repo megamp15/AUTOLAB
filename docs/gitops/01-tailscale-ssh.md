@@ -127,9 +127,13 @@ away, with the escalation attributed to a named user in the sudo log instead of
 an anonymous root login.
 
 The `tagOwners` entry and tag assignment authority must be owned by the
-tailnet administrator, not by a VM or CI job. Keep this policy in the
-Tailscale admin console first; version it later only through an approved
-tailnet-policy workflow.
+tailnet administrator, not by a VM or CI job.
+
+This policy is now versioned: `infra/tailscale/policy.hujson` is the source of
+truth, applied by workflow **06 - Tailscale Policy**, with `sshTests` gating
+every PR. Edit it there, not in the admin console — console edits are
+overwritten by the next apply. See
+[tailnet policy GitOps](./tailnet-policy-gitops.md).
 
 The VM enrollment credential is a short-lived, reusable-per-VM key managed by
 OpenTofu and stored in remote state so subsequent reconciliation can reuse it.
