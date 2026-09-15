@@ -48,6 +48,22 @@ d-i clock/timezone                       string UTC
 d-i clock/setup-ntp                      boolean true
 
 # --- Partitioning ---
+#
+# A single root partition filling the disk, and deliberately no swap partition.
+#
+# The stock `atomic` recipe lays down root, an extended partition and swap — in
+# that order. growpart can only extend a partition with free space immediately
+# after it, so swap sitting behind root makes root permanently unresizable.
+# Raising disk_size_gb then grows the virtual disk while the guest filesystem
+# stays exactly as large as the day it was built, and cloud-init reports
+# "Resized root filesystem" while doing nothing useful, because resize2fs did
+# grow the filesystem to fill its (unchanged) partition.
+#
+# With root last, cloud-init's growpart extends the partition and resize2fs
+# follows, so disk_size_gb in machines.auto.tfvars means what it says.
+#
+# Swap, if a machine needs it, belongs in a swapfile: resizable, movable, and
+# not an obstacle to the partition it sits behind.
 d-i partman-auto/method                  string regular
 d-i partman-lvm/device_remove_lvm        boolean true
 d-i partman-md/device_remove_md          boolean true
@@ -55,7 +71,20 @@ d-i partman-partitioning/confirm_write_new_label boolean true
 d-i partman/choose_partition             select finish
 d-i partman/confirm_nooverwrite          boolean true
 d-i partman/confirm                      boolean true
-d-i partman-auto/choose_recipe           select atomic
+
+d-i partman-auto/expert_recipe           string                       \
+      autolab-root ::                                                 \
+              2048 2048 -1 ext4                                       \
+                      $primary{ } $bootable{ }                        \
+                      method{ format } format{ }                      \
+                      use_filesystem{ } filesystem{ ext4 }            \
+                      mountpoint{ / }                                 \
+              .
+d-i partman-auto/choose_recipe           select autolab-root
+
+# Building without swap is intentional, not an oversight the installer should
+# stop to ask about.
+d-i partman-basicfilesystems/no_swap     boolean false
 
 # --- Base system ---
 d-i base-installer/kernel/image          string linux-image-amd64
