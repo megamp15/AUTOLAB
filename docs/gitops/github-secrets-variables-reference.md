@@ -23,6 +23,11 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 | **Ansible Builder** | — | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
 | **Tailscale Policy** | — | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET` |
 
+The Ansible Builder additionally reads `PROXMOX_HOST`, `PVE_EXPORTER_TOKEN_ID`
+and `PVE_EXPORTER_TOKEN_SECRET` when running the `observability` playbook. They
+are rendered into a `0600` file and passed as `--extra-vars @file` rather than
+inline, so the token never enters the runner's process list.
+
 Every workflow that reaches the tailnet also passes `TAILSCALE_OAUTH_CLIENT_ID`
 and `TAILSCALE_OAUTH_SECRET` to the `connect-tailscale` action; the table above
 lists only what each workflow reads *beyond* that runner connection.
@@ -56,6 +61,7 @@ Set at **Settings → Secrets and variables → Actions → Variables**.
 | `PROXMOX_NODE_NAME` | `<proxmox-host>` | Packer, OpenTofu | Proxmox UI left sidebar (not always `pve`). |
 | `PROXMOX_INSECURE_TLS` | `true` | Packer, OpenTofu | Keep `true` for Proxmox default self-signed cert. |
 | `SSH_PUBLIC_KEYS` | `ssh-ed25519 AAAA...` | Packer Build | `cat ~/.ssh/id_ed25519.pub` on your laptop. |
+| `PVE_EXPORTER_TOKEN_ID` | `pve-exporter@pve!monitoring` | Ansible Builder | Proxmox read-only token ID for the hypervisor exporter. An identifier, not a credential — a variable so it stays readable in run logs. See [observability](./observability.md). |
 
 ## Secrets
 
@@ -69,6 +75,7 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `TAILSCALE_OAUTH_SECRET` | `tskey-client-secret-...` | Packer, OpenTofu, Ansible Builder, Tailscale Policy | Secret for the CI-runner client. **Required** — it is how the runner authenticates; every tailnet-touching workflow passes it. Distinct from `TAILSCALE_VM_OAUTH_SECRET`. |
 | `TAILSCALE_VM_OAUTH_CLIENT_ID` | `tskey-client-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client ID; exported as `TAILSCALE_OAUTH_CLIENT_ID` into tofu steps and consumed by the destroy-time device cleanup script. |
 | `TAILSCALE_VM_OAUTH_SECRET` | `tskey-client-secret-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client secret; the OAuth client needs **both** `auth_keys` (Write, with `tag:autolab-vm` selected) for key minting and `devices:core` (Write) for destroy-time cleanup (see `docs/gitops/tailscale-device-lifecycle.md`). Not used by Builder. |
+| `PVE_EXPORTER_TOKEN_SECRET` | `xxxxxxxx-xxxx-...` | Ansible Builder | Secret for the Proxmox read-only token. Separate from `PROXMOX_API_TOKEN`, which can create and destroy VMs; this one holds `PVEAuditor` only. Unset disables the exporter rather than shipping it broken. |
 | `PACKER_SSH_PASSWORD` | generated password | Packer Build | Temporary build-only password. Not your SSH key. |
 | `R2_ACCOUNT_ID` | `a1b2c3...` | OpenTofu | Cloudflare dashboard URL / R2 page. |
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |
