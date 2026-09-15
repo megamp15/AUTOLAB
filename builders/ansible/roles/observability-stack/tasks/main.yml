@@ -108,8 +108,8 @@
   ansible.builtin.template:
     src: pve.yml.j2
     dest: "{{ autolab_obs_root }}/pve.yml"
-    owner: root
-    group: root
+    owner: "{{ autolab_obs_pve_container_uid }}"
+    group: "{{ autolab_obs_pve_container_uid }}"
     mode: "0600"
   when: autolab_obs_pve_token_id | length > 0
   notify: Restart observability stack
