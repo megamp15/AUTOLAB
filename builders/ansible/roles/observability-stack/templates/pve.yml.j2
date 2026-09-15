@@ -1,0 +1,6 @@
+# Managed by Ansible — roles/observability-stack. Mode 0600; contains a token.
+default:
+  user: "{{ autolab_obs_pve_token_id.split('!')[0] }}"
+  token_name: "{{ autolab_obs_pve_token_id.split('!')[1] | default('') }}"
+  token_value: "{{ autolab_obs_pve_token_secret }}"
+  verify_ssl: {{ autolab_obs_pve_verify_ssl | bool | lower }}

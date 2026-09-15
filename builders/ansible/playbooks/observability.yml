@@ -1,0 +1,38 @@
+---
+# Backends first, then agents.
+#
+# The order matters on a first deploy. Alloy's prometheus.remote_write retries
+# indefinitely and recovers on its own, but loki.write gives up — "no retries
+# left, dropping data" — and does not resume when the backend appears later.
+# Starting producers before their consumer costs the logs from that window and
+# leaves the agent silently shipping nothing until someone restarts it.
+#
+# Both plays are driven from the machines map, so adding a host to the lab is
+# enough to start seeing it.
+
+- name: Deploy the observability backends on the stack host
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+
+  vars:
+    # Prometheus keeps its working data on local disk, where a TSDB needs to be.
+    # This is the copy that outlives the VM. Empty until the NAS export for this
+    # host exists, which leaves the timer uninstalled rather than failing nightly.
+    autolab_obs_backup_dir: ""
+
+  roles:
+    # Selected by machine policy rather than by hostname, so moving the stack to
+    # a different machine is a machines.auto.tfvars change, not a playbook edit.
+    - role: observability-stack
+      when: (autolab_builder | default({})).observability.stack | default(false) | bool
+      tags: [obs, stack]
+
+- name: Install the observability agent on every Builder machine
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: observability-agent
+      tags: [obs, agent]

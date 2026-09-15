@@ -1,0 +1,70 @@
+# Managed by Ansible — roles/observability-stack. Local edits are overwritten.
+#
+# Every port is bound to the tailnet address only. Binding 0.0.0.0 would expose
+# Grafana and the Prometheus admin API to the LAN, which the host firewall's
+# default-deny does not protect against for published container ports — Docker
+# writes its own iptables rules ahead of ufw's.
+services:
+  prometheus:
+    image: {{ autolab_obs_images.prometheus }}
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time={{ autolab_obs_retention_time }}
+      - --storage.tsdb.retention.size={{ autolab_obs_retention_size }}
+      # Agents push rather than being scraped, which needs the receiver enabled.
+      - --web.enable-remote-write-receiver
+      # Required for the snapshot API the NAS backup uses.
+      - --web.enable-admin-api
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "{{ autolab_tailscale_ip }}:{{ autolab_obs_prometheus_port }}:9090"
+
+  loki:
+    image: {{ autolab_obs_images.loki }}
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+    ports:
+      - "{{ autolab_tailscale_ip }}:{{ autolab_obs_loki_port }}:{{ autolab_obs_loki_port }}"
+
+  grafana:
+    image: {{ autolab_obs_images.grafana }}
+    restart: unless-stopped
+    depends_on: [prometheus, loki]
+    environment:
+      # Anonymous viewing is deliberate: reaching this at all already required
+      # passing the tailnet ACL, and a second password to lose helps nobody in a
+      # single-operator lab. Editing still requires a login.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/data:/var/lib/grafana
+    ports:
+      - "{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}:3000"
+{% if autolab_obs_pve_token_id | length > 0 %}
+
+  # Scrapes the Proxmox API, so it needs no agent on the hypervisor. Not
+  # published: only Prometheus in this compose network talks to it.
+  pve-exporter:
+    image: {{ autolab_obs_images.pve_exporter }}
+    restart: unless-stopped
+    volumes:
+      - ./pve.yml:/etc/prometheus/pve.yml:ro
+    expose:
+      - "{{ autolab_obs_pve_exporter_port }}"
+{% endif %}
+
+volumes:
+  prometheus-data:
+  loki-data:

@@ -82,6 +82,11 @@ variable "machines" {
         source   = optional(string, "any")
       })), [])
       docker_enabled = optional(bool, false)
+      # Every Builder host runs the observability agent; `stack` marks the one
+      # host that also runs the backends it reports to.
+      observability = optional(object({
+        stack = optional(bool, false)
+      }), {})
     }), {})
   }))
   default = {}

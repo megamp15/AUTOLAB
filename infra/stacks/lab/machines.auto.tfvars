@@ -53,9 +53,12 @@ machines = {
     disk_size_gb            = 40
     ipv4_address            = "dhcp"
     builder = {
-      # Baseline only for now. No inbound service is exposed until something
-      # actually listens, and then it is declared here rather than opened by
-      # hand on the host.
+      docker_enabled = true
+      observability = {
+        stack = true
+      }
+      # Grafana is reached over the tailnet, which the baseline already allows
+      # on tailscale0. Nothing is opened to the LAN.
     }
   }
 }

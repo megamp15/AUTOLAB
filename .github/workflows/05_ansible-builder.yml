@@ -14,7 +14,7 @@ on:
         required: true
         default: harden
         type: choice
-        options: [harden, docker, tailscale-update, nfs]
+        options: [harden, docker, tailscale-update, nfs, observability]
       limit:
         description: Optional Ansible host limit
         required: false
@@ -156,11 +156,40 @@ jobs:
             done
           done
 
+      # Written to a 0600 file rather than passed inline. `--extra-vars` on the
+      # command line lands in the runner's process list, and anything echoed
+      # from a shell expansion risks reaching the run log; a file keeps the
+      # secret out of both. Rendered by Python from the environment so no value
+      # is ever interpolated into a shell string.
+      - name: Render Builder extra variables
+        id: extra_vars
+        env:
+          AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
+          AUTOLAB_PVE_TOKEN_ID: ${{ vars.PVE_EXPORTER_TOKEN_ID }}
+          AUTOLAB_PVE_TOKEN_SECRET: ${{ secrets.PVE_EXPORTER_TOKEN_SECRET }}
+        run: |
+          out="$RUNNER_TEMP/extra-vars.json"
+          umask 077
+          python3 - "$out" <<'PY'
+          import json, os, sys
+          json.dump({
+              "autolab_obs_pve_host": os.environ.get("AUTOLAB_PVE_HOST", ""),
+              "autolab_obs_pve_token_id": os.environ.get("AUTOLAB_PVE_TOKEN_ID", ""),
+              "autolab_obs_pve_token_secret": os.environ.get("AUTOLAB_PVE_TOKEN_SECRET", ""),
+          }, open(sys.argv[1], "w"))
+          PY
+          if [ -n "${AUTOLAB_PVE_TOKEN_ID}" ]; then
+            echo "Proxmox exporter credentials supplied."
+          else
+            echo "No Proxmox exporter credentials; the hypervisor exporter stays disabled."
+          fi
+
       - name: Run Builder playbook
         working-directory: builders/ansible
         run: |
           set -o pipefail
           args=(-i "$RUNNER_TEMP/inventory.json" "playbooks/${{ inputs.playbook }}.yml" --limit "$BUILDER_LIMIT")
+          args+=(--extra-vars "@$RUNNER_TEMP/extra-vars.json")
           if [ -n "$BUILDER_TAGS" ]; then args+=(--tags "$BUILDER_TAGS"); fi
           if [ "$BUILDER_CONFIRM" != "apply" ]; then args+=(--check); fi
           ansible-playbook "${args[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/ansible-output.log"
@@ -170,6 +199,12 @@ jobs:
           BUILDER_LIMIT: ${{ inputs.limit }}
           BUILDER_CONFIRM: ${{ inputs.confirm }}
           BUILDER_TAGS: ${{ inputs.tags }}
+
+      # The file holds a Proxmox token; the runner is ephemeral but the step is
+      # cheap and makes the lifetime explicit.
+      - name: Remove the rendered extra variables
+        if: always()
+        run: rm -f "$RUNNER_TEMP/extra-vars.json"
 
       - name: Job summary
         if: always()

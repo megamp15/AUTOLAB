@@ -1,0 +1,36 @@
+---
+# Grafana Alloy runs on every Builder host. It is an OpenTelemetry Collector
+# distribution, so choosing it is not an alternative to the OTel Collector — it
+# is that collector, with Prometheus scrape and service discovery added.
+#
+# One agent covers metrics, logs, traces and profiles. Backends can be added
+# later by editing this config alone; nothing about collection changes.
+
+# Where this host sends telemetry. Defaults to the machine marked
+# `observability.stack = true` in the machines map, resolved from the inventory
+# so a rename of that host does not need editing here.
+autolab_obs_stack_host: >-
+  {{ (hostvars | dict2items
+      | selectattr('value.autolab_builder', 'defined')
+      | selectattr('value.autolab_builder.observability', 'defined')
+      | selectattr('value.autolab_builder.observability.stack', 'defined')
+      | selectattr('value.autolab_builder.observability.stack')
+      | map(attribute='key') | list | first) | default('') }}
+
+autolab_obs_metrics_endpoint: "http://{{ autolab_obs_stack_host }}:9090/api/v1/write"
+autolab_obs_logs_endpoint: "http://{{ autolab_obs_stack_host }}:3100/loki/api/v1/push"
+
+# Scrape interval. 15s is the Prometheus default and fine for a handful of
+# hosts; raising it is the first lever if storage becomes a concern.
+autolab_obs_scrape_interval: "15s"
+
+# Alloy's apt repository. Pinned to the stable channel for the same reason
+# Tailscale is: unattended agents on hosts CI depends on should not track a
+# fast-moving channel.
+autolab_alloy_apt_repo: "https://apt.grafana.com"
+
+# `latest` so a playbook run keeps the agent current. That is not the unattended
+# auto-update this repo rejects elsewhere — the upgrade happens when the Builder
+# runs, which is under GitOps control and observable in the run log, rather than
+# whenever the package decides.
+autolab_alloy_package_state: latest
