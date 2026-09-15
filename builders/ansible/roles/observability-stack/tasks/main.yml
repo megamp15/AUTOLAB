@@ -42,6 +42,7 @@
     - loki
     - grafana/provisioning/datasources
     - grafana/provisioning/dashboards
+    - grafana/provisioning/alerting
     - grafana/dashboards
 
 # Grafana's container runs as uid 472 and will not start if it cannot write its
@@ -91,6 +92,18 @@
     owner: root
     group: root
     mode: "0644"
+  notify: Restart observability stack
+
+# Alert rules alongside dashboards, for the same reason: a rule that exists only
+# in a UI cannot be reviewed and is lost with the volume it lives in.
+- name: Provision alert rules
+  ansible.builtin.template:
+    src: alert-rules.yml.j2
+    dest: "{{ autolab_obs_root }}/grafana/provisioning/alerting/autolab.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  when: autolab_obs_alerts_enabled | bool
   notify: Restart observability stack
 
 - name: Install dashboards

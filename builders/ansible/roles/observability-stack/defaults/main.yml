@@ -18,7 +18,28 @@ autolab_obs_images:
 # filesystems as unsupported and a possible cause of unrecoverable corruption.
 # The NAS holds the durable copy instead; see autolab_obs_backup_dir.
 autolab_obs_retention_time: "90d"
-autolab_obs_retention_size: "20GB"
+
+# Sized against the disk, not against ambition. The Debian template's root
+# partition cannot grow past ~7.5 GB (see docs/gitops/observability.md), so a
+# 20 GB cap would let the TSDB fill the filesystem and take the host with it.
+# Whichever limit is reached first wins, so time is the intent and size is the
+# guard rail.
+autolab_obs_retention_size: "2GB"
+
+# Alerting. Rules are provisioned from files like dashboards; an alert that
+# exists only in a UI is as unreviewable as a dashboard that does.
+autolab_obs_alerts_enabled: true
+
+# Thresholds. Defaults chosen to fire with enough warning to act, not so early
+# that they become background noise people learn to ignore.
+autolab_obs_alert_disk_pct: 85
+autolab_obs_alert_memory_pct: 90
+autolab_obs_alert_pve_storage_pct: 85
+
+# Where alerts are sent. Empty means they are visible in Grafana's alerting UI
+# but nothing is pushed anywhere — better than no rules, but it still relies on
+# someone looking. Set a webhook (ntfy, Discord, Slack) to change that.
+autolab_obs_alert_webhook_url: ""
 
 # Where snapshots are copied. Empty disables the backup timer, which is the
 # right default until the NAS export for this host exists.

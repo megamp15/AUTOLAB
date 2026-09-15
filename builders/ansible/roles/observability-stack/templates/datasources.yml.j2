@@ -3,6 +3,9 @@ apiVersion: 1
 
 datasources:
   - name: Prometheus
+    # Explicit uid: provisioned alert rules reference datasources by uid, and a
+    # generated one would change if the datasource were ever recreated.
+    uid: autolab-prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
@@ -11,6 +14,7 @@ datasources:
       timeInterval: {{ autolab_obs_scrape_interval | default('15s') }}
 
   - name: Loki
+    uid: autolab-loki
     type: loki
     access: proxy
     url: http://loki:{{ autolab_obs_loki_port }}
