@@ -40,3 +40,9 @@ autolab_obs_pve_host: ""
 autolab_obs_pve_token_id: ""
 autolab_obs_pve_token_secret: ""
 autolab_obs_pve_verify_ssl: false
+
+# The exporter image runs as uid 101 (prometheus), not root, so a root-owned
+# 0600 credentials file is unreadable to it and the container crash-loops. Owned
+# by that uid instead, still 0600 — readable by the one process that needs it
+# and nothing else on the host.
+autolab_obs_pve_container_uid: 101
