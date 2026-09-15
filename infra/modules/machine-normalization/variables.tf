@@ -43,6 +43,12 @@ variable "machines" {
         source   = optional(string, "any")
       })), [])
       docker_enabled = optional(bool, false)
+      # Must mirror the builder object in each stack's variables.tf. A field
+      # missing here is silently dropped as the map passes through, so the
+      # policy reaches neither builder_machines nor the Ansible inventory.
+      observability = optional(object({
+        stack = optional(bool, false)
+      }), {})
     }), {})
   }))
   default = {}
