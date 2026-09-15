@@ -1,0 +1,174 @@
+# Managed by Ansible — roles/observability-stack. Local edits are overwritten.
+#
+# Alert rules as files, for the same reason dashboards are: a rule that exists
+# only in a UI cannot be reviewed, and is lost with the volume it lives in.
+#
+# Thresholds are deliberately not tight. An alert that fires routinely is an
+# alert people learn to close without reading, which is worse than no alert.
+#
+# Grafana annotations below use Go templating, which shares its delimiters with
+# Jinja. They sit inside raw blocks so Ansible passes them through untouched —
+# without that, $labels is invalid Jinja and fails the render. (This comment
+# deliberately spells out no delimiters: Jinja parses comments too.)
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: autolab
+    folder: Autolab
+    interval: 1m
+    rules:
+      - uid: autolab-guest-down
+        title: Guest is stopped but set to start on boot
+        condition: THRESHOLD
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{% raw %}{{ $labels.id }} is stopped{% endraw %}"
+          description: "Proxmox reports this guest as stopped, but it is configured to start on boot."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: 'pve_up{id=~"qemu/.*"} == 0 and on(id) pve_onboot_status == 1'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.5]
+
+      - uid: autolab-agent-silent
+        title: Agent is not reporting
+        condition: THRESHOLD
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{% raw %}{{ $labels.name }} is running but sending no metrics{% endraw %}"
+          description: "Proxmox reports the guest as running, so this is the agent or the network, not a stopped VM."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: '(pve_up{id=~"qemu/.*"} == 1) * on(id) group_left(name) pve_guest_info{template="0"} unless on(name) label_replace(node_uname_info, "name", "$1", "instance", "(.+)")'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.5]
+
+      - uid: autolab-disk-full
+        title: Root filesystem almost full
+        condition: THRESHOLD
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{% raw %}{{ $labels.instance }} root filesystem is {{ printf \{% endraw %}"%.0f\" $value }}% full"
+          description: "The Debian template root partition cannot be grown in place, so freeing space is the only remedy."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: '100 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100)'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [{{ autolab_obs_alert_disk_pct }}]
+
+      - uid: autolab-memory-high
+        title: Memory nearly exhausted
+        condition: THRESHOLD
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{% raw %}{{ $labels.instance }} memory is {{ printf \{% endraw %}"%.0f\" $value }}% used"
+          description: "Sustained pressure. A metrics backend that starts swapping stops being able to explain anything."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: '100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [{{ autolab_obs_alert_memory_pct }}]
+
+      - uid: autolab-pve-storage-full
+        title: Proxmox storage almost full
+        condition: THRESHOLD
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{% raw %}{{ $labels.id }} is {{ printf \{% endraw %}"%.0f\" $value }}% full"
+          description: "No guest can be created or snapshotted once this fills, and the failure surfaces far from here."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: 'pve_disk_usage_bytes{id=~"storage/.*"} / pve_disk_size_bytes{id=~"storage/.*"} * 100'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [{{ autolab_obs_alert_pve_storage_pct }}]
