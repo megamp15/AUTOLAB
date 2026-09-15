@@ -8,10 +8,10 @@ autolab_obs_root: /opt/autolab/observability
 # upgrades its backend mid-incident is the last thing you want, and a pinned
 # version is what makes a dashboard reproducible.
 autolab_obs_images:
-  prometheus: "prom/prometheus:v3.7.3"
-  loki: "grafana/loki:3.5.8"
-  grafana: "grafana/grafana-oss:12.4.1"
-  pve_exporter: "prompve/prometheus-pve-exporter:3.5.5"
+  prometheus: "prom/prometheus:v3.14.0"
+  loki: "grafana/loki:3.7.7"
+  grafana: "grafana/grafana-oss:13.0.2"
+  pve_exporter: "prompve/prometheus-pve-exporter:3.10.0"
 
 # Metrics live on local disk. A TSDB does heavy random I/O with mmap and file
 # locking, which NFS handles poorly — Prometheus documents non-POSIX

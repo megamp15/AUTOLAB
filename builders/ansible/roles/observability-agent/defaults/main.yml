@@ -28,4 +28,9 @@ autolab_obs_scrape_interval: "15s"
 # Tailscale is: unattended agents on hosts CI depends on should not track a
 # fast-moving channel.
 autolab_alloy_apt_repo: "https://apt.grafana.com"
-autolab_alloy_package_state: present
+
+# `latest` so a playbook run keeps the agent current. That is not the unattended
+# auto-update this repo rejects elsewhere — the upgrade happens when the Builder
+# runs, which is under GitOps control and observable in the run log, rather than
+# whenever the package decides.
+autolab_alloy_package_state: latest
