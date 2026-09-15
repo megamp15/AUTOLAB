@@ -122,14 +122,29 @@ pveum user add pve-exporter@pve
 # 2. A token under it. Prints the secret once — copy it now.
 pveum user token add pve-exporter@pve monitoring --privsep 1
 
-# 3. Read-only across the datacenter
+# 3. Read-only across the datacenter — BOTH the user and the token
+pveum acl modify / --users  'pve-exporter@pve'            --roles PVEAuditor
 pveum acl modify / --tokens 'pve-exporter@pve!monitoring' --roles PVEAuditor
 ```
 
-`--privsep 1` is the flag that matters. With privilege separation the token
-carries **only** what is granted to the token itself — the `PVEAuditor` role
-above. Without it the token inherits everything the user has, so it would widen
-silently if that user were ever given more.
+**Both grants are required, and this is the step that will waste your
+afternoon.** With `--privsep 1` a token's effective permissions are the
+*intersection* of the user's and the token's. Granting only the token leaves
+that intersection empty, so the token authenticates successfully and is then
+denied everything:
+
+```
+403 Forbidden: Permission check failed (/, Sys.Audit)
+```
+
+The ACL looks correct in `pveum acl list` while this is happening, which is what
+makes it confusing — the grant is real, it is just being intersected with
+nothing.
+
+Privilege separation is still worth keeping. It means the token can never exceed
+the user, so narrowing the user later narrows the token automatically. The
+alternative, `--privsep 0`, makes the token inherit everything the user has —
+exactly the property worth avoiding.
 
 `PVEAuditor` is Proxmox's built-in read-only role: it lists and reads every
 node, VM, storage pool and backup job, and changes nothing.
@@ -140,7 +155,10 @@ Through the UI instead, all three under **Datacenter → Permissions**:
 |---|---|
 | **Users** → Add | User name `pve-exporter`, realm `Proxmox VE authentication server`. The form requires a password; token auth ignores it. |
 | **API Tokens** → Add | User `pve-exporter@pve`, Token ID `monitoring`, **leave Privilege Separation checked**. Copy the secret. |
+| **Permissions** → Add → *User Permission* | Path `/`, user `pve-exporter@pve`, role `PVEAuditor`, Propagate checked |
 | **Permissions** → Add → *API Token Permission* | Path `/`, token `pve-exporter@pve!monitoring`, role `PVEAuditor`, Propagate checked |
+
+Both rows, for the intersection reason above.
 
 ### Verify it is actually read-only
 
@@ -150,8 +168,22 @@ Check the grant rather than trusting the role name:
 pveum acl list
 ```
 
-Exactly one line should grant `PVEAuditor` on `/` to that token. Any other role
-means step 3 landed somewhere else.
+Two lines on `/` with `PVEAuditor` — one `type: user`, one `type: token`. One
+alone is not enough; see the intersection rule above.
+
+Then confirm the token resolves to actual permissions rather than an empty set:
+
+```bash
+curl -sk -H "Authorization: PVEAPIToken=pve-exporter@pve!monitoring=SECRET" \
+  https://<pve-host>:8006/api2/json/access/permissions
+```
+
+`{"data":{}}` means the intersection is empty — the user grant is missing.
+A populated object listing `Sys.Audit`, `VM.Audit` and friends is correct.
+
+`/nodes` is a poor test here: Proxmox filters that endpoint by permission rather
+than denying it, so it returns HTTP 200 with a plausible-looking body even when
+the token can see nothing.
 
 ### Where the values go
 
@@ -221,6 +253,12 @@ adding a repository the refresh has to be unconditional.
 **`docker.io` ships no Compose.** Debian packages Compose v2 separately as
 `docker-compose`, installed at the CLI plugin path. Without it
 `community.docker.docker_compose_v2` refuses to run at all.
+
+**A Proxmox token can authenticate and still be denied everything.** With
+privilege separation its permissions are the intersection of the user's and the
+token's, so granting only the token yields an empty set. The failure is
+`403 Sys.Audit` while `pveum acl list` shows a correct-looking grant. Check
+`/access/permissions` — `{"data":{}}` is the tell.
 
 **`apt_repository` needs gpg.** It shells out to `gpg` or `apt-key`, neither
 present on a minimal Debian 13 image, and `apt-key` is removed from Debian
