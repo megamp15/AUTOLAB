@@ -197,6 +197,20 @@
     - autolab_obs_backup_dir | length > 0
     - autolab_obs_backup_parent.stat.exists | default(false)
 
+# The snapshot script shells out to rsync, which the Debian template does not
+# carry. Installed only where snapshots are configured rather than added to the
+# universal baseline: a package belongs with the thing that needs it, so
+# removing that thing removes its dependency too.
+- name: Install the snapshot script's dependencies
+  ansible.builtin.apt:
+    name: rsync
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when:
+    - autolab_obs_backup_dir | length > 0
+    - autolab_obs_backup_parent.stat.exists | default(false)
+
 - name: Install the snapshot script
   ansible.builtin.template:
     src: snapshot-to-nas.sh.j2
