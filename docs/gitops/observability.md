@@ -500,10 +500,15 @@ registry before bumping a pin, not the release page.
 **`loki.source.journal` names the job after itself.** The component sets `job`
 to `loki.source.journal.journal` and its own `labels` block cannot override it,
 so `{job="journald"}` matches nothing while logs arrive normally under a label
-nothing queries. The value only sticks if it is relabelled downstream. The same
-applies to `unit`, which has to be promoted from `__journal__systemd_unit` — a
-dashboard grouped by it for a day and drew one meaningless line, because
-grouping by a label that does not exist returns one series rather than none.
+nothing queries. The value only sticks if it is relabelled downstream. `unit` needs the opposite treatment. It comes from `__journal__systemd_unit`,
+and `__journal_*` labels exist only *inside* the journal source — they are
+stripped before entries reach anything downstream. So `job` must be set after
+the component and `unit` must be extracted within it, using a `loki.relabel`
+block that exports rules rather than receiving entries.
+
+Grouping by a label that does not exist returns one series rather than none, so
+a dashboard panel drew a single meaningless line and a query validator counted
+it as returning data.
 
 **Git Sync can record a commit as synced without importing it.** The sync is
 incremental: it applies the diff between the last synced ref and the new one.
