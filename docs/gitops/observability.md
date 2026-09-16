@@ -476,6 +476,17 @@ plainly exists upstream fails the pull with `manifest unknown`. Images come
 from `grafana/grafana`, which is the same OSS build and is current. Check the
 registry before bumping a pin, not the release page.
 
+**Git Sync can record a commit as synced without importing it.** The sync is
+incremental: it applies the diff between the last synced ref and the new one.
+Restart Grafana inside that window — a deploy will do it — and the ref advances
+while the resources do not land. Every poll afterwards logs *"skip sync on
+interval as the latest ref matches the last synced ref"*, and the status reads
+`state: success`, `healthy: true`, with a resource count quietly lower than the
+number of files. The file listing under `/files/` still shows everything,
+because that reads the repository rather than what was imported. Force a full
+resync from the folder's sync control, or make the files differ so the next
+diff contains them.
+
 **Agents must start after the backends.** `prometheus.remote_write` retries
 indefinitely and recovers on its own; `loki.write` gives up — *"no retries left,
 dropping data"* — and does not resume when the backend appears later. The
