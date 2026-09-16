@@ -17,6 +17,15 @@ inputs:
     description: Tailscale tags for the CI runner
     required: false
     default: 'tag:ci-runner'
+  version:
+    description: >-
+      Tailscale client version for the runner. The upstream action pins an older
+      default (1.94.2 as of v4.1.3) that lags the release it ships with, so the
+      runner joins the tailnet several minor versions behind every managed host.
+      `latest` tracks current stable, which is the same track the VMs follow via
+      the tailscale-update role.
+    required: false
+    default: 'latest'
 
 runs:
   using: composite
@@ -28,3 +37,4 @@ runs:
         oauth-secret: ${{ inputs.oauth-secret }}
         audience: ${{ inputs.audience }}
         tags: ${{ inputs.tags }}
+        version: ${{ inputs.version }}
