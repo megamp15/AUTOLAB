@@ -31,7 +31,8 @@ flowchart LR
   B["2 · Template<br/>Build VM templates from ISOs<br/><i>Packer</i>"]
   C["3 · Provision<br/>Declare VMs in git, apply from CI<br/><i>OpenTofu + Terramate</i>"]
   D["4 · Configure<br/>Harden and configure over SSH<br/><i>Ansible</i>"]
-  A --> B --> C --> D
+  E["5 · Observe<br/>Metrics, logs, alerts to your phone<br/><i>Alloy + LGTM</i>"]
+  A --> B --> C --> D --> E
 ```
 
 | Layer | What it does | Runs where | Lives in |
@@ -40,6 +41,7 @@ flowchart LR
 | **Template** | Build Debian / Ubuntu cloud-init VM templates | GitHub Actions over Tailscale | [`infra/packer/`](infra/packer/) |
 | **Provision** | Create VMs from a committed machine map, state in Cloudflare R2 | GitHub Actions over Tailscale | [`infra/`](infra/) |
 | **Configure** | Users, SSH hardening, firewall, updates, optional Docker | GitHub Actions via Tailscale SSH | [`builders/ansible/`](builders/ansible/) |
+| **Observe** | Metrics, logs, dashboards and alerts — all provisioned from git | Agent on every host, stack on one | [`builders/ansible/roles/observability-*`](builders/ansible/roles/) |
 
 The bootstrap layer is manual on purpose: you cannot GitOps your way onto a host that has no working uplink yet. Everything after it is driven from git. A future VPS track skips the first two layers and reuses the last two.
 
@@ -79,7 +81,7 @@ Once the host is on Tailscale, work through the [phase 2 setup checklist](docs/g
 
 ## Status
 
-Autolab is **alpha**. The bootstrap path is used on real hardware; the GitOps layers run end-to-end against a single lab VM.
+Autolab is **alpha**. The bootstrap path is used on real hardware; the GitOps layers run end-to-end against two lab VMs. The second VM exists to catch anything that only worked on the first.
 
 | Phase | Scope | State |
 |-------|-------|-------|
@@ -87,6 +89,8 @@ Autolab is **alpha**. The bootstrap path is used on real hardware; the GitOps la
 | 2A · Provision | OpenTofu modules, Terramate stacks, R2 backend, plan / apply / destroy workflows, committed `lab` machine map | Usable |
 | 2B · Template | Packer catalog: `debian-13` and `ubuntu-24.04` implemented, `ubuntu-26.04` blocked on an upstream ISO fix | Usable |
 | 2C · Configure | Ansible baseline (users, SSH, firewall, updates, `gitops` user), opt-in Docker, Tailscale SSH transport | Usable |
+| 2D · Observe | Alloy on every host; Prometheus, Loki, Grafana and the Proxmox exporter on one. Dashboards and alert rules provisioned from git, alerts delivered to a phone | Usable |
+| 3 · Backup | Proxmox Backup Server, NAS datastore, offsite copy | Next |
 | VPS track | Cloud-provider stacks that reuse the configure layer | Planned |
 | Service tutorials | Guides for running things on the lab | Planned |
 
