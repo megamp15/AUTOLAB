@@ -9,7 +9,10 @@
 # rsyncing a live TSDB captures half-written blocks and restores to corruption.
 set -euo pipefail
 
-PROM="http://127.0.0.1:{{ autolab_obs_prometheus_port }}"
+# The tailnet address, not loopback: container ports are published on the
+# tailnet interface only, so 127.0.0.1 reaches nothing and the request returns
+# empty.
+PROM="http://{{ autolab_tailscale_ip }}:{{ autolab_obs_prometheus_port }}"
 DEST="{{ autolab_obs_backup_dir }}"
 
 if ! mountpoint -q "$(dirname "${DEST}")" 2>/dev/null && [[ ! -d "${DEST}" ]]; then
@@ -17,8 +20,25 @@ if ! mountpoint -q "$(dirname "${DEST}")" 2>/dev/null && [[ ! -d "${DEST}" ]]; t
   exit 1
 fi
 
-name="$(curl -sS -XPOST "${PROM}/api/v1/admin/tsdb/snapshot" \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["name"])')"
+# Capture the body first so a failure is reported as a failure, rather than as
+# a JSON decode traceback several frames from the cause.
+response="$(curl -sS --max-time 60 -XPOST "${PROM}/api/v1/admin/tsdb/snapshot" 2>&1 || true)"
+
+if [[ -z "${response}" ]]; then
+  echo "snapshot: no response from ${PROM}. Is Prometheus up, and is the admin API enabled?" >&2
+  exit 1
+fi
+
+name="$(printf '%s' "${response}" | python3 -c '
+import json, sys
+try:
+    body = json.load(sys.stdin)
+except ValueError:
+    sys.exit("snapshot: Prometheus returned a non-JSON response")
+if body.get("status") != "success":
+    sys.exit(f"snapshot: Prometheus refused the request: {body.get(\"error\", body)}")
+print(body["data"]["name"])
+')"
 
 src="/var/lib/docker/volumes/observability_prometheus-data/_data/snapshots/${name}"
 mkdir -p "${DEST}"
