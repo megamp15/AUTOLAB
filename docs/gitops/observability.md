@@ -411,6 +411,27 @@ Recorded run: stopped 01:46:05Z, `pending` 01:51:59Z, `firing` 02:02:03Z,
 `inactive` 20s after restart. Firing is slow and clearing is instant, by design
 — sustained badness pages, a single healthy evaluation clears.
 
+### Verifying a snapshot restores
+
+The timer copying files to the NAS proves a copy happened, not that the copy is
+usable. `scripts/verify-prometheus-snapshot.sh`, run on the stack host, copies
+the blocks into a throwaway Prometheus on a loopback-only port, queries inside
+the block's own time window, and removes everything afterwards.
+
+```
+blocks restored: 2
+restore instance ready: 200
+block window: 00:01:06Z .. 04:06:25Z
+  restored series for node_load1: 1
+  restored series for pve_up: 8
+  restored series for up: 3
+```
+
+Non-zero series counts are the result. The container runs as `nobody`, so the
+script chowns the copied blocks to uid 65534 — a root-owned data directory is
+unreadable to it and Prometheus starts with an empty database rather than
+failing, which would read as a lost snapshot.
+
 ## Things that will mislead you
 
 **`noDataState` defaults to firing when healthy.** Grafana treats an empty
