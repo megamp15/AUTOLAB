@@ -36,7 +36,8 @@ try:
 except ValueError:
     sys.exit("snapshot: Prometheus returned a non-JSON response")
 if body.get("status") != "success":
-    sys.exit(f"snapshot: Prometheus refused the request: {body.get(\"error\", body)}")
+    detail = body.get("error") or body
+    sys.exit("snapshot: Prometheus refused the request: " + str(detail))
 print(body["data"]["name"])
 ')"
 
