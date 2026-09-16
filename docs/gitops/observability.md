@@ -225,12 +225,56 @@ process list.
 
 ## Dashboards as code
 
-Dashboards live in `roles/observability-stack/files/dashboards/` and are
-provisioned with `allowUiUpdates: false`. A dashboard clicked into a container
-volume is one disk failure from gone, and cannot be reviewed.
+Two mechanisms exist, and they pull in opposite directions. Which one owns a
+resource is a decision, not a detail.
 
-Editing one in the UI would drift from git and be reverted on the next run, so
-the provider locks it and says so.
+| Resource | Owned by | Direction |
+|---|---|---|
+| Datasources, alert rules, contact points, notification policies | File provisioning, written by Ansible | git to Grafana |
+| Dashboards | Git Sync | both ways |
+
+**File provisioning** renders files into Grafana's provisioning directory on
+each deploy. It is one-way and authoritative: Grafana reads, never writes.
+That suits things nobody edits by hand. An alert rule wants review before it
+changes, not a drag-and-drop.
+
+**Git Sync** is new in Grafana 13 and runs the other way as well. Grafana holds
+a GitHub credential, reads dashboards from a repository path, and commits UI
+edits back. It costs a token stored on the stack host, and it buys the thing
+file provisioning cannot: editing a dashboard by looking at it. Hand-writing
+panel JSON is miserable and produces worse dashboards, because you cannot see
+what you are building.
+
+Existing dashboards still live in `roles/observability-stack/files/dashboards/`
+under file provisioning with `allowUiUpdates: false`. Migrate them to the Git
+Sync path one at a time rather than in a batch. Pointing both mechanisms at the
+same dashboard produces duplicates that are hard to tell apart in the UI.
+
+### Setting up Git Sync
+
+The `provisioning` feature toggle is on by default in Grafana 13 OSS, so no
+configuration is needed to reach the page.
+
+1. GitHub → Settings → Developer settings → **Fine-grained personal access
+   tokens**
+2. Scope it to the Autolab repository only, with **Contents: Read and write**.
+   Nothing else. A classic token would carry access to every repository on the
+   account, which this does not need.
+3. Grafana → Administration → **Provisioning** → add the repository URL, the
+   token, a branch, and a path such as `grafana/dashboards`
+4. Confirm a change made in the UI lands as a commit before moving any existing
+   dashboard across
+
+The token lets whoever holds Grafana admin write to the repository. That is the
+trade, and it is why the admin password stopped being `admin` first.
+
+### Dynamic dashboards
+
+Tabs, conditional panels and auto grid became generally available in Grafana
+13.2 and use the v2 dashboard schema, enabled through the
+`kubernetesDashboards` and `dashboardNewLayouts` toggles that
+`autolab_obs_grafana_feature_toggles` sets. Dashboards written against the v1
+schema are migrated when loaded, so the existing four keep working.
 
 ## Network exposure
 

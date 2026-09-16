@@ -10,7 +10,7 @@ autolab_obs_root: /opt/autolab/observability
 autolab_obs_images:
   prometheus: "prom/prometheus:v3.14.0"
   loki: "grafana/loki:3.7.7"
-  grafana: "grafana/grafana-oss:13.0.2"
+  grafana: "grafana/grafana-oss:13.2.2"
   pve_exporter: "prompve/prometheus-pve-exporter:3.10.0"
 
 # Metrics live on local disk. A TSDB does heavy random I/O with mmap and file
@@ -101,5 +101,16 @@ autolab_obs_grafana_container_uid: 472
 # can rewrite dashboards, add datasources and change where alerts are delivered,
 # so leaving it on the default admin/admin hands all of that to anyone on the
 # tailnet. Empty leaves the password alone rather than setting a blank one.
+# Grafana feature toggles. Dynamic dashboards — tabs, conditional panels and
+# auto grid — went generally available in 13.2 and use the v2 dashboard schema,
+# which needs the newer dashboards API. Listing them explicitly is harmless
+# where they are already on by default, and it records why they are wanted.
+#
+# Git Sync's `provisioning` toggle is on by default in Grafana 13 OSS, so it is
+# deliberately not listed here.
+autolab_obs_grafana_feature_toggles:
+  - kubernetesDashboards
+  - dashboardNewLayouts
+
 autolab_obs_grafana_admin_user: admin
 autolab_obs_grafana_admin_password: ""
