@@ -37,8 +37,8 @@ autolab_obs_alerts_enabled: true
 # Thresholds. Defaults chosen to fire with enough warning to act, not so early
 # that they become background noise people learn to ignore.
 autolab_obs_alert_disk_pct: 85
-autolab_obs_alert_memory_pct: 15
-autolab_obs_alert_pve_storage_pct: 15
+autolab_obs_alert_memory_pct: 90
+autolab_obs_alert_pve_storage_pct: 85
 
 # Where alerts are delivered. Empty means they stay visible in Grafana's
 # alerting UI but nothing is pushed anywhere — better than no rules, but it
