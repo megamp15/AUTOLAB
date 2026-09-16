@@ -18,6 +18,17 @@ scrape_configs:
   #
   # The relabel dance is the exporter's documented calling convention: the
   # target being scraped is passed as a query parameter, not as the address.
+  # The backends, scraped over the compose network by service name. Without
+  # these the stack is blind to itself: Loki can stop accepting writes and the
+  # only symptom is logs quietly not arriving.
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+
   - job_name: pve
     metrics_path: /pve
     params:

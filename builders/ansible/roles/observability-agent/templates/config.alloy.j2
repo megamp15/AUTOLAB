@@ -23,6 +23,17 @@ prometheus.scrape "node" {
   scrape_interval = "{{ autolab_obs_scrape_interval }}"
 }
 
+// Alloy's own health. Without this the agent is the one component that cannot
+// report on itself, and "no metrics" is ambiguous between a dead agent, a dead
+// host and a broken network.
+prometheus.exporter.self "alloy" {}
+
+prometheus.scrape "alloy" {
+  targets         = prometheus.exporter.self.alloy.targets
+  forward_to      = [prometheus.remote_write.stack.receiver]
+  scrape_interval = "{{ autolab_obs_scrape_interval }}"
+}
+
 prometheus.remote_write "stack" {
   endpoint {
     url = "{{ autolab_obs_metrics_endpoint }}"
