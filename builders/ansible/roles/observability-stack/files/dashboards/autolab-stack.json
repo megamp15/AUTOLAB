@@ -384,6 +384,121 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "id": 40,
+      "title": "TSDB size against the cap",
+      "type": "gauge",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 36
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "description": "Percent of storage.tsdb.retention.size used. The root partition cannot be grown, so this cap is what stops the TSDB taking the host with it.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "prometheus_tsdb_storage_blocks_bytes / (2 * 1024 * 1024 * 1024) * 100",
+          "legendFormat": "of 2GiB",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "title": "Retention deletions",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 36
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "description": "These counters increment only when Prometheus actually drops data. While both are zero, retention is configured but has never been exercised \u2014 the setting is unproven, not proven.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 8,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "prometheus_tsdb_size_retentions_total",
+          "legendFormat": "size-based deletions",
+          "refId": "A"
+        },
+        {
+          "expr": "prometheus_tsdb_time_retentions_total",
+          "legendFormat": "time-based deletions",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "title": "Days until the size cap binds",
+      "type": "stat",
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "description": "Projected from the last 6h of growth. Whichever limit is reached first wins, and at current cardinality the 2GiB cap arrives well before 90 days \u2014 so this number, not the time setting, is the real retention.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "(2 * 1024 * 1024 * 1024 - prometheus_tsdb_storage_blocks_bytes) / clamp_min(deriv(prometheus_tsdb_storage_blocks_bytes[6h]) * 86400, 1)",
+          "legendFormat": "days",
+          "refId": "A"
+        }
+      ]
     }
   ]
 }
