@@ -1,0 +1,96 @@
+# Managed by Ansible — roles/observability-stack. Local edits are overwritten.
+#
+# Where alerts go once they fire. The rules in autolab.yml decide *that*
+# something is wrong; this file decides who finds out. Until this existed,
+# "alerting" meant a page you had to already be looking at.
+#
+# Two contact points rather than one, routed on the severity label the rules
+# already set. The distinction is the whole point: a channel that interrupts
+# you for a disk at 86% is a channel you mute, and a muted channel delivers
+# nothing when the thing it was for finally happens.
+#
+# Provisioned contact points and policies are read-only in the Grafana UI, by
+# design — the same reason dashboards and rules are files.
+#
+# WARNING: Grafana treats the notification policy tree as ONE resource. This
+# file replaces the entire tree, including the default email policy. Deleting
+# the file does not restore what it replaced; Grafana keeps the last
+# provisioned tree until something else provisions over it.
+#
+# The payload templates below are Go/gomplate, which shares its delimiters with
+# Jinja, so they sit in raw blocks. They build JSON with coll.Dict and
+# data.ToJSON rather than by pasting values between quote marks — an alert
+# summary containing a quote or newline would otherwise emit malformed JSON and
+# the notification would fail at the moment it mattered.
+apiVersion: 1
+
+{% set tiers = [
+  {'name': 'critical', 'priority': autolab_obs_ntfy_priority_critical, 'tag': 'rotating_light'},
+  {'name': 'warning',  'priority': autolab_obs_ntfy_priority_warning,  'tag': 'warning'}
+] %}
+contactPoints:
+{% for tier in tiers %}
+  - orgId: 1
+    name: autolab-ntfy-{{ tier.name }}
+    receivers:
+      - uid: autolab-ntfy-{{ tier.name }}
+        type: webhook
+        # Resolved notifications stay on. Recovery is fast — an agent that
+        # comes back clears in one evaluation — so without this you would be
+        # told the lab broke and never told it healed.
+        disableResolveMessage: false
+        settings:
+          # ntfy accepts JSON publishing on the root URL; the topic travels in
+          # the body rather than the path so it is not written into a URL that
+          # shows up in logs and error messages.
+          url: "{{ autolab_obs_ntfy_url }}"
+          httpMethod: POST
+          payload:
+            vars:
+              topic: "{{ autolab_obs_ntfy_topic }}"
+              grafana_url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}/alerting/list"
+            template: |
+{% raw %}
+              {{- $tag := "{% endraw %}{{ tier.tag }}{% raw %}" -}}
+              {{- $priority := {% endraw %}{{ tier.priority }}{% raw %} -}}
+              {{- if eq .Status "resolved" -}}
+              {{- $tag = "white_check_mark" -}}
+              {{- $priority = 2 -}}
+              {{- end -}}
+              {{- $body := "" -}}
+              {{- range .Alerts -}}
+              {{- $body = printf "%s%s\n" $body (or .Annotations.summary .Labels.alertname) -}}
+              {{- end -}}
+              {{- coll.Dict
+                    "topic" .Vars.topic
+                    "title" (printf "[%s] %s" .Status .CommonLabels.alertname)
+                    "message" $body
+                    "priority" $priority
+                    "tags" (coll.Slice $tag)
+                    "click" .Vars.grafana_url
+                  | data.ToJSON -}}
+{% endraw %}
+{% endfor %}
+
+# The tree is deliberately shallow: everything lands on warning unless it is
+# explicitly labelled critical. A new rule that forgets its severity label
+# therefore still reaches you — quietly, which is the safe direction to fail.
+policies:
+  - orgId: 1
+    receiver: autolab-ntfy-warning
+    group_by: ['alertname']
+    # Wait before sending so a rule firing across several hosts arrives as one
+    # notification instead of five.
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: {{ autolab_obs_ntfy_repeat_warning }}
+    routes:
+      - receiver: autolab-ntfy-critical
+        object_matchers:
+          - ['severity', '=', 'critical']
+        group_by: ['alertname']
+        group_wait: 30s
+        group_interval: 5m
+        # ntfy has no acknowledgement, so repetition is the only thing standing
+        # between a page you slept through and a page you never got.
+        repeat_interval: {{ autolab_obs_ntfy_repeat_critical }}

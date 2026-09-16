@@ -192,6 +192,9 @@ jobs:
           AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
           AUTOLAB_PVE_TOKEN_ID: ${{ vars.PVE_EXPORTER_TOKEN_ID }}
           AUTOLAB_PVE_TOKEN_SECRET: ${{ secrets.PVE_EXPORTER_TOKEN_SECRET }}
+          # The ntfy topic is the whole credential — anyone holding it can read
+          # these alerts and publish to them — so it is a secret, not a variable.
+          AUTOLAB_NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
           out="$RUNNER_TEMP/extra-vars.json"
           umask 077
@@ -201,12 +204,18 @@ jobs:
               "autolab_obs_pve_host": os.environ.get("AUTOLAB_PVE_HOST", ""),
               "autolab_obs_pve_token_id": os.environ.get("AUTOLAB_PVE_TOKEN_ID", ""),
               "autolab_obs_pve_token_secret": os.environ.get("AUTOLAB_PVE_TOKEN_SECRET", ""),
+              "autolab_obs_ntfy_topic": os.environ.get("AUTOLAB_NTFY_TOPIC", ""),
           }, open(sys.argv[1], "w"))
           PY
           if [ -n "${AUTOLAB_PVE_TOKEN_ID}" ]; then
             echo "Proxmox exporter credentials supplied."
           else
             echo "No Proxmox exporter credentials; the hypervisor exporter stays disabled."
+          fi
+          if [ -n "${AUTOLAB_NTFY_TOPIC}" ]; then
+            echo "Alert delivery configured."
+          else
+            echo "No ntfy topic; alerts stay in Grafana and are pushed nowhere."
           fi
 
       - name: Run Builder playbook
@@ -222,8 +231,8 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: 'true'
           ANSIBLE_SSH_COMMON_ARGS: '-o StrictHostKeyChecking=yes'
 
-      # The file holds a Proxmox token; the runner is ephemeral but the step is
-      # cheap and makes the lifetime explicit.
+      # The file holds a Proxmox token and the ntfy topic; the runner is
+      # ephemeral but the step is cheap and makes the lifetime explicit.
       - name: Remove the rendered extra variables
         if: always()
         run: rm -f "$RUNNER_TEMP/extra-vars.json"

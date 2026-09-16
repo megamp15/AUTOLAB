@@ -106,6 +106,32 @@
   when: autolab_obs_alerts_enabled | bool
   notify: Restart observability stack
 
+# Delivery. Without this the rules above are real but inert: they resolve
+# correctly and tell nobody. Skipped when no topic is configured rather than
+# provisioned empty, because an empty policy tree would silently replace the
+# default one and leave alerts with nowhere at all to go.
+- name: Provision alert delivery
+  ansible.builtin.template:
+    src: notifications.yml.j2
+    dest: "{{ autolab_obs_root }}/grafana/provisioning/alerting/notifications.yml"
+    owner: root
+    group: root
+    mode: "0600"
+  when:
+    - autolab_obs_alerts_enabled | bool
+    - autolab_obs_ntfy_topic | length > 0
+  notify: Restart observability stack
+
+# The topic is the entire ntfy credential, so a stale copy left behind after it
+# is rotated or removed would keep publishing to a channel that is no longer
+# yours.
+- name: Remove alert delivery when no topic is configured
+  ansible.builtin.file:
+    path: "{{ autolab_obs_root }}/grafana/provisioning/alerting/notifications.yml"
+    state: absent
+  when: autolab_obs_ntfy_topic | length == 0
+  notify: Restart observability stack
+
 - name: Install dashboards
   ansible.builtin.copy:
     src: "dashboards/"
