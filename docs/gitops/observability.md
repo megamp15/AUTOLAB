@@ -235,6 +235,11 @@ Grafana allows anonymous viewing, which is deliberate — reaching it at all
 already required passing the tailnet SSH/ACL policy, and a second password to
 lose helps nobody in a single-operator lab. Editing still requires a login.
 
+The **admin account is a different matter**. It can rewrite dashboards, add
+datasources, and change where alerts are delivered, so on the default
+`admin`/`admin` all of that belongs to anyone who can reach the tailnet. Set
+`GF_SECURITY_ADMIN_PASSWORD` as a repository secret; the role enforces it.
+
 ## Alerting
 
 Five rules ship in `roles/observability-stack/templates/alert-rules.yml.j2`,
@@ -385,6 +390,13 @@ looks wrong: it evaluates, fires, and shows `firing` in the UI. Only the
 delivery is silently lost, and the only evidence is a `ngalert.notifier` line in
 the Grafana log. Build payloads from literal JSON with each string value piped
 through `data.ToJSON`, not from template variables.
+
+**Setting `GF_SECURITY_ADMIN_PASSWORD` does not change an existing password.**
+Grafana consults it only when it *creates* the admin user, so on any host that
+has already run, the variable is set, ignored, and `admin`/`admin` keeps
+working. The environment looks configured and the login is unchanged. Only
+`grafana cli admin reset-admin-password` alters an existing account, which is
+why the role runs it rather than trusting the variable.
 
 **Agents must start after the backends.** `prometheus.remote_write` retries
 indefinitely and recovers on its own; `loki.write` gives up — *"no retries left,

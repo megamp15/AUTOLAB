@@ -199,6 +199,33 @@
   delay: 5
   changed_when: false
 
+# GF_SECURITY_ADMIN_PASSWORD is only consulted when Grafana creates the admin
+# user, so on any host that has already run it the variable is set, ignored, and
+# admin/admin still works — configured-looking and wrong. The CLI reset is the
+# only thing that changes an existing account, and it is safe to repeat.
+# Passed through the environment so the password does not appear in the host's
+# process list, and addressed by compose *service* name rather than container
+# name — the generated name depends on the project directory, and a wrong one
+# fails as "No such container" on stderr, which is easy to miss.
+- name: Enforce the Grafana admin password
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-directory
+      - "{{ autolab_obs_root }}"
+      - exec
+      - -T
+      - -e
+      - "GF_ADMIN_PW={{ autolab_obs_grafana_admin_password }}"
+      - grafana
+      - sh
+      - -c
+      - 'grafana cli --homepath /usr/share/grafana admin reset-admin-password "$GF_ADMIN_PW"'
+  when: autolab_obs_grafana_admin_password | length > 0
+  changed_when: false
+  no_log: true
+
 - name: Wait for Prometheus to accept writes
   ansible.builtin.uri:
     url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_prometheus_port }}/-/ready"
