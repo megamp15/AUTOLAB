@@ -456,6 +456,12 @@ target was baked with the IP still opens, still shows no error, and reaches
 nothing. Anything a human follows later uses the MagicDNS name; only container
 port bindings use the address, because those are evaluated at deploy time.
 
+**A GitHub release tag is not a registry tag.** `grafana/grafana-oss` stopped
+publishing after 13.0.2 while GitHub kept tagging releases, so a version that
+plainly exists upstream fails the pull with `manifest unknown`. Images come
+from `grafana/grafana`, which is the same OSS build and is current. Check the
+registry before bumping a pin, not the release page.
+
 **Agents must start after the backends.** `prometheus.remote_write` retries
 indefinitely and recovers on its own; `loki.write` gives up — *"no retries left,
 dropping data"* — and does not resume when the backend appears later. The
