@@ -86,6 +86,25 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `R2_SECRET_ACCESS_KEY` | `xyz789...` | OpenTofu | Same. Shown once. |
 | `PVE_SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH...` | Packer Build | Required only as the Proxmox bastion key; never reuse it for a VM. |
 
+## Credentials held outside GitHub
+
+Everything above is a GitHub Actions secret or variable. These are not, which
+is exactly why they are listed: an audit that reads only the tables above would
+miss them, and they still grant access.
+
+| Credential | Held by | Grants | Rotate |
+|---|---|---|---|
+| Grafana Git Sync token | Grafana's database on the stack host | Fine-grained GitHub PAT, scoped to this repository: Contents read/write, Pull requests read/write, Webhooks read/write, Metadata and Administration read-only | Grafana → Administration → Provisioning. Not `gh secret set`. |
+| Grafana admin password | Set from the `GF_SECURITY_ADMIN_PASSWORD` secret, then stored in Grafana | Full control of dashboards, datasources and alert delivery — including where alerts are sent | Change the secret and redeploy; the role runs `grafana cli admin reset-admin-password` |
+
+The Git Sync token is the one worth thinking about. Whoever holds Grafana admin
+can read it out or use it, so it turns "access to Grafana" into "write access
+to this repository". That is the trade Git Sync asks for, and it is why the
+admin password stopped being `admin` before the token existed.
+
+Set an expiry on it. A token that expires silently stops dashboard sync, and
+Grafana does not make that loud.
+
 ## Local-only config (not GitHub)
 
 These are **not** injected by CI today:
