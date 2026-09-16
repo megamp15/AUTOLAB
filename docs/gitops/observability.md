@@ -245,10 +245,24 @@ file provisioning cannot: editing a dashboard by looking at it. Hand-writing
 panel JSON is miserable and produces worse dashboards, because you cannot see
 what you are building.
 
-Existing dashboards still live in `roles/observability-stack/files/dashboards/`
-under file provisioning with `allowUiUpdates: false`. Migrate them to the Git
-Sync path one at a time rather than in a batch. Pointing both mechanisms at the
-same dashboard produces duplicates that are hard to tell apart in the UI.
+Dashboards live in `grafana/dashboards/` and are owned by Git Sync. Grafana
+wraps each one in a resource envelope rather than storing the bare dashboard
+JSON:
+
+```
+apiVersion: dashboard.grafana.app/v1
+kind: Dashboard
+metadata:
+  name: autolab-proxmox      # the dashboard UID, kept stable across the move
+spec:                        # the dashboard itself, minus id/uid/version
+```
+
+That envelope is why the two mechanisms cannot collide on a file: the shapes
+differ, so a file-provisioned dashboard is never mistaken for a Git Sync one.
+
+Grafana generates a random `metadata.name` for dashboards created through the
+UI. The migrated four set it explicitly to the UID they already had, so links
+and bookmarks keep working.
 
 ### Setting up Git Sync
 

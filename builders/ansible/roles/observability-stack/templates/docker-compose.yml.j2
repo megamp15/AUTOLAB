@@ -57,7 +57,6 @@ services:
 {% endif %}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - ./grafana/data:/var/lib/grafana
     ports:
       - "{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}:3000"
