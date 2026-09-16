@@ -235,7 +235,133 @@ Grafana allows anonymous viewing, which is deliberate — reaching it at all
 already required passing the tailnet SSH/ACL policy, and a second password to
 lose helps nobody in a single-operator lab. Editing still requires a login.
 
+## Alerting
+
+Five rules ship in `roles/observability-stack/templates/alert-rules.yml.j2`,
+provisioned as files for the same reason dashboards are.
+
+| Rule | Fires when | `for` | severity |
+|---|---|---|---|
+| Guest is stopped but set to start on boot | Proxmox reports a guest down that is flagged `onboot` | 5m | critical |
+| Agent is not reporting | Proxmox says the guest runs, but no node metrics arrive | 10m | critical |
+| Root filesystem almost full | `/` above `autolab_obs_alert_disk_pct` | 15m | warning |
+| Memory nearly exhausted | available memory below `autolab_obs_alert_memory_pct` | 15m | warning |
+| Proxmox storage almost full | a PVE datastore above `autolab_obs_alert_pve_storage_pct` | 15m | warning |
+
+Thresholds are deliberately loose. An alert that fires routinely is one people
+learn to close without reading, which is worse than no alert.
+
+### Delivery
+
+Rules decide *that* something is wrong. Delivery decides who finds out — and
+without it "alerting" means a page you must already be looking at.
+
+`notifications.yml.j2` provisions two contact points and a routing tree:
+
+- **critical** → ntfy priority 5 (long vibration, pop-over), repeats hourly
+- **warning** → ntfy priority 3 (normal), repeats every 6h
+- **resolved** → priority 2 (silent), on both
+
+The split is the entire point. A channel that interrupts you for a disk at 86%
+is a channel you mute, and a muted channel delivers nothing when the thing it
+was for finally happens.
+
+Routing is on the `severity` label the rules already set, and the tree is
+shallow on purpose: everything lands on *warning* unless explicitly labelled
+critical, so a new rule that forgets its label still reaches you — quietly,
+which is the safe direction to fail.
+
+**Delivery does not use the tailnet.** It is an outbound HTTPS POST to a third
+party, so it still arrives when the tailnet, or `jwst` itself, is the thing that
+broke. An alert path sharing a failure domain with the thing it watches is not
+an alert path. The cost is that alert *text* — hostnames like `sputnik` — leaves
+your network. No IPs, credentials, or metric data do.
+
+### Setting up ntfy
+
+ntfy has no account and no API key. **The topic string is the entire
+credential**: anyone who knows it can read your alerts *and publish to them*.
+Hence random entropy rather than a memorable name, and hence a secret rather
+than a variable.
+
+```bash
+# 1. Generate a topic. The random half is what makes it a credential.
+echo "autolab-pulsar-$(openssl rand -hex 5)"
+
+# 2. Store it. Never commit it.
+gh secret set NTFY_TOPIC
+
+# 3. Subscribe on the phone, then confirm the path end to end from the host.
+curl -X POST https://ntfy.sh -H 'Content-Type: application/json' \
+  -d '{"topic":"<topic>","title":"test","message":"delivery check","priority":5}'
+```
+
+On iOS, prefer the **PWA** — open `https://ntfy.sh` in Safari and Add to Home
+Screen — over the App Store app. Upstream describes the native iOS app as
+["very bare bones and quite frankly a little buggy"](https://docs.ntfy.sh/faq/)
+and iOS development as paused.
+
+### What ntfy cannot do
+
+It has **no iOS Critical Alerts entitlement** ([issue
+#1235](https://github.com/binwiederhier/ntfy/issues/1235), open since December
+2024), so a priority-5 alert still obeys silent mode, Do Not Disturb, and Focus.
+It will not wake you at 3am if your phone is set not to be woken.
+
+That is acceptable while the lab holds nothing you would lose by sleeping
+through, and not acceptable after it does. The migration is one file: rules,
+severity labels, routing, and dashboards all reference a *receiver name*, not a
+service. [Pushover](https://pushover.net/api) has held the Critical Alerts
+entitlement since 2020 and supports emergency priority that re-notifies until
+acknowledged; swapping to it means rewriting `notifications.yml.j2` and changing
+one secret.
+
+### Verifying an alert actually fires
+
+A rule that has never fired is a rule you are trusting on its appearance. Stop
+the agent on a VM that Proxmox still sees running — which exercises the whole
+chain, including the PromQL join between hypervisor and guest data:
+
+```bash
+ssh <vm> sudo systemctl stop alloy
+# ~5 min  : Prometheus lookback expires, rule -> pending
+# ~10 min : `for: 10m` elapses, rule -> firing, notification sent
+ssh <vm> sudo systemctl start alloy   # clears within one evaluation
+```
+
+Watch it without guessing:
+
+```bash
+curl -s http://<stack-host>:3000/api/prometheus/grafana/api/v1/rules \
+  | jq -r '.data.groups[].rules[] | "\(.state)\t\(.name)"'
+```
+
+Recorded run: stopped 01:46:05Z, `pending` 01:51:59Z, `firing` 02:02:03Z,
+`inactive` 20s after restart. Firing is slow and clearing is instant, by design
+— sustained badness pages, a single healthy evaluation clears.
+
 ## Things that will mislead you
+
+**`noDataState` defaults to firing when healthy.** Grafana treats an empty
+result as a fault. Most of these rules return series *only* when something is
+wrong, so the default fires them precisely when nothing is. They set
+`noDataState: OK`; genuinely missing metrics are caught by "Agent is not
+reporting", whose whole job that is.
+
+**`inactive` means healthy.** Grafana's rule list shows every rule's state, and
+five rules sitting at `inactive` is the correct steady state, not five silent
+failures.
+
+**HTTP 200 from ntfy does not mean your phone buzzed.** It means ntfy accepted
+the message. APNs delivery, the iOS app's known flakiness, and your own Focus
+settings all sit downstream of that 200. Confirm on the device.
+
+**Provisioning the policy tree replaces all of it.** Grafana treats the
+notification policy tree as one resource, so this file overwrites the default
+email policy entirely. Deleting the file does not restore what it replaced —
+Grafana keeps the last provisioned tree. That is why no topic means the file is
+*removed* rather than rendered empty: an empty tree would route nowhere while
+looking configured.
 
 **Agents must start after the backends.** `prometheus.remote_write` retries
 indefinitely and recovers on its own; `loki.write` gives up — *"no retries left,
