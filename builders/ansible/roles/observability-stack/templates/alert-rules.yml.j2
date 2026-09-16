@@ -6,6 +6,13 @@
 # Thresholds are deliberately not tight. An alert that fires routinely is an
 # alert people learn to close without reading, which is worse than no alert.
 #
+# noDataState is OK on every rule, deliberately. These queries return series
+# only when something is wrong, so an empty result is the healthy case —
+# Grafana's default of treating no data as a problem fires them exactly when
+# nothing is. Genuinely missing metrics are caught by "Agent is not reporting",
+# which is the rule whose whole job that is; duplicating it here would mean two
+# alerts for one fault.
+#
 # Grafana annotations below use Go templating, which shares its delimiters with
 # Jinja. They sit inside raw blocks so Ansible passes them through untouched —
 # without that, $labels is invalid Jinja and fails the render. (This comment
@@ -22,6 +29,8 @@ groups:
         title: Guest is stopped but set to start on boot
         condition: THRESHOLD
         for: 5m
+        noDataState: OK
+        execErrState: Error
         labels:
           severity: critical
         annotations:
@@ -53,6 +62,8 @@ groups:
         title: Agent is not reporting
         condition: THRESHOLD
         for: 10m
+        noDataState: OK
+        execErrState: Error
         labels:
           severity: critical
         annotations:
@@ -84,6 +95,8 @@ groups:
         title: Root filesystem almost full
         condition: THRESHOLD
         for: 15m
+        noDataState: OK
+        execErrState: Error
         labels:
           severity: warning
         annotations:
@@ -115,6 +128,8 @@ groups:
         title: Memory nearly exhausted
         condition: THRESHOLD
         for: 15m
+        noDataState: OK
+        execErrState: Error
         labels:
           severity: warning
         annotations:
@@ -146,6 +161,8 @@ groups:
         title: Proxmox storage almost full
         condition: THRESHOLD
         for: 15m
+        noDataState: OK
+        execErrState: Error
         labels:
           severity: warning
         annotations:
