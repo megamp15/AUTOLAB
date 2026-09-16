@@ -510,6 +510,14 @@ Grouping by a label that does not exist returns one series rather than none, so
 a dashboard panel drew a single meaningless line and a query validator counted
 it as returning data.
 
+**`CommonAnnotations` is empty whenever instances disagree.** Grafana populates
+it only with annotations identical across every alert in the group, so a rule
+firing for one host carries its summary and the same rule firing for three
+carries nothing. A notification built on it degrades exactly when the situation
+is worst. Observed live: "Proxmox storage almost full" arrived as
+*"storage/xps-pve/local is 19% full"* while "Memory nearly exhausted", firing
+for two hosts, arrived as *"Memory nearly exhausted"* and nothing else.
+
 **Git Sync can record a commit as synced without importing it.** The sync is
 incremental: it applies the diff between the last synced ref and the new one.
 Restart Grafana inside that window — a deploy will do it — and the ref advances
