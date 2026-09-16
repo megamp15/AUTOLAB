@@ -115,7 +115,12 @@ jobs:
           # harden.yml passed while tailscale-update.yml failed after doing its
           # work — a red run for a job that succeeded.
           python -m pip install 'ansible-core>=2.21,<2.22'
-          ansible-galaxy collection install -r requirements.yml
+          for attempt in 1 2 3; do
+            ansible-galaxy collection install -r requirements.yml && break
+            [ "$attempt" = 3 ] && { echo "failed after 3 attempts" >&2; exit 1; }
+            echo "attempt $attempt failed; retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
 
       - name: Render Builder inventory
         working-directory: infra/stacks/${{ inputs.environment || 'lab' }}

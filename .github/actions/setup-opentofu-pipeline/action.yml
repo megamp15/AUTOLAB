@@ -138,5 +138,13 @@ runs:
 
         : "${R2_ENDPOINT:=https://${AUTOLAB_R2_ACCOUNT_ID}.r2.cloudflarestorage.com}"
 
-        tofu init -input=false \
-          -backend-config="endpoint=$R2_ENDPOINT"
+        # Retried because provider downloads hit the OpenTofu registry, which
+        # timed out during a single evening's work. The backend config is
+        # unchanged between attempts, so a retry re-runs the same fetch rather
+        # than converging on anything different — and init is idempotent.
+        for attempt in 1 2 3; do
+          tofu init -input=false -backend-config="endpoint=$R2_ENDPOINT" && break
+          [ "$attempt" = 3 ] && { echo "tofu init failed after 3 attempts" >&2; exit 1; }
+          echo "attempt $attempt failed; retrying in $((attempt * 10))s"
+          sleep $((attempt * 10))
+        done
