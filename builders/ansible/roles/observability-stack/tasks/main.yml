@@ -167,6 +167,36 @@
 # Prometheus keeps its own data on local disk; the NAS holds the copy that
 # survives losing this VM. Snapshots go through the admin API so the TSDB is
 # consistent, rather than copying files out from under a running database.
+# The NAS mount is a separate playbook, and the export rule is a manual step on
+# the NAS. Rather than fail nightly against a path that is not there, detect the
+# mount and install the timer only once it exists — so declaring the backup path
+# is safe before the share is ready.
+- name: Check whether the snapshot target is mounted
+  ansible.builtin.stat:
+    path: "{{ autolab_obs_backup_dir | dirname }}"
+  register: autolab_obs_backup_parent
+  changed_when: false
+  when: autolab_obs_backup_dir | length > 0
+
+- name: Report that snapshots are waiting on the NAS mount
+  ansible.builtin.debug:
+    msg: >-
+      {{ autolab_obs_backup_dir | dirname }} is not mounted, so Prometheus
+      snapshots to the NAS are not installed. Metrics currently survive only on
+      this host's local disk. Mount the share (playbook nfs) and re-run.
+  when:
+    - autolab_obs_backup_dir | length > 0
+    - not (autolab_obs_backup_parent.stat.exists | default(false))
+
+- name: Create the snapshot destination on the share
+  ansible.builtin.file:
+    path: "{{ autolab_obs_backup_dir }}"
+    state: directory
+    mode: "0755"
+  when:
+    - autolab_obs_backup_dir | length > 0
+    - autolab_obs_backup_parent.stat.exists | default(false)
+
 - name: Install the snapshot script
   ansible.builtin.template:
     src: snapshot-to-nas.sh.j2
@@ -174,7 +204,9 @@
     owner: root
     group: root
     mode: "0755"
-  when: autolab_obs_backup_dir | length > 0
+  when:
+    - autolab_obs_backup_dir | length > 0
+    - autolab_obs_backup_parent.stat.exists | default(false)
 
 - name: Install the snapshot timer
   ansible.builtin.template:
@@ -186,7 +218,9 @@
   loop:
     - autolab-obs-snapshot.service
     - autolab-obs-snapshot.timer
-  when: autolab_obs_backup_dir | length > 0
+  when:
+    - autolab_obs_backup_dir | length > 0
+    - autolab_obs_backup_parent.stat.exists | default(false)
 
 - name: Enable the snapshot timer
   ansible.builtin.systemd_service:
@@ -194,4 +228,6 @@
     state: started
     enabled: true
     daemon_reload: true
-  when: autolab_obs_backup_dir | length > 0
+  when:
+    - autolab_obs_backup_dir | length > 0
+    - autolab_obs_backup_parent.stat.exists | default(false)

@@ -1,6 +1,17 @@
 name: 05 - Ansible Builder
 
 on:
+  # Observability config is provisioning files plus a container restart, so it
+  # applies on merge rather than waiting for someone to remember. Deliberately
+  # narrow: only these paths, only the observability playbook, never harden or
+  # docker or nfs — those touch the machines themselves and keep their typed
+  # confirmation.
+  push:
+    branches: [main]
+    paths:
+      - builders/ansible/roles/observability-agent/**
+      - builders/ansible/roles/observability-stack/**
+      - builders/ansible/playbooks/observability.yml
   workflow_dispatch:
     inputs:
       environment:
@@ -41,7 +52,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: ansible-builder-${{ inputs.environment }}
+  group: ansible-builder-${{ inputs.environment || 'lab' }}
   cancel-in-progress: false
 
 env:
@@ -51,14 +62,23 @@ env:
 jobs:
   configure:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment || 'lab' }}
+    env:
+      # workflow_dispatch supplies inputs; push supplies none. Resolving both
+      # into one place keeps the rest of the job identical for either trigger.
+      BUILDER_ENVIRONMENT: ${{ inputs.environment || 'lab' }}
+      BUILDER_PLAYBOOK: ${{ inputs.playbook || 'observability' }}
+      BUILDER_BOOTSTRAP: ${{ inputs.bootstrap || false }}
+      BUILDER_LIMIT: ${{ inputs.limit || 'all' }}
+      BUILDER_TAGS: ${{ inputs.tags || '' }}
+      BUILDER_CONFIRM: ${{ inputs.confirm || 'apply' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate Builder mode
         shell: bash
         run: |
-          if [[ "${{ inputs.bootstrap }}" == "true" && "${{ inputs.playbook }}" != "harden" ]]; then
+          if [[ "$BUILDER_BOOTSTRAP" == "true" && "$BUILDER_PLAYBOOK" != "harden" ]]; then
             echo 'bootstrap mode only supports the harden playbook' >&2
             exit 1
           fi
@@ -69,7 +89,7 @@ jobs:
 
       - uses: ./.github/actions/setup-opentofu-pipeline
         with:
-          env_dir: infra/stacks/${{ inputs.environment }}
+          env_dir: infra/stacks/${{ inputs.environment || 'lab' }}
           tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           tailscale_oauth_secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
           configure_proxmox: 'false'
@@ -98,11 +118,11 @@ jobs:
           ansible-galaxy collection install -r requirements.yml
 
       - name: Render Builder inventory
-        working-directory: infra/stacks/${{ inputs.environment }}
+        working-directory: infra/stacks/${{ inputs.environment || 'lab' }}
         run: |
           tofu output -json builder_machines > "$RUNNER_TEMP/builder-machines.json"
           user=gitops
-          if [ "${{ inputs.bootstrap }}" = "true" ]; then user=autolab; fi
+          if [ "$BUILDER_BOOTSTRAP" = "true" ]; then user=autolab; fi
           python3 "$GITHUB_WORKSPACE/scripts/generate-ansible-inventory.py" \
             "$RUNNER_TEMP/builder-machines.json" --output "$RUNNER_TEMP/inventory.json" --user "$user"
 
@@ -134,7 +154,7 @@ jobs:
           PY
           )
           user=gitops
-          if [[ "${{ inputs.bootstrap }}" == "true" ]]; then user=autolab; fi
+          if [[ "$BUILDER_BOOTSTRAP" == "true" ]]; then user=autolab; fi
           install -d -m 700 "$HOME/.ssh"
           touch "$HOME/.ssh/known_hosts"
           for host in "${hosts[@]}"; do
@@ -188,7 +208,7 @@ jobs:
         working-directory: builders/ansible
         run: |
           set -o pipefail
-          args=(-i "$RUNNER_TEMP/inventory.json" "playbooks/${{ inputs.playbook }}.yml" --limit "$BUILDER_LIMIT")
+          args=(-i "$RUNNER_TEMP/inventory.json" "playbooks/${BUILDER_PLAYBOOK}.yml" --limit "$BUILDER_LIMIT")
           args+=(--extra-vars "@$RUNNER_TEMP/extra-vars.json")
           if [ -n "$BUILDER_TAGS" ]; then args+=(--tags "$BUILDER_TAGS"); fi
           if [ "$BUILDER_CONFIRM" != "apply" ]; then args+=(--check); fi
@@ -196,9 +216,6 @@ jobs:
         env:
           ANSIBLE_HOST_KEY_CHECKING: 'true'
           ANSIBLE_SSH_COMMON_ARGS: '-o StrictHostKeyChecking=yes'
-          BUILDER_LIMIT: ${{ inputs.limit }}
-          BUILDER_CONFIRM: ${{ inputs.confirm }}
-          BUILDER_TAGS: ${{ inputs.tags }}
 
       # The file holds a Proxmox token; the runner is ephemeral but the step is
       # cheap and makes the lifetime explicit.
@@ -217,12 +234,13 @@ jobs:
           {
             echo "## Ansible Builder"
             echo
-            echo "- Environment: \`${{ inputs.environment }}\`"
-            echo "- Mode: \`${{ inputs.bootstrap == true && 'bootstrap' || 'regular' }}\`"
-            echo "- SSH user: \`${{ inputs.bootstrap == true && 'autolab' || 'gitops' }}\`"
-            echo "- Playbook: \`${{ inputs.playbook }}\`"
-            echo "- Limit: \`${{ inputs.limit || 'all' }}\`"
-            echo "- Tags: \`${{ inputs.tags || 'all roles' }}\`"
+            echo "- Trigger: \`${{ github.event_name }}\`"
+            echo "- Environment: \`$BUILDER_ENVIRONMENT\`"
+            echo "- Mode: \`$([ "$BUILDER_BOOTSTRAP" = "true" ] && echo bootstrap || echo regular)\`"
+            echo "- SSH user: \`$([ "$BUILDER_BOOTSTRAP" = "true" ] && echo autolab || echo gitops)\`"
+            echo "- Playbook: \`$BUILDER_PLAYBOOK\`"
+            echo "- Limit: \`$BUILDER_LIMIT\`"
+            echo "- Tags: \`${BUILDER_TAGS:-all roles}\`"
             echo "- Result: \`${{ job.status }}\`"
             echo "- Ansible recap: $recap"
           } >> "$GITHUB_STEP_SUMMARY"

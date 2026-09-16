@@ -16,10 +16,16 @@
   gather_facts: true
 
   vars:
-    # Prometheus keeps its working data on local disk, where a TSDB needs to be.
-    # This is the copy that outlives the VM. Empty until the NAS export for this
-    # host exists, which leaves the timer uninstalled rather than failing nightly.
-    autolab_obs_backup_dir: ""
+    # Prometheus keeps its working data on local disk, where a TSDB needs to be;
+    # this is the copy that outlives the VM. Snapshots go through the admin API
+    # rather than copying the data directory, because rsyncing a live TSDB
+    # captures half-written blocks and restores to corruption.
+    #
+    # The role skips the timer entirely when the mount is absent, so declaring
+    # the path here is safe before the NAS export exists — it starts working on
+    # the first run after the share is mounted, rather than needing a second
+    # edit nobody remembers to make.
+    autolab_obs_backup_dir: /mnt/autolab/obs
 
   roles:
     # Selected by machine policy rather than by hostname, so moving the stack to
