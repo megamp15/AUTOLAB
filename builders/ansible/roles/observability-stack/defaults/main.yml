@@ -90,3 +90,9 @@ autolab_obs_pve_verify_ssl: false
 # by that uid instead, still 0600 — readable by the one process that needs it
 # and nothing else on the host.
 autolab_obs_pve_container_uid: 101
+
+# Grafana's container runs as uid 472. Any provisioning file it must read has
+# to be readable by *that* uid, not by root — Grafana treats a provisioning
+# failure as fatal, so a root-owned 0600 file does not degrade the feature, it
+# crash-loops the whole service.
+autolab_obs_grafana_container_uid: 472

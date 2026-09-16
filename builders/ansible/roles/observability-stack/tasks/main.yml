@@ -51,8 +51,8 @@
   ansible.builtin.file:
     path: "{{ autolab_obs_root }}/grafana/data"
     state: directory
-    owner: "472"
-    group: "472"
+    owner: "{{ autolab_obs_grafana_container_uid }}"
+    group: "{{ autolab_obs_grafana_container_uid }}"
     mode: "0755"
 
 - name: Install Prometheus configuration
@@ -114,8 +114,12 @@
   ansible.builtin.template:
     src: notifications.yml.j2
     dest: "{{ autolab_obs_root }}/grafana/provisioning/alerting/notifications.yml"
-    owner: root
-    group: root
+    # Owned by Grafana's uid, not root. 0600 root-owned looks like the careful
+    # choice for a file holding a credential, but Grafana cannot read it and a
+    # failed provision is fatal, not degraded — it crash-loops on startup.
+    # Readable by the one process that needs it, and nothing else on the host.
+    owner: "{{ autolab_obs_grafana_container_uid }}"
+    group: "{{ autolab_obs_grafana_container_uid }}"
     mode: "0600"
   when:
     - autolab_obs_alerts_enabled | bool
@@ -177,6 +181,21 @@
   register: autolab_obs_loki_ready
   until: autolab_obs_loki_ready.status == 200
   retries: 30
+  delay: 5
+  changed_when: false
+
+# Grafana is gated too, and not merely for symmetry. `docker_compose_v2` with
+# state: present reports success once containers are *created*, so a Grafana
+# that crash-loops on a bad provisioning file leaves a green deploy behind and
+# a dead dashboard nobody looks at until they need it. Provisioning errors are
+# fatal in Grafana, which makes this the most likely way this role breaks.
+- name: Wait for Grafana to come up
+  ansible.builtin.uri:
+    url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}/api/health"
+    status_code: [200]
+  register: autolab_obs_grafana_ready
+  until: autolab_obs_grafana_ready.status == 200
+  retries: 20
   delay: 5
   changed_when: false
 

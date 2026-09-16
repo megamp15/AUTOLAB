@@ -363,6 +363,21 @@ Grafana keeps the last provisioned tree. That is why no topic means the file is
 *removed* rather than rendered empty: an empty tree would route nowhere while
 looking configured.
 
+**A container-readable file is not a root-readable file.** Grafana runs as uid
+472 and the Proxmox exporter as uid 101. A `0600` root-owned file looks like
+the careful choice for something holding a credential, and neither process can
+read it. For Grafana this is not a degraded feature — provisioning failure is
+fatal, so it crash-loops on startup:
+`Failed to provision alerting: ... permission denied`.
+
+**A green deploy does not mean the stack is up.** `docker_compose_v2` with
+`state: present` succeeds once containers are *created*, not once they are
+healthy, so a crash-looping Grafana leaves a passing workflow behind it. The
+role waits on `/api/health` for exactly this reason. `docker logs <name>` is
+no safety net either — with the wrong container name it prints
+`No such container` to stderr, and a grep for error patterns filters that away
+into a clean-looking result.
+
 **Agents must start after the backends.** `prometheus.remote_write` retries
 indefinitely and recovers on its own; `loki.write` gives up — *"no retries left,
 dropping data"* — and does not resume when the backend appears later. The
