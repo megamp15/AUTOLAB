@@ -54,13 +54,15 @@ prometheus.remote_write "stack" {
 // `unit` is promoted from the journal's own metadata for the same reason: it
 // was queried by a dashboard and never existed, so the panel grouped by a
 // missing label and drew one meaningless line.
-loki.relabel "journal" {
-  forward_to = [loki.write.stack.receiver]
-
-  rule {
-    target_label = "job"
-    replacement  = "journald"
-  }
+// Two relabel blocks, because the two labels are available at different points.
+//
+// `unit` comes from a __journal_* label, and those exist only *inside*
+// loki.source.journal — they are stripped before entries reach anything
+// downstream. Extracting it therefore has to happen in the component's own
+// relabel_rules. This block exports rules rather than receiving entries, which
+// is what the empty forward_to means.
+loki.relabel "journal_rules" {
+  forward_to = []
 
   rule {
     source_labels = ["__journal__systemd_unit"]
@@ -68,9 +70,22 @@ loki.relabel "journal" {
   }
 }
 
+// `job` needs the opposite treatment. The component sets it to its own path
+// after the labels block is applied, so the only place the value sticks is
+// downstream of the source.
+loki.relabel "journal" {
+  forward_to = [loki.write.stack.receiver]
+
+  rule {
+    target_label = "job"
+    replacement  = "journald"
+  }
+}
+
 loki.source.journal "journal" {
-  forward_to = [loki.relabel.journal.receiver]
-  labels     = {
+  forward_to    = [loki.relabel.journal.receiver]
+  relabel_rules = loki.relabel.journal_rules.rules
+  labels        = {
     host = "{{ inventory_hostname }}",
   }
 }
