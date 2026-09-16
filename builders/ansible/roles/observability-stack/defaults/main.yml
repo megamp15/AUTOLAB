@@ -10,7 +10,11 @@ autolab_obs_root: /opt/autolab/observability
 autolab_obs_images:
   prometheus: "prom/prometheus:v3.14.0"
   loki: "grafana/loki:3.7.7"
-  grafana: "grafana/grafana-oss:13.2.2"
+  # grafana/grafana, not grafana/grafana-oss. Both are the OSS build — the
+  # enterprise image is grafana/grafana-enterprise — but grafana-oss stopped
+  # publishing after 13.0.2 while grafana/grafana is current. A GitHub release
+  # tag is not proof that a registry tag exists; check the registry.
+  grafana: "grafana/grafana:13.2.2"
   pve_exporter: "prompve/prometheus-pve-exporter:3.10.0"
 
 # Metrics live on local disk. A TSDB does heavy random I/O with mmap and file
