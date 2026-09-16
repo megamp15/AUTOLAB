@@ -1,0 +1,203 @@
+{
+  "apiVersion": "dashboard.grafana.app/v1",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "autolab-logs"
+  },
+  "spec": {
+    "title": "Autolab \u2014 Logs",
+    "description": "Journald from every Builder host. Logs are the half of an incident metrics cannot explain.",
+    "tags": [
+      "autolab",
+      "provisioned",
+      "logs"
+    ],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "DS_LOKI",
+          "type": "datasource",
+          "query": "loki",
+          "current": {},
+          "hide": 0
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Log volume by host",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "${DS_LOKI}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "logs/s"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "sum by (host) (rate({host=~\".+\"}[5m]))",
+            "refId": "A",
+            "legendFormat": "{{host}}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Error-ish lines by host",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "${DS_LOKI}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "logs/s"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "sum by (host) (rate({host=~\".+\"} |~ \"(?i)(error|fail|denied|refused)\" [5m]))",
+            "refId": "A",
+            "legendFormat": "{{host}}"
+          }
+        ],
+        "description": "Pattern match, not severity. Useful as a trend; a spike is the signal, not the absolute number."
+      },
+      {
+        "id": 3,
+        "title": "Busiest units",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 8
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "${DS_LOKI}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "logs/s"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "topk(10, sum by (unit) (rate({host=~\".+\"}[5m])))",
+            "refId": "A",
+            "legendFormat": "{{unit}}"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Recent errors",
+        "type": "logs",
+        "gridPos": {
+          "h": 10,
+          "w": 24,
+          "x": 0,
+          "y": 16
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "${DS_LOKI}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            }
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "{host=~\".+\"} |~ \"(?i)(error|fail|denied|refused)\"",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showTime": true,
+          "wrapLogMessage": true,
+          "sortOrder": "Descending"
+        }
+      },
+      {
+        "id": 5,
+        "title": "Everything",
+        "type": "logs",
+        "gridPos": {
+          "h": 10,
+          "w": 24,
+          "x": 0,
+          "y": 26
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "${DS_LOKI}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            }
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "{host=~\".+\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showTime": true,
+          "wrapLogMessage": true,
+          "sortOrder": "Descending"
+        }
+      }
+    ]
+  }
+}

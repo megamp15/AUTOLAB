@@ -58,7 +58,6 @@
     - grafana/provisioning/datasources
     - grafana/provisioning/dashboards
     - grafana/provisioning/alerting
-    - grafana/dashboards
 
 # Grafana's container runs as uid 472 and will not start if it cannot write its
 # database.
@@ -88,9 +87,10 @@
     mode: "0644"
   notify: Restart observability stack
 
-# Datasources and dashboards are provisioned from files rather than clicked in.
-# A dashboard that exists only inside a container volume is one disk failure
-# from gone, and cannot be reviewed.
+# Datasources are provisioned from files and are not editable in the UI. They
+# are wiring, not content: a dashboard benefits from being dragged into shape,
+# a datasource UID does not, and the alert rules below reference these UIDs by
+# name. Dashboards moved to Git Sync.
 - name: Provision Grafana datasources
   ansible.builtin.template:
     src: datasources.yml.j2
@@ -100,13 +100,20 @@
     mode: "0644"
   notify: Restart observability stack
 
-- name: Provision the Grafana dashboard provider
-  ansible.builtin.copy:
-    src: dashboards-provider.yml
-    dest: "{{ autolab_obs_root }}/grafana/provisioning/dashboards/autolab.yml"
-    owner: root
-    group: root
-    mode: "0644"
+# Dashboards moved to Git Sync; Grafana owns them now and commits edits back.
+# These two removals matter: leaving the old provider in place would load a
+# second copy of every dashboard, and two dashboards with the same title are
+# genuinely hard to tell apart in the UI.
+- name: Remove the retired file-based dashboard provider
+  ansible.builtin.file:
+    path: "{{ autolab_obs_root }}/grafana/provisioning/dashboards/autolab.yml"
+    state: absent
+  notify: Restart observability stack
+
+- name: Remove the retired file-provisioned dashboards
+  ansible.builtin.file:
+    path: "{{ autolab_obs_root }}/grafana/dashboards"
+    state: absent
   notify: Restart observability stack
 
 # Alert rules alongside dashboards, for the same reason: a rule that exists only
@@ -149,15 +156,6 @@
     path: "{{ autolab_obs_root }}/grafana/provisioning/alerting/notifications.yml"
     state: absent
   when: autolab_obs_ntfy_topic | length == 0
-  notify: Restart observability stack
-
-- name: Install dashboards
-  ansible.builtin.copy:
-    src: "dashboards/"
-    dest: "{{ autolab_obs_root }}/grafana/dashboards/"
-    owner: root
-    group: root
-    mode: "0644"
   notify: Restart observability stack
 
 # The Proxmox API token is a file rather than an environment variable so it is
