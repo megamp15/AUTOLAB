@@ -27,9 +27,17 @@ flowchart LR
     X --> P
     P --> G
     L --> G
+    P -- "scrapes itself,<br/>Loki and Grafana" --> P
     P -. "snapshot" .-> N["NAS<br/><small>durable copy</small>"]
     PVE["Proxmox API"] --> X
+    G -- "alerts, by severity" --> NT["ntfy<br/><small>outbound HTTPS,<br/>off the tailnet</small>"]
+    NT --> PH["phone"]
 ```
+
+Alert delivery does not use the tailnet. It is an outbound POST to a third
+party, so it still arrives when the tailnet or `jwst` itself is what broke. An
+alert path that shares a failure domain with the thing it watches is not an
+alert path.
 
 Grafana is reached over the tailnet at `http://<stack-host>:3000`. Nothing is
 published to the LAN.
