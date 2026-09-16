@@ -46,10 +46,31 @@ prometheus.remote_write "stack" {
 // structured fields that file tailing would have to parse back out.
 // ---------------------------------------------------------------------------
 
-loki.source.journal "journal" {
+// The labels block below cannot set `job`. loki.source.journal names the job
+// after the component itself — `loki.source.journal.journal` — and that wins,
+// so {job="journald"} matched nothing while logs arrived the whole time under a
+// label nothing queried. Relabelling downstream is where the value sticks.
+//
+// `unit` is promoted from the journal's own metadata for the same reason: it
+// was queried by a dashboard and never existed, so the panel grouped by a
+// missing label and drew one meaningless line.
+loki.relabel "journal" {
   forward_to = [loki.write.stack.receiver]
+
+  rule {
+    target_label = "job"
+    replacement  = "journald"
+  }
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+}
+
+loki.source.journal "journal" {
+  forward_to = [loki.relabel.journal.receiver]
   labels     = {
-    job  = "journald",
     host = "{{ inventory_hostname }}",
   }
 }

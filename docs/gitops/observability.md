@@ -476,6 +476,14 @@ plainly exists upstream fails the pull with `manifest unknown`. Images come
 from `grafana/grafana`, which is the same OSS build and is current. Check the
 registry before bumping a pin, not the release page.
 
+**`loki.source.journal` names the job after itself.** The component sets `job`
+to `loki.source.journal.journal` and its own `labels` block cannot override it,
+so `{job="journald"}` matches nothing while logs arrive normally under a label
+nothing queries. The value only sticks if it is relabelled downstream. The same
+applies to `unit`, which has to be promoted from `__journal__systemd_unit` — a
+dashboard grouped by it for a day and drew one meaningless line, because
+grouping by a label that does not exist returns one series rather than none.
+
 **Git Sync can record a commit as synced without importing it.** The sync is
 incremental: it applies the diff between the last synced ref and the new one.
 Restart Grafana inside that window — a deploy will do it — and the ref advances
