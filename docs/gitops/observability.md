@@ -406,6 +406,12 @@ working. The environment looks configured and the login is unchanged. Only
 `grafana cli admin reset-admin-password` alters an existing account, which is
 why the role runs it rather than trusting the variable.
 
+**A tailnet IP is not a stable link.** Addresses belong to devices, so
+destroying and recreating a VM produces a new one. A notification whose click
+target was baked with the IP still opens, still shows no error, and reaches
+nothing. Anything a human follows later uses the MagicDNS name; only container
+port bindings use the address, because those are evaluated at deploy time.
+
 **Agents must start after the backends.** `prometheus.remote_write` retries
 indefinitely and recovers on its own; `loki.write` gives up — *"no retries left,
 dropping data"* — and does not resume when the backend appears later. The
