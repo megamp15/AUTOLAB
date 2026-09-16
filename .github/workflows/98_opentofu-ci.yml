@@ -27,7 +27,13 @@ jobs:
         run: tofu fmt -check -recursive ../..
 
       - name: Init without backend
-        run: tofu init -backend=false
+        run: |
+          for attempt in 1 2 3; do
+            tofu init -backend=false && break
+            [ "$attempt" = 3 ] && { echo "failed after 3 attempts" >&2; exit 1; }
+            echo "attempt $attempt failed; retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
 
       - name: Validate
         run: tofu validate

@@ -30,7 +30,22 @@ jobs:
         run: python3 -m pip install --quiet 'ansible-core>=2.21,<2.22' ansible-lint
 
       - name: Install collections
-        run: ansible-galaxy collection install -r requirements.yml
+        run: |
+          # Galaxy and the OpenTofu registry both returned transient errors during
+          # a single evening's work: HTTP 409, connection reset, request timeout.
+          # A check that goes red because the network hiccuped teaches you to
+          # merge through red — which matters more here, because this repo is
+          # private on a free plan and nothing enforces the checks (see #27).
+          #
+          # Only the fetch is retried. `tofu apply`, the playbook run and the
+          # policy sync are never retried: those failing means something real,
+          # and a retry risks a half-applied change.
+          for attempt in 1 2 3; do
+            ansible-galaxy collection install -r requirements.yml && break
+            [ "$attempt" = 3 ] && { echo "failed after 3 attempts" >&2; exit 1; }
+            echo "attempt $attempt failed; retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
 
       - name: Syntax-check every playbook against the example inventory
         run: |
