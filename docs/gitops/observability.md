@@ -378,6 +378,14 @@ no safety net either — with the wrong container name it prints
 `No such container` to stderr, and a grep for error patterns filters that away
 into a clean-looking result.
 
+**Grafana's payload template rejects `:=`.** Variable declarations fail to
+parse — `template: :2: unexpected ":=" in command` — and the notifier treats it
+as unrecoverable, dropping the alert after one attempt. Nothing about the rule
+looks wrong: it evaluates, fires, and shows `firing` in the UI. Only the
+delivery is silently lost, and the only evidence is a `ngalert.notifier` line in
+the Grafana log. Build payloads from literal JSON with each string value piped
+through `data.ToJSON`, not from template variables.
+
 **Agents must start after the backends.** `prometheus.remote_write` retries
 indefinitely and recovers on its own; `loki.write` gives up — *"no retries left,
 dropping data"* — and does not resume when the backend appears later. The

@@ -18,10 +18,17 @@
 # provisioned tree until something else provisions over it.
 #
 # The payload templates below are Go/gomplate, which shares its delimiters with
-# Jinja, so they sit in raw blocks. They build JSON with coll.Dict and
-# data.ToJSON rather than by pasting values between quote marks — an alert
-# summary containing a quote or newline would otherwise emit malformed JSON and
-# the notification would fail at the moment it mattered.
+# Jinja, so they sit in raw blocks.
+#
+# The JSON structure is literal and every *string value* is escaped by piping it
+# through data.ToJSON, rather than pasting values between quote marks. An alert
+# summary containing a quote would otherwise emit malformed JSON and the
+# notification would fail at the moment it mattered.
+#
+# No `:=` and no `range`: Grafana's payload engine rejects variable declarations
+# outright — `template: :2: unexpected ":=" in command` — and the failure is
+# unrecoverable, so the notifier drops the alert after one attempt. The rule
+# still fires and still looks correct in the UI; only the delivery is lost.
 apiVersion: 1
 
 {% set tiers = [
@@ -51,25 +58,14 @@ contactPoints:
               grafana_url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}/alerting/list"
             template: |
 {% raw %}
-              {{- $tag := "{% endraw %}{{ tier.tag }}{% raw %}" -}}
-              {{- $priority := {% endraw %}{{ tier.priority }}{% raw %} -}}
-              {{- if eq .Status "resolved" -}}
-              {{- $tag = "white_check_mark" -}}
-              {{- $priority = 2 -}}
-              {{- end -}}
-              {{- $body := "" -}}
-              {{- range .Alerts -}}
-              {{- $body = printf "%s%s\n" $body (or .Annotations.summary .Labels.alertname) -}}
-              {{- end -}}
-              {{- coll.Dict
-                    "topic" .Vars.topic
-                    "title" (printf "[%s] %s" .Status .CommonLabels.alertname)
-                    "message" $body
-                    "priority" $priority
-                    "tags" (coll.Slice $tag)
-                    "click" .Vars.grafana_url
-                  | data.ToJSON -}}
-{% endraw %}
+              {
+              "topic": {{ .Vars.topic | data.ToJSON }},
+              "title": {{ printf "[%s] %s" .Status .CommonLabels.alertname | data.ToJSON }},
+              "message": {{ or .CommonAnnotations.summary .CommonLabels.alertname | data.ToJSON }},
+              "click": {{ .Vars.grafana_url | data.ToJSON }},
+              "priority": {% endraw %}{% raw %}{{ if eq .Status "resolved" }}2{{ else }}{% endraw %}{{ tier.priority }}{% raw %}{{ end }}{% endraw %},
+              {% raw %}"tags": [{{ if eq .Status "resolved" }}"white_check_mark"{{ else }}"{% endraw %}{{ tier.tag }}{% raw %}"{{ end }}]{% endraw %}
+              }
 {% endfor %}
 
 # The tree is deliberately shallow: everything lands on warning unless it is
