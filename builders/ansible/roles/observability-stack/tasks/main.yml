@@ -29,6 +29,21 @@
   ansible.builtin.set_fact:
     autolab_tailscale_ip: "{{ autolab_tailscale_ip_raw.stdout_lines[0] }}"
 
+# Container ports must bind to the address, but anything a human clicks later
+# should use the name. A tailnet IP belongs to a device, and destroying and
+# recreating this VM produces a new one — which would leave every past
+# notification pointing at nothing, with no error anywhere.
+- name: Discover this host's MagicDNS name
+  ansible.builtin.command: tailscale status --json
+  register: autolab_tailscale_status
+  changed_when: false
+
+- name: Set the MagicDNS name fact
+  ansible.builtin.set_fact:
+    autolab_tailscale_fqdn: >-
+      {{ (autolab_tailscale_status.stdout | from_json).Self.DNSName
+         | regex_replace('\.$', '') }}
+
 - name: Create the observability directory tree
   ansible.builtin.file:
     path: "{{ autolab_obs_root }}/{{ item }}"

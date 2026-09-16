@@ -55,7 +55,7 @@ contactPoints:
           payload:
             vars:
               topic: "{{ autolab_obs_ntfy_topic }}"
-              grafana_url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}/alerting/list"
+              grafana_url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_grafana_port }}/alerting/list"
             template: |
 {% raw %}
               {
