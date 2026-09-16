@@ -376,3 +376,24 @@ run everywhere. Full detail in [observability](./observability.md).
       that has never fired is a rule you are trusting on its appearance
 - [ ] Mount the NAS share before expecting Prometheus snapshots; the timer
       installs only once the mount exists
+
+## Dashboards over Git Sync
+
+Dashboards are the one resource Grafana owns rather than Ansible, so that they
+can be edited by looking at them. Everything else in Grafana stays one-way from
+git. Full reasoning in [observability](./observability.md).
+
+- [ ] Create a **fine-grained** GitHub token scoped to this repository only,
+      with Contents read/write and Pull requests read/write. A classic token
+      would carry access to every repository on the account
+- [ ] Grafana → Administration → Provisioning → connect the repository, branch
+      `main`, path `grafana/dashboards`
+- [ ] Choose "Sync to a new Grafana folder" rather than root level, so the
+      connection cannot disturb anything else in the instance
+- [ ] **Check "Disable webhook integration".** Grafana is bound to the tailnet
+      only, so GitHub cannot deliver webhooks to it. Left enabled, Grafana
+      registers a hook that silently never fires
+- [ ] Verify both directions: create a dashboard in the UI and confirm the
+      commit appears, then commit a change from git and confirm it reaches
+      Grafana. Sync reports success either way, so only the resource count
+      distinguishes a working import from a skipped one
