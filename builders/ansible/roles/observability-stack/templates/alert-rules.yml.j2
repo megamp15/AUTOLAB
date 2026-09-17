@@ -34,7 +34,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "{% raw %}{{ $labels.id }} is stopped{% endraw %}"
+          summary: "{% raw %}{{ $labels.name }} ({{ $labels.id }}) is stopped{% endraw %}"
           description: "Proxmox reports this guest as stopped, but it is configured to start on boot."
         data:
           - refId: QUERY
@@ -46,7 +46,16 @@ groups:
               refId: QUERY
               instant: true
               editorMode: code
-              expr: 'pve_up{id=~"qemu/.*"} == 0 and on(id) pve_onboot_status == 1'
+              # `pve_up == 0` filters to stopped guests but keeps the value it
+              # matched, which is 0 — so the threshold below, gt 0.5, could never
+              # fire. The rule selected the right guest and then called it
+              # healthy. Selecting on onboot instead returns 1, which is both
+              # truthy for the threshold and the thing being asserted: this guest
+              # is supposed to be running.
+              # The join is for the annotation, not the logic: without it the only
+              # identifier on these series is `id`, so the notification read
+              # "qemu/102 is stopped" and left you to work out which VM that is.
+              expr: '(pve_onboot_status{id=~"qemu/.*"} == 1 unless on(id) pve_up == 1) * on(id) group_left(name) pve_guest_info'
           - refId: THRESHOLD
             datasourceUid: __expr__
             model:
