@@ -151,13 +151,32 @@ jobs:
       - name: Wait for Tailscale and SSH readiness
         run: |
           # Require both the overlay path and a known host key before Builder touches a machine.
-          mapfile -t hosts < <(python3 - "$RUNNER_TEMP/inventory.json" <<'PY'
+          #
+          # Only the hosts this run targets. The gate used to check every machine
+          # in the inventory regardless of --limit, so a single powered-off VM
+          # blocked deploys to every healthy one — and `--limit jwst` did not
+          # route around it, because the gate never read the limit. That is
+          # backwards: a host going down is when you most need to push changes to
+          # the rest. Resolved through ansible itself so the limit means the same
+          # thing here as it does in the playbook run below.
+          # sed, not tr: `tr -d '[:space:]'` strips the newlines as well and
+          # collapses every hostname into one token, which then matches nothing.
+          mapfile -t names < <(ansible -i "$RUNNER_TEMP/inventory.json" "$BUILDER_LIMIT" --list-hosts 2>/dev/null | tail -n +2 | sed 's/[[:space:]]//g' | grep -v '^$')
+          mapfile -t hosts < <(python3 - "$RUNNER_TEMP/inventory.json" "${names[@]}" <<'PY'
           import json, sys
           inventory = json.load(open(sys.argv[1]))
-          for host in inventory["all"]["children"]["linux_servers"]["hosts"].values():
-              print(host["ansible_host"])
+          wanted = set(sys.argv[2:])
+          hosts = inventory["all"]["children"]["linux_servers"]["hosts"]
+          for name, host in hosts.items():
+              if not wanted or name in wanted:
+                  print(host["ansible_host"])
           PY
           )
+          if [[ ${#hosts[@]} -eq 0 ]]; then
+            echo "No hosts matched limit '$BUILDER_LIMIT'; nothing to check." >&2
+            exit 1
+          fi
+          echo "Readiness check covers ${#hosts[@]} host(s) for limit '$BUILDER_LIMIT'."
           user=gitops
           if [[ "$BUILDER_BOOTSTRAP" == "true" ]]; then user=autolab; fi
           install -d -m 700 "$HOME/.ssh"
@@ -192,6 +211,10 @@ jobs:
           AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
           AUTOLAB_PVE_TOKEN_ID: ${{ vars.PVE_EXPORTER_TOKEN_ID }}
           AUTOLAB_PVE_TOKEN_SECRET: ${{ secrets.PVE_EXPORTER_TOKEN_SECRET }}
+          # The ntfy topic is the whole credential — anyone holding it can read
+          # these alerts and publish to them — so it is a secret, not a variable.
+          AUTOLAB_NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          AUTOLAB_GF_ADMIN_PASSWORD: ${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}
         run: |
           out="$RUNNER_TEMP/extra-vars.json"
           umask 077
@@ -201,12 +224,24 @@ jobs:
               "autolab_obs_pve_host": os.environ.get("AUTOLAB_PVE_HOST", ""),
               "autolab_obs_pve_token_id": os.environ.get("AUTOLAB_PVE_TOKEN_ID", ""),
               "autolab_obs_pve_token_secret": os.environ.get("AUTOLAB_PVE_TOKEN_SECRET", ""),
+              "autolab_obs_ntfy_topic": os.environ.get("AUTOLAB_NTFY_TOPIC", ""),
+              "autolab_obs_grafana_admin_password": os.environ.get("AUTOLAB_GF_ADMIN_PASSWORD", ""),
           }, open(sys.argv[1], "w"))
           PY
           if [ -n "${AUTOLAB_PVE_TOKEN_ID}" ]; then
             echo "Proxmox exporter credentials supplied."
           else
             echo "No Proxmox exporter credentials; the hypervisor exporter stays disabled."
+          fi
+          if [ -n "${AUTOLAB_NTFY_TOPIC}" ]; then
+            echo "Alert delivery configured."
+          else
+            echo "No ntfy topic; alerts stay in Grafana and are pushed nowhere."
+          fi
+          if [ -n "${AUTOLAB_GF_ADMIN_PASSWORD}" ]; then
+            echo "Grafana admin password will be enforced."
+          else
+            echo "No Grafana admin password; the existing login is left as-is."
           fi
 
       - name: Run Builder playbook
@@ -222,8 +257,8 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: 'true'
           ANSIBLE_SSH_COMMON_ARGS: '-o StrictHostKeyChecking=yes'
 
-      # The file holds a Proxmox token; the runner is ephemeral but the step is
-      # cheap and makes the lifetime explicit.
+      # The file holds a Proxmox token and the ntfy topic; the runner is
+      # ephemeral but the step is cheap and makes the lifetime explicit.
       - name: Remove the rendered extra variables
         if: always()
         run: rm -f "$RUNNER_TEMP/extra-vars.json"
