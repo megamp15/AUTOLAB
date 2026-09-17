@@ -62,4 +62,24 @@ machines = {
     }
   }
 
+  # Temporary, second round. The guest-down alert now names the VM rather than
+  # its Proxmox id, and that string has never been delivered: the naming fix
+  # deployed after the first probe was already destroyed, so both halves were
+  # verified separately and never together.
+  probe = {
+    type                    = "vm"
+    provisioning_class      = "builder_target"
+    name                    = "probe"
+    vm_id                   = 102
+    node_name               = "xps-pve"
+    template_vm_id          = 9000
+    datastore_id            = "local-lvm"
+    cloud_init_datastore_id = "local-lvm"
+    cpu_cores               = 1
+    memory_mb               = 1024
+    disk_size_gb            = 10
+    ipv4_address            = "dhcp"
+    builder = {
+    }
+  }
 }
