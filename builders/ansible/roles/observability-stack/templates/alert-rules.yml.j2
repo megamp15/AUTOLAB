@@ -46,7 +46,13 @@ groups:
               refId: QUERY
               instant: true
               editorMode: code
-              expr: 'pve_up{id=~"qemu/.*"} == 0 and on(id) pve_onboot_status == 1'
+              # `pve_up == 0` filters to stopped guests but keeps the value it
+              # matched, which is 0 — so the threshold below, gt 0.5, could never
+              # fire. The rule selected the right guest and then called it
+              # healthy. Selecting on onboot instead returns 1, which is both
+              # truthy for the threshold and the thing being asserted: this guest
+              # is supposed to be running.
+              expr: 'pve_onboot_status{id=~"qemu/.*"} == 1 unless on(id) pve_up == 1'
           - refId: THRESHOLD
             datasourceUid: __expr__
             model:
