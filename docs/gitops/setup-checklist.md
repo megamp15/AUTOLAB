@@ -377,6 +377,30 @@ run everywhere. Full detail in [observability](./observability.md).
 - [ ] Mount the NAS share before expecting Prometheus snapshots; the timer
       installs only once the mount exists
 
+## Adding a machine
+
+Three steps, and the middle one is easy to forget because nothing prompts for
+it.
+
+- [ ] Declare the machine in `infra/stacks/lab/machines.auto.tfvars` and merge
+- [ ] Run **04 - OpenTofu Apply** with `confirm: apply` to create it
+- [ ] Run **05 - Ansible Builder** with `playbook: harden`, `bootstrap: true`
+      and `limit: <name>` — **this step is required before the machine joins
+      normal runs**
+
+The bootstrap run connects as the cloud-init `autolab` user and creates
+`gitops`, which every later run uses. Skip it and the machine is reachable over
+the tailnet but has no `gitops` account, so the readiness gate fails the whole
+deploy with:
+
+```
+SSH readiness failed for gitops@<name>: failed to look up local user "gitops"
+```
+
+That failure blocks every host in the run, not just the new one. Until the
+Builder learns to report a machine as needing bootstrap and carry on, a newly
+created machine has to be bootstrapped or removed before the next full deploy.
+
 ## Dashboards over Git Sync
 
 Dashboards are the one resource Grafana owns rather than Ansible, so that they
