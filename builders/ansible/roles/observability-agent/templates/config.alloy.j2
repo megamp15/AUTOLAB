@@ -23,6 +23,17 @@ prometheus.scrape "node" {
   scrape_interval = "{{ autolab_obs_scrape_interval }}"
 }
 
+// Alloy's own health. Without this the agent is the one component that cannot
+// report on itself, and "no metrics" is ambiguous between a dead agent, a dead
+// host and a broken network.
+prometheus.exporter.self "alloy" {}
+
+prometheus.scrape "alloy" {
+  targets         = prometheus.exporter.self.alloy.targets
+  forward_to      = [prometheus.remote_write.stack.receiver]
+  scrape_interval = "{{ autolab_obs_scrape_interval }}"
+}
+
 prometheus.remote_write "stack" {
   endpoint {
     url = "{{ autolab_obs_metrics_endpoint }}"
@@ -35,10 +46,46 @@ prometheus.remote_write "stack" {
 // structured fields that file tailing would have to parse back out.
 // ---------------------------------------------------------------------------
 
-loki.source.journal "journal" {
+// The labels block below cannot set `job`. loki.source.journal names the job
+// after the component itself — `loki.source.journal.journal` — and that wins,
+// so {job="journald"} matched nothing while logs arrived the whole time under a
+// label nothing queried. Relabelling downstream is where the value sticks.
+//
+// `unit` is promoted from the journal's own metadata for the same reason: it
+// was queried by a dashboard and never existed, so the panel grouped by a
+// missing label and drew one meaningless line.
+// Two relabel blocks, because the two labels are available at different points.
+//
+// `unit` comes from a __journal_* label, and those exist only *inside*
+// loki.source.journal — they are stripped before entries reach anything
+// downstream. Extracting it therefore has to happen in the component's own
+// relabel_rules. This block exports rules rather than receiving entries, which
+// is what the empty forward_to means.
+loki.relabel "journal_rules" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+}
+
+// `job` needs the opposite treatment. The component sets it to its own path
+// after the labels block is applied, so the only place the value sticks is
+// downstream of the source.
+loki.relabel "journal" {
   forward_to = [loki.write.stack.receiver]
-  labels     = {
-    job  = "journald",
+
+  rule {
+    target_label = "job"
+    replacement  = "journald"
+  }
+}
+
+loki.source.journal "journal" {
+  forward_to    = [loki.relabel.journal.receiver]
+  relabel_rules = loki.relabel.journal_rules.rules
+  labels        = {
     host = "{{ inventory_hostname }}",
   }
 }
