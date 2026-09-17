@@ -62,29 +62,4 @@ machines = {
     }
   }
 
-  # Temporary. Exists to exercise two things nothing else has: the guest-down
-  # alert, which needs a VM that Proxmox is told to start on boot and then finds
-  # stopped, and the destroy-time Tailscale device cleanup, which has never run
-  # against a real machine.
-  #
-  # Removed by deleting this block and applying again. That destroys only this
-  # machine and fires its own cleanup provisioner, where running the destroy
-  # workflow would take the whole stack.
-  probe = {
-    type                    = "vm"
-    provisioning_class      = "builder_target"
-    name                    = "probe"
-    vm_id                   = 102
-    node_name               = "xps-pve"
-    template_vm_id          = 9000
-    datastore_id            = "local-lvm"
-    cloud_init_datastore_id = "local-lvm"
-    cpu_cores               = 1
-    memory_mb               = 1024
-    disk_size_gb            = 10
-    ipv4_address            = "dhcp"
-    builder = {
-      # Nothing. The baseline alone is the point.
-    }
-  }
 }
