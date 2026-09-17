@@ -288,7 +288,7 @@
                         "name": "${DS}"
                       },
                       "spec": {
-                        "expr": "pve_cpu_usage_ratio{id=~\"qemu/.*\"} * 100 * on(id) group_left(name) pve_guest_info",
+                        "expr": "pve_cpu_usage_ratio{id=~\"qemu/.*\"} * 100 * on(id) group_left(name) max by (id, name) (pve_guest_info)",
                         "legendFormat": "{{name}}"
                       }
                     },
@@ -342,7 +342,7 @@
                         "name": "${DS}"
                       },
                       "spec": {
-                        "expr": "pve_memory_usage_bytes{id=~\"qemu/.*\"} * on(id) group_left(name) pve_guest_info",
+                        "expr": "pve_memory_usage_bytes{id=~\"qemu/.*\"} * on(id) group_left(name) max by (id, name) (pve_guest_info)",
                         "legendFormat": "{{name}}"
                       }
                     },
@@ -450,7 +450,7 @@
                         "name": "${DS}"
                       },
                       "spec": {
-                        "expr": "rate(pve_disk_read_bytes_total{id=~\"qemu/.*\"}[5m]) * on(id) group_left(name) pve_guest_info",
+                        "expr": "rate(pve_disk_read_bytes_total{id=~\"qemu/.*\"}[5m]) * on(id) group_left(name) max by (id, name) (pve_guest_info)",
                         "legendFormat": "{{name}}"
                       }
                     },
@@ -504,7 +504,7 @@
                         "name": "${DS}"
                       },
                       "spec": {
-                        "expr": "rate(pve_disk_written_bytes_total{id=~\"qemu/.*\"}[5m]) * on(id) group_left(name) pve_guest_info",
+                        "expr": "rate(pve_disk_written_bytes_total{id=~\"qemu/.*\"}[5m]) * on(id) group_left(name) max by (id, name) (pve_guest_info)",
                         "legendFormat": "{{name}}"
                       }
                     },
@@ -612,7 +612,7 @@
                         "name": "${DS}"
                       },
                       "spec": {
-                        "expr": "rate(pve_network_receive_bytes_total{id=~\"qemu/.*\"}[5m]) * on(id) group_left(name) pve_guest_info",
+                        "expr": "rate(pve_network_receive_bytes_total{id=~\"qemu/.*\"}[5m]) * on(id) group_left(name) max by (id, name) (pve_guest_info)",
                         "legendFormat": "{{name}}"
                       }
                     },
@@ -666,7 +666,7 @@
                         "name": "${DS}"
                       },
                       "spec": {
-                        "expr": "rate(pve_network_transmit_bytes_total{id=~\"qemu/.*\"}[5m]) * on(id) group_left(name) pve_guest_info",
+                        "expr": "rate(pve_network_transmit_bytes_total{id=~\"qemu/.*\"}[5m]) * on(id) group_left(name) max by (id, name) (pve_guest_info)",
                         "legendFormat": "{{name}}"
                       }
                     },
