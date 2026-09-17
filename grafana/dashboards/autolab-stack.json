@@ -1,0 +1,510 @@
+{
+  "apiVersion": "dashboard.grafana.app/v1",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "autolab-stack"
+  },
+  "spec": {
+    "title": "Autolab \u2014 Stack health",
+    "description": "The observability stack watching itself. A monitoring system that cannot report its own failure is a monitoring system you cannot trust.",
+    "tags": [
+      "autolab",
+      "provisioned",
+      "meta"
+    ],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "DS",
+          "type": "datasource",
+          "query": "prometheus",
+          "current": {},
+          "hide": 0
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Targets up",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 0,
+          "y": 0
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            }
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "sum(up)",
+            "refId": "A",
+            "legendFormat": "up"
+          }
+        ],
+        "description": "Scrape targets Prometheus currently reaches."
+      },
+      {
+        "id": 2,
+        "title": "Targets down",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 6,
+          "y": 0
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            }
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "sum(up == 0) or vector(0)",
+            "refId": "A",
+            "legendFormat": "down"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Series in head",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 12,
+          "y": 0
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            }
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "prometheus_tsdb_head_series",
+            "refId": "A",
+            "legendFormat": "series"
+          }
+        ],
+        "description": "Cardinality. This is what fills the disk, not the number of hosts."
+      },
+      {
+        "id": 4,
+        "title": "TSDB size",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 18,
+          "y": 0
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "prometheus_tsdb_storage_blocks_bytes",
+            "refId": "A",
+            "legendFormat": "bytes"
+          }
+        ],
+        "description": "Against autolab_obs_retention_size. The root partition cannot grow, so this is a real ceiling."
+      },
+      {
+        "id": 10,
+        "title": "Scrape duration by job",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 4
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "scrape_duration_seconds",
+            "refId": "A",
+            "legendFormat": "{{job}} {{instance}}"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Samples appended",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 4
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            }
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "rate(prometheus_tsdb_head_samples_appended_total[5m])",
+            "refId": "A",
+            "legendFormat": "samples/s"
+          }
+        ]
+      },
+      {
+        "id": 20,
+        "title": "Up by job",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 12
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "max": 1,
+            "min": 0,
+            "custom": {
+              "fillOpacity": 20,
+              "lineWidth": 1
+            }
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "up",
+            "refId": "A",
+            "legendFormat": "{{job}} {{instance}}"
+          }
+        ]
+      },
+      {
+        "id": 21,
+        "title": "Agent scrape failures",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 12
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            }
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "rate(prometheus_target_scrapes_sample_out_of_order_total[5m])",
+            "refId": "A",
+            "legendFormat": "out of order"
+          },
+          {
+            "expr": "rate(prometheus_target_scrapes_exceeded_body_size_limit_total[5m])",
+            "refId": "B",
+            "legendFormat": "body size"
+          }
+        ]
+      },
+      {
+        "id": 30,
+        "title": "Host uptime",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 20
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "time() - node_boot_time_seconds",
+            "legendFormat": "{{instance}}",
+            "refId": "A"
+          }
+        ],
+        "description": "From the agent's own view. A reset here is a reboot, not an agent restart."
+      },
+      {
+        "id": 31,
+        "title": "Loki ingestion",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 20
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "Bps"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "sum(rate(loki_distributor_bytes_received_total[5m]))",
+            "refId": "A",
+            "legendFormat": "bytes/s"
+          }
+        ],
+        "description": "Zero here while hosts are up means loki.write gave up \u2014 it does not retry the way remote_write does."
+      },
+      {
+        "id": 32,
+        "title": "Alloy agent health",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 28
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "description": "Populated by prometheus.exporter.self once the agent play redeploys. Zero series here means the agents have not been updated yet.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            }
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "sum by (instance) (rate(alloy_component_evaluation_seconds_count[5m]))",
+            "legendFormat": "{{instance}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 40,
+        "title": "TSDB size against the cap",
+        "type": "gauge",
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 0,
+          "y": 36
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "description": "Percent of storage.tsdb.retention.size used. The root partition cannot be grown, so this cap is what stops the TSDB taking the host with it.",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "orange",
+                  "value": 70
+                },
+                {
+                  "color": "red",
+                  "value": 90
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "prometheus_tsdb_storage_blocks_bytes / (2 * 1024 * 1024 * 1024) * 100",
+            "legendFormat": "of 2GiB",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 41,
+        "title": "Retention deletions",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 16,
+          "x": 8,
+          "y": 36
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "description": "These counters increment only when Prometheus actually drops data. While both are zero, retention is configured but has never been exercised \u2014 the setting is unproven, not proven.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            }
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "prometheus_tsdb_size_retentions_total",
+            "legendFormat": "size-based deletions",
+            "refId": "A"
+          },
+          {
+            "expr": "prometheus_tsdb_time_retentions_total",
+            "legendFormat": "time-based deletions",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 42,
+        "title": "Days until the size cap binds",
+        "type": "stat",
+        "gridPos": {
+          "h": 6,
+          "w": 24,
+          "x": 0,
+          "y": 44
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "description": "Projected from the last 6h of growth. Whichever limit is reached first wins, and at current cardinality the 2GiB cap arrives well before 90 days \u2014 so this number, not the time setting, is the real retention.",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "d",
+            "decimals": 0
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "(2 * 1024 * 1024 * 1024 - prometheus_tsdb_storage_blocks_bytes) / clamp_min(deriv(prometheus_tsdb_storage_blocks_bytes[6h]) * 86400, 1)",
+            "legendFormat": "days",
+            "refId": "A"
+          }
+        ]
+      }
+    ],
+    "links": []
+  }
+}
