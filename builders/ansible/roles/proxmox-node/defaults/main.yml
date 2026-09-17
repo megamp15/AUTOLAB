@@ -1,0 +1,6 @@
+---
+# Proxmox ships without sudo. The account roles add operators to the `sudo`
+# group, so the group has to exist before they run or user creation fails on a
+# group that is not there.
+autolab_proxmox_base_packages:
+  - sudo
