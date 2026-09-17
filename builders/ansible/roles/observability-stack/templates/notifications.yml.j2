@@ -29,6 +29,14 @@
 # outright — `template: :2: unexpected ":=" in command` — and the failure is
 # unrecoverable, so the notifier drops the alert after one attempt. The rule
 # still fires and still looks correct in the UI; only the delivery is lost.
+#
+# Without a loop the body cannot list each instance, so it uses
+# CommonAnnotations.summary — which Grafana populates only when every alert in
+# the group carries the *same* summary. A rule firing for one host gets its real
+# summary; a rule firing for several gets a count instead, because their
+# summaries differ. Falling back to the alert name, as this did, produced a
+# notification whose body repeated its own title and said nothing, precisely
+# when several machines were affected at once.
 apiVersion: 1
 
 {% set tiers = [
@@ -61,7 +69,7 @@ contactPoints:
               {
               "topic": {{ .Vars.topic | data.ToJSON }},
               "title": {{ printf "[%s] %s" .Status .CommonLabels.alertname | data.ToJSON }},
-              "message": {{ or .CommonAnnotations.summary .CommonLabels.alertname | data.ToJSON }},
+              "message": {{ or .CommonAnnotations.summary (printf "%d instances affected. Open Grafana for which ones." (len .Alerts)) | data.ToJSON }},
               "click": {{ .Vars.grafana_url | data.ToJSON }},
               "priority": {% endraw %}{% raw %}{{ if eq .Status "resolved" }}2{{ else }}{% endraw %}{{ tier.priority }}{% raw %}{{ end }}{% endraw %},
               {% raw %}"tags": [{{ if eq .Status "resolved" }}"white_check_mark"{{ else }}"{% endraw %}{{ tier.tag }}{% raw %}"{{ end }}]{% endraw %}
