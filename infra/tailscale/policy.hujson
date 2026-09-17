@@ -22,6 +22,15 @@
         "tag:zima": ["autogroup:admin"],
 
         "tag:autolab-vm": ["autogroup:admin"],
+
+        // The hypervisor. Tagging it is what lets CI reach it at all: the
+        // runner is tag:ci-runner rather than a device you own, so the
+        // autogroup:self rule that grants you access does not apply to it.
+        //
+        // Tagging also REMOVES the node from autogroup:self, so the human rule
+        // below is not optional — without it, tagging would lock you out of the
+        // machine you just brought under management.
+        "tag:autolab-pve": ["autogroup:admin"],
     },
 
     // Define access control lists for users, groups, autogroups, tags,
@@ -88,6 +97,27 @@
             "src":    ["tag:ci-runner"],
             "dst":    ["tag:autolab-vm"],
             "users":  ["autolab", "gitops"],
+        },
+        {
+            // CI to the hypervisor. `root` is here for the first run only, the
+            // same shape as `autolab` on a new VM: the node has no gitops
+            // account until playbooks/proxmox.yml creates one. Drop root from
+            // this list once it has.
+            "action": "accept",
+            "src":    ["tag:ci-runner"],
+            "dst":    ["tag:autolab-pve"],
+            "users":  ["root", "gitops"],
+        },
+        {
+            // Humans to the hypervisor. Required because tagging the node took
+            // it out of autogroup:self, which is what granted this before.
+            // root stays reachable so there is a way back in if the gitops
+            // account is ever broken — this is the machine every VM runs on.
+            "action":      "check",
+            "src":         ["autogroup:member"],
+            "dst":         ["tag:autolab-pve"],
+            "users":       ["megamp15", "gitops", "root"],
+            "checkPeriod": "12h",
         },
         // Allow all members to SSH into Autolab Builder VMs for ad-hoc access.
         // check mode forces an IdP re-auth every 12h as a second factor.

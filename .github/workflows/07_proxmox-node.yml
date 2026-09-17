@@ -137,5 +137,5 @@ jobs:
             echo "- mode: \`$PVE_CONFIRM\`"
             echo "- limit: \`$PVE_LIMIT\`"
             echo "- connected as: \`$([ "$PVE_BOOTSTRAP" = "true" ] && echo root || echo gitops)\`"
-            [ -n "$recap" ] && echo "- recap: \`$recap\`"
+            if [ -n "$recap" ]; then echo "- recap: \`$recap\`"; fi
           } >> "$GITHUB_STEP_SUMMARY"
