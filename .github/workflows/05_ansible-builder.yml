@@ -159,7 +159,9 @@ jobs:
           # backwards: a host going down is when you most need to push changes to
           # the rest. Resolved through ansible itself so the limit means the same
           # thing here as it does in the playbook run below.
-          mapfile -t names < <(ansible -i "$RUNNER_TEMP/inventory.json" "$BUILDER_LIMIT" --list-hosts 2>/dev/null | tail -n +2 | tr -d '[:space:]')
+          # sed, not tr: `tr -d '[:space:]'` strips the newlines as well and
+          # collapses every hostname into one token, which then matches nothing.
+          mapfile -t names < <(ansible -i "$RUNNER_TEMP/inventory.json" "$BUILDER_LIMIT" --list-hosts 2>/dev/null | tail -n +2 | sed 's/[[:space:]]//g' | grep -v '^$')
           mapfile -t hosts < <(python3 - "$RUNNER_TEMP/inventory.json" "${names[@]}" <<'PY'
           import json, sys
           inventory = json.load(open(sys.argv[1]))
