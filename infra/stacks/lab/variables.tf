@@ -86,6 +86,11 @@ variable "machines" {
       # host that also runs the backends it reports to.
       observability = optional(object({
         stack = optional(bool, false)
+        # Defaults true: a machine is monitored unless it says otherwise.
+        # Setting false skips the agent install *and* excludes the guest from
+        # the "Agent is not reporting" rule, which would otherwise fire forever
+        # for a machine behaving exactly as designed.
+        agent = optional(bool, true)
       }), {})
     }), {})
   }))

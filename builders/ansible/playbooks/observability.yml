@@ -40,5 +40,9 @@
   gather_facts: true
 
   roles:
+    # Opt-out, not opt-in: a machine is monitored unless the machines map says
+    # otherwise, so forgetting the flag leaves you with more visibility rather
+    # than less.
     - role: observability-agent
+      when: ((autolab_builder | default({})).observability | default({})).agent | default(true) | bool
       tags: [obs, agent]
