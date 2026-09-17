@@ -34,6 +34,17 @@ autolab_obs_retention_size: "2GB"
 # exists only in a UI is as unreviewable as a dashboard that does.
 autolab_obs_alerts_enabled: true
 
+# Guests that declared observability.agent = false. Resolved from the inventory
+# rather than listed by hand, so the machines map stays the single place a
+# machine's monitoring is decided.
+autolab_obs_unmonitored_guests: >-
+  {{ hostvars | dict2items
+     | selectattr('value.autolab_builder', 'defined')
+     | selectattr('value.autolab_builder.observability', 'defined')
+     | selectattr('value.autolab_builder.observability.agent', 'defined')
+     | rejectattr('value.autolab_builder.observability.agent')
+     | map(attribute='key') | list }}
+
 # Thresholds. Defaults chosen to fire with enough warning to act, not so early
 # that they become background noise people learn to ignore.
 autolab_obs_alert_disk_pct: 85

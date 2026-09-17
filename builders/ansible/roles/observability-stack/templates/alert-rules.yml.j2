@@ -88,7 +88,14 @@ groups:
               refId: QUERY
               instant: true
               editorMode: code
-              expr: '(pve_up{id=~"qemu/.*"} == 1) * on(id) group_left(name) pve_guest_info{template="0"} unless on(name) label_replace(node_uname_info, "name", "$1", "instance", "(.+)")'
+              # Guests that opted out of the agent are excluded by name. Without
+              # this the rule fires forever for a machine that is behaving
+              # exactly as configured, and an alert that is permanently wrong
+              # teaches you to ignore the channel it arrives on.
+              #
+              # The list comes from the same machines map that skipped the
+              # install, so the two cannot drift: one declaration, both effects.
+              expr: '(pve_up{id=~"qemu/.*"} == 1) * on(id) group_left(name) pve_guest_info{template="0"{% if autolab_obs_unmonitored_guests %}, name!~"{{ autolab_obs_unmonitored_guests | join('|') }}"{% endif %}} unless on(name) label_replace(node_uname_info, "name", "$1", "instance", "(.+)")'
           - refId: THRESHOLD
             datasourceUid: __expr__
             model:
