@@ -510,6 +510,13 @@ Grouping by a label that does not exist returns one series rather than none, so
 a dashboard panel drew a single meaningless line and a query validator counted
 it as returning data.
 
+**A PromQL comparison keeps the value it matched.** `pve_up == 0` filters to
+stopped guests and returns `0` for each, so a `gt 0.5` threshold on top of it
+can never fire. The rule selected exactly the right guest and then evaluated it
+as healthy, and nothing about the query, the series count or the rule listing
+looked wrong. Assert on a metric whose matching value is truthy — here
+`pve_onboot_status == 1 unless on(id) pve_up == 1`, which returns 1.
+
 **`CommonAnnotations` is empty whenever instances disagree.** Grafana populates
 it only with annotations identical across every alert in the group, so a rule
 firing for one host carries its summary and the same rule firing for three
