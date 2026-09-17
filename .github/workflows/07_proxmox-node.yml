@@ -125,7 +125,12 @@ jobs:
       - name: Job summary
         if: always()
         run: |
-          recap="$(awk '/^PLAY RECAP/{getline; print; exit}' "$GITHUB_WORKSPACE/proxmox-output.log" 2>/dev/null)"
+          # `|| true`: the step runs on always(), so the log is absent whenever
+          # an earlier step failed. Without it awk exits non-zero, bash -e kills
+          # the summary, and the job's visible failure becomes this step rather
+          # than the one that actually broke — which is exactly what happened
+          # on the first run.
+          recap="$(awk '/^PLAY RECAP/{getline; print; exit}' "$GITHUB_WORKSPACE/proxmox-output.log" 2>/dev/null || true)"
           {
             echo "## Proxmox node"
             echo ""

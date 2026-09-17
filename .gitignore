@@ -20,6 +20,13 @@ ssh-keys/
 *.pem
 *.key
 builders/ansible/inventories/**/hosts.yml
+# The hypervisor inventory is the exception, and is tracked on purpose. Every
+# other inventory is generated from OpenTofu output, so committing one would
+# commit a stale copy of state. A hypervisor is not in the machines map — this
+# file *is* the declaration that the node exists, and without it the play has
+# nothing to target. Committed without it once already, which passed CI and
+# failed on the runner with "No hosts matched".
+!builders/ansible/inventories/hypervisors/hosts.yml
 builders/ansible/inventories/**/group_vars/
 builders/ansible/inventories/**/host_vars/
 
