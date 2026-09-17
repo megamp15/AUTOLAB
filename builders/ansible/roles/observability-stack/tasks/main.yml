@@ -29,6 +29,21 @@
   ansible.builtin.set_fact:
     autolab_tailscale_ip: "{{ autolab_tailscale_ip_raw.stdout_lines[0] }}"
 
+# Container ports must bind to the address, but anything a human clicks later
+# should use the name. A tailnet IP belongs to a device, and destroying and
+# recreating this VM produces a new one — which would leave every past
+# notification pointing at nothing, with no error anywhere.
+- name: Discover this host's MagicDNS name
+  ansible.builtin.command: tailscale status --json
+  register: autolab_tailscale_status
+  changed_when: false
+
+- name: Set the MagicDNS name fact
+  ansible.builtin.set_fact:
+    autolab_tailscale_fqdn: >-
+      {{ (autolab_tailscale_status.stdout | from_json).Self.DNSName
+         | regex_replace('\.$', '') }}
+
 - name: Create the observability directory tree
   ansible.builtin.file:
     path: "{{ autolab_obs_root }}/{{ item }}"
@@ -43,7 +58,6 @@
     - grafana/provisioning/datasources
     - grafana/provisioning/dashboards
     - grafana/provisioning/alerting
-    - grafana/dashboards
 
 # Grafana's container runs as uid 472 and will not start if it cannot write its
 # database.
@@ -51,8 +65,8 @@
   ansible.builtin.file:
     path: "{{ autolab_obs_root }}/grafana/data"
     state: directory
-    owner: "472"
-    group: "472"
+    owner: "{{ autolab_obs_grafana_container_uid }}"
+    group: "{{ autolab_obs_grafana_container_uid }}"
     mode: "0755"
 
 - name: Install Prometheus configuration
@@ -73,9 +87,10 @@
     mode: "0644"
   notify: Restart observability stack
 
-# Datasources and dashboards are provisioned from files rather than clicked in.
-# A dashboard that exists only inside a container volume is one disk failure
-# from gone, and cannot be reviewed.
+# Datasources are provisioned from files and are not editable in the UI. They
+# are wiring, not content: a dashboard benefits from being dragged into shape,
+# a datasource UID does not, and the alert rules below reference these UIDs by
+# name. Dashboards moved to Git Sync.
 - name: Provision Grafana datasources
   ansible.builtin.template:
     src: datasources.yml.j2
@@ -85,13 +100,20 @@
     mode: "0644"
   notify: Restart observability stack
 
-- name: Provision the Grafana dashboard provider
-  ansible.builtin.copy:
-    src: dashboards-provider.yml
-    dest: "{{ autolab_obs_root }}/grafana/provisioning/dashboards/autolab.yml"
-    owner: root
-    group: root
-    mode: "0644"
+# Dashboards moved to Git Sync; Grafana owns them now and commits edits back.
+# These two removals matter: leaving the old provider in place would load a
+# second copy of every dashboard, and two dashboards with the same title are
+# genuinely hard to tell apart in the UI.
+- name: Remove the retired file-based dashboard provider
+  ansible.builtin.file:
+    path: "{{ autolab_obs_root }}/grafana/provisioning/dashboards/autolab.yml"
+    state: absent
+  notify: Restart observability stack
+
+- name: Remove the retired file-provisioned dashboards
+  ansible.builtin.file:
+    path: "{{ autolab_obs_root }}/grafana/dashboards"
+    state: absent
   notify: Restart observability stack
 
 # Alert rules alongside dashboards, for the same reason: a rule that exists only
@@ -106,13 +128,34 @@
   when: autolab_obs_alerts_enabled | bool
   notify: Restart observability stack
 
-- name: Install dashboards
-  ansible.builtin.copy:
-    src: "dashboards/"
-    dest: "{{ autolab_obs_root }}/grafana/dashboards/"
-    owner: root
-    group: root
-    mode: "0644"
+# Delivery. Without this the rules above are real but inert: they resolve
+# correctly and tell nobody. Skipped when no topic is configured rather than
+# provisioned empty, because an empty policy tree would silently replace the
+# default one and leave alerts with nowhere at all to go.
+- name: Provision alert delivery
+  ansible.builtin.template:
+    src: notifications.yml.j2
+    dest: "{{ autolab_obs_root }}/grafana/provisioning/alerting/notifications.yml"
+    # Owned by Grafana's uid, not root. 0600 root-owned looks like the careful
+    # choice for a file holding a credential, but Grafana cannot read it and a
+    # failed provision is fatal, not degraded — it crash-loops on startup.
+    # Readable by the one process that needs it, and nothing else on the host.
+    owner: "{{ autolab_obs_grafana_container_uid }}"
+    group: "{{ autolab_obs_grafana_container_uid }}"
+    mode: "0600"
+  when:
+    - autolab_obs_alerts_enabled | bool
+    - autolab_obs_ntfy_topic | length > 0
+  notify: Restart observability stack
+
+# The topic is the entire ntfy credential, so a stale copy left behind after it
+# is rotated or removed would keep publishing to a channel that is no longer
+# yours.
+- name: Remove alert delivery when no topic is configured
+  ansible.builtin.file:
+    path: "{{ autolab_obs_root }}/grafana/provisioning/alerting/notifications.yml"
+    state: absent
+  when: autolab_obs_ntfy_topic | length == 0
   notify: Restart observability stack
 
 # The Proxmox API token is a file rather than an environment variable so it is
@@ -153,6 +196,48 @@
   retries: 30
   delay: 5
   changed_when: false
+
+# Grafana is gated too, and not merely for symmetry. `docker_compose_v2` with
+# state: present reports success once containers are *created*, so a Grafana
+# that crash-loops on a bad provisioning file leaves a green deploy behind and
+# a dead dashboard nobody looks at until they need it. Provisioning errors are
+# fatal in Grafana, which makes this the most likely way this role breaks.
+- name: Wait for Grafana to come up
+  ansible.builtin.uri:
+    url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}/api/health"
+    status_code: [200]
+  register: autolab_obs_grafana_ready
+  until: autolab_obs_grafana_ready.status == 200
+  retries: 20
+  delay: 5
+  changed_when: false
+
+# GF_SECURITY_ADMIN_PASSWORD is only consulted when Grafana creates the admin
+# user, so on any host that has already run it the variable is set, ignored, and
+# admin/admin still works — configured-looking and wrong. The CLI reset is the
+# only thing that changes an existing account, and it is safe to repeat.
+# Passed through the environment so the password does not appear in the host's
+# process list, and addressed by compose *service* name rather than container
+# name — the generated name depends on the project directory, and a wrong one
+# fails as "No such container" on stderr, which is easy to miss.
+- name: Enforce the Grafana admin password
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-directory
+      - "{{ autolab_obs_root }}"
+      - exec
+      - -T
+      - -e
+      - "GF_ADMIN_PW={{ autolab_obs_grafana_admin_password }}"
+      - grafana
+      - sh
+      - -c
+      - 'grafana cli --homepath /usr/share/grafana admin reset-admin-password "$GF_ADMIN_PW"'
+  when: autolab_obs_grafana_admin_password | length > 0
+  changed_when: false
+  no_log: true
 
 - name: Wait for Prometheus to accept writes
   ansible.builtin.uri:

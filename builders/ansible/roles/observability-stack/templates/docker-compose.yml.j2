@@ -46,9 +46,17 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+{% if autolab_obs_grafana_feature_toggles | length > 0 %}
+      GF_FEATURE_TOGGLES_ENABLE: "{{ autolab_obs_grafana_feature_toggles | join(',') }}"
+{% endif %}
+{% if autolab_obs_grafana_admin_password | length > 0 %}
+      # Applies when Grafana *creates* the admin user — that is, on a fresh
+      # data volume only. An existing install keeps whatever password it has,
+      # which is why the role also resets it explicitly; see tasks/main.yml.
+      GF_SECURITY_ADMIN_PASSWORD: "{{ autolab_obs_grafana_admin_password }}"
+{% endif %}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - ./grafana/data:/var/lib/grafana
     ports:
       - "{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}:3000"
