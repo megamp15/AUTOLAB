@@ -36,14 +36,27 @@
     state: absent
   notify: Refresh apt cache
 
+# Two tasks rather than one, because `item is exists` evaluates on the control
+# node. Written that way the condition tested the CI runner's filesystem, where
+# these paths never exist, so the task skipped every file and enforced nothing
+# while reporting success.
+- name: Look for enterprise repository files on the node
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ autolab_proxmox_enterprise_sources }}"
+  register: autolab_proxmox_enterprise_stat
+  changed_when: false
+
 - name: Keep enterprise repositories disabled
   ansible.builtin.lineinfile:
-    path: "{{ item }}"
+    path: "{{ item.item }}"
     regexp: '^Enabled:'
     line: 'Enabled: false'
     state: present
-  loop: "{{ autolab_proxmox_enterprise_sources }}"
-  when: item is exists
+  loop: "{{ autolab_proxmox_enterprise_stat.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stat.exists
   notify: Refresh apt cache
 
 - name: Prove apt can actually reach its repositories
