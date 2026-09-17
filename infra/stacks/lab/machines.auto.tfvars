@@ -61,29 +61,4 @@ machines = {
       # on tailscale0. Nothing is opened to the LAN.
     }
   }
-
-  # Disposable, and deliberately unmonitored. Demonstrates the opt-out: no
-  # agent is installed, so it appears in the Proxmox view like every other
-  # guest — the hypervisor reports CPU, memory, disk and network without
-  # anything inside the VM — but contributes no in-guest metrics and is
-  # excluded from the agent-silent alert rather than tripping it forever.
-  probe = {
-    type                    = "vm"
-    provisioning_class      = "builder_target"
-    name                    = "probe"
-    vm_id                   = 102
-    node_name               = "xps-pve"
-    template_vm_id          = 9000
-    datastore_id            = "local-lvm"
-    cloud_init_datastore_id = "local-lvm"
-    cpu_cores               = 1
-    memory_mb               = 1024
-    disk_size_gb            = 10
-    ipv4_address            = "dhcp"
-    builder = {
-      observability = {
-        agent = false
-      }
-    }
-  }
 }
