@@ -1,0 +1,136 @@
+name: 07 - Proxmox Node
+
+# The hypervisor layer, kept separate from the Builder on purpose.
+#
+# Workflow 05 renders its inventory from OpenTofu output, because those hosts
+# are things OpenTofu creates. A hypervisor is what they are created on, so
+# nothing in the machines map describes it. It also uses a static inventory and
+# its own readiness check, and never touches the linux_servers group — a
+# hypervisor outage must not be able to block config reaching its guests.
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: Optional Ansible host limit
+        required: false
+        default: ''
+        type: string
+      tags:
+        description: Optional Ansible tags
+        required: false
+        default: ''
+        type: string
+      bootstrap:
+        description: Connect as root for the first run, before the accounts exist
+        required: true
+        default: true
+        type: boolean
+      confirm:
+        description: Type apply to make changes; any other value runs check mode
+        required: true
+        default: check
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  configure:
+    name: Configure Proxmox nodes
+    runs-on: ubuntu-latest
+    env:
+      PVE_LIMIT: ${{ inputs.limit || 'proxmox_nodes' }}
+      PVE_TAGS: ${{ inputs.tags || '' }}
+      PVE_BOOTSTRAP: ${{ inputs.bootstrap }}
+      PVE_CONFIRM: ${{ inputs.confirm || 'check' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+
+      - uses: ./.github/actions/connect-tailscale
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+
+      - name: Install Ansible and its collections
+        working-directory: builders/ansible
+        run: |
+          # Pinned to match 97_ansible-ci.yml and workflow 05. Lint and runtime
+          # must agree, or a version-specific break passes lint and fails on a
+          # real host.
+          python -m pip install 'ansible-core>=2.21,<2.22'
+          for attempt in 1 2 3; do
+            ansible-galaxy collection install -r requirements.yml && break
+            [ "$attempt" = 3 ] && { echo "failed after 3 attempts" >&2; exit 1; }
+            echo "attempt $attempt failed; retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
+
+      - name: Wait for Tailscale and SSH readiness
+        working-directory: builders/ansible
+        run: |
+          user=gitops
+          if [[ "$PVE_BOOTSTRAP" == "true" ]]; then user=root; fi
+          mapfile -t hosts < <(ansible -i inventories/hypervisors/hosts.yml "$PVE_LIMIT" \
+            --list-hosts 2>/dev/null | tail -n +2 | sed 's/[[:space:]]//g' | grep -v '^$')
+          if [[ ${#hosts[@]} -eq 0 ]]; then
+            echo "No hosts matched limit '$PVE_LIMIT'; nothing to check." >&2
+            exit 1
+          fi
+          echo "Readiness check covers ${#hosts[@]} node(s) as $user."
+          install -d -m 700 "$HOME/.ssh"
+          touch "$HOME/.ssh/known_hosts"
+          for name in "${hosts[@]}"; do
+            addr="$(ansible -i inventories/hypervisors/hosts.yml "$name" \
+              -m debug -a 'var=ansible_host' 2>/dev/null \
+              | sed -n 's/.*"ansible_host": "\(.*\)".*/\1/p' | head -1)"
+            addr="${addr:-$name}"
+            for attempt in {1..12}; do
+              if ! ping_output=$(tailscale ping --until-direct=false --c 1 --timeout=5s "$addr" 2>&1); then
+                failure="Tailscale reachability failed for $addr: $ping_output"
+              elif ! ssh-keygen -F "$addr" >/dev/null && ! ssh-keyscan -H -t ed25519 -T 5 "$addr" >> "$HOME/.ssh/known_hosts" 2>/dev/null; then
+                failure="Could not collect an ED25519 host key for $addr"
+              elif ! ssh_output=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 "$user@$addr" true 2>&1); then
+                failure="SSH readiness failed for $user@$addr: $ssh_output"
+              else
+                break
+              fi
+              if [[ "$attempt" == 12 ]]; then
+                echo "$failure" >&2
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+
+      - name: Run the Proxmox playbook
+        working-directory: builders/ansible
+        run: |
+          set -o pipefail
+          user=gitops
+          if [[ "$PVE_BOOTSTRAP" == "true" ]]; then user=root; fi
+          args=(-i inventories/hypervisors/hosts.yml playbooks/proxmox.yml --limit "$PVE_LIMIT")
+          args+=(-e "autolab_proxmox_user=$user")
+          if [ -n "$PVE_TAGS" ]; then args+=(--tags "$PVE_TAGS"); fi
+          if [ "$PVE_CONFIRM" != "apply" ]; then args+=(--check --diff); fi
+          ansible-playbook "${args[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/proxmox-output.log"
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: 'true'
+          ANSIBLE_SSH_COMMON_ARGS: '-o StrictHostKeyChecking=yes'
+
+      - name: Job summary
+        if: always()
+        run: |
+          recap="$(awk '/^PLAY RECAP/{getline; print; exit}' "$GITHUB_WORKSPACE/proxmox-output.log" 2>/dev/null)"
+          {
+            echo "## Proxmox node"
+            echo ""
+            echo "- mode: \`$PVE_CONFIRM\`"
+            echo "- limit: \`$PVE_LIMIT\`"
+            echo "- connected as: \`$([ "$PVE_BOOTSTRAP" = "true" ] && echo root || echo gitops)\`"
+            [ -n "$recap" ] && echo "- recap: \`$recap\`"
+          } >> "$GITHUB_STEP_SUMMARY"

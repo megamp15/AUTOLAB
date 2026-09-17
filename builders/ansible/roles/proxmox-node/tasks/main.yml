@@ -1,0 +1,25 @@
+---
+- name: Require a Proxmox host
+  ansible.builtin.assert:
+    that: ansible_facts['distribution'] == 'Debian'
+    fail_msg: >-
+      This role targets Proxmox VE, which is Debian-based. Refusing to run
+      against {{ ansible_facts['distribution'] }} rather than guessing.
+
+# Deliberately narrow. The VM baseline installs unattended upgrades, hardens
+# sshd and enables ufw; none of those belong on a hypervisor, whose sshd is used
+# for cluster operations and which has its own firewall. This role does one
+# thing the account roles depend on.
+- name: Install the packages the account roles assume
+  ansible.builtin.apt:
+    name: "{{ autolab_proxmox_base_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Confirm the sudo group exists
+  ansible.builtin.getent:
+    database: group
+    key: sudo
+  register: autolab_proxmox_sudo_group
+  changed_when: false

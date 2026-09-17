@@ -1,0 +1,28 @@
+---
+# The hypervisor layer.
+#
+# Separate from harden.yml on purpose. That playbook applies the VM baseline —
+# unattended upgrades, sshd hardening, ufw — and none of it belongs on a
+# Proxmox node: its sshd carries cluster traffic, it has its own firewall, and
+# unattended restarts on the machine everything runs on is a decision rather
+# than a default.
+#
+# What is shared is the account model: named operators, a gitops automation
+# account, and root used only for the first run.
+- name: Bring Proxmox nodes under management
+  hosts: proxmox_nodes
+  become: true
+  gather_facts: true
+
+  vars:
+    autolab_admin_users:
+      - name: megamp15
+    autolab_admin_users_absent: []
+
+  roles:
+    - role: proxmox-node
+      tags: [proxmox, base]
+    - role: gitops-user
+      tags: [proxmox, users]
+    - role: admin-users
+      tags: [proxmox, users]
