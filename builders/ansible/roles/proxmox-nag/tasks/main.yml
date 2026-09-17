@@ -1,0 +1,48 @@
+---
+# Removes the "No valid subscription" dialog.
+#
+# Legally uncomplicated: Proxmox VE is AGPL software running on your own
+# hardware, and no paid licence is being bypassed — the dialog advertises
+# support contracts. Modifying it is a change to software you run.
+#
+# It reverts on every pve-manager upgrade, because the package owns the file.
+# That is why this is a role rather than a command someone ran once: the next
+# run puts it back. An upgrade therefore restores the dialog until the next
+# scheduled run, which is the expected behaviour and not a failure.
+
+- name: Check whether the widget toolkit is present
+  ansible.builtin.stat:
+    path: "{{ autolab_proxmox_widget_toolkit }}"
+  register: autolab_proxmox_toolkit
+  changed_when: false
+
+- name: Suppress the subscription dialog
+  ansible.builtin.replace:
+    path: "{{ autolab_proxmox_widget_toolkit }}"
+    # The guard the dialog is behind. Replacing the comparison with `false`
+    # leaves the surrounding code intact, so an upgrade that rewrites the file
+    # simply restores the original rather than colliding with a rewrite.
+    regexp: "res\\.data\\.status\\.toLowerCase\\(\\) !== 'active'"
+    replace: "false"
+    backup: true
+  when:
+    - autolab_proxmox_nag_remove | bool
+    - autolab_proxmox_toolkit.stat.exists
+  notify: Restart pveproxy
+
+- name: Report whether the dialog is currently suppressed
+  ansible.builtin.command:
+    cmd: "grep -c \"res.data.status.toLowerCase() !== 'active'\" {{ autolab_proxmox_widget_toolkit }}"
+  register: autolab_proxmox_nag_remaining
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: autolab_proxmox_toolkit.stat.exists
+
+- name: Show the result
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'Subscription dialog suppressed.'
+         if (autolab_proxmox_nag_remaining.stdout | default('1') | trim) == '0'
+         else 'Subscription dialog still present — the guard string did not match, so the file has changed shape upstream.' }}
+  when: autolab_proxmox_toolkit.stat.exists

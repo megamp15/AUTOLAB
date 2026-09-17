@@ -99,14 +99,17 @@
             "users":  ["autolab", "gitops"],
         },
         {
-            // CI to the hypervisor. `root` is here for the first run only, the
-            // same shape as `autolab` on a new VM: the node has no gitops
-            // account until playbooks/proxmox.yml creates one. Drop root from
-            // this list once it has.
+            // CI to the hypervisor. root has been dropped now that
+            // playbooks/proxmox.yml has created gitops on the node — CI has no
+            // reason to hold the account that can do anything.
+            //
+            // A first run against a NEW node needs root again, because the
+            // account does not exist there yet. Add it back for that run and
+            // remove it after, the same way autolab works for a new VM.
             "action": "accept",
             "src":    ["tag:ci-runner"],
             "dst":    ["tag:autolab-pve"],
-            "users":  ["root", "gitops"],
+            "users":  ["gitops"],
         },
         {
             // Humans to the hypervisor. Required because tagging the node took

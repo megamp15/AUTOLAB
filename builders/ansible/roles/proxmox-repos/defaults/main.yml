@@ -1,0 +1,13 @@
+---
+# Which Proxmox product this node runs. Detected rather than declared, because
+# a PBS node and a PVE node differ only in the repository name and nobody
+# should have to remember which they are editing.
+autolab_proxmox_repo_suite: trixie
+
+# Enterprise repositories require a subscription and return 401 without one,
+# which breaks apt entirely. Listed so the role can assert they stay disabled
+# rather than only adding the replacement and hoping.
+autolab_proxmox_enterprise_sources:
+  - /etc/apt/sources.list.d/pve-enterprise.sources
+  - /etc/apt/sources.list.d/pbs-enterprise.sources
+  - /etc/apt/sources.list.d/ceph.sources
