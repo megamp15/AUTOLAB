@@ -411,6 +411,15 @@ Recorded run: stopped 01:46:05Z, `pending` 01:51:59Z, `firing` 02:02:03Z,
 `inactive` 20s after restart. Firing is slow and clearing is instant, by design
 — sustained badness pages, a single healthy evaluation clears.
 
+**All five rules have been fired deliberately and confirmed delivered**, not
+merely reviewed. That exercise found one rule that could never fire at all, and
+one whose notification body repeated its own title whenever more than one host
+was affected. Both looked correct in the file. Thresholds for the two rules that
+cannot be reached safely — memory and datastore capacity — were lowered
+temporarily rather than driving a host to 90% memory or filling a datastore;
+that exercises the query, the threshold, the `for` duration, the routing and the
+delivery, leaving only a number that can be read.
+
 ### Verifying a snapshot restores
 
 The timer copying files to the NAS proves a copy happened, not that the copy is
@@ -433,6 +442,28 @@ unreadable to it and Prometheus starts with an empty database rather than
 failing, which would read as a lost snapshot.
 
 ## Things that will mislead you
+
+**Editing a dashboard in the UI rewrites it as schema v2.** With dynamic
+dashboards enabled, Grafana converts a v1 dashboard to
+`dashboard.grafana.app/v2` on save, so a one-word title change arrives as a
+thousand-line diff and the file no longer resembles what was committed. Nothing
+is lost and the panels are unchanged; review these diffs by opening the
+dashboard rather than by reading the JSON.
+
+**A change to the Builder workflow deploys nothing.** The push trigger is
+filtered to `builders/ansible/**`, so a fix to the deploy mechanism itself sits
+on main doing nothing until some unrelated change triggers a run. That is mostly
+right — CI edits should not reconfigure the fleet — but it means a broken
+workflow change is not exercised at merge time. Dispatch the workflow manually
+after changing it.
+
+**The readiness gate is scoped to the run, and that is deliberate.** It once
+checked every host in the inventory regardless of `--limit`, so one powered-off
+VM blocked deploys to every healthy one and `--limit` could not route around it.
+The failure was backwards: a host going down is when you most need to push
+changes to the rest. It now resolves the limit through ansible itself, and fails
+loudly when a pattern matches nothing rather than checking zero hosts and
+reporting success.
 
 **`noDataState` defaults to firing when healthy.** Grafana treats an empty
 result as a fault. Most of these rules return series *only* when something is
