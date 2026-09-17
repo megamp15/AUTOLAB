@@ -27,9 +27,17 @@ flowchart LR
     X --> P
     P --> G
     L --> G
+    P -- "scrapes itself,<br/>Loki and Grafana" --> P
     P -. "snapshot" .-> N["NAS<br/><small>durable copy</small>"]
     PVE["Proxmox API"] --> X
+    G -- "alerts, by severity" --> NT["ntfy<br/><small>outbound HTTPS,<br/>off the tailnet</small>"]
+    NT --> PH["phone"]
 ```
+
+Alert delivery does not use the tailnet. It is an outbound POST to a third
+party, so it still arrives when the tailnet or `jwst` itself is what broke. An
+alert path that shares a failure domain with the thing it watches is not an
+alert path.
 
 Grafana is reached over the tailnet at `http://<stack-host>:3000`. Nothing is
 published to the LAN.
@@ -217,12 +225,70 @@ process list.
 
 ## Dashboards as code
 
-Dashboards live in `roles/observability-stack/files/dashboards/` and are
-provisioned with `allowUiUpdates: false`. A dashboard clicked into a container
-volume is one disk failure from gone, and cannot be reviewed.
+Two mechanisms exist, and they pull in opposite directions. Which one owns a
+resource is a decision, not a detail.
 
-Editing one in the UI would drift from git and be reverted on the next run, so
-the provider locks it and says so.
+| Resource | Owned by | Direction |
+|---|---|---|
+| Datasources, alert rules, contact points, notification policies | File provisioning, written by Ansible | git to Grafana |
+| Dashboards | Git Sync | both ways |
+
+**File provisioning** renders files into Grafana's provisioning directory on
+each deploy. It is one-way and authoritative: Grafana reads, never writes.
+That suits things nobody edits by hand. An alert rule wants review before it
+changes, not a drag-and-drop.
+
+**Git Sync** is new in Grafana 13 and runs the other way as well. Grafana holds
+a GitHub credential, reads dashboards from a repository path, and commits UI
+edits back. It costs a token stored on the stack host, and it buys the thing
+file provisioning cannot: editing a dashboard by looking at it. Hand-writing
+panel JSON is miserable and produces worse dashboards, because you cannot see
+what you are building.
+
+Dashboards live in `grafana/dashboards/` and are owned by Git Sync. Grafana
+wraps each one in a resource envelope rather than storing the bare dashboard
+JSON:
+
+```
+apiVersion: dashboard.grafana.app/v1
+kind: Dashboard
+metadata:
+  name: autolab-proxmox      # the dashboard UID, kept stable across the move
+spec:                        # the dashboard itself, minus id/uid/version
+```
+
+That envelope is why the two mechanisms cannot collide on a file: the shapes
+differ, so a file-provisioned dashboard is never mistaken for a Git Sync one.
+
+Grafana generates a random `metadata.name` for dashboards created through the
+UI. The migrated four set it explicitly to the UID they already had, so links
+and bookmarks keep working.
+
+### Setting up Git Sync
+
+The `provisioning` feature toggle is on by default in Grafana 13 OSS, so no
+configuration is needed to reach the page.
+
+1. GitHub → Settings → Developer settings → **Fine-grained personal access
+   tokens**
+2. Scope it to the Autolab repository only, with **Contents: Read and write**.
+   Nothing else. A classic token would carry access to every repository on the
+   account, which this does not need.
+3. Grafana → Administration → **Provisioning** → add the repository URL, the
+   token, a branch, and a path such as `grafana/dashboards`
+4. Confirm a change made in the UI lands as a commit before moving any existing
+   dashboard across
+
+The token lets whoever holds Grafana admin write to the repository. That is the
+trade, and it is why the admin password stopped being `admin` first.
+
+### Dynamic dashboards
+
+Tabs, conditional panels and auto grid became generally available in Grafana
+13.2 and use the v2 dashboard schema, enabled through the
+`kubernetesDashboards` and `dashboardNewLayouts` toggles that
+`autolab_obs_grafana_feature_toggles` sets. Dashboards written against the v1
+schema are migrated when loaded, so the existing four keep working.
 
 ## Network exposure
 
@@ -235,7 +301,271 @@ Grafana allows anonymous viewing, which is deliberate — reaching it at all
 already required passing the tailnet SSH/ACL policy, and a second password to
 lose helps nobody in a single-operator lab. Editing still requires a login.
 
+The **admin account is a different matter**. It can rewrite dashboards, add
+datasources, and change where alerts are delivered, so on the default
+`admin`/`admin` all of that belongs to anyone who can reach the tailnet. Set
+`GF_SECURITY_ADMIN_PASSWORD` as a repository secret; the role enforces it.
+
+## Alerting
+
+Five rules ship in `roles/observability-stack/templates/alert-rules.yml.j2`,
+provisioned as files for the same reason dashboards are.
+
+| Rule | Fires when | `for` | severity |
+|---|---|---|---|
+| Guest is stopped but set to start on boot | Proxmox reports a guest down that is flagged `onboot` | 5m | critical |
+| Agent is not reporting | Proxmox says the guest runs, but no node metrics arrive | 10m | critical |
+| Root filesystem almost full | `/` above `autolab_obs_alert_disk_pct` | 15m | warning |
+| Memory nearly exhausted | available memory below `autolab_obs_alert_memory_pct` | 15m | warning |
+| Proxmox storage almost full | a PVE datastore above `autolab_obs_alert_pve_storage_pct` | 15m | warning |
+
+Thresholds are deliberately loose. An alert that fires routinely is one people
+learn to close without reading, which is worse than no alert.
+
+### Delivery
+
+Rules decide *that* something is wrong. Delivery decides who finds out — and
+without it "alerting" means a page you must already be looking at.
+
+`notifications.yml.j2` provisions two contact points and a routing tree:
+
+- **critical** → ntfy priority 5 (long vibration, pop-over), repeats hourly
+- **warning** → ntfy priority 3 (normal), repeats every 6h
+- **resolved** → priority 2 (silent), on both
+
+The split is the entire point. A channel that interrupts you for a disk at 86%
+is a channel you mute, and a muted channel delivers nothing when the thing it
+was for finally happens.
+
+Routing is on the `severity` label the rules already set, and the tree is
+shallow on purpose: everything lands on *warning* unless explicitly labelled
+critical, so a new rule that forgets its label still reaches you — quietly,
+which is the safe direction to fail.
+
+**Delivery does not use the tailnet.** It is an outbound HTTPS POST to a third
+party, so it still arrives when the tailnet, or `jwst` itself, is the thing that
+broke. An alert path sharing a failure domain with the thing it watches is not
+an alert path. The cost is that alert *text* — hostnames like `sputnik` — leaves
+your network. No IPs, credentials, or metric data do.
+
+### Setting up ntfy
+
+ntfy has no account and no API key. **The topic string is the entire
+credential**: anyone who knows it can read your alerts *and publish to them*.
+Hence random entropy rather than a memorable name, and hence a secret rather
+than a variable.
+
+```bash
+# 1. Generate a topic. The random half is what makes it a credential.
+echo "autolab-pulsar-$(openssl rand -hex 5)"
+
+# 2. Store it. Never commit it.
+gh secret set NTFY_TOPIC
+
+# 3. Subscribe on the phone, then confirm the path end to end from the host.
+curl -X POST https://ntfy.sh -H 'Content-Type: application/json' \
+  -d '{"topic":"<topic>","title":"test","message":"delivery check","priority":5}'
+```
+
+On iOS, prefer the **PWA** — open `https://ntfy.sh` in Safari and Add to Home
+Screen — over the App Store app. Upstream describes the native iOS app as
+["very bare bones and quite frankly a little buggy"](https://docs.ntfy.sh/faq/)
+and iOS development as paused.
+
+### What ntfy cannot do
+
+It has **no iOS Critical Alerts entitlement** ([issue
+#1235](https://github.com/binwiederhier/ntfy/issues/1235), open since December
+2024), so a priority-5 alert still obeys silent mode, Do Not Disturb, and Focus.
+It will not wake you at 3am if your phone is set not to be woken.
+
+That is acceptable while the lab holds nothing you would lose by sleeping
+through, and not acceptable after it does. The migration is one file: rules,
+severity labels, routing, and dashboards all reference a *receiver name*, not a
+service. [Pushover](https://pushover.net/api) has held the Critical Alerts
+entitlement since 2020 and supports emergency priority that re-notifies until
+acknowledged; swapping to it means rewriting `notifications.yml.j2` and changing
+one secret.
+
+### Verifying an alert actually fires
+
+A rule that has never fired is a rule you are trusting on its appearance. Stop
+the agent on a VM that Proxmox still sees running — which exercises the whole
+chain, including the PromQL join between hypervisor and guest data:
+
+```bash
+ssh <vm> sudo systemctl stop alloy
+# ~5 min  : Prometheus lookback expires, rule -> pending
+# ~10 min : `for: 10m` elapses, rule -> firing, notification sent
+ssh <vm> sudo systemctl start alloy   # clears within one evaluation
+```
+
+Watch it without guessing:
+
+```bash
+curl -s http://<stack-host>:3000/api/prometheus/grafana/api/v1/rules \
+  | jq -r '.data.groups[].rules[] | "\(.state)\t\(.name)"'
+```
+
+Recorded run: stopped 01:46:05Z, `pending` 01:51:59Z, `firing` 02:02:03Z,
+`inactive` 20s after restart. Firing is slow and clearing is instant, by design
+— sustained badness pages, a single healthy evaluation clears.
+
+**All five rules have been fired deliberately and confirmed delivered**, not
+merely reviewed. That exercise found one rule that could never fire at all, and
+one whose notification body repeated its own title whenever more than one host
+was affected. Both looked correct in the file. Thresholds for the two rules that
+cannot be reached safely — memory and datastore capacity — were lowered
+temporarily rather than driving a host to 90% memory or filling a datastore;
+that exercises the query, the threshold, the `for` duration, the routing and the
+delivery, leaving only a number that can be read.
+
+### Verifying a snapshot restores
+
+The timer copying files to the NAS proves a copy happened, not that the copy is
+usable. `scripts/verify-prometheus-snapshot.sh`, run on the stack host, copies
+the blocks into a throwaway Prometheus on a loopback-only port, queries inside
+the block's own time window, and removes everything afterwards.
+
+```
+blocks restored: 2
+restore instance ready: 200
+block window: 00:01:06Z .. 04:06:25Z
+  restored series for node_load1: 1
+  restored series for pve_up: 8
+  restored series for up: 3
+```
+
+Non-zero series counts are the result. The container runs as `nobody`, so the
+script chowns the copied blocks to uid 65534 — a root-owned data directory is
+unreadable to it and Prometheus starts with an empty database rather than
+failing, which would read as a lost snapshot.
+
 ## Things that will mislead you
+
+**Editing a dashboard in the UI rewrites it as schema v2.** With dynamic
+dashboards enabled, Grafana converts a v1 dashboard to
+`dashboard.grafana.app/v2` on save, so a one-word title change arrives as a
+thousand-line diff and the file no longer resembles what was committed. Nothing
+is lost and the panels are unchanged; review these diffs by opening the
+dashboard rather than by reading the JSON.
+
+**A change to the Builder workflow deploys nothing.** The push trigger is
+filtered to `builders/ansible/**`, so a fix to the deploy mechanism itself sits
+on main doing nothing until some unrelated change triggers a run. That is mostly
+right — CI edits should not reconfigure the fleet — but it means a broken
+workflow change is not exercised at merge time. Dispatch the workflow manually
+after changing it.
+
+**The readiness gate is scoped to the run, and that is deliberate.** It once
+checked every host in the inventory regardless of `--limit`, so one powered-off
+VM blocked deploys to every healthy one and `--limit` could not route around it.
+The failure was backwards: a host going down is when you most need to push
+changes to the rest. It now resolves the limit through ansible itself, and fails
+loudly when a pattern matches nothing rather than checking zero hosts and
+reporting success.
+
+**`noDataState` defaults to firing when healthy.** Grafana treats an empty
+result as a fault. Most of these rules return series *only* when something is
+wrong, so the default fires them precisely when nothing is. They set
+`noDataState: OK`; genuinely missing metrics are caught by "Agent is not
+reporting", whose whole job that is.
+
+**`inactive` means healthy.** Grafana's rule list shows every rule's state, and
+five rules sitting at `inactive` is the correct steady state, not five silent
+failures.
+
+**HTTP 200 from ntfy does not mean your phone buzzed.** It means ntfy accepted
+the message. APNs delivery, the iOS app's known flakiness, and your own Focus
+settings all sit downstream of that 200. Confirm on the device.
+
+**Provisioning the policy tree replaces all of it.** Grafana treats the
+notification policy tree as one resource, so this file overwrites the default
+email policy entirely. Deleting the file does not restore what it replaced —
+Grafana keeps the last provisioned tree. That is why no topic means the file is
+*removed* rather than rendered empty: an empty tree would route nowhere while
+looking configured.
+
+**A container-readable file is not a root-readable file.** Grafana runs as uid
+472 and the Proxmox exporter as uid 101. A `0600` root-owned file looks like
+the careful choice for something holding a credential, and neither process can
+read it. For Grafana this is not a degraded feature — provisioning failure is
+fatal, so it crash-loops on startup:
+`Failed to provision alerting: ... permission denied`.
+
+**A green deploy does not mean the stack is up.** `docker_compose_v2` with
+`state: present` succeeds once containers are *created*, not once they are
+healthy, so a crash-looping Grafana leaves a passing workflow behind it. The
+role waits on `/api/health` for exactly this reason. `docker logs <name>` is
+no safety net either — with the wrong container name it prints
+`No such container` to stderr, and a grep for error patterns filters that away
+into a clean-looking result.
+
+**Grafana's payload template rejects `:=`.** Variable declarations fail to
+parse — `template: :2: unexpected ":=" in command` — and the notifier treats it
+as unrecoverable, dropping the alert after one attempt. Nothing about the rule
+looks wrong: it evaluates, fires, and shows `firing` in the UI. Only the
+delivery is silently lost, and the only evidence is a `ngalert.notifier` line in
+the Grafana log. Build payloads from literal JSON with each string value piped
+through `data.ToJSON`, not from template variables.
+
+**Setting `GF_SECURITY_ADMIN_PASSWORD` does not change an existing password.**
+Grafana consults it only when it *creates* the admin user, so on any host that
+has already run, the variable is set, ignored, and `admin`/`admin` keeps
+working. The environment looks configured and the login is unchanged. Only
+`grafana cli admin reset-admin-password` alters an existing account, which is
+why the role runs it rather than trusting the variable.
+
+**A tailnet IP is not a stable link.** Addresses belong to devices, so
+destroying and recreating a VM produces a new one. A notification whose click
+target was baked with the IP still opens, still shows no error, and reaches
+nothing. Anything a human follows later uses the MagicDNS name; only container
+port bindings use the address, because those are evaluated at deploy time.
+
+**A GitHub release tag is not a registry tag.** `grafana/grafana-oss` stopped
+publishing after 13.0.2 while GitHub kept tagging releases, so a version that
+plainly exists upstream fails the pull with `manifest unknown`. Images come
+from `grafana/grafana`, which is the same OSS build and is current. Check the
+registry before bumping a pin, not the release page.
+
+**`loki.source.journal` names the job after itself.** The component sets `job`
+to `loki.source.journal.journal` and its own `labels` block cannot override it,
+so `{job="journald"}` matches nothing while logs arrive normally under a label
+nothing queries. The value only sticks if it is relabelled downstream. `unit` needs the opposite treatment. It comes from `__journal__systemd_unit`,
+and `__journal_*` labels exist only *inside* the journal source — they are
+stripped before entries reach anything downstream. So `job` must be set after
+the component and `unit` must be extracted within it, using a `loki.relabel`
+block that exports rules rather than receiving entries.
+
+Grouping by a label that does not exist returns one series rather than none, so
+a dashboard panel drew a single meaningless line and a query validator counted
+it as returning data.
+
+**A PromQL comparison keeps the value it matched.** `pve_up == 0` filters to
+stopped guests and returns `0` for each, so a `gt 0.5` threshold on top of it
+can never fire. The rule selected exactly the right guest and then evaluated it
+as healthy, and nothing about the query, the series count or the rule listing
+looked wrong. Assert on a metric whose matching value is truthy — here
+`pve_onboot_status == 1 unless on(id) pve_up == 1`, which returns 1.
+
+**`CommonAnnotations` is empty whenever instances disagree.** Grafana populates
+it only with annotations identical across every alert in the group, so a rule
+firing for one host carries its summary and the same rule firing for three
+carries nothing. A notification built on it degrades exactly when the situation
+is worst. Observed live: "Proxmox storage almost full" arrived as
+*"storage/xps-pve/local is 19% full"* while "Memory nearly exhausted", firing
+for two hosts, arrived as *"Memory nearly exhausted"* and nothing else.
+
+**Git Sync can record a commit as synced without importing it.** The sync is
+incremental: it applies the diff between the last synced ref and the new one.
+Restart Grafana inside that window — a deploy will do it — and the ref advances
+while the resources do not land. Every poll afterwards logs *"skip sync on
+interval as the latest ref matches the last synced ref"*, and the status reads
+`state: success`, `healthy: true`, with a resource count quietly lower than the
+number of files. The file listing under `/files/` still shows everything,
+because that reads the repository rather than what was imported. Force a full
+resync from the folder's sync control, or make the files differ so the next
+diff contains them.
 
 **Agents must start after the backends.** `prometheus.remote_write` retries
 indefinitely and recovers on its own; `loki.write` gives up — *"no retries left,

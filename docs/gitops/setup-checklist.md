@@ -19,16 +19,21 @@ Complete these in order. Each step links to the relevant guide for details.
 - [ ] Tailscale installed and the host has joined the tailnet
 - [ ] Builder VM Tailscale SSH host feature is enabled by cloud-init after enrollment
 
-## 1. Tailscale GitHub OIDC/WIF for CI
+## 1. Tailscale OAuth client for CI
 
-The GitHub runner uses GitHub OIDC/WIF to obtain short-lived tailnet access;
-do not create or store a long-lived OAuth client secret for Builder CI.
+The runner authenticates with a classic OAuth client ID and secret. An earlier
+version of this checklist said it used GitHub OIDC/WIF with no stored secret.
+That was never true, and believing it cost a round of 401 debugging.
+`connect-tailscale` accepts an OIDC audience input, but no workflow passes one
+and no audience variable is set, so the OIDC path is wired and unused.
 
-- [ ] Configure the tailnet trust integration and GitHub OIDC provider for the repository and workflow claims
-- [ ] Bind the workflow identity to the exact `tag:ci-runner` tag
-- [ ] Restrict tag assignment to the tailnet administrator or approved provisioning authority
+- [ ] Create an OAuth client in the Tailscale admin console
+- [ ] Give it `auth_keys` (Write) scoped to `tag:ci-runner` so the runner can join the tailnet
+- [ ] Add `policy_file` (Write) so workflow 06 can sync `infra/tailscale/policy.hujson`
+- [ ] Store the pair as `TAILSCALE_OAUTH_CLIENT_ID` and `TAILSCALE_OAUTH_SECRET`
+- [ ] Restrict tag assignment to the tailnet administrator, never a broad member group
 
-- [ ] Create `tag:ci-runner`; set `tagOwners` to the tailnet administrator or approved WIF principal, never a broad member group
+- [ ] Create `tag:ci-runner`; set `tagOwners` to the tailnet administrator, never a broad member group
 
 See [02 - Secure GitHub runner](./02-secure-runner.md) for the full runner model.
 
@@ -348,3 +353,47 @@ Before the first Builder run:
 - [ ] Confirm the stack has at least one enabled Builder Machine before a Builder run; the run stops during inventory preparation, before Ansible, when none are enabled.
 - [ ] Treat malformed `builder_machines` output as an inventory error and correct the stack output before rerunning the Builder.
 - [ ] Use the persistent canary for the first Builder bootstrap and transport check; this checklist records the procedure, not an executed canary run.
+
+## Observability and alerting
+
+The stack runs on whichever machine sets `observability.stack = true`. Agents
+run everywhere. Full detail in [observability](./observability.md).
+
+- [ ] Create a read-only Proxmox token (`PVEAuditor`) for the hypervisor exporter
+- [ ] Grant the permission to both the user and the token. Privilege separation
+      makes a token's rights the intersection of the two, so granting only the
+      token yields an empty set that still authenticates
+- [ ] Set `PVE_EXPORTER_TOKEN_ID` (variable) and `PVE_EXPORTER_TOKEN_SECRET` (secret)
+- [ ] Set `GF_SECURITY_ADMIN_PASSWORD`; Grafana ships as `admin`/`admin`, and the
+      admin account can change where alerts are delivered
+- [ ] Generate an ntfy topic with real entropy. The topic string is the entire
+      credential, so anyone holding it can read your alerts and publish to them
+- [ ] Store it as `NTFY_TOPIC` and subscribe on the phone
+- [ ] Confirm delivery from the stack host before trusting it:
+      `curl -d "test" ntfy.sh/<topic>`
+- [ ] Verify an alert end to end. Stop the agent on a VM that Proxmox still sees
+      running, and confirm the notification arrives about 16 minutes later. A rule
+      that has never fired is a rule you are trusting on its appearance
+- [ ] Mount the NAS share before expecting Prometheus snapshots; the timer
+      installs only once the mount exists
+
+## Dashboards over Git Sync
+
+Dashboards are the one resource Grafana owns rather than Ansible, so that they
+can be edited by looking at them. Everything else in Grafana stays one-way from
+git. Full reasoning in [observability](./observability.md).
+
+- [ ] Create a **fine-grained** GitHub token scoped to this repository only,
+      with Contents read/write and Pull requests read/write. A classic token
+      would carry access to every repository on the account
+- [ ] Grafana → Administration → Provisioning → connect the repository, branch
+      `main`, path `grafana/dashboards`
+- [ ] Choose "Sync to a new Grafana folder" rather than root level, so the
+      connection cannot disturb anything else in the instance
+- [ ] **Check "Disable webhook integration".** Grafana is bound to the tailnet
+      only, so GitHub cannot deliver webhooks to it. Left enabled, Grafana
+      registers a hook that silently never fires
+- [ ] Verify both directions: create a dashboard in the UI and confirm the
+      commit appears, then commit a change from git and confirm it reaches
+      Grafana. Sync reports success either way, so only the resource count
+      distinguishes a working import from a skipped one
