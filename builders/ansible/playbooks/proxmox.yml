@@ -26,3 +26,7 @@
       tags: [proxmox, users]
     - role: admin-users
       tags: [proxmox, users]
+    - role: proxmox-repos
+      tags: [proxmox, repos]
+    - role: proxmox-nag
+      tags: [proxmox, nag]

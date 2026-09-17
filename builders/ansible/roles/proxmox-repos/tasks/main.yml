@@ -1,0 +1,53 @@
+---
+# Codification, not repair. On a node someone already configured by hand this
+# reports no change — which is the point: the state stops depending on whether
+# the person who set it up remembers, and a second node gets it for free.
+
+- name: Detect which Proxmox product this is
+  ansible.builtin.stat:
+    path: /usr/bin/pveversion
+  register: autolab_proxmox_pve
+  changed_when: false
+
+- name: Name the product and its repository
+  ansible.builtin.set_fact:
+    autolab_proxmox_product: "{{ 'pve' if autolab_proxmox_pve.stat.exists else 'pbs' }}"
+
+# deb822 rather than the one-line format. Proxmox 9 ships its own sources in
+# deb822 and the one-line file is the legacy shape; managing both would leave
+# two entries for the same repository and apt warns about the duplicate.
+- name: Install the no-subscription repository
+  ansible.builtin.deb822_repository:
+    name: "{{ autolab_proxmox_product }}-no-subscription"
+    types: [deb]
+    uris: "http://download.proxmox.com/debian/{{ autolab_proxmox_product }}"
+    suites: ["{{ autolab_proxmox_repo_suite }}"]
+    components: ["{{ autolab_proxmox_product }}-no-subscription"]
+    signed_by: /usr/share/keyrings/proxmox-archive-keyring.gpg
+    state: present
+    enabled: true
+  notify: Refresh apt cache
+
+# The legacy one-line file for the same repository, if a human added one. Left
+# in place it is a duplicate of the deb822 entry above.
+- name: Remove the legacy one-line no-subscription list
+  ansible.builtin.file:
+    path: "/etc/apt/sources.list.d/{{ autolab_proxmox_product }}-no-subscription.list"
+    state: absent
+  notify: Refresh apt cache
+
+- name: Keep enterprise repositories disabled
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    regexp: '^Enabled:'
+    line: 'Enabled: false'
+    state: present
+  loop: "{{ autolab_proxmox_enterprise_sources }}"
+  when: item is exists
+  notify: Refresh apt cache
+
+- name: Prove apt can actually reach its repositories
+  ansible.builtin.apt:
+    update_cache: true
+  changed_when: false
+  check_mode: false

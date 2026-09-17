@@ -1,0 +1,3 @@
+---
+autolab_proxmox_nag_remove: true
+autolab_proxmox_widget_toolkit: /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
