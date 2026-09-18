@@ -17,9 +17,16 @@
 # exclusive=true makes the declared list the whole file. An empty list is not
 # "leave it alone" — it means nothing is trusted, so the file goes away and a
 # key that was once installed cannot outlive its removal from the list.
+#
+# path is given explicitly for check mode on a brand-new host: the account
+# above is only simulated there, so the module cannot look its home up and
+# fails with "Either user must exist or you must provide full path". The first
+# tenant bootstrap died on exactly that.
 - name: Install the Builder's public keys for the GitOps user
   ansible.posix.authorized_key:
     user: "{{ autolab_gitops_user }}"
+    path: "/home/{{ autolab_gitops_user }}/.ssh/authorized_keys"
+    manage_dir: true
     key: "{{ autolab_gitops_ssh_public_keys | join('\n') }}"
     exclusive: true
     state: present
