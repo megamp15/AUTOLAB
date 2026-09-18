@@ -33,7 +33,9 @@ common_tags = ["autolab", "tenant-qnta"]
 # eventually carry: the node has 15 GB and the lab already holds 10 of it.
 # 1 GB idles Ubuntu and Docker with room to spare; the business stacks do not
 # fit and are not meant to run here. Growing them is an edit here once the
-# second node lands — CPU and memory cost a reboot, disk grows online.
+# second node lands — CPU and memory cost a reboot, disk grows online but
+# never shrinks, which is why disk alone is sized ahead: the pool is thin and
+# a 32 GB volume costs only what is written.
 machines = {
   # Swarm manager: registry, tunnel, internal proxy, the management services.
   qnta-mgmt = {
@@ -47,7 +49,7 @@ machines = {
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 1
     memory_mb               = 1024
-    disk_size_gb            = 16
+    disk_size_gb            = 32
     ipv4_address            = "10.42.0.201/24"
     ipv4_gateway            = "10.42.0.1"
     builder = {
@@ -78,7 +80,7 @@ machines = {
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 1
     memory_mb               = 1024
-    disk_size_gb            = 16
+    disk_size_gb            = 32
     ipv4_address            = "10.42.0.202/24"
     ipv4_gateway            = "10.42.0.1"
     builder = {
