@@ -98,6 +98,17 @@ resource "proxmox_virtual_environment_vm" "vm" {
       }
     }
 
+    # Declared address, declared resolvers. The node's dnsmasq hands 1.1.1.1
+    # to leased VMs; a static VM asks nobody and inherits the hypervisor's
+    # resolv.conf, which is not a contract. Only for static VMs — adding a
+    # block to a leased VM's cloud-init would replace it.
+    dynamic "dns" {
+      for_each = var.ipv4_address == "dhcp" ? [] : [1]
+      content {
+        servers = var.dns_servers
+      }
+    }
+
     user_account {
       username = var.admin_username
       keys     = var.ssh_public_keys
