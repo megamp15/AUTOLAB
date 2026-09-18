@@ -107,7 +107,29 @@ run_scenario() {
     bash "$SCRIPT_UNDER_TEST" lab-01 >"$TEST_TMP/out.log" 2>&1 || RUN_RC=$?
 }
 
+# --- (0) the tag filter follows TAILSCALE_VM_TAG ---
+# A tenant stack enrols VMs under its own tag on its own tailnet. The same
+# hostname may exist under the provider's tag; only the tenant's device may go.
+cat > "$TEST_TMP/tenant-tag.json" << 'EOF'
+{"token_status": "ok",
+ "delete_statuses": {"*": 204},
+ "devices_response": {"devices": [
+   {"id": "21", "name": "lab-01.tailnet.ts.net", "tags": ["tag:autolab-vm"]},
+   {"id": "22", "name": "lab-01.tailnet.ts.net", "tags": ["tag:qnta-vm"]}
+ ]}}
+EOF
+rm -f "$CALL_LOG"
+TAILSCALE_VM_TAG=tag:qnta-vm run_scenario tenant-tag
+assert_eq "tenant tag exits 0" "0" "$RUN_RC"
+assert_eq "tenant tag deletes only its own device" "1" "$(grep -c 'DELETE' "$CALL_LOG" || true)"
+assert_eq "tenant tag deletes device 22" "1" "$(grep -c 'device/22$' "$CALL_LOG" || true)"
+rm -f "$CALL_LOG"
+run_scenario tenant-tag
+assert_eq "default tag deletes only the provider device" "1" "$(grep -c 'device/21$' "$CALL_LOG" || true)"
+assert_eq "default tag leaves the tenant device alone" "0" "$(grep -c 'device/22$' "$CALL_LOG" || true)"
+
 # --- (a) zero matches -> exit 0 ---
+rm -f "$CALL_LOG"
 cat > "$TEST_TMP/no-match.json" << 'EOF'
 {"token_status": "ok",
  "devices_response": {"devices": [

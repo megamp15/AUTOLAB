@@ -1,2 +1,11 @@
 ---
 autolab_gitops_user: gitops
+
+# Public keys the Builder presents when it cannot arrive over Tailscale SSH.
+# On the provider's own tailnet the runner's identity comes from the tailnet
+# and this list can stay empty. A tenant VM is on a tailnet the runner is not
+# on, so the Builder reaches it over the hypervisor's bridge with plain sshd,
+# and sshd needs a key to trust. The list is authoritative: what is declared
+# here is exactly what the account accepts, so rotating or revoking a key is
+# a change to this list and a run of the baseline, never a hand edit.
+autolab_gitops_ssh_public_keys: []

@@ -19,7 +19,7 @@ on:
         required: true
         default: lab
         type: choice
-        options: [lab]
+        options: [lab, qnta]
       playbook:
         description: Builder playbook to run
         required: true
@@ -148,6 +148,24 @@ jobs:
           echo "AWS_ACCESS_KEY_ID=" >> "$GITHUB_ENV"
           echo "AWS_SECRET_ACCESS_KEY=" >> "$GITHUB_ENV"
 
+      # Over the tailnet the runner needs no key: Tailscale SSH vouches for it.
+      # Over the management plane it talks to plain sshd on a tenant VM, and
+      # sshd trusts only what is in authorized_keys. Written 0600 to the default
+      # identity path so every ssh below — the gate, ProxyJump, Ansible — offers
+      # it without any of them having to know about it.
+      - name: Install the Builder SSH identity
+        env:
+          BUILDER_SSH_PRIVATE_KEY: ${{ secrets.BUILDER_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$BUILDER_SSH_PRIVATE_KEY" ]; then
+            echo "No Builder SSH key; tenant hosts on the management plane would be unreachable."
+            exit 0
+          fi
+          install -d -m 700 "$HOME/.ssh"
+          umask 077
+          printf '%s\n' "$BUILDER_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          echo "Builder SSH identity installed."
+
       - name: Wait for Tailscale and SSH readiness
         run: |
           # Require both the overlay path and a known host key before Builder touches a machine.
@@ -161,33 +179,54 @@ jobs:
           # thing here as it does in the playbook run below.
           # sed, not tr: `tr -d '[:space:]'` strips the newlines as well and
           # collapses every hostname into one token, which then matches nothing.
+          #
+          # A tenant host is not on the runner's tailnet. For those the overlay
+          # path that matters is the one to the hypervisor, and the VM's host key
+          # is collected from there, since ssh-keyscan cannot hop.
           mapfile -t names < <(ansible -i "$RUNNER_TEMP/inventory.json" "$BUILDER_LIMIT" --list-hosts 2>/dev/null | tail -n +2 | sed 's/[[:space:]]//g' | grep -v '^$')
-          mapfile -t hosts < <(python3 - "$RUNNER_TEMP/inventory.json" "${names[@]}" <<'PY'
+          mapfile -t targets < <(python3 - "$RUNNER_TEMP/inventory.json" "${names[@]}" <<'PY'
           import json, sys
           inventory = json.load(open(sys.argv[1]))
           wanted = set(sys.argv[2:])
           hosts = inventory["all"]["children"]["linux_servers"]["hosts"]
           for name, host in hosts.items():
               if not wanted or name in wanted:
-                  print(host["ansible_host"])
+                  print(host["ansible_host"], host.get("autolab_ssh_jump_host", "-"))
           PY
           )
-          if [[ ${#hosts[@]} -eq 0 ]]; then
+          if [[ ${#targets[@]} -eq 0 ]]; then
             echo "No hosts matched limit '$BUILDER_LIMIT'; nothing to check." >&2
             exit 1
           fi
-          echo "Readiness check covers ${#hosts[@]} host(s) for limit '$BUILDER_LIMIT'."
+          echo "Readiness check covers ${#targets[@]} host(s) for limit '$BUILDER_LIMIT'."
           user=gitops
           if [[ "$BUILDER_BOOTSTRAP" == "true" ]]; then user=autolab; fi
           install -d -m 700 "$HOME/.ssh"
           touch "$HOME/.ssh/known_hosts"
-          for host in "${hosts[@]}"; do
+          for target in "${targets[@]}"; do
+            host="${target%% *}"
+            jump="${target##* }"
+            base_opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5)
+            ssh_opts=("${base_opts[@]}")
+            if [[ "$jump" == "-" ]]; then
+              overlay="$host"
+              keyscan=(ssh-keyscan -H -t ed25519 -T 5 "$host")
+            else
+              overlay="$jump"
+              # The hop is made as the Builder's account on the node, never as
+              # the VM user: bootstrap is break-glass on the VM, not on the node.
+              # The VM's key is scanned *from* the node, since ssh-keyscan cannot hop.
+              ssh_opts+=(-o "ProxyJump=gitops@$jump")
+              keyscan=(ssh "${base_opts[@]}" "gitops@$jump" ssh-keyscan -H -t ed25519 -T 5 "$host")
+            fi
             for attempt in {1..12}; do
-              if ! ping_output=$(tailscale ping --until-direct=false --c 1 --timeout=5s "$host" 2>&1); then
-                failure="Tailscale reachability failed for $host: $ping_output"
-              elif ! ssh-keygen -F "$host" >/dev/null && ! ssh-keyscan -H -t ed25519 -T 5 "$host" >> "$HOME/.ssh/known_hosts" 2>/dev/null; then
+              if ! ping_output=$(tailscale ping --until-direct=false --c 1 --timeout=5s "$overlay" 2>&1); then
+                failure="Tailscale reachability failed for $overlay: $ping_output"
+              elif [[ "$jump" != "-" ]] && ! ssh-keygen -F "$jump" >/dev/null && ! ssh-keyscan -H -t ed25519 -T 5 "$jump" >> "$HOME/.ssh/known_hosts" 2>/dev/null; then
+                failure="Could not collect an ED25519 host key for jump host $jump"
+              elif ! ssh-keygen -F "$host" >/dev/null && ! "${keyscan[@]}" >> "$HOME/.ssh/known_hosts" 2>/dev/null; then
                 failure="Could not collect an ED25519 host key for $host"
-              elif ! ssh_output=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 "$user@$host" true 2>&1); then
+              elif ! ssh_output=$(ssh "${ssh_opts[@]}" "$user@$host" true 2>&1); then
                 failure="SSH readiness failed for $user@$host: $ssh_output"
               else
                 break
@@ -215,12 +254,18 @@ jobs:
           # these alerts and publish to them — so it is a secret, not a variable.
           AUTOLAB_NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           AUTOLAB_GF_ADMIN_PASSWORD: ${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}
+          AUTOLAB_BUILDER_SSH_PUBLIC_KEY: ${{ vars.BUILDER_SSH_PUBLIC_KEY }}
         run: |
           out="$RUNNER_TEMP/extra-vars.json"
           umask 077
           python3 - "$out" <<'PY'
           import json, os, sys
+          builder_key = os.environ.get("AUTOLAB_BUILDER_SSH_PUBLIC_KEY", "").strip()
           json.dump({
+              # The public half of the identity installed above, so the gitops
+              # account accepts the next run over the management plane. An empty
+              # list is authoritative too: it removes any key installed before.
+              "autolab_gitops_ssh_public_keys": [builder_key] if builder_key else [],
               "autolab_obs_pve_host": os.environ.get("AUTOLAB_PVE_HOST", ""),
               "autolab_obs_pve_token_id": os.environ.get("AUTOLAB_PVE_TOKEN_ID", ""),
               "autolab_obs_pve_token_secret": os.environ.get("AUTOLAB_PVE_TOKEN_SECRET", ""),
@@ -228,6 +273,11 @@ jobs:
               "autolab_obs_grafana_admin_password": os.environ.get("AUTOLAB_GF_ADMIN_PASSWORD", ""),
           }, open(sys.argv[1], "w"))
           PY
+          if [ -n "${AUTOLAB_BUILDER_SSH_PUBLIC_KEY}" ]; then
+            echo "Builder public key will be installed for the gitops account."
+          else
+            echo "No Builder public key; the gitops account keeps no authorized keys."
+          fi
           if [ -n "${AUTOLAB_PVE_TOKEN_ID}" ]; then
             echo "Proxmox exporter credentials supplied."
           else

@@ -107,3 +107,16 @@ variable "common_tags" {
   description = "Tags applied to every Machine before adding the Machine type tag."
   type        = list(string)
 }
+
+variable "management_plane" {
+  description = <<-EOT
+    Reach Builder targets over the hypervisor's private bridge instead of the
+    provider's tailnet. A tenant Stack enrols its VMs on the tenant's tailnet,
+    which the provider's CI runner is not on, so the Builder hops through the
+    hypervisor and addresses each VM by its bridge address. That address must
+    therefore be declared, not leased: every builder_target Machine needs a
+    static ipv4_address and an ipv4_gateway.
+  EOT
+  type        = bool
+  default     = false
+}

@@ -13,3 +13,20 @@
     content: "{{ autolab_gitops_user }} ALL=(ALL) NOPASSWD:ALL\n"
     mode: "0440"
     validate: visudo -cf %s
+
+# exclusive=true makes the declared list the whole file. An empty list is not
+# "leave it alone" — it means nothing is trusted, so the file goes away and a
+# key that was once installed cannot outlive its removal from the list.
+- name: Install the Builder's public keys for the GitOps user
+  ansible.posix.authorized_key:
+    user: "{{ autolab_gitops_user }}"
+    key: "{{ autolab_gitops_ssh_public_keys | join('\n') }}"
+    exclusive: true
+    state: present
+  when: autolab_gitops_ssh_public_keys | length > 0
+
+- name: Remove Builder public keys when none are declared
+  ansible.builtin.file:
+    path: "/home/{{ autolab_gitops_user }}/.ssh/authorized_keys"
+    state: absent
+  when: autolab_gitops_ssh_public_keys | length == 0

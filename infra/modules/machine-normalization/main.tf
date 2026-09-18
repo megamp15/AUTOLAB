@@ -8,6 +8,24 @@ locals {
       vlan_id         = var.network_defaults.vlan_id
       ssh_public_keys = var.identity_defaults.ssh_public_keys
       tags            = concat(var.common_tags, [machine.type, machine.provisioning_class], machine.tags)
+
+      # The bridge address without its prefix length, or null when leased.
+      # This is what the Builder dials on the management plane.
+      management_address = machine.ipv4_address == "dhcp" ? null : split("/", machine.ipv4_address)[0]
+
+      # On the management plane the Builder arrives from the hypervisor's bridge
+      # address — the VM's gateway — so that one source is allowed in on SSH
+      # alongside the tenant's own rules. Injected here rather than declared per
+      # Machine so a tenant cannot omit it and lock the baseline out of the VM
+      # that the baseline is about to harden.
+      builder = merge(machine.builder, {
+        firewall_rules = concat(
+          var.management_plane && machine.ipv4_gateway != null
+          ? [{ port = 22, protocol = "tcp", source = machine.ipv4_gateway }]
+          : [],
+          machine.builder.firewall_rules,
+        )
+      })
     })
   }
 

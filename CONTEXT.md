@@ -27,6 +27,10 @@ The practice of declarative config in git with a controller that applies it. In 
 - **Provisioning class** — how a Machine is configured after Proxmox creates it. `builder_target` currently supports cloud-init-capable VMs; LXC Builder targets are deferred until they meet the same reachable-host contract. `cluster_os` is reserved for disposable Talos-style experiments configured through `talosctl`.
 - **Device cleanup hook** — destroy-time `terraform_data` local-exec per VM that deletes the machine's Tailscale device record before the disk is destroyed. Resolution is by deterministic hostname + `tag:autolab-vm`, never a stored device ID: join is asynchronous, so the device ID is unknowable at plan time. Implemented by `scripts/tailscale-device-delete.sh`; see `docs/gitops/tailscale-device-lifecycle.md`.
 - **Orphaned device** — a Tailscale device record whose VM no longer exists (destroys predating the cleanup hook, or lost/renamed state). Cleaned manually with `scripts/tailscale-device-delete.sh <hostname>` or the admin console.
+- **Tenant** — an owner of VMs who is not the provider. A tenant is a Stack (`infra/stacks/<tenant>/`) with `tenant = "<name>"`, its own R2 state, and a GitHub Environment of the same name carrying that tenant's tailnet OAuth client under the provider's secret names. Its VMs enrol on the tenant's tailnet; the tenant reaches them there and owns everything from the VM up. See ADR-0006 and `docs/gitops/tenants.md`.
+- **Provider** — whoever holds root on the hypervisors: this repo's operator. Owns everything from the VM down. The provider's own Stack is `lab` (`tenant = null`).
+- **Management plane** — the node's private bridge (`vmbr1`, `10.42.0.0/24`), the provider's network. The Builder reaches tenant VMs here, by declared address, through the hypervisor (`ProxyJump`), with the Builder keypair (`BUILDER_SSH_*`). Backups and provider-side monitoring belong here too.
+- **Access plane** — the tailnet a VM enrols on: the tenant's for tenant VMs, the provider's for its own. Tailscale SSH, the owner's people and CI, the owner's services.
 
 ### Provider Tracks
 
@@ -95,7 +99,9 @@ The provider-neutral configuration phase that runs after provisioning. Current B
 | `scripts/generate-packer-template-adapters.sh` | Generates the Packer template CI adapter from template schema |
 | `scripts/generate-network-env-adapters.sh` | Generates env example and bash validation from network schema |
 | `infra/_base/*.tm.hcl` | Terramate code generation for providers and backend |
-| `infra/stacks/lab/` | First homelab environment |
+| `infra/stacks/lab/` | First homelab environment; the provider's own Stack |
+| `infra/stacks/qnta/` | First tenant Stack: business VMs on the shared hypervisor, on the tenant's tailnet |
+| `docs/gitops/tenants.md` | The tenancy model, the two planes, and how to wire a tenant |
 | `infra/modules/machine-normalization/` | Default merge and provisioning_class filter |
 | `infra/modules/proxmox-connection/` | Connection validation module |
 | `infra/modules/proxmox-compute/` | Unified VM/LXC resource module |

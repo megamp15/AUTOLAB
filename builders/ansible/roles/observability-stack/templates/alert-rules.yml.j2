@@ -103,7 +103,12 @@ groups:
               #
               # The list comes from the same machines map that skipped the
               # install, so the two cannot drift: one declaration, both effects.
-              expr: '(pve_up{id=~"qemu/.*"} == 1) * on(id) group_left(name) max by (id, name) (pve_guest_info{template="0"{% if autolab_obs_unmonitored_guests %}, name!~"{{ autolab_obs_unmonitored_guests | join('|') }}"{% endif %}}) unless on(name) label_replace(node_uname_info, "name", "$1", "instance", "(.+)")'
+              #
+              # Tenant guests are excluded by tag rather than by name. They come
+              # from another stack, so this inventory never sees them, and they
+              # sit on a tailnet the agent cannot ship from. PromQL regexes are
+              # anchored, hence the optional neighbours around the tag.
+              expr: '(pve_up{id=~"qemu/.*"} == 1) * on(id) group_left(name) max by (id, name) (pve_guest_info{template="0", tags!~"(.*;)?tenant-[^;]+(;.*)?"{% if autolab_obs_unmonitored_guests %}, name!~"{{ autolab_obs_unmonitored_guests | join('|') }}"{% endif %}}) unless on(name) label_replace(node_uname_info, "name", "$1", "instance", "(.+)")'
           - refId: THRESHOLD
             datasourceUid: __expr__
             model:

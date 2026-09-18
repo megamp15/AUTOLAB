@@ -11,14 +11,18 @@ GitHub Environments group secrets and optionally require approvals before sensit
 For the full wired secrets/variables table, see [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.md).
 For the manual Packer entry and PVE SSH bastion setup, see [Manual GitHub UI Packer setup](./github-ui-packer-setup.md).
 
-> **Personal lab setup:** repository-level secrets and variables are read directly by the workflows. The current Plan, Apply, and Destroy workflows do not target a GitHub Environment; typed confirmations and the `opentofu-state` concurrency guard remain active. GitHub Environments may be added later if environment-scoped protection is required.
+> **Personal lab setup:** repository-level secrets and variables are enough. Plan, Apply, Destroy and the Builder run under the GitHub Environment named after the stack (`lab` by default), but an environment with nothing in it simply falls through to the repository-level values. Typed confirmations and the `opentofu-state` concurrency guard remain active either way.
 
-Autolab uses two environments:
+An environment per stack is what makes a **tenant** possible: a tenant's
+environment carries the OAuth client for *its* tailnet under the same secret
+names, so the unchanged workflows enrol that stack's VMs somewhere else. See
+[tenants](./tenants.md).
 
 | Environment | Workflow | Purpose |
 |-------------|----------|---------|
-| `autolab-plan` | Not targeted | No current workflow assignment |
-| `autolab-apply` | Not targeted | No current workflow assignment; Apply/Destroy retain typed confirmations |
+| `lab` | Plan, Apply, Destroy, Builder | The provider's own stack. Empty; reads repository-level values |
+| `qnta` | Plan, Apply, Destroy, Builder | The QNTA tenant: `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET`, variable `TAILSCALE_VM_TAG=tag:qnta-vm` |
+| `autolab-plan`, `autolab-apply` | Not targeted | Retained from an earlier design; nothing reads them |
 
 ## Repository variables
 

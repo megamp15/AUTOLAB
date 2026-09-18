@@ -43,6 +43,37 @@ class GenerateInventoryTest(unittest.TestCase):
         builder = json.loads(result.stdout)["all"]["children"]["linux_servers"]["hosts"]["lab-01"]["autolab_builder"]
         self.assertEqual(builder, {"enabled": True, "docker_enabled": True})
 
+    def test_tenant_host_hops_through_the_hypervisor(self):
+        value = {"one": {
+            "name": "qnta-mgmt", "ansible_host": "10.42.0.201", "bootstrap_user": "autolab",
+            "ssh_jump_host": "xps-pve.example.ts.net",
+            "builder": {"enabled": True},
+        }}
+        result = self.run_script(value)
+        self.assertEqual(result.returncode, 0)
+        host = json.loads(result.stdout)["all"]["children"]["linux_servers"]["hosts"]["qnta-mgmt"]
+        self.assertEqual(host["ansible_host"], "10.42.0.201")
+        self.assertEqual(host["autolab_ssh_jump_host"], "xps-pve.example.ts.net")
+        self.assertEqual(host["ansible_ssh_common_args"], "-o StrictHostKeyChecking=yes -o ProxyJump=gitops@xps-pve.example.ts.net")
+
+    def test_provider_host_has_no_jump(self):
+        value = {"one": {
+            "name": "lab-01", "ansible_host": "lab-01", "bootstrap_user": "root",
+            "ssh_jump_host": None,
+            "builder": {"enabled": True},
+        }}
+        result = self.run_script(value)
+        self.assertEqual(result.returncode, 0)
+        host = json.loads(result.stdout)["all"]["children"]["linux_servers"]["hosts"]["lab-01"]
+        self.assertNotIn("ansible_ssh_common_args", host)
+        self.assertNotIn("autolab_ssh_jump_host", host)
+
+    def test_empty_jump_is_rejected(self):
+        value = {"one": {"name": "lab-01", "ansible_host": "10.0.0.1", "bootstrap_user": "root", "ssh_jump_host": "", "builder": {"enabled": True}}}
+        result = self.run_script(value)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("ssh_jump_host", result.stderr)
+
     def test_malformed_contract(self):
         result = self.run_script({"one": {"name": "lab-01", "ansible_host": "10.0.0.1", "bootstrap_user": "root", "builder": {"enabled": "yes"}}})
         self.assertNotEqual(result.returncode, 0)

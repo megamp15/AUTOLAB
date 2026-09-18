@@ -12,13 +12,18 @@
 #   TAILSCALE_OAUTH_CLIENT_ID / TAILSCALE_OAUTH_CLIENT_SECRET
 #   (exported by the GitHub destroy workflow; set them manually for local runs)
 #
+# Optional:
+#   TAILSCALE_VM_TAG — the tag the stack enrols its VMs under. Defaults to the
+#   provider's own tag; a tenant stack sets its own so the OAuth client for
+#   that tailnet only ever matches devices it created.
+#
 # Contract:
 #   - 0 matching devices -> log and exit 0 (idempotent)
 #   - >= 1 matches       -> delete every match; HTTP 404 counts as success
 #   - persistent API failure after retries -> exit 1 with manual fallback
 set -euo pipefail
 
-TAG_FILTER="tag:autolab-vm"
+TAG_FILTER="${TAILSCALE_VM_TAG:-tag:autolab-vm}"
 API_BASE="https://api.tailscale.com/api/v2"
 
 log() { echo "[tailscale-cleanup] $*"; }

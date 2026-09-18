@@ -18,9 +18,9 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 | Workflow | Variables (`vars.*`) | Secrets (`secrets.*`) |
 |----------|----------------------|------------------------|
 | **Packer Build** | `PROXMOX_HOST`, `PROXMOX_LAN_IP`, `PROXMOX_PACKER_NETWORK_BRIDGE`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `PVE_SSH_PRIVATE_KEY` |
-| **OpenTofu Plan** | `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS` | `PROXMOX_API_TOKEN`, `PVE_SSH_PRIVATE_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
+| **OpenTofu Plan** | `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `TAILSCALE_VM_TAG` (optional), `BUILDER_SSH_PUBLIC_KEY` (tenant stacks) | `PROXMOX_API_TOKEN`, `PVE_SSH_PRIVATE_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` |
 | **OpenTofu Apply/Destroy** | same as Plan | same as Plan |
-| **Ansible Builder** | — | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
+| **Ansible Builder** | `BUILDER_SSH_PUBLIC_KEY` (optional) | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `BUILDER_SSH_PRIVATE_KEY` (tenant stacks) |
 | **Tailscale Policy** | — | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET` |
 
 The Ansible Builder additionally reads `PROXMOX_HOST`, `PVE_EXPORTER_TOKEN_ID`,
@@ -64,6 +64,8 @@ Set at **Settings → Secrets and variables → Actions → Variables**.
 | `PROXMOX_INSECURE_TLS` | `true` | Packer, OpenTofu | Keep `true` for Proxmox default self-signed cert. |
 | `SSH_PUBLIC_KEYS` | `ssh-ed25519 AAAA...` | Packer Build | `cat ~/.ssh/id_ed25519.pub` on your laptop. |
 | `PVE_EXPORTER_TOKEN_ID` | `pve-exporter@pve!monitoring` | Ansible Builder | Proxmox read-only token ID for the hypervisor exporter. An identifier, not a credential — a variable so it stays readable in run logs. See [observability](./observability.md). |
+| `TAILSCALE_VM_TAG` | `tag:qnta-vm` | OpenTofu Plan/Apply/Destroy | **Environment-level**, on a tenant's environment only. The tag its VMs enrol under and the only tag the destroy-time cleanup may delete. Unset, the provider's `tag:autolab-vm` applies. See [tenants](./tenants.md). |
+| `BUILDER_SSH_PUBLIC_KEY` | `ssh-ed25519 AAAA... autolab-builder` | OpenTofu (tenant stacks), Ansible Builder | Public half of the Builder keypair. cloud-init places it on tenant VMs' break-glass user; the `gitops-user` role installs it for `gitops` everywhere. Provider-owned: one key serves every tenant. Generate with `ssh-keygen -t ed25519 -f ~/.ssh/autolab-builder -N '' -C autolab-builder`. |
 
 ## Secrets
 
@@ -77,6 +79,7 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `TAILSCALE_OAUTH_SECRET` | `tskey-client-secret-...` | Packer, OpenTofu, Ansible Builder, Tailscale Policy | Secret for the CI-runner client. **Required** — it is how the runner authenticates; every tailnet-touching workflow passes it. Distinct from `TAILSCALE_VM_OAUTH_SECRET`. |
 | `TAILSCALE_VM_OAUTH_CLIENT_ID` | `tskey-client-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client ID; exported as `TAILSCALE_OAUTH_CLIENT_ID` into tofu steps and consumed by the destroy-time device cleanup script. |
 | `TAILSCALE_VM_OAUTH_SECRET` | `tskey-client-secret-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client secret; the OAuth client needs **both** `auth_keys` (Write, with `tag:autolab-vm` selected) for key minting and `devices:core` (Write) for destroy-time cleanup (see `docs/gitops/tailscale-device-lifecycle.md`). Not used by Builder. |
+| `BUILDER_SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH PRIVATE KEY-----...` | Ansible Builder | Private half of the Builder keypair, written `0600` to the runner's default identity path. Only needed once a tenant stack exists: tenant VMs sit on a tailnet the runner is not on, so the Builder hops through the hypervisor to plain `sshd`, which needs a key to trust. `gh secret set BUILDER_SSH_PRIVATE_KEY < ~/.ssh/autolab-builder`. |
 | `PVE_EXPORTER_TOKEN_SECRET` | `xxxxxxxx-xxxx-...` | Ansible Builder | Secret for the Proxmox read-only token. Separate from `PROXMOX_API_TOKEN`, which can create and destroy VMs; this one holds `PVEAuditor` only. Unset disables the exporter rather than shipping it broken. |
 | `NTFY_TOPIC` | `autolab-pulsar-xxxxxxxxxx` | Ansible Builder | ntfy topic that alerts publish to. It is the **entire** credential — holding it lets anyone read these alerts and publish to them — so it is a secret, not a variable, and carries random entropy rather than a guessable name. Unset means alerts stay in Grafana and are pushed nowhere. |
 | `GF_SECURITY_ADMIN_PASSWORD` | a generated password | Ansible Builder | Grafana admin login. Anonymous *viewing* is deliberate, but the admin account can rewrite dashboards, add datasources and change where alerts go — on the default `admin`/`admin` that is handed to anyone on the tailnet. Unset leaves the existing password alone. |
@@ -126,17 +129,20 @@ Copy from `infra/stacks/lab/terraform.tfvars.example` and edit locally.
    Actions with R2-backed state. Do not use local `tofu apply` or `tofu destroy`
    for normal operation.
 
-## GitHub Environments (optional)
+## GitHub Environments
 
-| Environment | Workflow |
-|-------------|----------|
-| `autolab-plan` | Not targeted by current workflows |
-| `autolab-apply` | Not targeted by current workflows |
+| Environment | Workflow | Holds |
+|-------------|----------|-------|
+| `lab` | Plan, Apply, Destroy, Builder when `environment: lab` | Nothing yet; the provider's own stack falls through to repository-level values |
+| `qnta` | Plan, Apply, Destroy, Builder when `environment: qnta` | `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` from the tenant's tailnet; variable `TAILSCALE_VM_TAG` |
+| `autolab-plan`, `autolab-apply` | Not targeted | Retained; nothing reads them |
 
-The current workflows use repository-level secrets and typed workflow
-confirmations; they do not assign a GitHub Environment. These environments may
-be retained for future protection, but are not required for the workflows to
-read repository secrets.
+Plan, Apply, Destroy and Builder run their main job under the GitHub
+Environment named after the stack. Environment secrets shadow repository
+secrets of the same name, which is the whole mechanism for tenancy: the
+`qnta` environment carries a *different* `TAILSCALE_VM_OAUTH_*` pair, so the
+same workflow enrols VMs on a different tailnet. Typed confirmations and the
+`opentofu-state` concurrency guard are unchanged.
 
 ## Quick checklist
 
@@ -148,6 +154,8 @@ read repository secrets.
 - [ ] `PROXMOX_NODE_NAME`
 - [ ] `PROXMOX_INSECURE_TLS` = `true`
 - [ ] `PROXMOX_PACKER_NETWORK_BRIDGE`
+- [ ] `BUILDER_SSH_PUBLIC_KEY` (once a tenant stack exists)
+- [ ] `TAILSCALE_VM_TAG` on each tenant environment
 - [ ] `SSH_PUBLIC_KEYS`
 
 **Secrets**
