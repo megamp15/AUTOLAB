@@ -35,10 +35,10 @@ machines = {
   # the observability stack, and growing CPU or memory later means a reboot
   # while growing the disk is worse. Cheaper to size it once.
   #
-  # 8 GB rather than 4: Alloy plus Mimir, Loki and Grafana lands around 3 GB at
-  # rest, and a metrics backend that starts swapping stops being able to tell
-  # you why anything is slow. Disk stays modest because Mimir and Loki both
-  # persist blocks to R2 rather than to local disk.
+  # 6 GB: Alloy plus Prometheus, Loki and Grafana lands around 3 GB at rest,
+  # and a metrics backend that starts swapping stops being able to tell you
+  # why anything is slow. Was 8 until the tenant VMs needed the room on a
+  # 15 GB node; the working set never approached it.
   jwst = {
     type                    = "vm"
     provisioning_class      = "builder_target"
@@ -49,7 +49,7 @@ machines = {
     datastore_id            = "local-lvm"
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 4
-    memory_mb               = 8192
+    memory_mb               = 6144
     disk_size_gb            = 40
     ipv4_address            = "dhcp"
     builder = {
