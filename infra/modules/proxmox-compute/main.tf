@@ -67,6 +67,13 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   memory {
     dedicated = var.memory_mb
+    # floating == dedicated: the balloon device exists but never balloons.
+    # Without it Proxmox writes balloon=0, has no way to ask the guest what it
+    # uses, and reports the host-side size of the whole qemu process instead —
+    # a flat "102%" on every VM, in the UI and in pve_memory_usage_bytes on
+    # the dashboards. The guest agent does not help; only the balloon driver
+    # reports guest memory. Adding the device is a reboot; it cannot hot-plug.
+    floating = var.memory_mb
   }
 
   disk {
