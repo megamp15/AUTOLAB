@@ -29,13 +29,13 @@ common_tags = ["autolab", "tenant-qnta"]
 # the VMID so the two can never disagree. The Builder dials these addresses
 # through the hypervisor, so a leased one would be unknowable at plan time.
 #
-# Sized to exist and take the baseline, not for the workloads they will
-# eventually carry: the node has 15 GB and the lab already holds 10 of it.
-# 1 GB idles Ubuntu and Docker with room to spare; the business stacks do not
-# fit and are not meant to run here. Growing them is an edit here once the
-# second node lands — CPU and memory cost a reboot, disk grows online but
-# never shrinks, which is why disk alone is sized ahead: the pool is thin and
-# a 64 GB volume costs only what is written.
+# Sized for the laptop they live on: 15 GB total, jwst holds 8, sputnik 1,
+# and the host wants ~1 for itself. mgmt gets more than dev because it will
+# carry the registry, tunnel and management services long before the
+# application stacks move. The business stacks proper are not meant to run
+# here; growing these is an edit once the second node lands — CPU and memory
+# cost a reboot, disk grows online but never shrinks, which is why disk alone
+# is sized ahead: the pool is thin and a 64 GB volume costs only what is written.
 machines = {
   # Swarm manager: registry, tunnel, internal proxy, the management services.
   qnta-mgmt = {
@@ -48,7 +48,7 @@ machines = {
     datastore_id            = "local-lvm"
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 1
-    memory_mb               = 1024
+    memory_mb               = 3072
     disk_size_gb            = 64
     ipv4_address            = "10.42.0.201/24"
     ipv4_gateway            = "10.42.0.1"
@@ -87,7 +87,7 @@ machines = {
     datastore_id            = "local-lvm"
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 1
-    memory_mb               = 1024
+    memory_mb               = 2048
     disk_size_gb            = 64
     ipv4_address            = "10.42.0.202/24"
     ipv4_gateway            = "10.42.0.1"
