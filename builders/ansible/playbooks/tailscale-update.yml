@@ -4,5 +4,14 @@
   become: true
   gather_facts: true
 
+  # A fresh cloud image starts unattended-upgrades minutes after first boot
+  # and holds the dpkg lock for as long as its backlog takes — ten minutes on
+  # an Ubuntu 24.04 image with 186 updates pending. The baseline installs
+  # that daemon on purpose, so a Builder run that lands in the window must
+  # wait for it, not lose to it. The first tenant storage run lost.
+  module_defaults:
+    ansible.builtin.apt:
+      lock_timeout: 900
+
   roles:
     - role: tailscale-update
