@@ -127,6 +127,23 @@ internal proxies, application deploys, database migrations. Their repo keeps
 its operating two-thirds and loses its provisioning third — Packer, the VM
 resources, the Tailscale join — because those are now the provider's.
 
+## Not covered yet
+
+- **NAS storage.** Tenant VMs on a NAT bridge reach the NAS over the LAN but
+  all arrive as the node's address, so an NFS export scoped to the node is
+  open to every VM on it — the per-host scoping `nfs.yml` relies on is lost.
+  Two ways out: SMB with a per-tenant NAS user (credential-based, so the
+  shared source address stops mattering), or the bridge becoming a real LAN
+  segment when the second node lands, after which tenant VMs have their own
+  addresses and the business's current per-host NFS exports carry over
+  unchanged. Either way, live databases stay on the VM's own disk and only
+  their dumps go to the NAS.
+- **Provider-side monitoring.** The agent ships to `jwst` by tailnet name.
+  Tenant VMs opt out until the stack reaches them over the bridge.
+- **Backups.** PBS is the next phase and belongs on the management plane;
+  tenant guests are backed up like any other, under a PBS namespace per
+  tenant.
+
 ## Things that will mislead you
 
 - **A tenant VM does not answer `tailscale ping` from the runner, and that is
