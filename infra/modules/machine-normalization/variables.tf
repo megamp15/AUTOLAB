@@ -43,6 +43,19 @@ variable "machines" {
         source   = optional(string, "any")
       })), [])
       docker_enabled = optional(bool, false)
+      # NAS shares this machine mounts, applied by the storage playbook. `server`
+      # may be omitted to take the Stack's nas_server, so the machines map never
+      # carries an address that belongs to the site rather than the machine.
+      storage = optional(list(object({
+        protocol    = optional(string, "nfs")
+        server      = optional(string, null)
+        share       = string
+        path        = string
+        credential  = optional(string, null)
+        directories = optional(list(string), [])
+        options     = optional(string, null)
+        mode        = optional(string, null)
+      })), [])
       # Must mirror the builder object in each stack's variables.tf. A field
       # missing here is silently dropped as the map passes through, so the
       # policy reaches neither builder_machines nor the Ansible inventory.
@@ -106,4 +119,29 @@ variable "identity_defaults" {
 variable "common_tags" {
   description = "Tags applied to every Machine before adding the Machine type tag."
   type        = list(string)
+}
+
+variable "management_plane" {
+  description = <<-EOT
+    Reach Builder targets over the hypervisor's private bridge instead of the
+    provider's tailnet. A tenant Stack enrols its VMs on the tenant's tailnet,
+    which the provider's CI runner is not on, so the Builder hops through the
+    hypervisor and addresses each VM by its bridge address. That address must
+    therefore be declared, not leased: every builder_target Machine needs a
+    static ipv4_address and an ipv4_gateway.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "nas_server" {
+  description = <<-EOT
+    Default NAS address for storage entries that do not name a server. Comes
+    from the GitHub Environment (NAS_SERVER) rather than the machines map, so
+    the site's address lives in one place and a change there does not touch
+    the code. Over the tailnet this is a MagicDNS name; over the LAN, the
+    address the router reserves for the NAS.
+  EOT
+  type        = string
+  default     = null
 }

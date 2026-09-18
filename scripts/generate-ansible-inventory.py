@@ -6,6 +6,11 @@ import json
 import sys
 from pathlib import Path
 
+# The account the Builder holds on the hypervisor (created by workflow 07).
+# The hop is always made as this user, whatever user is used on the VM behind
+# it — bootstrap uses the break-glass account on the VM, never on the node.
+JUMP_USER = "gitops"
+
 
 def _validate(machines: object) -> dict[str, dict]:
     if not isinstance(machines, dict):
@@ -17,6 +22,9 @@ def _validate(machines: object) -> dict[str, dict]:
         for field in ("name", "ansible_host", "bootstrap_user"):
             if not isinstance(machine.get(field), str) or not machine[field]:
                 raise ValueError(f"machine {key!r}.{field} must be a non-empty string")
+        jump = machine.get("ssh_jump_host")
+        if jump is not None and (not isinstance(jump, str) or not jump):
+            raise ValueError(f"machine {key!r}.ssh_jump_host must be null or a non-empty string")
         builder = machine.get("builder")
         if not isinstance(builder, dict):
             raise ValueError(f"machine {key!r}.builder must be an object")
@@ -38,10 +46,42 @@ def _validate(machines: object) -> dict[str, dict]:
         for field in ("docker_enabled",):
             if field in builder and not isinstance(builder[field], bool):
                 raise ValueError(f"machine {key!r}.builder.{field} must be a boolean")
+        if "storage" in builder:
+            entries = builder["storage"]
+            if not isinstance(entries, list):
+                raise ValueError(f"machine {key!r}.builder.storage must be a list")
+            for index, entry in enumerate(entries):
+                where = f"machine {key!r}.builder.storage[{index}]"
+                if not isinstance(entry, dict):
+                    raise ValueError(f"{where} must be an object")
+                if entry.get("protocol") not in ("nfs", "smb"):
+                    raise ValueError(f"{where}.protocol must be nfs or smb")
+                for field in ("server", "share", "path"):
+                    if not isinstance(entry.get(field), str) or not entry[field]:
+                        raise ValueError(f"{where}.{field} must be a non-empty string")
+                if entry["protocol"] == "smb" and (not isinstance(entry.get("credential"), str) or not entry["credential"]):
+                    raise ValueError(f"{where}.credential is required for smb")
 
     if not any(machine["builder"]["enabled"] for machine in machines.values()):
         raise ValueError("no enabled builder hosts")
     return machines
+
+
+def _host(machine: dict, user: str) -> dict:
+    host = {
+        "ansible_host": machine["ansible_host"],
+        "ansible_user": user,
+        "autolab_bootstrap_user": machine["bootstrap_user"],
+        "autolab_builder": machine["builder"],
+    }
+    jump = machine.get("ssh_jump_host")
+    if jump:
+        # An inventory value replaces ANSIBLE_SSH_COMMON_ARGS rather than adding
+        # to it, so the strict host-key check the workflow sets there has to be
+        # restated here or the tenant hosts would silently lose it.
+        host["autolab_ssh_jump_host"] = jump
+        host["ansible_ssh_common_args"] = f"-o StrictHostKeyChecking=yes -o ProxyJump={JUMP_USER}@{jump}"
+    return host
 
 
 def main() -> int:
@@ -56,12 +96,7 @@ def main() -> int:
         print(f"error: {error}", file=sys.stderr)
         return 1
     hosts = {
-        machine["name"]: {
-            "ansible_host": machine["ansible_host"],
-            "ansible_user": args.user,
-            "autolab_bootstrap_user": machine["bootstrap_user"],
-            "autolab_builder": machine["builder"],
-        }
+        machine["name"]: _host(machine, args.user)
         for machine in machines.values()
         if machine["builder"]["enabled"]
     }

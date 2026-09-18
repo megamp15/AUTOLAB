@@ -1,0 +1,53 @@
+---
+# Mount the NAS shares each machine declares in its `builder.storage`.
+#
+# nfs.yml keeps the lab's mounts in the playbook because that is where they
+# were first written. This playbook is the go-forward shape: a machine says
+# what it mounts in the machines map, next to whether it runs Docker and which
+# ports it opens, and the inventory carries that to the host. One declaration,
+# reviewable in the same diff as everything else about the machine.
+#
+# Protocol is per entry. NFS when the NAS can name the host (the provider's
+# own VMs, over the tailnet). SMB when it cannot — a tenant VM behind the
+# hypervisor's NAT arrives as the node's address, and only a credential can
+# tell it apart from every other VM on that node.
+- name: Mount declared NAS storage on Builder machines
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Validate declared storage protocols
+      ansible.builtin.assert:
+        that: item.protocol | default('nfs') in ['nfs', 'smb']
+        fail_msg: "Storage entry {{ item.path | default(item) }} has protocol '{{ item.protocol }}'; use nfs or smb."
+      loop: "{{ autolab_builder.storage | default([]) }}"
+      loop_control:
+        label: "{{ item.path | default('<no path>') }}"
+
+    # Each role takes its own list. The NFS role calls the remote path
+    # `export`; the map says `share` for both protocols so an entry reads the
+    # same whichever it uses, hence the rename on the way through.
+    #
+    # Optional fields the map did not set arrive from tofu as null, and
+    # Jinja's default() only fills *undefined* — a null `options` would reach
+    # the mount as the string "None". Drop nulls so the roles see absence.
+    - name: Split declared storage by protocol
+      ansible.builtin.set_fact:
+        autolab_nfs_mounts: >-
+          {{ (autolab_nfs_mounts | default([]))
+             + ([entry | combine({'export': entry.share})] if entry.protocol | default('nfs') == 'nfs' else []) }}
+        autolab_cifs_mounts: >-
+          {{ (autolab_cifs_mounts | default([]))
+             + ([entry] if entry.protocol | default('nfs') == 'smb' else []) }}
+      vars:
+        entry: "{{ item | dict2items | rejectattr('value', 'none') | items2dict }}"
+      loop: "{{ autolab_builder.storage | default([]) }}"
+      loop_control:
+        label: "{{ item.protocol | default('nfs') }} {{ item.path | default('<no path>') }}"
+
+  roles:
+    - role: nfs-client
+      tags: [nfs, storage]
+    - role: cifs-client
+      tags: [smb, cifs, storage]

@@ -5,7 +5,10 @@
 .env
 .env.*
 *.tfvars
-!infra/stacks/lab/machines.auto.tfvars
+# Machine maps are committed desired state — every stack's, not just the
+# first one. A tenant stack whose map is ignored merges green and applies
+# nothing, which is how the hypervisor inventory once went missing too.
+!infra/stacks/*/machines.auto.tfvars
 *.tfvars.json
 !*.tfvars.example
 *.pkrvars.hcl

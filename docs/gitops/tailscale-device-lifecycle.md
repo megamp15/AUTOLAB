@@ -23,7 +23,7 @@ at plan time**. OpenTofu state tracks the join *key*, never the *device*.
 There is no stored reference to revoke at destroy time.
 
 Destroy-time resolution is instead by **deterministic name + tag**: every
-Autolab VM joins with hostname = machine name and carries `tag:autolab-vm`
+Autolab VM joins with hostname = machine name and carries the stack's VM tag (`tag:autolab-vm` for the provider; a tenant stack sets its own via `TAILSCALE_VM_TAG`)
 (the tag arrives free — it is baked into the auth key). At destroy, we list
 all devices with that tag whose name matches, and delete every match.
 

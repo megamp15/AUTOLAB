@@ -1,0 +1,82 @@
+# ---- Proxmox connection ----
+proxmox_host           = "pve.example.ts.net"
+proxmox_port           = 8006
+proxmox_api_token      = "USER@REALM!TOKENID=TOKEN_SECRET"
+proxmox_insecure_tls   = true
+proxmox_node_name      = "pve"
+
+# ---- Network defaults ----
+network_defaults = {
+  network_bridge = "vmbr0"
+  vlan_id        = null
+}
+
+# ---- Identity defaults ----
+identity_defaults = {
+  admin_username  = "autolab"
+  ssh_public_keys = ["ssh-ed25519 AAAA... your-key@host"]
+}
+
+# ---- Tags ----
+common_tags = ["autolab", "gitops", "phase-2a"]
+
+# ---- Machines ----
+# NOTE: the qnta stack's real inventory is the committed machines.auto.tfvars,
+# which OpenTofu loads *after* this file and therefore overrides any `machines`
+# block here. Edit machines.auto.tfvars to change the tenant; this block is kept
+# only as a reference for the shape of an entry.
+# Add machines here. Each entry needs a type ("vm" or "lxc"), a
+# provisioning_class ("builder_target" today; "cluster_os" is reserved for
+# future Talos-style experiments), and type-specific fields. Shared defaults
+# come from the per-concern variables above.
+machines = {
+  example_vm = {
+    type               = "vm"
+    provisioning_class = "builder_target"
+    name               = "example-vm"
+    vm_id              = 100
+    node_name          = "pve"
+
+    # VM-specific — default 9000 matches debian-13 in template-catalog.yaml
+    template_vm_id          = 9000
+    cloud_init_datastore_id = "local-lvm"
+    datastore_id            = "local-lvm"
+    cpu_cores               = 2
+    memory_mb               = 2048
+    disk_size_gb            = 20
+    ipv4_address            = "dhcp"
+    tags                    = ["experiment:debian-template-smoke"]
+  }
+
+  # Example LXC (uncomment to enable)
+  # example_lxc = {
+  #   type               = "lxc"
+  #   provisioning_class = "builder_target"
+  #   name               = "example-lxc"
+  #   vm_id              = 101
+  #
+  #   # LXC-specific
+  #   template_file_id = "local:vztmpl/debian-standard.tar.zst"
+  #   datastore_id     = "local-lvm"
+  #   cpu_cores        = 1
+  #   memory_mb        = 512
+  #   disk_size_gb     = 8
+  #   ipv4_address     = "dhcp"
+  #   tags             = ["experiment:lxc-smoke"]
+  # }
+  #
+  # Cluster OS experiments are documented but not wired yet. Keep Talos here
+  # as a comment until the cluster_os implementation exists.
+  # talos_cp_01 = {
+  #   type               = "vm"
+  #   provisioning_class = "cluster_os"
+  #   name               = "talos-cp-01"
+  #   vm_id              = 200
+  #   datastore_id       = "local-lvm"
+  #   cpu_cores          = 4
+  #   memory_mb          = 8192
+  #   disk_size_gb       = 32
+  #   ipv4_address       = "dhcp"
+  #   tags               = ["experiment:talos", "talos:control-plane"]
+  # }
+}

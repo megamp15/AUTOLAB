@@ -10,6 +10,7 @@ on:
         type: choice
         options:
           - lab
+          - qnta
       parallelism:
         description: "OpenTofu parallelism (1 = sequential, safe for Proxmox; 10 = default parallel)"
         type: choice
@@ -68,6 +69,14 @@ jobs:
     needs: preflight
     if: inputs.confirm == 'DESTROY'
     runs-on: ubuntu-latest
+    # The GitHub Environment named after the stack supplies the tenant's
+    # tailnet credentials (TAILSCALE_VM_OAUTH_*) and tag; the provider's own
+    # stack falls through to the repository-level values.
+    environment: ${{ inputs.environment }}
+    env:
+      TF_VAR_tailscale_vm_tag: ${{ vars.TAILSCALE_VM_TAG || 'tag:autolab-vm' }}
+      TF_VAR_builder_ssh_public_key: ${{ vars.BUILDER_SSH_PUBLIC_KEY }}
+      TF_VAR_nas_server: ${{ vars.NAS_SERVER }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

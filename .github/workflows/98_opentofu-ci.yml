@@ -15,9 +15,15 @@ env:
 jobs:
   fmt-validate:
     runs-on: ubuntu-latest
+    # Every stack, not just the first one. A tenant stack that fails to
+    # validate would otherwise merge green and only break on dispatch.
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [lab, qnta]
     defaults:
       run:
-        working-directory: infra/stacks/lab
+        working-directory: infra/stacks/${{ matrix.stack }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -44,7 +50,7 @@ jobs:
           {
             echo "## OpenTofu CI"
             echo
-            echo "- Environment: \`lab\`"
+            echo "- Environment: \`${{ matrix.stack }}\`"
             echo "- Result: \`${{ job.status }}\`"
             echo "- Checks: formatting, init, and validation"
           } >> "$GITHUB_STEP_SUMMARY"
