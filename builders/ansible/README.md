@@ -55,6 +55,7 @@ builders/ansible/
     harden.yml
     docker.yml
     nfs.yml
+    storage.yml
     tailscale-update.yml
   roles/
     base-linux/
@@ -64,6 +65,7 @@ builders/ansible/
     gitops-user/
     admin-users/
     nfs-client/
+    cifs-client/
     docker-host/
 ```
 
@@ -193,10 +195,19 @@ The `harden.yml` playbook is the common baseline every managed server receives:
 - Tailscale SSH transport (cloud-init installs/enables it after enrollment;
   tailnet policy grants CI access)
 
-## NAS storage (`nfs.yml`)
+## NAS storage (`storage.yml`, `nfs.yml`)
 
-Opt-in. Mounts NFS shares from a NAS onto Builder hosts — client only; Autolab
+Opt-in. Mounts shares from a NAS onto Builder hosts — client only; Autolab
 consumes shares, it does not export them.
+
+`storage.yml` is the go-forward playbook: each machine declares what it
+mounts in the machines map (`builder.storage`), with `protocol = "nfs"` for
+hosts the NAS can name and `"smb"` for hosts it cannot — a tenant VM behind
+the hypervisor's NAT, which needs a credential rather than an address. The
+`nfs-client` and `cifs-client` roles are siblings with the same shape. See
+[NAS storage](../../docs/gitops/nas-storage.md).
+
+`nfs.yml` remains for the lab's original mounts, declared in the playbook:
 
 Declare mounts in `playbooks/nfs.yml`, or in `host_vars` when hosts need
 different shares:

@@ -1,0 +1,60 @@
+---
+# SMB/CIFS shares to mount on this host.
+#
+# The sibling of nfs-client, for the case NFS cannot cover: a host whose
+# address the NAS cannot name. NFS authorises by client IP, and every VM behind
+# the hypervisor's NAT bridge arrives as one address — so an NFS export scoped
+# to it is open to all of them. SMB authorises a *credential*, and a credential
+# is per tenant no matter where the packets come from.
+#
+# Empty by default so the role is inert unless a site declares mounts. The
+# storage playbook fills it from each machine's `builder.storage`.
+#
+# Each entry:
+#   server      (required) NAS address. A LAN IP the router reserves, or a
+#               name the host can resolve — NetBIOS names do not count.
+#   share       (required) share name on the server, no leading slash: qnta
+#   path        (required) local mount point, e.g. /mnt/qnta
+#   credential  (required) key into autolab_cifs_credentials, e.g. nas
+#   options     (optional) mount options; defaults to autolab_cifs_mount_options
+#   state       (optional) mounted (default) or absent
+#   directories (optional) paths to ensure beneath `path` once mounted
+#   mode        (optional) mode for those directories, default 0775
+autolab_cifs_mounts: []
+
+# Credentials by name: { nas: { username: qnta, password: ... } }. Supplied by
+# the workflow from the environment's secrets and written to a 0600 file per
+# name; the mount references the file, so the password is never in fstab, in
+# the process list, or in a log.
+autolab_cifs_credentials: {}
+autolab_cifs_credentials_dir: /etc/autolab/cifs
+
+# Defaults applied to any mount that does not override `options`.
+#
+#   vers=3.0               — SMB3. SMB1 is disabled on the NAS, as it should be.
+#   uid/gid                — CIFS has no per-file ownership from the server's
+#                            point of view; every file appears owned by these.
+#                            gitops is the account workloads run under.
+#   file_mode/dir_mode     — group-writable so a container running as a member
+#                            of the group can write; world-readable so that a
+#                            container running as an unrelated UID can read.
+#   _netdev                — wait for the network at boot.
+#   nofail                 — a missing NAS does not block boot.
+#   x-systemd.automount    — mount on first access rather than at boot, so a
+#                            sleeping NAS costs a timeout, not a hang.
+#   noserverino            — stable inode numbers on a server that may not
+#                            offer them; avoids "stale file handle" churn.
+#
+# The trade the NFS role does not make: CIFS is not POSIX. Anything that needs
+# real per-file ownership, chmod, or byte-range locking — a live database, a
+# git working tree — does not belong here. Files, blobs, dumps and assets do.
+autolab_cifs_mount_options: >-
+  vers=3.0,uid=gitops,gid=gitops,file_mode=0664,dir_mode=0775,_netdev,nofail,x-systemd.automount,x-systemd.idle-timeout=600,x-systemd.mount-timeout=30,noserverino
+
+# Seconds to wait for the server's port 445 before giving up. A preflight, not
+# a mount timeout: an offline NAS becomes a fast, readable failure.
+autolab_cifs_reachability_timeout: 10
+
+# Verify each mount is writable after mounting. A share can mount cleanly with
+# a credential that only has read access, which otherwise surfaces at runtime.
+autolab_cifs_verify_writable: true

@@ -65,6 +65,14 @@ machines = {
       # The agent ships to jwst by tailnet name, and this VM is not on that
       # tailnet. Provider-side monitoring over the bridge is a later change.
       observability = { agent = false }
+      # The tenant's share on the NAS, over SMB: behind the NAT bridge every
+      # VM reaches the NAS as the node, so only a credential can scope access.
+      # The server comes from NAS_SERVER on the environment; the credential
+      # from NAS_SMB_USERNAME / NAS_SMB_PASSWORD there. Nothing site-specific
+      # is written here.
+      storage = [
+        { protocol = "smb", share = "qnta", path = "/mnt/qnta", credential = "nas", directories = ["qnta-mgmt"] },
+      ]
     }
   }
 
@@ -91,6 +99,14 @@ machines = {
         { port = 4789, protocol = "udp", source = "10.42.0.0/24" },
       ]
       observability = { agent = false }
+      # The tenant's share on the NAS, over SMB: behind the NAT bridge every
+      # VM reaches the NAS as the node, so only a credential can scope access.
+      # The server comes from NAS_SERVER on the environment; the credential
+      # from NAS_SMB_USERNAME / NAS_SMB_PASSWORD there. Nothing site-specific
+      # is written here.
+      storage = [
+        { protocol = "smb", share = "qnta", path = "/mnt/qnta", credential = "nas", directories = ["qnta-dev"] },
+      ]
     }
   }
 }

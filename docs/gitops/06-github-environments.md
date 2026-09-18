@@ -21,7 +21,7 @@ names, so the unchanged workflows enrol that stack's VMs somewhere else. See
 | Environment | Workflow | Purpose |
 |-------------|----------|---------|
 | `lab` | Plan, Apply, Destroy, Builder | The provider's own stack. Empty; reads repository-level values |
-| `qnta` | Plan, Apply, Destroy, Builder | The QNTA tenant: `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET`, variable `TAILSCALE_VM_TAG=tag:qnta-vm` |
+| `qnta` | Plan, Apply, Destroy, Builder | The QNTA tenant: `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET`, `NAS_SMB_PASSWORD`; variables `TAILSCALE_VM_TAG=tag:qnta-vm`, `NAS_SERVER`, `NAS_SMB_USERNAME` |
 | `autolab-plan`, `autolab-apply` | Not targeted | Retained from an earlier design; nothing reads them |
 
 ## Repository variables

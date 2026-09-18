@@ -46,6 +46,21 @@ def _validate(machines: object) -> dict[str, dict]:
         for field in ("docker_enabled",):
             if field in builder and not isinstance(builder[field], bool):
                 raise ValueError(f"machine {key!r}.builder.{field} must be a boolean")
+        if "storage" in builder:
+            entries = builder["storage"]
+            if not isinstance(entries, list):
+                raise ValueError(f"machine {key!r}.builder.storage must be a list")
+            for index, entry in enumerate(entries):
+                where = f"machine {key!r}.builder.storage[{index}]"
+                if not isinstance(entry, dict):
+                    raise ValueError(f"{where} must be an object")
+                if entry.get("protocol") not in ("nfs", "smb"):
+                    raise ValueError(f"{where}.protocol must be nfs or smb")
+                for field in ("server", "share", "path"):
+                    if not isinstance(entry.get(field), str) or not entry[field]:
+                        raise ValueError(f"{where}.{field} must be a non-empty string")
+                if entry["protocol"] == "smb" and (not isinstance(entry.get("credential"), str) or not entry["credential"]):
+                    raise ValueError(f"{where}.credential is required for smb")
 
     if not any(machine["builder"]["enabled"] for machine in machines.values()):
         raise ValueError("no enabled builder hosts")

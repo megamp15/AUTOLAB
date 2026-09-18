@@ -70,6 +70,7 @@ jobs:
     env:
       TF_VAR_tailscale_vm_tag: ${{ vars.TAILSCALE_VM_TAG || 'tag:autolab-vm' }}
       TF_VAR_builder_ssh_public_key: ${{ vars.BUILDER_SSH_PUBLIC_KEY }}
+      TF_VAR_nas_server: ${{ vars.NAS_SERVER }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

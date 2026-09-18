@@ -175,6 +175,69 @@ Set `state: absent` on the entry rather than deleting it — the same reasoning
 as operator offboarding. Removing a declaration stops managing it; it does not
 undo it.
 
+## SMB, for hosts the NAS cannot name
+
+Everything above assumes the NAS can see the client's own address. A tenant
+VM cannot offer one: it sits behind the hypervisor's NAT bridge and reaches
+the NAS over the LAN as the *node*, the same address every other VM on that
+node uses. An NFS export scoped to it is open to all of them.
+
+SMB authorises a credential rather than an address, so the same packets from
+the same node carry a different identity per tenant. The `cifs-client` role
+is the sibling of `nfs-client` — same validate → probe → mount → verify shape
+— with these differences:
+
+| | NFS (`nfs-client`) | SMB (`cifs-client`) |
+|---|---|---|
+| Authorised by | client address, in the export rule | a NAS user, in a `0600` credentials file the mount references |
+| Ownership | passes through (`No mapping`) | flattened to the mount's `uid=`/`gid=` (`gitops`) |
+| Permissions | real POSIX modes | synthesised from `file_mode`/`dir_mode` |
+| Offline NAS | `hard` blocks; add automount per mount | automount by default; `nofail` at boot |
+| Suits | anything a Linux host puts on a disk | files, blobs, dumps, assets — bytes for containers |
+| Does not suit | a NAS that sleeps | live databases, git trees, anything that needs ownership or locks |
+| Survives a VM rebuild | only if the export is keyed to a name | always — the credential does not care where the VM is |
+
+### Declaring it
+
+Storage is declared per machine in the machines map and applied by the
+`storage` playbook; `nfs.yml` remains for the lab's original mounts.
+
+```hcl
+builder = {
+  storage = [
+    { protocol = "smb", share = "qnta", path = "/mnt/qnta", credential = "nas", directories = ["qnta-mgmt"] },
+    { protocol = "nfs", share = "/volume1/autolab", path = "/mnt/autolab" },
+  ]
+}
+```
+
+`server` is omitted on purpose: it comes from `NAS_SERVER` on the GitHub
+Environment (over the LAN, the address the router reserves for the NAS; over
+the tailnet, its MagicDNS name), so the site's address is set once and no
+machine entry carries it. `credential = "nas"` resolves to that environment's
+`NAS_SMB_USERNAME` / `NAS_SMB_PASSWORD`, rendered into
+`/etc/autolab/cifs/nas.cred` on the host — never into fstab, a command line,
+or a log.
+
+### NAS side
+
+One user per tenant (UGOS → Control Panel → User): standard role, no
+personal folder, not allowed to change its password, read/write on that
+tenant's shared folder and nothing else. The credential can only ever reach
+the share it was made for, which is the property the shared source address
+took away.
+
+### Things that will mislead you
+
+- **`smb://SINGULARITY` works from a laptop and not from a VM.** That is a
+  NetBIOS name, resolved by browsing; a Linux VM has no browser. Use the
+  address or a DNS name.
+- **A read-only NAS user mounts cleanly.** The failure is the first write.
+  The role's write check exists for exactly this.
+- **`chown` on a CIFS mount is a no-op or an error.** Ownership is the mount
+  option, full stop. A role that sets `owner:` on a directory there is wrong,
+  not the NAS.
+
 ## Related docs
 
 - [Builder README](../../builders/ansible/README.md) — roles and playbooks

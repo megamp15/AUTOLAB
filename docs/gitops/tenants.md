@@ -73,6 +73,10 @@ put VMs on the tenant's network.
    4789/udp from the bridge. Declared there rather than punched by hand, or
    the next baseline run closes them again.
 
+And, if its VMs mount the NAS: a NAS user of its own, with rights on its
+share only. The username and password go on the tenant's environment as
+`NAS_SMB_USERNAME` / `NAS_SMB_PASSWORD`, next to `NAS_SERVER`.
+
 ## Wiring a tenant
 
 Once, per tenant. `qnta` is the worked example.
@@ -112,6 +116,7 @@ Same workflows, one input.
 |---|---|---|
 | Create the VMs | `04 - OpenTofu Apply` | `environment: qnta`, `confirm: apply` |
 | First baseline | `05 - Ansible Builder` | `environment: qnta`, `playbook: harden`, `bootstrap: true`, `confirm: apply` |
+| Mount the NAS | `05 - Ansible Builder` | `environment: qnta`, `playbook: storage`, `confirm: apply` |
 | Every later run | `05 - Ansible Builder` | `environment: qnta`, any playbook, `bootstrap: false` |
 | Remove them | `99 - OpenTofu Destroy` | `environment: qnta`, `confirm: DESTROY` |
 
@@ -129,15 +134,12 @@ resources, the Tailscale join — because those are now the provider's.
 
 ## Not covered yet
 
-- **NAS storage.** Tenant VMs on a NAT bridge reach the NAS over the LAN but
-  all arrive as the node's address, so an NFS export scoped to the node is
-  open to every VM on it — the per-host scoping `nfs.yml` relies on is lost.
-  Two ways out: SMB with a per-tenant NAS user (credential-based, so the
-  shared source address stops mattering), or the bridge becoming a real LAN
-  segment when the second node lands, after which tenant VMs have their own
-  addresses and the business's current per-host NFS exports carry over
-  unchanged. Either way, live databases stay on the VM's own disk and only
-  their dumps go to the NAS.
+- **NAS storage over NFS.** Tenant VMs on a NAT bridge reach the NAS as the
+  node's address, so a per-host NFS export cannot tell them apart. They use
+  SMB instead — declared in `builder.storage`, credentialed per tenant — see
+  [NAS storage](./nas-storage.md#smb-for-hosts-the-nas-cannot-name). NFS
+  for tenants returns when the bridge becomes a real LAN segment. Either way,
+  live databases stay on the VM's own disk and only their dumps go to the NAS.
 - **Provider-side monitoring.** The agent ships to `jwst` by tailnet name.
   Tenant VMs opt out until the stack reaches them over the bridge.
 - **Backups.** PBS is the next phase and belongs on the management plane;

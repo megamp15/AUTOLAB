@@ -25,6 +25,7 @@ module "machine_inputs" {
   identity_defaults = local.identity_defaults
   common_tags       = var.common_tags
   management_plane  = var.tenant != null
+  nas_server        = var.nas_server
 }
 
 resource "tailscale_tailnet_key" "builder_target_vm" {

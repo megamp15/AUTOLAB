@@ -66,6 +66,8 @@ Set at **Settings → Secrets and variables → Actions → Variables**.
 | `PVE_EXPORTER_TOKEN_ID` | `pve-exporter@pve!monitoring` | Ansible Builder | Proxmox read-only token ID for the hypervisor exporter. An identifier, not a credential — a variable so it stays readable in run logs. See [observability](./observability.md). |
 | `TAILSCALE_VM_TAG` | `tag:qnta-vm` | OpenTofu Plan/Apply/Destroy | **Environment-level**, on a tenant's environment only. The tag its VMs enrol under and the only tag the destroy-time cleanup may delete. Unset, the provider's `tag:autolab-vm` applies. See [tenants](./tenants.md). |
 | `BUILDER_SSH_PUBLIC_KEY` | `ssh-ed25519 AAAA... autolab-builder` | OpenTofu (tenant stacks), Ansible Builder | Public half of the Builder keypair. cloud-init places it on tenant VMs' break-glass user; the `gitops-user` role installs it for `gitops` everywhere. Provider-owned: one key serves every tenant. Generate with `ssh-keygen -t ed25519 -f ~/.ssh/autolab-builder -N '' -C autolab-builder`. |
+| `NAS_SERVER` | `192.168.50.163` | OpenTofu Plan/Apply/Destroy | **Environment-level.** Default server for `builder.storage` entries that omit one. Over the LAN, the address the router reserves for the NAS; over the tailnet, its MagicDNS name. |
+| `NAS_SMB_USERNAME` | `qnta` | Ansible Builder (`storage`) | **Environment-level.** The NAS account SMB mounts naming credential `nas` authenticate as. One per tenant, with rights on that tenant's share only. |
 
 ## Secrets
 
@@ -80,6 +82,7 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `TAILSCALE_VM_OAUTH_CLIENT_ID` | `tskey-client-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client ID; exported as `TAILSCALE_OAUTH_CLIENT_ID` into tofu steps and consumed by the destroy-time device cleanup script. |
 | `TAILSCALE_VM_OAUTH_SECRET` | `tskey-client-secret-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client secret; the OAuth client needs **both** `auth_keys` (Write, with `tag:autolab-vm` selected) for key minting and `devices:core` (Write) for destroy-time cleanup (see `docs/gitops/tailscale-device-lifecycle.md`). Not used by Builder. |
 | `BUILDER_SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH PRIVATE KEY-----...` | Ansible Builder | Private half of the Builder keypair, written `0600` to the runner's default identity path. Only needed once a tenant stack exists: tenant VMs sit on a tailnet the runner is not on, so the Builder hops through the hypervisor to plain `sshd`, which needs a key to trust. `gh secret set BUILDER_SSH_PRIVATE_KEY < ~/.ssh/autolab-builder`. |
+| `NAS_SMB_PASSWORD` | random | Ansible Builder (`storage`) | **Environment-level.** Password for `NAS_SMB_USERNAME`. Rendered into a `0600` credentials file on each host that mounts over SMB; never in fstab, the process list, or a log. `gh secret set NAS_SMB_PASSWORD --env qnta`. |
 | `PVE_EXPORTER_TOKEN_SECRET` | `xxxxxxxx-xxxx-...` | Ansible Builder | Secret for the Proxmox read-only token. Separate from `PROXMOX_API_TOKEN`, which can create and destroy VMs; this one holds `PVEAuditor` only. Unset disables the exporter rather than shipping it broken. |
 | `NTFY_TOPIC` | `autolab-pulsar-xxxxxxxxxx` | Ansible Builder | ntfy topic that alerts publish to. It is the **entire** credential — holding it lets anyone read these alerts and publish to them — so it is a secret, not a variable, and carries random entropy rather than a guessable name. Unset means alerts stay in Grafana and are pushed nowhere. |
 | `GF_SECURITY_ADMIN_PASSWORD` | a generated password | Ansible Builder | Grafana admin login. Anonymous *viewing* is deliberate, but the admin account can rewrite dashboards, add datasources and change where alerts go — on the default `admin`/`admin` that is handed to anyone on the tailnet. Unset leaves the existing password alone. |
@@ -134,7 +137,7 @@ Copy from `infra/stacks/lab/terraform.tfvars.example` and edit locally.
 | Environment | Workflow | Holds |
 |-------------|----------|-------|
 | `lab` | Plan, Apply, Destroy, Builder when `environment: lab` | Nothing yet; the provider's own stack falls through to repository-level values |
-| `qnta` | Plan, Apply, Destroy, Builder when `environment: qnta` | `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` from the tenant's tailnet; variable `TAILSCALE_VM_TAG` |
+| `qnta` | Plan, Apply, Destroy, Builder when `environment: qnta` | `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` from the tenant's tailnet; `NAS_SMB_PASSWORD`; variables `TAILSCALE_VM_TAG`, `NAS_SERVER`, `NAS_SMB_USERNAME` |
 | `autolab-plan`, `autolab-apply` | Not targeted | Retained; nothing reads them |
 
 Plan, Apply, Destroy and Builder run their main job under the GitHub
@@ -156,6 +159,7 @@ same workflow enrols VMs on a different tailnet. Typed confirmations and the
 - [ ] `PROXMOX_PACKER_NETWORK_BRIDGE`
 - [ ] `BUILDER_SSH_PUBLIC_KEY` (once a tenant stack exists)
 - [ ] `TAILSCALE_VM_TAG` on each tenant environment
+- [ ] `NAS_SERVER`, `NAS_SMB_USERNAME` on each environment whose machines mount the NAS
 - [ ] `SSH_PUBLIC_KEYS`
 
 **Secrets**

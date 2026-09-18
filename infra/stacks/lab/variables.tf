@@ -78,6 +78,12 @@ variable "builder_ssh_public_key" {
   default     = ""
 }
 
+variable "nas_server" {
+  description = "Default NAS address for storage entries that omit `server` (NAS_SERVER on the GitHub Environment)."
+  type        = string
+  default     = null
+}
+
 # ---- Tags ----
 
 variable "common_tags" {
@@ -123,6 +129,19 @@ variable "machines" {
         source   = optional(string, "any")
       })), [])
       docker_enabled = optional(bool, false)
+      # NAS shares this machine mounts, applied by the storage playbook. `server`
+      # may be omitted to take the Stack's nas_server, so the machines map never
+      # carries an address that belongs to the site rather than the machine.
+      storage = optional(list(object({
+        protocol    = optional(string, "nfs")
+        server      = optional(string, null)
+        share       = string
+        path        = string
+        credential  = optional(string, null)
+        directories = optional(list(string), [])
+        options     = optional(string, null)
+        mode        = optional(string, null)
+      })), [])
       # Every Builder host runs the observability agent; `stack` marks the one
       # host that also runs the backends it reports to.
       observability = optional(object({

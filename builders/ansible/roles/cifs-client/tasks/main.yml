@@ -1,0 +1,165 @@
+---
+# Mount SMB/CIFS shares from a NAS onto Builder hosts.
+#
+# Client only, like nfs-client: the share and the account that may use it are
+# managed on the NAS. Read defaults/main.yml for why this role exists next to
+# the NFS one rather than instead of it.
+
+- name: Require a Debian-family Builder target
+  ansible.builtin.assert:
+    that: ansible_os_family == "Debian"
+    fail_msg: "Autolab Builder currently supports Debian-family hosts only."
+
+# Fail on a malformed entry before touching fstab or writing a credential file.
+- name: Validate declared CIFS mounts
+  ansible.builtin.assert:
+    that:
+      - item.server is defined and item.server | length > 0
+      - item.share is defined and item.share | length > 0 and not item.share.startswith('/')
+      - item.path is defined and item.path.startswith('/')
+      - item.credential is defined and item.credential | length > 0
+      - item.state | default('mounted') in ['mounted', 'absent']
+    fail_msg: >-
+      Invalid CIFS mount entry {{ item }}. Each mount needs a non-empty
+      `server`, a `share` without a leading slash, an absolute `path`, a
+      `credential` name, and state mounted or absent.
+  loop: "{{ autolab_cifs_mounts }}"
+  loop_control:
+    label: "{{ item.path | default('<no path>') }}"
+
+# A mount whose credential the workflow did not supply would fail at mount
+# time with a bare permission error. Name the missing secret instead.
+- name: Require a credential for every mount that will be mounted
+  ansible.builtin.assert:
+    that:
+      - item.credential in autolab_cifs_credentials
+      - autolab_cifs_credentials[item.credential].username | default('') | length > 0
+      - autolab_cifs_credentials[item.credential].password | default('') | length > 0
+    fail_msg: >-
+      Mount {{ item.path }} names credential '{{ item.credential }}', but no
+      username and password were supplied for it. The Builder workflow renders
+      NAS_SMB_USERNAME and NAS_SMB_PASSWORD from the GitHub Environment into
+      autolab_cifs_credentials; set them on the environment for this stack.
+  loop: "{{ autolab_cifs_mounts }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: item.state | default('mounted') != 'absent'
+
+- name: Install CIFS client packages
+  ansible.builtin.apt:
+    name: cifs-utils
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: autolab_cifs_mounts | length > 0
+
+- name: Create the credentials directory
+  ansible.builtin.file:
+    path: "{{ autolab_cifs_credentials_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: autolab_cifs_mounts | length > 0
+
+# One file per credential name, root-only. mount.cifs reads it as root at
+# mount time; nothing else on the host needs to.
+- name: Write credential files
+  ansible.builtin.copy:
+    dest: "{{ autolab_cifs_credentials_dir }}/{{ item }}.cred"
+    content: |
+      username={{ autolab_cifs_credentials[item].username }}
+      password={{ autolab_cifs_credentials[item].password }}
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ autolab_cifs_mounts | selectattr('state', 'undefined') | map(attribute='credential') | list
+            + autolab_cifs_mounts | selectattr('state', 'defined') | rejectattr('state', 'equalto', 'absent') | map(attribute='credential') | list
+            | unique }}"
+  loop_control:
+    label: "{{ item }}"
+  no_log: true
+
+- name: List currently mounted paths
+  ansible.builtin.command: findmnt --raw --noheadings --output TARGET
+  changed_when: false
+  failed_when: false
+  register: autolab_cifs_mounted_paths
+
+# Only for paths that are not yet mount points — same reasoning as nfs-client:
+# once mounted, the directory's mode is the share's, not this host's to set.
+- name: Create CIFS mount points
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ autolab_cifs_mounts }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when:
+    - item.state | default('mounted') != 'absent'
+    - item.path not in (autolab_cifs_mounted_paths.stdout_lines | default([]))
+
+- name: Verify each server is reachable before mounting
+  ansible.builtin.wait_for:
+    host: "{{ item.server }}"
+    port: 445
+    timeout: "{{ autolab_cifs_reachability_timeout }}"
+    msg: >-
+      {{ item.server }} is not answering on SMB port 445 within
+      {{ autolab_cifs_reachability_timeout }}s. Refusing to mount. Check the
+      NAS is up and reachable from this host, then re-run.
+  loop: "{{ autolab_cifs_mounts }}"
+  loop_control:
+    label: "{{ item.server }}"
+  when: item.state | default('mounted') != 'absent'
+
+# fstab and the live mount together, so a reboot reproduces this run.
+- name: Mount CIFS shares and persist them in fstab
+  ansible.posix.mount:
+    src: "//{{ item.server }}/{{ item.share }}"
+    path: "{{ item.path }}"
+    fstype: cifs
+    opts: "credentials={{ autolab_cifs_credentials_dir }}/{{ item.credential }}.cred,{{ item.options | default(autolab_cifs_mount_options) }}"
+    state: "{{ item.state | default('mounted') }}"
+  loop: "{{ autolab_cifs_mounts }}"
+  loop_control:
+    label: "//{{ item.server }}/{{ item.share }} -> {{ item.path }}"
+
+# Created after the mount so they land on the NAS. Ownership is not set: on
+# CIFS it is fixed by the uid/gid mount options and chown is a no-op or an error.
+- name: Ensure declared directories exist on the share
+  ansible.builtin.file:
+    path: "{{ item.0.path }}/{{ item.1 }}"
+    state: directory
+    mode: "{{ item.0.mode | default('0775') }}"
+  loop: "{{ autolab_cifs_mounts | subelements('directories', skip_missing=True) }}"
+  loop_control:
+    label: "{{ item.0.path }}/{{ item.1 }}"
+  when: item.0.state | default('mounted') != 'absent'
+
+# A read-only credential mounts cleanly and fails at the first write. Probe in
+# a declared directory rather than the share root, as nfs-client does.
+- name: Verify each mount is writable
+  ansible.builtin.tempfile:
+    path: "{{ item.path }}/{{ (item.directories | default([]))[0] | default('') }}"
+    state: file
+    prefix: .autolab-write-check-
+  loop: "{{ autolab_cifs_mounts }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when:
+    - autolab_cifs_verify_writable | bool
+    - item.state | default('mounted') != 'absent'
+    - not ansible_check_mode
+  register: autolab_cifs_write_check
+  changed_when: false
+
+- name: Remove the write-check files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ autolab_cifs_write_check.results | default([]) | selectattr('path', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.path }}"
+  changed_when: false

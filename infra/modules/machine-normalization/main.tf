@@ -25,6 +25,13 @@ locals {
           : [],
           machine.builder.firewall_rules,
         )
+        # An entry without a server takes the Stack's NAS. Left null when
+        # neither is set, and the precondition below names the gap.
+        storage = [
+          for entry in machine.builder.storage : merge(entry, {
+            server = entry.server != null ? entry.server : var.nas_server
+          })
+        ]
       })
     })
   }

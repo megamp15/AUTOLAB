@@ -25,7 +25,7 @@ on:
         required: true
         default: harden
         type: choice
-        options: [harden, docker, tailscale-update, nfs, observability]
+        options: [harden, docker, tailscale-update, nfs, storage, observability]
       limit:
         description: Optional Ansible host limit
         required: false
@@ -255,6 +255,11 @@ jobs:
           AUTOLAB_NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           AUTOLAB_GF_ADMIN_PASSWORD: ${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}
           AUTOLAB_BUILDER_SSH_PUBLIC_KEY: ${{ vars.BUILDER_SSH_PUBLIC_KEY }}
+          # The NAS account this environment's machines mount SMB shares with.
+          # Storage entries name it as credential "nas"; the values are the
+          # tenant's, so they live on the tenant's environment.
+          AUTOLAB_NAS_SMB_USERNAME: ${{ vars.NAS_SMB_USERNAME }}
+          AUTOLAB_NAS_SMB_PASSWORD: ${{ secrets.NAS_SMB_PASSWORD }}
         run: |
           out="$RUNNER_TEMP/extra-vars.json"
           umask 077
@@ -266,6 +271,11 @@ jobs:
               # account accepts the next run over the management plane. An empty
               # list is authoritative too: it removes any key installed before.
               "autolab_gitops_ssh_public_keys": [builder_key] if builder_key else [],
+              "autolab_cifs_credentials": (
+                  {"nas": {"username": os.environ["AUTOLAB_NAS_SMB_USERNAME"],
+                           "password": os.environ["AUTOLAB_NAS_SMB_PASSWORD"]}}
+                  if os.environ.get("AUTOLAB_NAS_SMB_PASSWORD") else {}
+              ),
               "autolab_obs_pve_host": os.environ.get("AUTOLAB_PVE_HOST", ""),
               "autolab_obs_pve_token_id": os.environ.get("AUTOLAB_PVE_TOKEN_ID", ""),
               "autolab_obs_pve_token_secret": os.environ.get("AUTOLAB_PVE_TOKEN_SECRET", ""),
@@ -277,6 +287,11 @@ jobs:
             echo "Builder public key will be installed for the gitops account."
           else
             echo "No Builder public key; the gitops account keeps no authorized keys."
+          fi
+          if [ -n "${AUTOLAB_NAS_SMB_PASSWORD}" ]; then
+            echo "NAS SMB credential supplied for storage entries naming 'nas'."
+          else
+            echo "No NAS SMB credential; SMB storage entries would fail to mount."
           fi
           if [ -n "${AUTOLAB_PVE_TOKEN_ID}" ]; then
             echo "Proxmox exporter credentials supplied."
