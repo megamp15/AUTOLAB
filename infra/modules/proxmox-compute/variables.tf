@@ -81,6 +81,18 @@ variable "ipv4_gateway" {
   default     = null
 }
 
+variable "dns_servers" {
+  description = <<-EOT
+    Resolvers for a VM with a static address. A leased VM gets its resolvers
+    from the DHCP server with the lease; a static one gets nothing unless it
+    is told, and Proxmox then falls back to the hypervisor's own resolv.conf.
+    Ignored when ipv4_address is "dhcp", so existing leased VMs see no change
+    to their cloud-init and are not replaced.
+  EOT
+  type        = list(string)
+  default     = ["1.1.1.1", "1.0.0.1"]
+}
+
 variable "tags" {
   description = "Proxmox tags."
   type        = list(string)
