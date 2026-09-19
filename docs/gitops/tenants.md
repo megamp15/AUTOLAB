@@ -197,3 +197,14 @@ See [observability](./observability.md#tenant-guests-over-the-management-plane).
   the ingest ports need real ufw rules — the Docker-published tailnet ports
   bypass ufw and give no such hint. Check `sudo ufw status` on the stack host
   for `9009/tcp` and `3101/tcp` from `10.42.0.0/24`.
+- **A static Debian VM resolves tailnet names and nothing else.** The
+  resolvers `proxmox-compute` declares for a static address land in
+  `/etc/network/interfaces.d/50-cloud-init` as `dns-nameservers`, and ifupdown
+  only honours that line through a `resolvconf` hook the Debian image does not
+  carry. While the VM was leased, `dhcpcd` wrote `/etc/resolv.conf`; once it
+  went static nobody did, tailscaled took an empty file as its upstream, and
+  `apt` failed on every external name. Ubuntu images have `systemd-resolved`
+  and never show this. The tailnet's **Global nameservers** (`1.1.1.1`,
+  `1.0.0.1`, with *Override local DNS*) are what give every node external
+  resolution regardless, and are part of the tailnet contract for that
+  reason — check them first when `deb.debian.org` fails and `*.ts.net` works.

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Machine banner. Deployed by the Ansible role motd; change the role, not this.
+printf '\n\033[{{ autolab_motd_color }}m'
+cat /etc/autolab/banner 2>/dev/null || printf '  %s\n' '{{ autolab_motd_text | upper }}'
+printf '\033[0m'

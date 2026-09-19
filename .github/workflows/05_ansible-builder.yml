@@ -266,6 +266,10 @@ jobs:
           # inventory never contains the stack host, so nothing else could
           # supply it.
           AUTOLAB_OBS_STACK_ADDRESS: ${{ vars.OBSERVABILITY_STACK_ADDRESS }}
+          # Shown on the login screen: which stack the host belongs to and
+          # which commit its baseline came from.
+          AUTOLAB_ENVIRONMENT: ${{ inputs.environment || 'lab' }}
+          AUTOLAB_GIT_SHA: ${{ github.sha }}
         run: |
           out="$RUNNER_TEMP/extra-vars.json"
           umask 077
@@ -288,6 +292,8 @@ jobs:
               "autolab_obs_ntfy_topic": os.environ.get("AUTOLAB_NTFY_TOPIC", ""),
               "autolab_obs_grafana_admin_password": os.environ.get("AUTOLAB_GF_ADMIN_PASSWORD", ""),
               "autolab_obs_stack_management_address": os.environ.get("AUTOLAB_OBS_STACK_ADDRESS", ""),
+              "autolab_environment": os.environ.get("AUTOLAB_ENVIRONMENT", ""),
+              "autolab_git_sha": os.environ.get("AUTOLAB_GIT_SHA", ""),
           }, open(sys.argv[1], "w"))
           PY
           if [ -n "${AUTOLAB_BUILDER_SSH_PUBLIC_KEY}" ]; then

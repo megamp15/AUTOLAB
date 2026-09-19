@@ -1,0 +1,91 @@
+---
+- name: Install the banner renderer
+  ansible.builtin.apt:
+    name: [toilet, toilet-fonts]
+    state: present
+  register: autolab_motd_renderer
+
+# Check mode cannot render before the renderer exists, so a host's first
+# check run leaves the banner file out of its report; the next one has it.
+- name: Render the banner
+  ansible.builtin.command:
+    argv: [toilet, -f, "{{ autolab_motd_font }}", -w, "200", "{{ autolab_motd_text | upper }}"]
+  register: autolab_motd_render
+  changed_when: false
+  check_mode: false
+  when: not (ansible_check_mode and autolab_motd_renderer is changed)
+
+- name: Own the directory the login scripts read from
+  ansible.builtin.file:
+    path: /etc/autolab
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Keep the rendered banner where the login script reads it
+  ansible.builtin.copy:
+    content: "{{ autolab_motd_render.stdout | regex_replace('^\\s*\\n|\\s+$', '') }}\n"
+    dest: /etc/autolab/banner
+    owner: root
+    group: root
+    mode: "0644"
+  when: autolab_motd_render is not skipped
+
+- name: Record the commit this host was provisioned from
+  ansible.builtin.copy:
+    content: "{{ autolab_motd_git_sha }}\n"
+    dest: /etc/autolab/provisioned
+    owner: root
+    group: root
+    mode: "0644"
+  when: autolab_motd_git_sha | length > 0
+
+- name: Install the login scripts
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/update-motd.d/{{ item }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - 00-autolab-banner
+    - 10-autolab-status
+
+- name: Find the distribution scripts to silence
+  ansible.builtin.find:
+    paths: /etc/update-motd.d
+    patterns: "{{ autolab_motd_disabled_scripts }}"
+  register: autolab_motd_found
+
+# run-parts skips anything that is not executable; the files stay in place so
+# the packages that own them do not see a missing conffile on upgrade.
+- name: Silence them
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "0644"
+  loop: "{{ autolab_motd_found.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Turn off motd-news at the source
+  ansible.builtin.lineinfile:
+    path: /etc/default/motd-news
+    regexp: "^ENABLED="
+    line: ENABLED=0
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  when: ansible_distribution == "Ubuntu"
+
+# Debian's static /etc/motd is the "programs included with the Debian
+# GNU/Linux system" paragraph, printed after the dynamic scripts.
+- name: Blank the static motd
+  ansible.builtin.copy:
+    content: ""
+    dest: /etc/motd
+    owner: root
+    group: root
+    mode: "0644"
+  when: ansible_distribution == "Debian"

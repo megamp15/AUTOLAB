@@ -67,6 +67,7 @@ builders/ansible/
     nfs-client/
     cifs-client/
     docker-host/
+    motd/
 ```
 
 ## First run
@@ -157,6 +158,7 @@ locally it is `--tags`:
 | `users` | `gitops-user`, `admin-users` |
 | `ssh` | `ssh-hardening` |
 | `firewall` | `firewall` |
+| `motd` | `motd` |
 
 ```bash
 ansible-playbook -i /tmp/autolab-inventory.json playbooks/harden.yml --tags users
@@ -194,6 +196,10 @@ The `harden.yml` playbook is the common baseline every managed server receives:
 - Tailscale/private management firewall access
 - Tailscale SSH transport (cloud-init installs/enables it after enrollment;
   tailnet policy grants CI access)
+- login screen (`motd`): the hostname as a banner, then the facts an operator
+  otherwise goes looking for — stack and plane, tailnet and bridge addresses,
+  pending updates, whether a reboot is due, firewall and agent state, and the
+  commit the baseline was applied from. Canonical's notices are switched off.
 
 ## NAS storage (`storage.yml`, `nfs.yml`)
 
