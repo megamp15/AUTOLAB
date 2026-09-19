@@ -18,9 +18,16 @@
 autolab_motd_font: mono12
 autolab_motd_text: "{{ inventory_hostname }}"
 
-# ANSI SGR parameters for the banner and labels. Provider hosts and tenant
-# hosts get different colours so a wrong-window mistake is visible at a glance.
-autolab_motd_color: "{{ '1;35' if autolab_ssh_jump_host is defined else '1;36' }}"
+# Colours are xterm-256 indices, which every terminal in use here renders the
+# same — Terminal.app, iTerm, the Tailscale console. Provider hosts are neon
+# green, tenant hosts hot pink, so a wrong-window mistake is visible at a
+# glance. The banner fades top to bottom through the gradient; the last entry
+# repeats for any further lines.
+autolab_motd_tenant: "{{ autolab_ssh_jump_host is defined }}"
+autolab_motd_accent: "{{ 201 if autolab_motd_tenant | bool else 46 }}"
+autolab_motd_gradient: >-
+  {{ [201, 201, 200, 199, 164, 128, 127, 90] if autolab_motd_tenant | bool
+     else [46, 46, 47, 41, 35, 29, 23, 22] }}
 
 # Stack this host belongs to — lab, qnta — from the Builder workflow's
 # environment. Local runs may leave it unset; the line is then omitted.
