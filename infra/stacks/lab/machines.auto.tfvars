@@ -55,8 +55,8 @@ machines = {
     # the bridge, and a lease is unknowable to a stack that cannot see this
     # one. Provider services take .2–.99, below dnsmasq's .100–.200 lease
     # range; tenants take .201 upward. ark, when it lands, is .11.
-    ipv4_address            = "10.42.0.10/24"
-    ipv4_gateway            = "10.42.0.1"
+    ipv4_address = "10.42.0.10/24"
+    ipv4_gateway = "10.42.0.1"
     builder = {
       docker_enabled = true
       observability = {

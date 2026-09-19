@@ -28,14 +28,14 @@ output "builder_machines" {
       # Tenant VMs are on a tailnet the runner is not on, so they are dialled
       # by bridge address through the hypervisor — which is itself reached by
       # the same MagicDNS name the Proxmox API uses.
-      ansible_host   = var.tenant == null ? machine.name : machine.management_address
-      ssh_jump_host  = var.tenant == null ? null : var.proxmox_host
+      ansible_host  = var.tenant == null ? machine.name : machine.management_address
+      ssh_jump_host = var.tenant == null ? null : var.proxmox_host
       # The VM's own bridge address when declared, null when leased. A provider
       # service that tenants reach over the bridge — the observability stack
       # today, PBS later — binds to it; nothing else reads it.
       management_address = machine.management_address
-      bootstrap_user = machine.admin_username
-      builder        = machine.builder
+      bootstrap_user     = machine.admin_username
+      builder            = machine.builder
     }
   }
 }
