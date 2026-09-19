@@ -23,7 +23,7 @@ inputs:
   pve_ssh_username:
     description: Proxmox SSH bastion username
     required: false
-    default: root
+    default: gitops
   proxmox_port:
     description: Proxmox API HTTPS port
     required: false
