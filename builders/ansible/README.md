@@ -68,6 +68,7 @@ builders/ansible/
     cifs-client/
     docker-host/
     motd/
+    pbs/
 ```
 
 ## First run
@@ -204,6 +205,14 @@ The `harden.yml` playbook is the common baseline every managed server receives:
   notices under `/etc/update-motd.d` are switched off so plain OpenSSH logins
   do not print them either. Provider hosts are green, tenant hosts cyan.
   `run-parts /etc/autolab/motd.d` prints it again from a running shell.
+
+## Backups (`backup.yml`)
+
+Runs `storage.yml` first, then the `pbs` role on the host marked
+`builder.backup.server = true`. Proxmox Backup Server as packages on the
+Debian baseline; the node side lives in `proxmox.yml`. See
+[backups](../../docs/gitops/backups.md) for the order of operations, which
+has two steps only a person can do (the NAS export rule, the key backup).
 
 ## NAS storage (`storage.yml`, `nfs.yml`)
 

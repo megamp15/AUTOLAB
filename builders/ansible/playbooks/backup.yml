@@ -1,0 +1,21 @@
+---
+# The backup server. Two plays: the storage playbook first, so the datastore
+# path is mounted before PBS is asked to own it, then PBS on whichever host
+# the machines map marks `backup.server = true`.
+- name: Mount the datastore's share first
+  ansible.builtin.import_playbook: storage.yml
+
+- name: Run Proxmox Backup Server on the marked host
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+
+  module_defaults:
+    ansible.builtin.apt:
+      lock_timeout: 900
+
+  tasks:
+    - name: Install and declare PBS
+      ansible.builtin.include_role:
+        name: pbs
+      when: autolab_builder.backup.server | default(false) | bool

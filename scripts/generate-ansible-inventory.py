@@ -49,6 +49,10 @@ def _validate(machines: object) -> dict[str, dict]:
         for field in ("docker_enabled",):
             if field in builder and not isinstance(builder[field], bool):
                 raise ValueError(f"machine {key!r}.builder.{field} must be a boolean")
+        if "backup" in builder:
+            backup = builder["backup"]
+            if not isinstance(backup, dict) or not isinstance(backup.get("server", False), bool):
+                raise ValueError(f"machine {key!r}.builder.backup.server must be a boolean")
         if "storage" in builder:
             entries = builder["storage"]
             if not isinstance(entries, list):

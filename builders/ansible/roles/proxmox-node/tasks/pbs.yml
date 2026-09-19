@@ -1,0 +1,125 @@
+---
+- name: Require the backup account password
+  ansible.builtin.assert:
+    that: autolab_pve_pbs_password | length > 0
+    fail_msg: "autolab_pve_pbs_password is empty; set the PBS_PVE_PASSWORD secret."
+  when: autolab_pve_pbs_storages | length > 0
+
+- name: Read the storage configuration
+  ansible.builtin.slurp:
+    path: /etc/pve/storage.cfg
+  register: autolab_pve_storage_cfg
+
+- name: Name what is already configured
+  ansible.builtin.set_fact:
+    autolab_pve_storages_present: >-
+      {{ autolab_pve_storage_cfg.content | b64decode
+         | regex_findall('(?m)^pbs: (\S+)$') }}
+
+# The certificate PBS generated for itself, read from the server over the
+# bridge. pvesm refuses a self-signed server without a fingerprint, and this
+# is the same one the UI would show.
+- name: Read each backup server's certificate fingerprint
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      openssl s_client -connect {{ item.server }}:8007 -servername {{ item.server }} </dev/null 2>/dev/null
+      | openssl x509 -noout -fingerprint -sha256
+    executable: /bin/bash
+  loop: "{{ autolab_pve_pbs_storages }}"
+  loop_control:
+    label: "{{ item.name }} ({{ item.server }})"
+  register: autolab_pve_pbs_certs
+  changed_when: false
+  check_mode: false
+  when: item.name not in autolab_pve_storages_present
+
+- name: Add the backup storages
+  ansible.builtin.command:
+    argv:
+      - pvesm
+      - add
+      - pbs
+      - "{{ item.item.name }}"
+      - --server
+      - "{{ item.item.server }}"
+      - --datastore
+      - "{{ item.item.datastore }}"
+      - --username
+      - "{{ item.item.username }}"
+      - --password
+      - "{{ autolab_pve_pbs_password }}"
+      - --fingerprint
+      - "{{ item.stdout | regex_replace('^.*=', '') }}"
+      - --content
+      - backup
+      - --encryption-key
+      - autogen
+  loop: "{{ autolab_pve_pbs_certs.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item is not skipped
+  no_log: true
+  changed_when: true
+
+- name: Point at the key that now exists
+  ansible.builtin.debug:
+    msg: >-
+      Storage {{ item.name }} has a fresh client encryption key at
+      /etc/pve/priv/storage/{{ item.name }}.enc. Copy it to the password
+      manager and R2 before enabling a backup job; without it every backup
+      on that storage is unreadable.
+  loop: "{{ autolab_pve_pbs_storages }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name not in autolab_pve_storages_present
+
+- name: List vzdump jobs
+  ansible.builtin.command:
+    argv: [pvesh, get, /cluster/backup, --output-format, json]
+  register: autolab_pve_jobs
+  changed_when: false
+  check_mode: false
+
+- name: Index them
+  ansible.builtin.set_fact:
+    autolab_pve_jobs_present: "{{ autolab_pve_jobs.stdout | from_json | list }}"
+
+- name: Create vzdump jobs
+  ansible.builtin.command:
+    argv: >-
+      {{ ['pvesh', 'create', '/cluster/backup',
+          '--id', item.id,
+          '--storage', item.storage,
+          '--schedule', item.schedule,
+          '--all', '1',
+          '--mode', 'snapshot',
+          '--compress', 'zstd',
+          '--repeat-missed', '1',
+          '--enabled', '1' if item.enabled | default(false) | bool else '0']
+         + (['--exclude', item.exclude | join(',')] if item.exclude | default([]) | length > 0 else []) }}
+  loop: "{{ autolab_pve_backup_jobs }}"
+  loop_control:
+    label: "{{ item.id }}"
+  when: item.id not in (autolab_pve_jobs_present | map(attribute='id') | list)
+  changed_when: true
+
+# Only the enabled flag converges after creation: it is the one field meant
+# to flip (off until the key is safe, on after), and the rest is declared once.
+- name: Converge the enabled flag
+  ansible.builtin.command:
+    argv:
+      - pvesh
+      - set
+      - "/cluster/backup/{{ item.id }}"
+      - --enabled
+      - "{{ '1' if item.enabled | default(false) | bool else '0' }}"
+  loop: "{{ autolab_pve_backup_jobs }}"
+  loop_control:
+    label: "{{ item.id }} enabled={{ item.enabled | default(false) }}"
+  vars:
+    current: "{{ autolab_pve_jobs_present | selectattr('id', 'equalto', item.id) | map(attribute='enabled') | first | default(none) }}"
+  when:
+    - current is not none
+    - (current | int == 1) != (item.enabled | default(false) | bool)
+  changed_when: true

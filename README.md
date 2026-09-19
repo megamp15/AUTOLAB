@@ -78,7 +78,7 @@ Once the host is on Tailscale, work through the [phase 2 setup checklist](docs/g
 | `01 · Bootstrap private VM network` | One-time `vmbr1` + NAT for Wi-Fi-only hosts |
 | `02 · Packer Build` | Build a VM template from the [catalog](infra/packer/template-catalog.yaml) |
 | `03 · OpenTofu Plan` / `04 · Apply` | Plan and apply the `lab` stack |
-| `05 · Ansible Builder` | Harden VMs; run `docker` or `tailscale-update` on demand |
+| `05 · Ansible Builder` | Harden VMs; run `docker`, `storage`, `backup` or `tailscale-update` on demand |
 | `99 · OpenTofu Destroy` | Tear the stack down, cleaning Tailscale device records |
 
 `90 · Scripts` and `98 · OpenTofu CI` run automatically on push and pull request.

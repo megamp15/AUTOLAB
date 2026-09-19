@@ -29,6 +29,50 @@ machines = {
   }
 
 
+  # Backup server. Proxmox Backup Server as packages on the same Debian
+  # template as every other VM, not the PBS ISO: the ISO has no cloud-init,
+  # so it would enrol on nothing, get no gitops user and sit outside the
+  # baseline. An ark carries everything through the flood — see naming.md.
+  #
+  # The chunk store is on singularity over NFS, under the autolab share the
+  # Builder hosts already mount; the local disk only holds the OS and the
+  # cache a later S3 datastore needs. Declared address on the bridge, .11 by
+  # the convention jwst set: the hypervisor dials it there for backups, off
+  # the tailnet, and the PBS UI comes over tailscale0 which the baseline
+  # already allows. Two vCPUs and 2 GB is small for PBS and enough for four
+  # guests; the node has 15 GB and this is the last of it.
+  ark = {
+    type                    = "vm"
+    provisioning_class      = "builder_target"
+    name                    = "ark"
+    vm_id                   = 104
+    node_name               = "xps-pve"
+    template_vm_id          = 9000
+    datastore_id            = "local-lvm"
+    cloud_init_datastore_id = "local-lvm"
+    cpu_cores               = 2
+    memory_mb               = 2048
+    disk_size_gb            = 32
+    ipv4_address            = "10.42.0.11/24"
+    ipv4_gateway            = "10.42.0.1"
+    builder = {
+      backup = {
+        server = true
+      }
+      # 8007 is the PBS API. Only the node needs it over the bridge; the
+      # UI is reached over the tailnet.
+      firewall_rules = [
+        { port = 8007, protocol = "tcp", source = "10.42.0.1/32" },
+      ]
+      # The datastore lives in a directory of its own on the share. The NAS
+      # export rule for this host's tailnet address must exist before the
+      # backup playbook runs — see docs/gitops/backups.md.
+      storage = [
+        { protocol = "nfs", server = "singularity", share = "/volume1/autolab", path = "/mnt/autolab", directories = ["ark"] },
+      ]
+    }
+  }
+
   # Observability host. Named for what it does, not where it sits — see the
   # naming scheme in docs/gitops/naming.md.
   #

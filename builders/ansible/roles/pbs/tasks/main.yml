@@ -1,0 +1,207 @@
+---
+- name: Require the account password the hypervisor will use
+  ansible.builtin.assert:
+    that: autolab_pbs_pve_password | length > 0
+    fail_msg: "autolab_pbs_pve_password is empty; set the PBS_PVE_PASSWORD secret."
+  run_once: true
+
+- name: Install Proxmox's archive keyring
+  ansible.builtin.get_url:
+    url: "{{ autolab_pbs_keyring_url }}"
+    dest: "{{ autolab_pbs_keyring_path }}"
+    checksum: "{{ autolab_pbs_keyring_checksum }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+# proxmox-repos treats a host without pveversion as PBS and writes the
+# pbs-no-subscription repository — exactly right here, so it is reused rather
+# than copied.
+- name: Point apt at the PBS repository
+  ansible.builtin.include_role:
+    name: proxmox-repos
+
+- name: Install Proxmox Backup Server
+  ansible.builtin.apt:
+    name: proxmox-backup-server
+    state: present
+    update_cache: true
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Wait for the API to answer
+  ansible.builtin.wait_for:
+    port: 8007
+    host: 127.0.0.1
+    timeout: 60
+  when: not ansible_check_mode
+
+# PBS runs as `backup`; on an NFS mount whose export rule squashes the wrong
+# way, root can create the directory and the service still cannot write a
+# chunk. The probe writes as that user first, so the failure names the export
+# rule instead of surfacing later as an opaque task error.
+- name: Own the datastore directories as the service user
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: backup
+    group: backup
+    mode: "0750"
+  loop: "{{ autolab_pbs_datastores }}"
+  loop_control:
+    label: "{{ item.name }} {{ item.path }}"
+
+- name: Prove the service user can write there
+  ansible.builtin.command:
+    argv: [sh, -c, "f={{ item.path }}/.autolab-write-probe && touch \"$f\" && rm -f \"$f\""]
+  become: true
+  become_user: backup
+  changed_when: false
+  failed_when: false
+  loop: "{{ autolab_pbs_datastores }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: autolab_pbs_probe
+  when: not ansible_check_mode
+
+- name: Stop if it cannot
+  ansible.builtin.assert:
+    that: item.rc | default(0) == 0
+    fail_msg: >-
+      The backup user cannot write to {{ item.item.path }}. Check the NAS
+      export rule for this host: it must let numeric UID 34 through — map all
+      users to admin, or no mapping with traversal granted on the share.
+  loop: "{{ autolab_pbs_probe.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not ansible_check_mode
+
+- name: List what PBS already has
+  ansible.builtin.command:
+    argv: [proxmox-backup-manager, "{{ item }}", list, --output-format, json]
+  loop: [datastore, prune-job, verify-job, user, acl]
+  register: autolab_pbs_existing
+  changed_when: false
+  check_mode: false
+
+- name: Index the listings
+  ansible.builtin.set_fact:
+    autolab_pbs_have:
+      datastores: "{{ autolab_pbs_existing.results[0].stdout | from_json | map(attribute='name') | list }}"
+      prune_jobs: "{{ autolab_pbs_existing.results[1].stdout | from_json | map(attribute='id') | list }}"
+      verify_jobs: "{{ autolab_pbs_existing.results[2].stdout | from_json | map(attribute='id') | list }}"
+      users: "{{ autolab_pbs_existing.results[3].stdout | from_json | map(attribute='userid') | list }}"
+      acls: "{{ autolab_pbs_existing.results[4].stdout | from_json | list }}"
+
+# Creating a datastore lays out 65 536 chunk directories under .chunks; over
+# NFS on the tailnet that is minutes, not seconds, hence the async.
+- name: Create datastores
+  ansible.builtin.command:
+    argv:
+      - proxmox-backup-manager
+      - datastore
+      - create
+      - "{{ item.name }}"
+      - "{{ item.path }}"
+      - --gc-schedule
+      - "{{ item.gc_schedule }}"
+      - --comment
+      - "{{ item.comment | default('') }}"
+  loop: "{{ autolab_pbs_datastores }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name not in autolab_pbs_have.datastores
+  async: 3600
+  poll: 20
+  changed_when: true
+
+- name: Create prune jobs
+  ansible.builtin.command:
+    argv:
+      - proxmox-backup-manager
+      - prune-job
+      - create
+      - "{{ item.name }}-prune"
+      - --store
+      - "{{ item.name }}"
+      - --schedule
+      - "{{ item.prune.schedule }}"
+      - --keep-daily
+      - "{{ item.prune.keep_daily }}"
+      - --keep-weekly
+      - "{{ item.prune.keep_weekly }}"
+      - --keep-monthly
+      - "{{ item.prune.keep_monthly }}"
+  loop: "{{ autolab_pbs_datastores }}"
+  loop_control:
+    label: "{{ item.name }}-prune"
+  when: (item.name ~ '-prune') not in autolab_pbs_have.prune_jobs
+  changed_when: true
+
+- name: Create verify jobs
+  ansible.builtin.command:
+    argv:
+      - proxmox-backup-manager
+      - verify-job
+      - create
+      - "{{ item.name }}-verify"
+      - --store
+      - "{{ item.name }}"
+      - --schedule
+      - "{{ item.verify.schedule }}"
+      - --ignore-verified
+      - "true"
+      - --outdated-after
+      - "{{ item.verify.outdated_after }}"
+  loop: "{{ autolab_pbs_datastores }}"
+  loop_control:
+    label: "{{ item.name }}-verify"
+  when: (item.name ~ '-verify') not in autolab_pbs_have.verify_jobs
+  changed_when: true
+
+- name: Create the hypervisor's account
+  ansible.builtin.command:
+    argv:
+      - proxmox-backup-manager
+      - user
+      - create
+      - "{{ autolab_pbs_pve_user }}"
+      - --password
+      - "{{ autolab_pbs_pve_password }}"
+      - --comment
+      - Proxmox VE backs up with this account
+  no_log: true
+  when: autolab_pbs_pve_user not in autolab_pbs_have.users
+  changed_when: true
+
+- name: Grant it the datastores
+  ansible.builtin.command:
+    argv:
+      - proxmox-backup-manager
+      - acl
+      - update
+      - "/datastore/{{ item.name }}"
+      - "{{ autolab_pbs_pve_role }}"
+      - --auth-id
+      - "{{ autolab_pbs_pve_user }}"
+  loop: "{{ autolab_pbs_datastores }}"
+  loop_control:
+    label: "{{ autolab_pbs_pve_user }} {{ autolab_pbs_pve_role }} on {{ item.name }}"
+  when: >-
+    autolab_pbs_have.acls
+    | selectattr('path', 'equalto', '/datastore/' ~ item.name)
+    | selectattr('ugid', 'equalto', autolab_pbs_pve_user)
+    | selectattr('roleid', 'equalto', autolab_pbs_pve_role)
+    | list | length == 0
+  changed_when: true
+
+- name: Report the fingerprint the hypervisor will pin
+  ansible.builtin.command:
+    argv: [proxmox-backup-manager, cert, info]
+  register: autolab_pbs_cert
+  changed_when: false
+  check_mode: false
+
+- name: Show it
+  ansible.builtin.debug:
+    msg: "{{ autolab_pbs_cert.stdout_lines | select('search', 'Fingerprint') | list }}"
