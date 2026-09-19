@@ -112,12 +112,19 @@ build {
   name    = "autolab-debian-13"
   sources = ["source.proxmox-iso.debian-13"]
 
-  # Install qemu-guest-agent (required for VM management / IP reporting)
+  # qemu-guest-agent is required for VM management and IP reporting.
+  #
+  # resolvconf is what makes a declared resolver take effect. cloud-init
+  # renders a static VM's dns_servers as `dns-nameservers` under `iface lo`,
+  # and ifupdown only acts on that line through a resolvconf hook — the
+  # `resolved` hook trixie ships skips lo outright. Without it a static VM
+  # writes no resolv.conf at all once dhcpcd stops, and only tailnet names
+  # resolve. Leased VMs are unaffected either way: dhcpcd feeds resolvconf.
   provisioner "shell" {
     execute_command = "{{ .Vars }} bash -e '{{ .Path }}'"
     inline = [
       "apt-get update -qq",
-      "apt-get install -y -qq qemu-guest-agent",
+      "apt-get install -y -qq qemu-guest-agent resolvconf",
       "systemctl enable qemu-guest-agent",
       # Clean up package cache to reduce template disk usage
       "apt-get clean",
