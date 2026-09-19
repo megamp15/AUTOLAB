@@ -1,0 +1,43 @@
+---
+# Proxmox Backup Server as packages on a Debian Builder host. The role adds
+# Proxmox's keyring, lets proxmox-repos pick the pbs-no-subscription
+# repository (it detects "no pveversion" as PBS), installs the server, and
+# declares the datastore, its jobs and the account the hypervisor backs up
+# with. Everything is a `proxmox-backup-manager` call guarded by a list, so a
+# rerun changes nothing.
+
+# Proxmox's archive keyring for trixie, pinned to the checksum on
+# https://pbs.proxmox.com/docs/installation.html. A changed checksum upstream
+# is a changed key, and that should stop the run rather than be fetched.
+autolab_pbs_keyring_url: https://enterprise.proxmox.com/debian/proxmox-archive-keyring-trixie.gpg
+autolab_pbs_keyring_checksum: sha256:136673be77aba35dcce385b28737689ad64fd785a797e57897589aed08db6e45
+autolab_pbs_keyring_path: /usr/share/keyrings/proxmox-archive-keyring.gpg
+
+# Datastores. `path` must already be mounted (the backup playbook runs the
+# storage playbook first) and writable by the `backup` user PBS runs as —
+# the role proves that before creating anything. Retention is PBS's: the
+# hypervisor sends, PBS keeps and prunes. GC runs daily; verify re-reads
+# every chunk of anything not verified in the last 30 days, weekly.
+autolab_pbs_datastores:
+  - name: singularity
+    path: /mnt/autolab/ark
+    comment: Chunk store on the NAS over NFS
+    gc_schedule: "daily 03:30"
+    prune:
+      schedule: "daily 03:00"
+      keep_daily: 7
+      keep_weekly: 4
+      keep_monthly: 6
+    verify:
+      schedule: "sat 04:00"
+      outdated_after: 30
+
+# The account the hypervisor authenticates with. DatastoreBackup is enough
+# for vzdump: it can create backups and read, restore and prune its own; it
+# cannot touch another owner's snapshots or the server. The password is a
+# GitHub secret (PBS_PVE_PASSWORD) and reaches both this role and the
+# hypervisor playbook; set on creation only, so a rotation is a deliberate
+# `user update`, not a side effect of every run.
+autolab_pbs_pve_user: pve@pbs
+autolab_pbs_pve_password: ""
+autolab_pbs_pve_role: DatastoreBackup
