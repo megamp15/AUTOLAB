@@ -199,7 +199,10 @@ The `harden.yml` playbook is the common baseline every managed server receives:
 - login screen (`motd`): the hostname as a banner, then the facts an operator
   otherwise goes looking for — stack and plane, tailnet and bridge addresses,
   pending updates, whether a reboot is due, firewall and agent state, and the
-  commit the baseline was applied from. Canonical's notices are switched off.
+  commit the baseline was applied from. Printed by the login shell from
+  `/etc/profile.d`, because Tailscale SSH never runs `pam_motd`; Canonical's
+  notices under `/etc/update-motd.d` are switched off so plain OpenSSH logins
+  do not print them either.
 
 ## NAS storage (`storage.yml`, `nfs.yml`)
 

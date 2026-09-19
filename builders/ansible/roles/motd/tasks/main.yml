@@ -15,13 +15,16 @@
   check_mode: false
   when: not (ansible_check_mode and autolab_motd_renderer is changed)
 
-- name: Own the directory the login scripts read from
+- name: Own the directories the login shell reads from
   ansible.builtin.file:
-    path: /etc/autolab
+    path: "{{ item }}"
     state: directory
     owner: root
     group: root
     mode: "0755"
+  loop:
+    - /etc/autolab
+    - /etc/autolab/motd.d
 
 - name: Keep the rendered banner where the login script reads it
   ansible.builtin.copy:
@@ -44,13 +47,21 @@
 - name: Install the login scripts
   ansible.builtin.template:
     src: "{{ item }}.j2"
-    dest: "/etc/update-motd.d/{{ item }}"
+    dest: "/etc/autolab/motd.d/{{ item }}"
     owner: root
     group: root
     mode: "0755"
   loop:
     - 00-autolab-banner
     - 10-autolab-status
+
+- name: Run them from every interactive login shell
+  ansible.builtin.template:
+    src: autolab-motd.sh.j2
+    dest: /etc/profile.d/autolab-motd.sh
+    owner: root
+    group: root
+    mode: "0644"
 
 - name: Find the distribution scripts to silence
   ansible.builtin.find:

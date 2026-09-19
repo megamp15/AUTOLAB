@@ -1,7 +1,8 @@
 #!/bin/sh
 # Host status at login. Deployed by the Ansible role motd; change the role,
 # not this. Everything is read live except the identity lines, which the
-# Builder knew at deploy time and the host cannot discover on its own.
+# Builder knew at deploy time and the host cannot discover on its own. Runs
+# as the user logging in, so every read here works without privilege.
 
 C='\033[{{ autolab_motd_color }}m'
 R='\033[0m'
@@ -66,12 +67,14 @@ elif [ -n "$newest" ] && [ "$newest" != "$running" ]; then
     reboot="required for kernel $newest"; reboot_color=$WARN
 fi
 
+# `ufw status` needs root; the config flag plus the unit say the same thing.
 fw="absent"; fw_color=$D
-if command -v ufw >/dev/null 2>&1; then
-    case "$(ufw status 2>/dev/null | head -n 1)" in
-        *active*) fw="ufw active"; fw_color=$OK ;;
-        *) fw="ufw inactive"; fw_color=$BAD ;;
-    esac
+if [ -r /etc/ufw/ufw.conf ]; then
+    if grep -q '^ENABLED=yes' /etc/ufw/ufw.conf && systemctl is-active --quiet ufw 2>/dev/null; then
+        fw="ufw active"; fw_color=$OK
+    else
+        fw="ufw inactive"; fw_color=$BAD
+    fi
 fi
 
 agent="not installed"; agent_color=$D
@@ -80,9 +83,10 @@ if [ -e /lib/systemd/system/alloy.service ] || [ -e /etc/systemd/system/alloy.se
     case "$agent" in *" active") agent_color=$OK ;; *) agent_color=$BAD ;; esac
 fi
 
+# Only for a user the socket admits; anyone else just does not get the column.
 containers=""
-if command -v docker >/dev/null 2>&1 && systemctl is-active --quiet docker 2>/dev/null; then
-    containers="$(docker ps -q 2>/dev/null | wc -l | tr -d ' ') running"
+if systemctl is-active --quiet docker 2>/dev/null && running_ids=$(docker ps -q 2>/dev/null); then
+    containers="$(printf '%s' "$running_ids" | grep -c .) running"
 fi
 
 provisioned=""

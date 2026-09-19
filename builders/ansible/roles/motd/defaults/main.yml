@@ -1,10 +1,15 @@
 ---
-# What an operator sees the moment they land on a host. Two scripts under
-# /etc/update-motd.d: a banner naming the machine, and a status block that
-# answers the questions that otherwise cost a minute of poking — which host,
-# which plane, what addresses, is a reboot pending, is the agent up. Every
-# Canonical notice (help text, news, ESM and Workshop adverts) is switched off;
-# a login screen is for facts about this machine, not for marketing.
+# What an operator sees the moment they land on a host: a banner naming the
+# machine, and a status block that answers the questions that otherwise cost
+# a minute of poking — which host, which plane, what addresses, is a reboot
+# pending, is the agent up. Every Canonical notice (help text, news, ESM and
+# Workshop adverts) is switched off; a login screen is for facts about this
+# machine, not for marketing.
+#
+# The scripts live in /etc/autolab/motd.d and are run by the login shell from
+# /etc/profile.d, not by PAM. Tailscale SSH — the transport on every managed
+# host — never runs pam_motd, so anything under /etc/update-motd.d is only
+# ever seen over plain OpenSSH. The shell hook fires on both.
 
 # The banner is the hostname, rendered once at deploy time by toilet into
 # /etc/autolab/banner so a login never depends on the tool being present.
