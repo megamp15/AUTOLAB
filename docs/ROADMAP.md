@@ -18,7 +18,8 @@ This repo is meant to **grow** from a documented single node into a reusable hom
 | Host-only config (`/etc/default/proxmox-network.env`) | `security`, `portable` | |
 | GitOps phase 2A | `gitops`, `opentofu`, `proxmox`, `terramate` | OpenTofu modules, CI validate/plan/apply/destroy workflows, R2 backend — [setup checklist](gitops/setup-checklist.md) |
 | Packer phase 2B | `packer`, `templates` | Catalog-driven builds: `debian-13` and `ubuntu-24.04` implemented, `ubuntu-26.04` blocked on a respun ISO ([catalog](../infra/packer/template-catalog.yaml)) |
-| Builder phase 2C | `ansible`, `security`, `linux` | Debian-family baseline over Tailscale SSH (updates, SSH hardening, firewall, `gitops` user, named operator accounts), opt-in Docker and NFS storage, `tailscale-update`; workflow 05 bootstraps as `autolab` then runs as `gitops` |
+| Builder phase 2C | `ansible`, `security`, `linux` | Debian-family baseline over Tailscale SSH (updates, SSH hardening, firewall, `gitops` user, named operator accounts, login screen), opt-in Docker and NFS/SMB storage, `tailscale-update`; workflow 05 bootstraps as `autolab` then runs as `gitops` |
+| Proxmox under Ansible | `ansible`, `proxmox` | Workflow `07 - Proxmox Node` with a static inventory: no-subscription repositories, subscription notice removal. Was the prerequisite for backups, since PBS ships the same enterprise repository |
 | Tenancy | `gitops`, `tenant`, `tailscale` | A tenant is a stack with its own GitHub Environment; its VMs enrol on the tenant's tailnet and the Builder reaches them over the hypervisor's private bridge. First tenant `qnta` is live: applied, hardened through the hypervisor, destroyed and re-applied with the device leaving and rejoining the tenant's console; its VMs mount the NAS over SMB and report to the provider's observability stack over the bridge — [tenants](gitops/tenants.md), ADR-0006 |
 | Observability phase 2D | `observability`, `grafana`, `prometheus`, `loki` | Alloy on every host; Prometheus, Loki, Grafana and the Proxmox exporter on the machine marked `observability.stack`. Dashboards owned by Git Sync and editable in the UI; datasources, alert rules and delivery provisioned from files. Five alert rules, each fired deliberately and confirmed delivered to a phone — [observability](gitops/observability.md) |
 
@@ -28,7 +29,6 @@ Machine inventory is **committed desired state**: `infra/stacks/lab/machines.aut
 
 | Item | Tags | Notes |
 |------|------|--------|
-| Proxmox under Ansible | `ansible`, `proxmox` | The hypervisor is the one machine still configured by hand. Inventory entry, no-subscription repositories for both PVE and PBS, subscription notice removal. Prerequisite for the backup phase, because PBS ships the same enterprise repository that 401s without a subscription |
 | Backup phase 3 | `backup`, `pbs`, `b2`, `3-2-1` | Proxmox Backup Server as a managed VM, datastore on the NAS, Backblaze B2 as a second PBS datastore for the offsite copy. Verify jobs and a restore actually performed, since a backup nobody has restored is a file rather than a backup |
 | `template-validation` and `integration-test` environments | `gitops`, `packer`, `opentofu`, `integration-test` | Validate ephemeral candidates, then test later server layers on a persistent canary before promoting to `lab` |
 | Template experiment matrix | `packer`, `templates`, `talos`, `kubernetes` | Disposable OS and cluster experiments — [template matrix](gitops/template-lab-matrix.md) |

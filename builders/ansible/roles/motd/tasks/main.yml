@@ -63,10 +63,13 @@
     group: root
     mode: "0644"
 
+# file_type any: Ubuntu ships 50-landscape-sysinfo as a symlink, and the
+# default (files only) walked straight past it.
 - name: Find the distribution scripts to silence
   ansible.builtin.find:
     paths: /etc/update-motd.d
     patterns: "{{ autolab_motd_disabled_scripts }}"
+    file_type: any
   register: autolab_motd_found
 
 # run-parts skips anything that is not executable; the files stay in place so

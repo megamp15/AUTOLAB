@@ -76,7 +76,13 @@ The universal baseline adds:
 | Tailscale interface firewall access | `firewall` |
 | Optional Docker runtime | `docker-host` via `docker.yml` |
 | Tailscale SSH transport | cloud-init after enrollment; tailnet policy |
+| Login screen: banner, addresses, updates, reboot, firewall, agent, provisioned commit | `motd` |
 | Fail2Ban, Lynis | future roles or extensions |
+
+The login screen is printed by the shell from `/etc/profile.d`, not by PAM:
+Tailscale SSH never runs `pam_motd`, so anything under `/etc/update-motd.d`
+is only seen over plain OpenSSH. Provider hosts are green, tenant hosts cyan,
+so a wrong-window mistake is visible before the first command.
 
 The current implementation supports Debian-family Proxmox Builder VMs. LXC and
 VPS support remain deferred until they meet the same reachable-host contract.
