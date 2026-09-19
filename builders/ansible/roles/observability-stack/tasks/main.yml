@@ -23,6 +23,7 @@
 - name: Discover this host's tailnet address
   ansible.builtin.command: tailscale ip -4
   register: autolab_tailscale_ip_raw
+  check_mode: false
   changed_when: false
 
 - name: Set the tailnet address fact
@@ -36,6 +37,7 @@
 - name: Discover this host's MagicDNS name
   ansible.builtin.command: tailscale status --json
   register: autolab_tailscale_status
+  check_mode: false
   changed_when: false
 
 - name: Set the MagicDNS name fact
