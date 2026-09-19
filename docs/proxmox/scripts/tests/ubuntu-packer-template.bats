@@ -41,7 +41,10 @@ TEMPLATE_DIR="${SCRIPT_DIR}/../../../infra/packer/templates/ubuntu-24.04"
   grep -q 'PKR_VAR_ssh_bastion_host' "$action"
   grep -q 'PKR_VAR_ssh_bastion_private_key_file' "$action"
   grep -q 'pve_ssh_private_key:.*secrets.PVE_SSH_PRIVATE_KEY' "$workflow"
-  grep -q 'pve_ssh_username: root' "$workflow"
+  # gitops, never root: the tailnet SSH policy grants CI only that account on
+  # the hypervisor, and a workflow asking for root fails at the first ssh (#65).
+  grep -q 'pve_ssh_username: gitops' "$workflow"
+  ! grep -q 'root@\${AUTOLAB_PVE_HOST}' "$workflow"
 }
 
 @test "Packer build does not force-overwrite catalog VM IDs" {
