@@ -4,3 +4,18 @@
 # group that is not there.
 autolab_proxmox_base_packages:
   - sudo
+
+# Backup targets this node sends to. Each becomes a `pbs` storage entry with
+# a client-side encryption key generated on first add, so what lands on the
+# NAS and offsite is ciphertext. The fingerprint is read from the server
+# itself over the bridge and pinned — trust on first configure, on a private
+# network, like copying it from the PBS UI. `username` and the password
+# (`autolab_pve_pbs_password`, GitHub secret PBS_PVE_PASSWORD) are the
+# account the pbs role creates.
+autolab_pve_pbs_storages: []
+autolab_pve_pbs_password: ""
+
+# vzdump jobs. `enabled: false` until the encryption key for the storage is
+# somewhere other than this node — a backup nobody can decrypt is a file.
+# `exclude` is for templates, which vzdump would otherwise archive nightly.
+autolab_pve_backup_jobs: []

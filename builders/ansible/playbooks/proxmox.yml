@@ -28,6 +28,27 @@
       - name: megamp15
     autolab_admin_users_absent: []
 
+    # Where this node's backups go. ark's bridge address is a convention
+    # (.11, next to jwst's .10), declared in the lab machines map; the
+    # hypervisor inventory is static so it is restated here rather than read
+    # from an inventory this playbook never sees.
+    autolab_pve_pbs_storages:
+      - name: ark
+        server: 10.42.0.11
+        datastore: singularity
+        username: pve@pbs
+
+    # Off until /etc/pve/priv/storage/ark.enc is in the password manager and
+    # R2. Flip to true in a PR of its own; that PR is the record that the key
+    # was saved. Templates are excluded — they are rebuilt from Git, and
+    # 9000 alone is 4 GB a night otherwise.
+    autolab_pve_backup_jobs:
+      - id: autolab-nightly
+        storage: ark
+        schedule: "02:00"
+        exclude: [9000, 9002]
+        enabled: false
+
   roles:
     - role: proxmox-node
       tags: [proxmox, base]
