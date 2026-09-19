@@ -25,7 +25,7 @@ on:
         required: true
         default: harden
         type: choice
-        options: [harden, docker, tailscale-update, nfs, storage, observability]
+        options: [harden, docker, tailscale-update, nfs, storage, observability, backup]
       limit:
         description: Optional Ansible host limit
         required: false
@@ -270,6 +270,10 @@ jobs:
           # which commit its baseline came from.
           AUTOLAB_ENVIRONMENT: ${{ inputs.environment || 'lab' }}
           AUTOLAB_GIT_SHA: ${{ github.sha }}
+          # The account Proxmox VE backs up with. Created on the PBS host by
+          # the backup playbook and used by the hypervisor playbook (07), so
+          # both read the same secret.
+          AUTOLAB_PBS_PVE_PASSWORD: ${{ secrets.PBS_PVE_PASSWORD }}
         run: |
           out="$RUNNER_TEMP/extra-vars.json"
           umask 077
@@ -294,6 +298,7 @@ jobs:
               "autolab_obs_stack_management_address": os.environ.get("AUTOLAB_OBS_STACK_ADDRESS", ""),
               "autolab_environment": os.environ.get("AUTOLAB_ENVIRONMENT", ""),
               "autolab_git_sha": os.environ.get("AUTOLAB_GIT_SHA", ""),
+              "autolab_pbs_pve_password": os.environ.get("AUTOLAB_PBS_PVE_PASSWORD", ""),
           }, open(sys.argv[1], "w"))
           PY
           if [ -n "${AUTOLAB_BUILDER_SSH_PUBLIC_KEY}" ]; then
