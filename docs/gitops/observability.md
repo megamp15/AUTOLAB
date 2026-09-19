@@ -649,6 +649,18 @@ present on a minimal Debian 13 image, and `apt-key` is removed from Debian
 entirely. `deb822_repository` writes the sources file directly and is the native
 format on this release.
 
+**Docker autostarts the stack before the tailnet address exists.** `restart:
+unless-stopped` containers are started by dockerd at boot, and every published
+port binds to the tailnet address, which tailscaled has not configured yet — so
+a reboot leaves Grafana, Prometheus and Loki exited with
+`cannot assign requested address` while pve-exporter, which publishes no host
+ports, keeps running and makes the outage look partial.
+`autolab-observability.service` owns the boot path instead: it waits for the
+address on `tailscale0` and runs `docker compose up -d`, which is a no-op when
+the stack is already up; the restart policy stays the crash backstop. A
+`docker.service` drop-in would not fix it — `After=tailscaled` orders on the
+daemon running, not on the address being configured.
+
 ## Related docs
 
 - [NAS storage](./nas-storage.md) — where snapshots land

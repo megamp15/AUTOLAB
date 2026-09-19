@@ -1,0 +1,20 @@
+[Unit]
+Description=Autolab observability stack — start once the tailnet address exists
+Wants=tailscaled.service docker.service
+After=tailscaled.service docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# dockerd autostarts restart-policy containers at daemon start, before
+# tailscaled has configured the address the published ports bind to. This
+# unit owns the boot path; the restart policy stays the crash backstop,
+# and `compose up -d` is a no-op when the stack already runs.
+TimeoutStartSec=180
+Restart=on-failure
+RestartSec=10
+ExecStartPre=/bin/sh -c 'until ip -4 addr show dev tailscale0 | grep -qF "{{ autolab_tailscale_ip }}/"; do sleep 2; done'
+ExecStart=/usr/bin/docker compose --project-directory {{ autolab_obs_root }} up -d
+
+[Install]
+WantedBy=multi-user.target

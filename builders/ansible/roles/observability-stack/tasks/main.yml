@@ -187,6 +187,27 @@
     state: present
     pull: missing
 
+# Boot ordering, not runtime supervision. dockerd starts restart-policy
+# containers at daemon start, before tailscaled has configured the tailnet
+# address the published ports bind to, so an unattended reboot leaves the
+# backends exited with "cannot assign requested address" — while pve-exporter,
+# which publishes no host ports, survives and makes the failure look partial.
+# This unit waits for the address and brings the project up itself; `compose
+# up -d` is idempotent, and the restart policy remains the crash backstop.
+- name: Install the stack boot-ordering unit
+  ansible.builtin.template:
+    src: autolab-observability.service.j2
+    dest: /etc/systemd/system/autolab-observability.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable the stack boot-ordering unit
+  ansible.builtin.systemd_service:
+    name: autolab-observability
+    enabled: true
+    daemon_reload: true
+
 # The agent play that follows starts shipping immediately, and loki.write does
 # not recover from a refused connection. Waiting here rather than racing it.
 - name: Wait for Loki to accept writes
