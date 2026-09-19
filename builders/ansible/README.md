@@ -202,7 +202,8 @@ The `harden.yml` playbook is the common baseline every managed server receives:
   commit the baseline was applied from. Printed by the login shell from
   `/etc/profile.d`, because Tailscale SSH never runs `pam_motd`; Canonical's
   notices under `/etc/update-motd.d` are switched off so plain OpenSSH logins
-  do not print them either.
+  do not print them either. Provider hosts are green, tenant hosts cyan.
+  `run-parts /etc/autolab/motd.d` prints it again from a running shell.
 
 ## NAS storage (`storage.yml`, `nfs.yml`)
 

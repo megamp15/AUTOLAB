@@ -10,7 +10,13 @@ The flow is:
 
 1. Proxmox is running and accessible (phase 1 — already done)
 2. Packer connects to the Proxmox API over Tailscale
-3. Packer boots a VM from an ISO, provisions it, and converts it to a template
+3. Packer boots a VM from an ISO, provisions it, and converts it to a template.
+   The Debian image gets `qemu-guest-agent` and `resolvconf`, and hands
+   `/etc/network/interfaces` to cloud-init (only the `source` line survives).
+   Without both, a static-address clone boots with an empty `resolv.conf`:
+   cloud-init's `dns-nameservers` only reach the resolver through resolvconf's
+   ifupdown hook, and the installer's own `lo` stanza would run that hook a
+   second time with nothing
 4. OpenTofu creates VMs from that template
 
 You can also create a template manually as a quick start (see `docs/gitops/04-opentofu-vm-lxc.md`), but Packer is the recommended approach for reproducible, version-controlled templates.
