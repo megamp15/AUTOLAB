@@ -144,7 +144,14 @@ build {
       "sudo truncate -s 0 /etc/machine-id",
       "sudo rm -f /var/lib/dbus/machine-id",
       "sudo ln -s /etc/machine-id /var/lib/dbus/machine-id",
-      "sudo rm -f /etc/netplan/50-cloud-init.yaml"
+      "sudo rm -f /etc/netplan/50-cloud-init.yaml",
+      # The installer leaves its own lo and ens18 stanzas in
+      # /etc/network/interfaces, after the source line. cloud-init writes lo
+      # again in interfaces.d — with the declared resolvers — so ifupdown
+      # configures lo twice and the bare installer stanza runs the resolvconf
+      # hook last, replacing the record with an empty one. Cloud-init owns
+      # the network from first boot; the file keeps only the source line.
+      "printf 'source /etc/network/interfaces.d/*\\n' | sudo tee /etc/network/interfaces >/dev/null"
     ]
   }
 
