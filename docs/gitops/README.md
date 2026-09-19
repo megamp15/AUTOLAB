@@ -87,8 +87,9 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
 13. [NAS storage over the tailnet](./nas-storage.md)
 14. [Naming](./naming.md)
 15. [Observability](./observability.md)
-16. [Server hardening baseline](./server-hardening-baseline.md)
-17. [Security sources](./security-sources.md)
+16. [Backups](./backups.md)
+17. [Server hardening baseline](./server-hardening-baseline.md)
+18. [Security sources](./security-sources.md)
 
 ## Setup checklist
 
