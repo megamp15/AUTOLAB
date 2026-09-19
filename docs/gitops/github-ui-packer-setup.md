@@ -81,13 +81,13 @@ and be pasted into GitHub.
    or IP; the docs intentionally use a placeholder instead of a personal IP:
 
    ```bash
-   ssh -i ~/.ssh/autolab-packer-pve-bitwarden root@<proxmox-host-or-ip>
+   ssh -i ~/.ssh/autolab-packer-pve-bitwarden gitops@<proxmox-host-or-ip>
    ```
 
    For detailed diagnosis, add verbose output and force this identity:
 
    ```bash
-   ssh -vvv -o IdentitiesOnly=yes -i ~/.ssh/autolab-packer-pve-bitwarden root@<proxmox-host-or-ip>
+   ssh -vvv -o IdentitiesOnly=yes -i ~/.ssh/autolab-packer-pve-bitwarden gitops@<proxmox-host-or-ip>
    ```
 
    Confirm verbose output shows the matching key being offered. Also check the
