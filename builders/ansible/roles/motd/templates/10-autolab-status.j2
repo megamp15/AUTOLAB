@@ -1,0 +1,119 @@
+#!/bin/sh
+# Host status at login. Deployed by the Ansible role motd; change the role,
+# not this. Everything is read live except the identity lines, which the
+# Builder knew at deploy time and the host cannot discover on its own. Runs
+# as the user logging in, so every read here works without privilege.
+
+C='\033[1;38;5;{{ autolab_motd_accent }}m'
+R='\033[0m'
+D='\033[38;5;240m'
+OK='\033[38;5;51m'
+WARN='\033[38;5;226m'
+BAD='\033[38;5;197m'
+
+rule() {
+    printf "  ${D}%s${R}\n" "$(printf '%70s' '' | sed 's/ /─/g')"
+}
+
+# Two labelled columns; a colour, when given, wraps the value only.
+row() {
+    printf "  ${C}%-12s${R}${3}%-24s${R}" "$1" "$2"
+    [ $# -gt 3 ] && printf "${C}%-12s${R}${6}%s${R}" "$4" "$5"
+    printf '\n'
+}
+
+. /etc/os-release 2>/dev/null
+
+plane="{{ 'tenant' if autolab_motd_tenant | bool else 'provider' }}"
+env="{{ autolab_motd_environment }}"
+[ -n "$env" ] && env="$env · $plane" || env="$plane"
+
+ts_ip=$(tailscale ip -4 2>/dev/null | head -n 1)
+lan_ip=$(ip -4 -o addr show scope global 2>/dev/null \
+    | awk '$2 != "tailscale0" && $2 !~ /^(docker|br-|veth)/ { sub(/\/.*/, "", $4); print $4; exit }')
+case "$lan_ip" in
+    10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*) lan_label="LAN" ;;
+    "") lan_label="LAN"; lan_ip="-" ;;
+    *) lan_label="Public" ;;
+esac
+
+up=$(uptime -p 2>/dev/null | sed 's/^up //')
+os="${NAME%% *} ${VERSION_ID}${VERSION_CODENAME:+ ($VERSION_CODENAME)}"
+load=$(cut -d ' ' -f 1-3 /proc/loadavg)
+mem=$(free -m | awk '/^Mem:/ { printf "%d%% of %.1fG", $3 * 100 / $2, $2 / 1024 }')
+disk=$(df -h / | awk 'NR == 2 { sub("%", "", $5); print $5, $2 }')
+disk_pct=${disk%% *}
+disk_size=${disk#* }
+disk_color=$OK
+[ "$disk_pct" -ge 80 ] && disk_color=$WARN
+[ "$disk_pct" -ge 90 ] && disk_color=$BAD
+
+# A simulated upgrade reads the cache without taking the lock, so a login
+# during unattended-upgrades neither waits nor fails.
+pending=$(timeout 5 apt-get -s -o Debug::NoLocking=true upgrade 2>/dev/null | grep '^Inst ')
+n_pending=$(printf '%s\n' "$pending" | grep -c '^Inst ')
+n_security=$(printf '%s\n' "$pending" | grep -c -- '-security')
+if [ "$n_pending" -eq 0 ]; then
+    updates="up to date"; updates_color=$OK
+elif [ "$n_security" -gt 0 ]; then
+    updates="$n_pending pending, $n_security security"; updates_color=$WARN
+else
+    updates="$n_pending pending"; updates_color=""
+fi
+
+# The flag file is only written where update-notifier-common is installed, so
+# also compare the running kernel with the newest one on disk.
+reboot="not needed"; reboot_color=$OK
+running=$(uname -r)
+newest=$(find /boot -maxdepth 1 -name 'vmlinuz-*' 2>/dev/null | sed 's|.*/vmlinuz-||' | sort -V | tail -n 1)
+if [ -f /var/run/reboot-required ]; then
+    reboot="required"; reboot_color=$WARN
+elif [ -n "$newest" ] && [ "$newest" != "$running" ]; then
+    reboot="required for kernel $newest"; reboot_color=$WARN
+fi
+
+# `ufw status` needs root; the config flag plus the unit say the same thing.
+fw="absent"; fw_color=$D
+if [ -r /etc/ufw/ufw.conf ]; then
+    if grep -q '^ENABLED=yes' /etc/ufw/ufw.conf && systemctl is-active --quiet ufw 2>/dev/null; then
+        fw="ufw active"; fw_color=$OK
+    else
+        fw="ufw inactive"; fw_color=$BAD
+    fi
+fi
+
+agent="not installed"; agent_color=$D
+if [ -e /lib/systemd/system/alloy.service ] || [ -e /etc/systemd/system/alloy.service ]; then
+    agent="alloy $(systemctl is-active alloy 2>/dev/null)"
+    case "$agent" in *" active") agent_color=$OK ;; *) agent_color=$BAD ;; esac
+fi
+
+# Only for a user the socket admits; anyone else just does not get the column.
+containers=""
+if systemctl is-active --quiet docker 2>/dev/null && running_ids=$(docker ps -q 2>/dev/null); then
+    containers="$(printf '%s' "$running_ids" | grep -c .) running"
+fi
+
+provisioned=""
+if [ -r /etc/autolab/provisioned ]; then
+    sha=$(head -c 7 /etc/autolab/provisioned)
+    provisioned="AUTOLAB $sha @ $(date -u -r /etc/autolab/provisioned '+%Y-%m-%d %H:%M UTC')"
+fi
+
+rule
+row "Host"      "$(hostname)"              "" "Env"        "$env"      ""
+row "Tailscale" "${ts_ip:--}"              "" "$lan_label" "$lan_ip"   ""
+row "OS"        "$os"                      "" "Kernel"     "$(uname -r)" ""
+row "Uptime"    "${up:--}"                 "" "Load"       "$load"     ""
+row "Memory"    "$mem"                     "" "Disk /"     "$disk_pct% of $disk_size" "$disk_color"
+row "Updates"   "$updates"                 "$updates_color" "Reboot" "$reboot" "$reboot_color"
+row "Firewall"  "$fw"                      "$fw_color" "Agent"    "$agent"    "$agent_color"
+[ -n "$containers" ] && row "Containers" "$containers" ""
+{% raw %}
+if [ -n "$provisioned" ]; then
+    # ASCII only above, so a byte-counting sh still pads the rule to width.
+    printf "  ${D}──${R} ${C}%s${R} ${D}%s${R}\n" "$provisioned" "$(printf '%*s' $((66 - ${#provisioned})) '' | sed 's/ /─/g')"
+else{% endraw %}
+    rule
+fi
+printf '\n'

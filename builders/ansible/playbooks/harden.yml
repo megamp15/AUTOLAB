@@ -42,3 +42,5 @@
       tags: [ssh]
     - role: firewall
       tags: [firewall]
+    - role: motd
+      tags: [motd]

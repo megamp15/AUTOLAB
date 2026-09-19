@@ -1,0 +1,56 @@
+---
+# What an operator sees the moment they land on a host: a banner naming the
+# machine, and a status block that answers the questions that otherwise cost
+# a minute of poking — which host, which plane, what addresses, is a reboot
+# pending, is the agent up. Every Canonical notice (help text, news, ESM and
+# Workshop adverts) is switched off; a login screen is for facts about this
+# machine, not for marketing.
+#
+# The scripts live in /etc/autolab/motd.d and are run by the login shell from
+# /etc/profile.d, not by PAM. Tailscale SSH — the transport on every managed
+# host — never runs pam_motd, so anything under /etc/update-motd.d is only
+# ever seen over plain OpenSSH. The shell hook fires on both.
+
+# The banner is the hostname, rendered once at deploy time by toilet into
+# /etc/autolab/banner so a login never depends on the tool being present.
+# Fonts come from toilet-fonts: mono12 is the tall filled block style; mono9
+# is the same shape three rows shorter; future is a compact three-row face.
+autolab_motd_font: mono12
+autolab_motd_text: "{{ inventory_hostname }}"
+
+# Colours are xterm-256 indices, which every terminal in use here renders the
+# same — Terminal.app, iTerm, the Tailscale console. Provider hosts are neon
+# green, tenant hosts hot pink, so a wrong-window mistake is visible at a
+# glance. The banner fades top to bottom through the gradient; the last entry
+# repeats for any further lines.
+autolab_motd_tenant: "{{ autolab_ssh_jump_host is defined }}"
+autolab_motd_accent: "{{ 201 if autolab_motd_tenant | bool else 46 }}"
+autolab_motd_gradient: >-
+  {{ [201, 201, 200, 199, 164, 128, 127, 90] if autolab_motd_tenant | bool
+     else [46, 46, 47, 41, 35, 29, 23, 22] }}
+
+# Stack this host belongs to — lab, qnta — from the Builder workflow's
+# environment. Local runs may leave it unset; the line is then omitted.
+autolab_motd_environment: "{{ autolab_environment | default('') }}"
+# Commit the baseline was applied from, shown on the "Provisioned" line.
+autolab_motd_git_sha: "{{ autolab_git_sha | default('') }}"
+
+# Distribution scripts that stop being executable. Ours replace the
+# information ones (header, uname, sysinfo, updates, reboot) so nothing is
+# lost, only duplicated output and adverts.
+autolab_motd_disabled_scripts:
+  - 00-header
+  - 10-uname
+  - 10-help-text
+  - 50-landscape-sysinfo
+  - 50-motd-news
+  - 85-fwupd
+  - 88-esm-announce
+  - 90-updates-available
+  - 91-contract-ua-esm-status
+  - 91-release-upgrade
+  - 92-unattended-upgrades
+  - 95-hwe-eol
+  - 97-overlayroot
+  - 98-fsck-at-reboot
+  - 98-reboot-required

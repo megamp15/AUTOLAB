@@ -1,0 +1,8 @@
+#!/bin/sh
+# Print the login screen from the shell rather than PAM: Tailscale SSH never
+# runs pam_motd, so this is the only place both transports pass through.
+# Interactive shells with a terminal only — Ansible, scp and cron never see it.
+# Deployed by the Ansible role motd; change the role, not this.
+case "$-" in
+    *i*) [ -t 1 ] && [ -d /etc/autolab/motd.d ] && run-parts /etc/autolab/motd.d 2>/dev/null ;;
+esac
