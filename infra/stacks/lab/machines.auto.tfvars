@@ -28,6 +28,28 @@ machines = {
     }
   }
 
+  # Throwaway proof for #76: the first static Debian VM cloned from a template
+  # that carries resolvconf. Exists to answer one question — does a declared
+  # resolver reach /etc/resolv.conf before tailscaled starts — and is removed
+  # once it has. sputnik stays leased on purpose, so the leased path keeps
+  # its coverage.
+  pioneer = {
+    type                    = "vm"
+    provisioning_class      = "builder_target"
+    name                    = "pioneer"
+    vm_id                   = 102
+    node_name               = "xps-pve"
+    template_vm_id          = 9000
+    datastore_id            = "local-lvm"
+    cloud_init_datastore_id = "local-lvm"
+    cpu_cores               = 1
+    memory_mb               = 512
+    disk_size_gb            = 10
+    ipv4_address            = "10.42.0.20/24"
+    ipv4_gateway            = "10.42.0.1"
+    builder                 = {}
+  }
+
   # Observability host. Named for what it does, not where it sits — see the
   # naming scheme in docs/gitops/naming.md.
   #
