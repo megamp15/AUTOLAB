@@ -6,11 +6,15 @@
 
 [Get started](#get-started) · [How it works](#how-it-works) · [Status](#status) · [Docs](docs/README.md) · [Roadmap](docs/ROADMAP.md) · [Contributing](CONTRIBUTING.md)
 
-[![Scripts CI](https://img.shields.io/github/actions/workflow/status/megamp15/AUTOLAB/90_scripts.yml?style=flat-square&logo=githubactions&logoColor=white&label=scripts)](https://github.com/megamp15/AUTOLAB/actions/workflows/90_scripts.yml)
-[![OpenTofu CI](https://img.shields.io/github/actions/workflow/status/megamp15/AUTOLAB/98_opentofu-ci.yml?style=flat-square&logo=opentofu&logoColor=white&label=opentofu)](https://github.com/megamp15/AUTOLAB/actions/workflows/98_opentofu-ci.yml)
+<!-- GitHub's own badges, not shields.io: the repo is private, so shields.io
+     sees neither workflow status nor the license and renders "not found".
+     These render for anyone viewing the README with access to the repo. -->
+[![Scripts CI](https://github.com/megamp15/AUTOLAB/actions/workflows/90_scripts.yml/badge.svg)](https://github.com/megamp15/AUTOLAB/actions/workflows/90_scripts.yml)
+[![Ansible CI](https://github.com/megamp15/AUTOLAB/actions/workflows/97_ansible-ci.yml/badge.svg)](https://github.com/megamp15/AUTOLAB/actions/workflows/97_ansible-ci.yml)
+[![OpenTofu CI](https://github.com/megamp15/AUTOLAB/actions/workflows/98_opentofu-ci.yml/badge.svg)](https://github.com/megamp15/AUTOLAB/actions/workflows/98_opentofu-ci.yml)
 [![Status](https://img.shields.io/badge/status-alpha-orange?style=flat-square)](docs/ROADMAP.md)
 [![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-E57000?style=flat-square&logo=proxmox&logoColor=white)](https://www.proxmox.com/)
-[![License: MIT](https://img.shields.io/github/license/megamp15/AUTOLAB?style=flat-square)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
 </div>
 
