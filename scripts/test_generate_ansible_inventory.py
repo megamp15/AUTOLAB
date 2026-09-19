@@ -21,6 +21,25 @@ class GenerateInventoryTest(unittest.TestCase):
                 text=True,
             )
 
+    def test_backup_server_flag_passes_through(self):
+        value = {"one": {
+            "name": "ark", "ansible_host": "10.42.0.11", "bootstrap_user": "root",
+            "builder": {"enabled": True, "backup": {"server": True}},
+        }}
+        result = self.run_script(value)
+        self.assertEqual(result.returncode, 0)
+        host = json.loads(result.stdout)["all"]["children"]["linux_servers"]["hosts"]["ark"]
+        self.assertTrue(host["autolab_builder"]["backup"]["server"])
+
+    def test_backup_server_must_be_boolean(self):
+        value = {"one": {
+            "name": "ark", "ansible_host": "10.42.0.11", "bootstrap_user": "root",
+            "builder": {"enabled": True, "backup": {"server": "yes"}},
+        }}
+        result = self.run_script(value)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("builder.backup.server must be a boolean", result.stderr)
+
     def test_valid_input(self):
         value = {"one": {
             "name": "lab-01", "ansible_host": "10.0.0.1", "bootstrap_user": "root",

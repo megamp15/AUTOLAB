@@ -152,6 +152,12 @@ variable "machines" {
         # for a machine behaving exactly as designed.
         agent = optional(bool, true)
       }), {})
+      # The machine that runs Proxmox Backup Server. Marks it the way
+      # observability.stack marks the metrics host: the backup playbook finds
+      # it by this flag, nothing else reads it.
+      backup = optional(object({
+        server = optional(bool, false)
+      }), {})
     }), {})
   }))
   default = {}
