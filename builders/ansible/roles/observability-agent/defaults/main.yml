@@ -17,8 +17,29 @@ autolab_obs_stack_host: >-
       | selectattr('value.autolab_builder.observability.stack')
       | map(attribute='key') | list | first) | default('') }}
 
-autolab_obs_metrics_endpoint: "http://{{ autolab_obs_stack_host }}:9090/api/v1/write"
-autolab_obs_logs_endpoint: "http://{{ autolab_obs_stack_host }}:3100/loki/api/v1/push"
+# A host the Builder reaches through the hypervisor is on the management plane:
+# it is on a tailnet the stack is not, so the name above means nothing to it.
+# It ships to the stack's declared bridge address instead, where Alloy — not
+# Prometheus or Loki — answers on two ingest-only ports. Both facts arrive
+# from outside the inventory: the address from OBSERVABILITY_STACK_ADDRESS on
+# the repository, because a tenant inventory never contains the stack host.
+autolab_obs_over_management_plane: "{{ autolab_ssh_jump_host is defined }}"
+autolab_obs_stack_management_address: ""
+
+# Ingest ports Alloy opens on the stack host's bridge address. Distinct from
+# the tailnet ports on purpose: 9090 open to the bridge would read as
+# "Prometheus open to every tenant", and it is not — nothing here can query.
+autolab_obs_ingest_metrics_port: 9009
+autolab_obs_ingest_logs_port: 3101
+
+autolab_obs_metrics_endpoint: >-
+  {{ 'http://' ~ autolab_obs_stack_management_address ~ ':' ~ autolab_obs_ingest_metrics_port ~ '/api/v1/metrics/write'
+     if autolab_obs_over_management_plane | bool
+     else 'http://' ~ autolab_obs_stack_host ~ ':9090/api/v1/write' }}
+autolab_obs_logs_endpoint: >-
+  {{ 'http://' ~ autolab_obs_stack_management_address ~ ':' ~ autolab_obs_ingest_logs_port ~ '/loki/api/v1/push'
+     if autolab_obs_over_management_plane | bool
+     else 'http://' ~ autolab_obs_stack_host ~ ':3100/loki/api/v1/push' }}
 
 # Scrape interval. 15s is the Prometheus default and fine for a handful of
 # hosts; raising it is the first lever if storage becomes a concern.

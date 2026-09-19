@@ -260,6 +260,12 @@ jobs:
           # tenant's, so they live on the tenant's environment.
           AUTOLAB_NAS_SMB_USERNAME: ${{ vars.NAS_SMB_USERNAME }}
           AUTOLAB_NAS_SMB_PASSWORD: ${{ secrets.NAS_SMB_PASSWORD }}
+          # The observability stack's bridge address. A tenant VM cannot resolve
+          # the stack by tailnet name, so it ships over the bridge to this.
+          # Provider-owned and site-wide, hence repository-level; a tenant
+          # inventory never contains the stack host, so nothing else could
+          # supply it.
+          AUTOLAB_OBS_STACK_ADDRESS: ${{ vars.OBSERVABILITY_STACK_ADDRESS }}
         run: |
           out="$RUNNER_TEMP/extra-vars.json"
           umask 077
@@ -281,6 +287,7 @@ jobs:
               "autolab_obs_pve_token_secret": os.environ.get("AUTOLAB_PVE_TOKEN_SECRET", ""),
               "autolab_obs_ntfy_topic": os.environ.get("AUTOLAB_NTFY_TOPIC", ""),
               "autolab_obs_grafana_admin_password": os.environ.get("AUTOLAB_GF_ADMIN_PASSWORD", ""),
+              "autolab_obs_stack_management_address": os.environ.get("AUTOLAB_OBS_STACK_ADDRESS", ""),
           }, open(sys.argv[1], "w"))
           PY
           if [ -n "${AUTOLAB_BUILDER_SSH_PUBLIC_KEY}" ]; then
@@ -307,6 +314,11 @@ jobs:
             echo "Grafana admin password will be enforced."
           else
             echo "No Grafana admin password; the existing login is left as-is."
+          fi
+          if [ -n "${AUTOLAB_OBS_STACK_ADDRESS}" ]; then
+            echo "Observability stack bridge address supplied for management-plane hosts."
+          else
+            echo "No OBSERVABILITY_STACK_ADDRESS; management-plane hosts cannot run the agent."
           fi
 
       - name: Run Builder playbook

@@ -95,3 +95,33 @@ loki.write "stack" {
     url = "{{ autolab_obs_logs_endpoint }}"
   }
 }
+{% if ((autolab_builder | default({})).observability | default({})).stack | default(false) | bool and autolab_management_address is defined %}
+
+// ---------------------------------------------------------------------------
+// Ingest for the management plane. A tenant guest is on a tailnet this host is
+// not, so it ships over the bridge to the address declared in the machines
+// map. These two listeners answer there and forward into the same pipelines
+// this host's own telemetry takes: a guest can push, and that is all it can
+// do — Prometheus and Loki themselves stay bound to the tailnet address.
+// ---------------------------------------------------------------------------
+
+prometheus.receive_http "management" {
+  http {
+    listen_address = "{{ autolab_management_address }}"
+    listen_port    = {{ autolab_obs_ingest_metrics_port }}
+  }
+  forward_to = [prometheus.remote_write.stack.receiver]
+}
+
+// Timestamps come from the sender. The default restamps every line at receipt,
+// which would put a tenant's journal on this host's clock and lose the order
+// of anything that arrived after a retry.
+loki.source.api "management" {
+  http {
+    listen_address = "{{ autolab_management_address }}"
+    listen_port    = {{ autolab_obs_ingest_logs_port }}
+  }
+  use_incoming_timestamp = true
+  forward_to             = [loki.write.stack.receiver]
+}
+{% endif %}

@@ -18,10 +18,8 @@ network_defaults = {
   vlan_id        = null
 }
 
-# `autolab` marks the VM as ours in the Proxmox UI. `tenant-qnta` is what the
-# lab's observability rules key on to leave these guests alone: they report to
-# nothing on the provider's tailnet, and an alert that can never clear is worse
-# than no alert.
+# `autolab` marks the VM as ours in the Proxmox UI; `tenant-qnta` says whose
+# it is, so a Proxmox view or a PromQL selector can group guests by tenant.
 common_tags = ["autolab", "tenant-qnta"]
 
 # Addresses are declared, not leased. vmbr1 is the node's own 10.42.0.0/24
@@ -29,7 +27,7 @@ common_tags = ["autolab", "tenant-qnta"]
 # the VMID so the two can never disagree. The Builder dials these addresses
 # through the hypervisor, so a leased one would be unknowable at plan time.
 #
-# Sized for the laptop they live on: 15 GB total, jwst holds 8, sputnik 1,
+# Sized for the laptop they live on: 15 GB total, jwst holds 6, sputnik 1,
 # and the host wants ~1 for itself. mgmt gets more than dev because it will
 # carry the registry, tunnel and management services long before the
 # application stacks move. The business stacks proper are not meant to run
@@ -62,9 +60,6 @@ machines = {
         { port = 7946, protocol = "udp", source = "10.42.0.0/24" },
         { port = 4789, protocol = "udp", source = "10.42.0.0/24" },
       ]
-      # The agent ships to jwst by tailnet name, and this VM is not on that
-      # tailnet. Provider-side monitoring over the bridge is a later change.
-      observability = { agent = false }
       # The tenant's share on the NAS, over SMB: behind the NAT bridge every
       # VM reaches the NAS as the node, so only a credential can scope access.
       # The server comes from NAS_SERVER on the environment; the credential
@@ -98,7 +93,6 @@ machines = {
         { port = 7946, protocol = "udp", source = "10.42.0.0/24" },
         { port = 4789, protocol = "udp", source = "10.42.0.0/24" },
       ]
-      observability = { agent = false }
       # The tenant's share on the NAS, over SMB: behind the NAT bridge every
       # VM reaches the NAS as the node, so only a credential can scope access.
       # The server comes from NAS_SERVER on the environment; the credential

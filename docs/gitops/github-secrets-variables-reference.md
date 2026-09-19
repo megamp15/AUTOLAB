@@ -68,6 +68,7 @@ Set at **Settings → Secrets and variables → Actions → Variables**.
 | `BUILDER_SSH_PUBLIC_KEY` | `ssh-ed25519 AAAA... autolab-builder` | OpenTofu (tenant stacks), Ansible Builder | Public half of the Builder keypair. cloud-init places it on tenant VMs' break-glass user; the `gitops-user` role installs it for `gitops` everywhere. Provider-owned: one key serves every tenant. Generate with `ssh-keygen -t ed25519 -f ~/.ssh/autolab-builder -N '' -C autolab-builder`. |
 | `NAS_SERVER` | `192.168.50.163` | OpenTofu Plan/Apply/Destroy | **Environment-level.** Default server for `builder.storage` entries that omit one. Over the LAN, the address the router reserves for the NAS; over the tailnet, its MagicDNS name. |
 | `NAS_SMB_USERNAME` | `qnta` | Ansible Builder (`storage`) | **Environment-level.** The NAS account SMB mounts naming credential `nas` authenticate as. One per tenant, with rights on that tenant's share only. |
+| `OBSERVABILITY_STACK_ADDRESS` | `10.42.0.10` | Ansible Builder (`observability`, tenant stacks) | The stack host's declared `ipv4_address` on the bridge, without the prefix. Repository-level: provider-owned and the same for every tenant. Management-plane hosts ship telemetry to it; the lab's own hosts ignore it. See [observability](./observability.md#tenant-guests-over-the-management-plane). |
 
 ## Secrets
 
@@ -160,6 +161,7 @@ same workflow enrols VMs on a different tailnet. Typed confirmations and the
 - [ ] `BUILDER_SSH_PUBLIC_KEY` (once a tenant stack exists)
 - [ ] `TAILSCALE_VM_TAG` on each tenant environment
 - [ ] `NAS_SERVER`, `NAS_SMB_USERNAME` on each environment whose machines mount the NAS
+- [ ] `OBSERVABILITY_STACK_ADDRESS` (once a tenant stack exists)
 - [ ] `SSH_PUBLIC_KEYS`
 
 **Secrets**
