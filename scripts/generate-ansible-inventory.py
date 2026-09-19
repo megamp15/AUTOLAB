@@ -25,6 +25,9 @@ def _validate(machines: object) -> dict[str, dict]:
         jump = machine.get("ssh_jump_host")
         if jump is not None and (not isinstance(jump, str) or not jump):
             raise ValueError(f"machine {key!r}.ssh_jump_host must be null or a non-empty string")
+        address = machine.get("management_address")
+        if address is not None and (not isinstance(address, str) or not address):
+            raise ValueError(f"machine {key!r}.management_address must be null or a non-empty string")
         builder = machine.get("builder")
         if not isinstance(builder, dict):
             raise ValueError(f"machine {key!r}.builder must be an object")
@@ -74,6 +77,11 @@ def _host(machine: dict, user: str) -> dict:
         "autolab_bootstrap_user": machine["bootstrap_user"],
         "autolab_builder": machine["builder"],
     }
+    # The VM's declared bridge address. Only a host that serves other bridge
+    # hosts reads it — the observability stack binds its ingest ports there.
+    address = machine.get("management_address")
+    if address:
+        host["autolab_management_address"] = address
     jump = machine.get("ssh_jump_host")
     if jump:
         # An inventory value replaces ANSIBLE_SSH_COMMON_ARGS rather than adding

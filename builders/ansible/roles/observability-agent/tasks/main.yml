@@ -14,6 +14,17 @@
       No host in this inventory has builder.observability.stack = true, so the
       agent has nowhere to send telemetry. Set it on exactly one machine in
       machines.auto.tfvars, or override autolab_obs_stack_host.
+  when: not autolab_obs_over_management_plane | bool
+
+- name: Require the stack's bridge address on the management plane
+  ansible.builtin.assert:
+    that: autolab_obs_stack_management_address | length > 0
+    fail_msg: >-
+      This host is reached through the hypervisor, so it cannot resolve the
+      stack by tailnet name and must ship to its bridge address. Set the
+      repository variable OBSERVABILITY_STACK_ADDRESS to the stack host's
+      declared ipv4_address, or set builder.observability.agent = false.
+  when: autolab_obs_over_management_plane | bool
 
 - name: Ensure the apt keyring directory exists
   ansible.builtin.file:

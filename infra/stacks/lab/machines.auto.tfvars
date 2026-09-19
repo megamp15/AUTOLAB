@@ -51,7 +51,12 @@ machines = {
     cpu_cores               = 4
     memory_mb               = 6144
     disk_size_gb            = 40
-    ipv4_address            = "dhcp"
+    # Declared, not leased: tenant guests ship telemetry to this address over
+    # the bridge, and a lease is unknowable to a stack that cannot see this
+    # one. Provider services take .2–.99, below dnsmasq's .100–.200 lease
+    # range; tenants take .201 upward. ark, when it lands, is .11.
+    ipv4_address            = "10.42.0.10/24"
+    ipv4_gateway            = "10.42.0.1"
     builder = {
       docker_enabled = true
       observability = {
@@ -59,6 +64,15 @@ machines = {
       }
       # Grafana is reached over the tailnet, which the baseline already allows
       # on tailscale0. Nothing is opened to the LAN.
+      #
+      # The bridge gets two ingest-only ports, answered by Alloy rather than
+      # by Prometheus or Loki: a tenant guest can push its metrics and journal
+      # here and cannot query anyone's. Alloy is a host process, so these are
+      # real ufw rules — unlike the Docker-published tailnet ports.
+      firewall_rules = [
+        { port = 9009, protocol = "tcp", source = "10.42.0.0/24" },
+        { port = 3101, protocol = "tcp", source = "10.42.0.0/24" },
+      ]
     }
   }
 }

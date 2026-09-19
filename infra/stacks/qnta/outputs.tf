@@ -30,6 +30,10 @@ output "builder_machines" {
       # the same MagicDNS name the Proxmox API uses.
       ansible_host   = var.tenant == null ? machine.name : machine.management_address
       ssh_jump_host  = var.tenant == null ? null : var.proxmox_host
+      # The VM's own bridge address when declared, null when leased. A provider
+      # service that tenants reach over the bridge — the observability stack
+      # today, PBS later — binds to it; nothing else reads it.
+      management_address = machine.management_address
       bootstrap_user = machine.admin_username
       builder        = machine.builder
     }

@@ -132,6 +132,33 @@ internal proxies, application deploys, database migrations. Their repo keeps
 its operating two-thirds and loses its provisioning third — Packer, the VM
 resources, the Tailscale join — because those are now the provider's.
 
+## Monitoring
+
+Tenant guests are monitored like the provider's own, from the provider's
+side. The `observability` playbook installs the same Alloy agent; the only
+difference is the route. A tenant VM cannot resolve the stack by tailnet
+name, so it ships over the bridge to the stack host's declared address,
+where Alloy answers on two ingest-only ports (`9009` metrics, `3101` logs)
+and forwards into the same pipelines. Prometheus and Loki themselves stay on
+the tailnet address: a guest can push and cannot query — its own metrics,
+the provider's, or another tenant's.
+
+What the provider sees is the baseline's view of the machine: node metrics
+(CPU, memory, disk, network) and the system journal. Container logs go
+through Docker's json-file driver, not journald, so a tenant's application
+logs are not collected. The "Agent is not reporting" alert covers tenant
+guests too, which is the point — a tenant VM that went quiet is the
+provider's problem before it is the tenant's.
+
+Two things to set once:
+
+| Where | What |
+|---|---|
+| Stack host in `infra/stacks/lab/machines.auto.tfvars` | a static `ipv4_address` on the bridge and `firewall_rules` opening `9009/tcp` and `3101/tcp` from `10.42.0.0/24` |
+| Repository variable `OBSERVABILITY_STACK_ADDRESS` | that same address, so a tenant Builder run — whose inventory never contains the stack host — knows where to point the agent |
+
+See [observability](./observability.md#tenant-guests-over-the-management-plane).
+
 ## Not covered yet
 
 - **NAS storage over NFS.** Tenant VMs on a NAT bridge reach the NAS as the
@@ -140,8 +167,6 @@ resources, the Tailscale join — because those are now the provider's.
   [NAS storage](./nas-storage.md#smb-for-hosts-the-nas-cannot-name). NFS
   for tenants returns when the bridge becomes a real LAN segment. Either way,
   live databases stay on the VM's own disk and only their dumps go to the NAS.
-- **Provider-side monitoring.** The agent ships to `jwst` by tailnet name.
-  Tenant VMs opt out until the stack reaches them over the bridge.
 - **Backups.** PBS is the next phase and belongs on the management plane;
   tenant guests are backed up like any other, under a PBS namespace per
   tenant.
@@ -161,7 +186,14 @@ resources, the Tailscale join — because those are now the provider's.
   Builder key is a Builder-time change (the `gitops-user` role) — set the new
   public key, run `harden`, then swap the private half. Leave the cloud-init
   copy alone until the VM is rebuilt for some other reason.
-- **The agent-not-reporting alert excludes tenant guests by tag, not by
-  name.** The lab's inventory never sees them, so name-based opt-out cannot.
-  A tenant stack without `tenant-<name>` in `common_tags` fires that alert
-  forever for VMs behaving exactly as declared.
+- **`observability.agent = false` on a tenant machine does not silence the
+  not-reporting alert.** The opt-out list is built from the inventory of the
+  stack being applied, and the lab's inventory never sees a tenant's map. The
+  agent is skipped, the guest still shows as running in Proxmox, and the rule
+  fires for it indefinitely. Opting a tenant guest out is a conversation with
+  the provider, not an edit.
+- **An agent on the bridge that reports nothing is usually the firewall on
+  the stack host, not the agent.** Alloy's listeners are a host process, so
+  the ingest ports need real ufw rules — the Docker-published tailnet ports
+  bypass ufw and give no such hint. Check `sudo ufw status` on the stack host
+  for `9009/tcp` and `3101/tcp` from `10.42.0.0/24`.

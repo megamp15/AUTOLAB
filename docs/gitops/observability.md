@@ -306,6 +306,60 @@ datasources, and change where alerts are delivered, so on the default
 `admin`/`admin` all of that belongs to anyone who can reach the tailnet. Set
 `GF_SECURITY_ADMIN_PASSWORD` as a repository secret; the role enforces it.
 
+## Tenant guests, over the management plane
+
+A tenant VM (see [tenants](./tenants.md)) is on a tailnet this stack is not,
+so `http://jwst:9090` means nothing to it. It reaches the stack the way it
+reaches the NAS: over the hypervisor's private bridge, by address.
+
+```mermaid
+flowchart LR
+    subgraph tenant["qnta-mgmt · 10.42.0.201"]
+        TA["Alloy<br/><small>same config, different endpoint</small>"]
+    end
+    subgraph stack["jwst · 10.42.0.10 on the bridge"]
+        SA["Alloy<br/><small>receive_http :9009<br/>source.api :3101</small>"]
+        P["Prometheus<br/><small>tailnet address only</small>"]
+        L["Loki<br/><small>tailnet address only</small>"]
+    end
+    TA -- "bridge, ufw-scoped" --> SA
+    SA --> P
+    SA --> L
+```
+
+Alloy on the stack host grows two listeners bound to its declared bridge
+address — `prometheus.receive_http` on `9009` and `loki.source.api` on
+`3101` — and forwards what arrives into the same `remote_write` and
+`loki.write` its own telemetry takes. Prometheus and Loki stay bound to the
+tailnet address. A guest on the bridge can therefore push and nothing else:
+not query its own series, not read another tenant's, not touch Grafana.
+
+The ports are distinct from `9090`/`3100` on purpose. A ufw rule reading
+`9090/tcp from 10.42.0.0/24` says "Prometheus is open to every tenant", and
+it would not be true; the rule should say what it means.
+
+Three declarations make it work, and the role checks for each:
+
+| Declaration | Where | Fails how if missing |
+|---|---|---|
+| Static `ipv4_address` on the stack host | `infra/stacks/lab/machines.auto.tfvars` | no listeners are rendered; tenant agents retry forever and the not-reporting alert fires for them |
+| `firewall_rules` for `9009/tcp` and `3101/tcp` from the bridge | same entry | listeners bind, ufw drops the packets — same symptom, see `sudo ufw status` |
+| `OBSERVABILITY_STACK_ADDRESS` repository variable | GitHub → Variables | the tenant Builder run asserts before installing anything |
+
+The address is declared twice — in the machines map and in the variable —
+because the two readers cannot share a source: the stack binds to what its
+own map says, and a tenant Builder run has an inventory the stack host is
+not in. `NAS_SERVER` is the same shape for the same reason.
+
+How the agent decides which route to take is the inventory: a host with a
+jump host is on the management plane. That is the only signal available at
+Builder time, and it is the right one — a host reached through the
+hypervisor is by definition one the provider's tailnet cannot name.
+
+`use_incoming_timestamp = true` on the log listener is not optional. The
+default restamps every line at receipt, which puts a tenant's journal on the
+stack host's clock and reorders anything that arrives after a retry.
+
 ## Alerting
 
 Five rules ship in `roles/observability-stack/templates/alert-rules.yml.j2`,
