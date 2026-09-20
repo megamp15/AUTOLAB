@@ -248,6 +248,13 @@
         not in (autolab_pbs_digest_tokens.stdout | from_json | map(attribute='tokenid') | list)
       no_log: true
       changed_when: true
+      failed_when: false
+
+    # The secret is on stdout, never on stderr, so the error can be shown.
+    - name: Explain a token that could not be generated
+      ansible.builtin.assert:
+        that: autolab_pbs_digest_generated is skipped or autolab_pbs_digest_generated.rc == 0
+        fail_msg: "generate-token failed: {{ autolab_pbs_digest_generated.stderr | default('') }}"
 
     - name: Keep the secret on this host
       ansible.builtin.copy:
