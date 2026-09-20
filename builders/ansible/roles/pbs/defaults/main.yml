@@ -43,3 +43,12 @@ autolab_pbs_datastores:
 autolab_pbs_pve_user: pve@pbs
 autolab_pbs_pve_password: ""
 autolab_pbs_pve_role: DatastoreBackup
+
+# A read-only API token for the stack host's morning digest. DatastoreAudit
+# lists snapshots (with their verification state) and datastore usage and
+# can change nothing. PBS generates the secret; it is kept on this host in a
+# root-only file and handed to the stack host by the backup playbook — no
+# GitHub secret, nothing in a run log.
+autolab_pbs_digest_user: digest@pbs
+autolab_pbs_digest_token_name: obs
+autolab_pbs_digest_token_file: /etc/autolab/pbs-digest-token
