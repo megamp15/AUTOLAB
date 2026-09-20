@@ -70,7 +70,7 @@
     - role: proxmox-nag
       tags: [proxmox, nag]
     # sshd and the UI on 8006 are the node's LAN-exposed surfaces; the
-    # guests have none (ufw admits the tailnet only) and do not run this.
+    # guests get the sshd jail from harden.yml.
     - role: fail2ban
       tags: [proxmox, fail2ban]
     # The same login screen as every guest, in provider green: the one

@@ -31,7 +31,7 @@ When OpenTofu clones a `builder_target` VM, the `cloud-init` module
 - Separate `gitops` deploy user
 - Named human operator accounts (never share `gitops` or `autolab` interactively)
 - Firewall (ufw/nftables)
-- Fail2Ban
+- fail2ban (sshd jail; the hypervisor adds the Proxmox UI jail)
 - Security update policy
 - Lynis audit
 - Tailscale SSH host feature (enabled by cloud-init after enrollment)
@@ -77,7 +77,7 @@ The universal baseline adds:
 | Optional Docker runtime | `docker-host` via `docker.yml` |
 | Tailscale SSH transport | cloud-init after enrollment; tailnet policy |
 | Login screen: banner, addresses, updates, reboot, firewall, agent, provisioned commit | `motd` |
-| fail2ban — on the hypervisor only (`sshd` and Proxmox UI jails); a VM exposes nothing to ban: ufw admits the tailnet only, password auth is off, Tailscale SSH authenticates before the host sees a packet | `fail2ban` via `proxmox.yml` |
+| fail2ban: `sshd` jail on every VM (sshd is reachable from bridge neighbours, so this is defence in depth behind key-only auth); `sshd` + Proxmox UI jails on the node. The tailnet range and the node's bridge address are never banned | `fail2ban` |
 | Lynis | future |
 
 The login screen is printed by the shell from `/etc/profile.d`, not by PAM:

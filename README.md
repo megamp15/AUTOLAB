@@ -44,7 +44,7 @@ flowchart LR
 | **Bootstrap** | Install Proxmox, configure USB Ethernet + Wi-Fi failover, join Tailscale | On the host, manually | [`docs/proxmox/`](docs/proxmox/) |
 | **Template** | Build Debian / Ubuntu cloud-init VM templates | GitHub Actions over Tailscale | [`infra/packer/`](infra/packer/) |
 | **Provision** | Create VMs from a committed machine map, state in Cloudflare R2 | GitHub Actions over Tailscale | [`infra/`](infra/) |
-| **Configure** | Users, SSH hardening, firewall, updates, login screen, optional Docker | GitHub Actions via Tailscale SSH | [`builders/ansible/`](builders/ansible/) |
+| **Configure** | Users, SSH hardening, firewall, fail2ban, updates, login screen, optional Docker | GitHub Actions via Tailscale SSH | [`builders/ansible/`](builders/ansible/) |
 | **Observe** | Metrics, logs, dashboards and alerts — all provisioned from git | Agent on every host, stack on one | [`builders/ansible/roles/observability-*`](builders/ansible/roles/) |
 
 The bootstrap layer is manual on purpose: you cannot GitOps your way onto a host that has no working uplink yet. Everything after it is driven from git. A future VPS track skips the first two layers and reuses the last two.
@@ -96,7 +96,7 @@ Autolab is **alpha**. The bootstrap path is used on real hardware; the GitOps la
 | 1 · Bootstrap | Install guide, network wizard, USB Ethernet + Wi-Fi failover, APT and Tailscale runbooks | Usable |
 | 2A · Provision | OpenTofu modules, Terramate stacks, R2 backend, plan / apply / destroy workflows, committed `lab` machine map | Usable |
 | 2B · Template | Packer catalog: `debian-13`, `ubuntu-24.04` and `ubuntu-26.04` | Usable |
-| 2C · Configure | Ansible baseline (users, SSH, firewall, updates, `gitops` user, login screen), opt-in Docker, Tailscale SSH transport | Usable |
+| 2C · Configure | Ansible baseline (users, SSH, firewall, fail2ban, updates, `gitops` user, login screen), opt-in Docker, Tailscale SSH transport | Usable |
 | 2D · Observe | Alloy on every host; Prometheus, Loki, Grafana and the Proxmox exporter on one. Dashboards and alert rules provisioned from git, alerts delivered to a phone | Usable |
 | 3 · Backup | Proxmox Backup Server on a managed VM, encrypted nightly of every guest to the NAS, restore proven by workflow; offsite copy and the stale-backup alert pending | Usable |
 | VPS track | Cloud-provider stacks that reuse the configure layer | Planned |
