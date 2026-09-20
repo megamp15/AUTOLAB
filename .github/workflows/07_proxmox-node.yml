@@ -112,12 +112,15 @@ jobs:
       - name: Render node extra variables
         env:
           AUTOLAB_PBS_PVE_PASSWORD: ${{ secrets.PBS_PVE_PASSWORD }}
+          # Shown on the node's login screen as the commit its baseline came from.
+          AUTOLAB_GIT_SHA: ${{ github.sha }}
         run: |
           umask 077
           python3 - "$RUNNER_TEMP/extra-vars.json" <<'PY'
           import json, os, sys
           json.dump({
               "autolab_pve_pbs_password": os.environ.get("AUTOLAB_PBS_PVE_PASSWORD", ""),
+              "autolab_git_sha": os.environ.get("AUTOLAB_GIT_SHA", ""),
           }, open(sys.argv[1], "w"))
           PY
 

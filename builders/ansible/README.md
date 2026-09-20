@@ -206,6 +206,7 @@ The `harden.yml` playbook is the common baseline every managed server receives:
   notices under `/etc/update-motd.d` are switched off so plain OpenSSH logins
   do not print them either. Provider hosts are green, tenant hosts cyan.
   `run-parts /etc/autolab/motd.d` prints it again from a running shell.
+  The hypervisor gets the same screen from `proxmox.yml`.
 
 ## Updates (`updates.yml`)
 
