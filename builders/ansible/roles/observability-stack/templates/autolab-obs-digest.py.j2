@@ -90,8 +90,12 @@ def backups():
     newest = {}
     for item in content:
         vmid = int(item.get("vmid", 0))
-        if item.get("ctime", 0) > newest.get(vmid, (0,))[0]:
-            newest[vmid] = (item["ctime"], item.get("size", 0))
+        # A PBS volid ends in the snapshot time: …/vm/100/2026-09-20T06:14:36Z.
+        # The listing does not always carry ctime, and this is the same fact.
+        when = item.get("ctime") or dt.datetime.strptime(
+            item["volid"].rsplit("/", 1)[-1], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc).timestamp()
+        if when > newest.get(vmid, (0,))[0]:
+            newest[vmid] = (when, item.get("size", 0))
     parts, stale, never = [], [], []
     for g in sorted(guests, key=lambda g: g["vmid"]):
         if g["vmid"] in newest:
