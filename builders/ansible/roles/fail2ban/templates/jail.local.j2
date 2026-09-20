@@ -1,0 +1,23 @@
+# Managed by Ansible — roles/fail2ban. Local edits are overwritten.
+[DEFAULT]
+bantime  = {{ autolab_fail2ban_bantime }}
+findtime = {{ autolab_fail2ban_findtime }}
+maxretry = {{ autolab_fail2ban_maxretry }}
+ignoreip = {{ autolab_fail2ban_ignoreip | join(' ') }}
+backend  = systemd
+
+{% if 'sshd' in autolab_fail2ban_jails %}
+[sshd]
+enabled = true
+{% endif %}
+
+{% if 'proxmox' in autolab_fail2ban_jails %}
+# The Proxmox UI and API on 8006. pveproxy logs authentication failures
+# to the journal via pvedaemon; the filter below matches them.
+[proxmox]
+enabled  = true
+port     = https,http,8006
+filter   = proxmox
+backend  = systemd
+journalmatch = _SYSTEMD_UNIT=pvedaemon.service
+{% endif %}

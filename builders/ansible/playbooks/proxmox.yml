@@ -69,6 +69,10 @@
       tags: [proxmox, repos]
     - role: proxmox-nag
       tags: [proxmox, nag]
+    # sshd and the UI on 8006 are the node's LAN-exposed surfaces; the
+    # guests have none (ufw admits the tailnet only) and do not run this.
+    - role: fail2ban
+      tags: [proxmox, fail2ban]
     # The same login screen as every guest, in provider green: the one
     # machine whose "Reboot: required for kernel …" line matters most.
     - role: motd

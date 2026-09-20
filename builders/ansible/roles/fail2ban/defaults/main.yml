@@ -1,0 +1,18 @@
+---
+# fail2ban for the surfaces a host actually exposes. On the hypervisor that
+# is sshd and the Proxmox UI on the LAN. The VMs do not run this role: ufw
+# admits only the tailnet, password authentication is off, and Tailscale
+# SSH authenticates before the host sees a packet — a jail there would
+# watch a door nobody can reach.
+autolab_fail2ban_bantime: 1h
+autolab_fail2ban_findtime: 10m
+autolab_fail2ban_maxretry: 5
+# Addresses never banned. The tailnet range, so a mistyped password from
+# your own laptop over Tailscale cannot lock you out of the LAN path too.
+autolab_fail2ban_ignoreip:
+  - 127.0.0.1/8
+  - "::1"
+  - 100.64.0.0/10
+autolab_fail2ban_jails:
+  - sshd
+  - proxmox

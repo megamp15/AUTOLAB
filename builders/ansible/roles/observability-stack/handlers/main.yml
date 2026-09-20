@@ -7,6 +7,19 @@
 # A new digest announces itself, so the first install and every change is
 # proven by a message rather than by waiting for 06:00. The run's output is
 # echoed into the play so the message can be read in the workflow log.
+# The restart handler above may have just bounced Grafana; the digest asks
+# it for the alert list, so wait until it answers rather than send a
+# message that says "alerts: unavailable" about a healthy stack.
+- name: Wait for Grafana before the digest
+  listen: Send a digest
+  ansible.builtin.uri:
+    url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_grafana_port }}/api/health"
+    status_code: 200
+  register: autolab_obs_grafana_health
+  until: autolab_obs_grafana_health.status == 200
+  retries: 30
+  delay: 2
+
 - name: Run the digest once
   listen: Send a digest
   ansible.builtin.systemd_service:
