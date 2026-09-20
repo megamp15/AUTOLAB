@@ -167,9 +167,12 @@ See [observability](./observability.md#tenant-guests-over-the-management-plane).
   [NAS storage](./nas-storage.md#smb-for-hosts-the-nas-cannot-name). NFS
   for tenants returns when the bridge becomes a real LAN segment. Either way,
   live databases stay on the VM's own disk and only their dumps go to the NAS.
-- **Backups.** PBS is the next phase and belongs on the management plane;
-  tenant guests are backed up like any other, under a PBS namespace per
-  tenant.
+- **Backups.** Tenant guests are in the provider's nightly like any other
+  guest: `vzdump --all` on the node, encrypted with the provider's key, to
+  the provider's PBS on the management plane (`ark`, 10.42.0.11). There is
+  no per-tenant namespace or key; a tenant that needs its own restore path
+  or its own key is a conversation with the provider, and `09 - PBS Restore`
+  is provider-run. See [backups](./backups.md).
 
 ## Things that will mislead you
 
