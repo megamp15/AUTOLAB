@@ -38,16 +38,16 @@
         datastore: singularity
         username: pve@pbs
 
-    # Off until /etc/pve/priv/storage/ark.enc is in the password manager and
-    # R2. Flip to true in a PR of its own; that PR is the record that the key
-    # was saved. Templates are excluded — they are rebuilt from Git, and
-    # 9000 alone is 4 GB a night otherwise.
+    # Enabled 2026-09-20, once /etc/pve/priv/storage/ark.enc was in the
+    # password manager and R2 — this line is the record of that. Templates
+    # are excluded: they are rebuilt from Git, and 9000 alone is 4 GB a
+    # night otherwise.
     autolab_pve_backup_jobs:
       - id: autolab-nightly
         storage: ark
         schedule: "02:00"
         exclude: [9000, 9002]
-        enabled: false
+        enabled: true
 
   roles:
     - role: proxmox-node
