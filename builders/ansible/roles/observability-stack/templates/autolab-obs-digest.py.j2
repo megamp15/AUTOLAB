@@ -101,11 +101,13 @@ def write_metrics():
            "# TYPE autolab_backup_excluded gauge",
            "# HELP autolab_backup_collector_timestamp_seconds When this file was written.",
            "# TYPE autolab_backup_collector_timestamp_seconds gauge"]
+    # Braces are built with concatenation: this file is a Jinja template on
+    # its way here, and a doubled brace in an f-string is Jinja's delimiter.
     for g in sorted(guests, key=lambda g: g["vmid"]):
-        labels = f'name="{g["name"]}",vmid="{g["vmid"]}"'
+        labels = "{name=\"" + g["name"] + "\",vmid=\"" + str(g["vmid"]) + "\"}"
         if g["vmid"] in newest:
-            out.append(f"autolab_backup_last_seconds{{{labels}}} {newest[g['vmid']]}")
-        out.append(f"autolab_backup_excluded{{{labels}}} {1 if g['vmid'] in excluded else 0}")
+            out.append("autolab_backup_last_seconds" + labels + " " + str(newest[g["vmid"]]))
+        out.append("autolab_backup_excluded" + labels + " " + ("1" if g["vmid"] in excluded else "0"))
     out.append(f"autolab_backup_collector_timestamp_seconds {int(NOW.timestamp())}")
     path = "/var/lib/autolab/textfile/autolab_backup.prom"
     tmp = path + ".tmp"
