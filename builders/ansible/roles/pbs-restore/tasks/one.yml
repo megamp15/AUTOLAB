@@ -64,7 +64,9 @@
       register: autolab_restore_config
       changed_when: false
 
-    # Link down, small, never autostarts, named so nobody mistakes it.
+    # Link down, small, never autostarts, named so nobody mistakes it. Guests
+    # are built with balloon == memory, and qm refuses a memory smaller than
+    # the balloon, so the shrink sets both.
     - name: Isolate and shrink test guest {{ autolab_restore_nextid.stdout }}
       ansible.builtin.command:
         argv:
@@ -76,6 +78,8 @@
           - --net0
           - "{{ (autolab_restore_config.stdout | regex_search('(?m)^net0: (.*)$', '\\1') | first) ~ ',link_down=1' }}"
           - --memory
+          - "{{ autolab_restore_test_memory_mb }}"
+          - --balloon
           - "{{ autolab_restore_test_memory_mb }}"
           - --cores
           - "1"
