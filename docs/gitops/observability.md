@@ -495,6 +495,36 @@ script chowns the copied blocks to uid 65534 — a root-owned data directory is
 unreadable to it and Prometheus starts with an empty database rather than
 failing, which would read as a lost snapshot.
 
+## The morning digest
+
+Alerts say what is broken. The digest says what did not happen: one ntfy
+message a day, 06:00 stack-host time, from `/usr/local/bin/autolab-obs-digest`
+on a systemd timer.
+
+```text
+AUTOLAB · Sun 21 Sep                        ← "· N to look at" when anything is ✗
+Backup · last vzdump Sun 02:00 OK (41 min)
+  sputnik 4h · jwst 4h · ark 4h · qnta-mgmt 4h · qnta-dev 4h
+  ✗ stale (>26h): …        ✗ never backed up: …
+Storage · ark 12% of 1.8T · local-lvm 61% of 200G
+Hosts · 5 reporting · jwst /16% m22% · ark /9% m31% · …
+Alerts · none firing
+```
+
+Sources are all already on the stack host: the read-only Proxmox token
+(last `vzdump` task, newest backup per guest on the PBS storage, storage
+usage), Prometheus (root disk and memory per host), Grafana's alert list.
+No new secret. Priority 2 (silent) when everything is fine, 3 with a ⚠️ tag
+when a line has a ✗; tap-through opens Grafana. Each section fails on its
+own and says so in the message — a digest that reports "backups:
+unavailable" is the point, a digest that does not arrive is the failure
+nobody notices.
+
+`autolab_obs_digest_*` in `roles/observability-stack/defaults` sets the
+time, the backup storage name and the staleness threshold (26 h: a nightly
+plus two hours of slack). A changed script sends one digest immediately,
+echoed into the play, so a deploy proves itself.
+
 ## Things that will mislead you
 
 **Editing a dashboard in the UI rewrites it as schema v2.** With dynamic

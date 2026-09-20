@@ -129,3 +129,15 @@ autolab_obs_grafana_feature_toggles:
 
 autolab_obs_grafana_admin_user: admin
 autolab_obs_grafana_admin_password: ""
+
+# The morning digest: one ntfy message a day with what the alert rules do
+# not say — did last night's backup run, how old each guest's newest backup
+# is, storage headroom, what is firing. Sent from the stack host, which
+# already holds the read-only Proxmox token and the ntfy topic; nothing new
+# to keep secret. Off when either is missing. Local time of the stack host.
+autolab_obs_digest_enabled: true
+autolab_obs_digest_on_calendar: "*-*-* 06:00:00"
+autolab_obs_digest_backup_storage: ark
+# A guest whose newest backup is older than this is called stale. 26 hours
+# gives a nightly job two hours of slack.
+autolab_obs_digest_stale_hours: 26
