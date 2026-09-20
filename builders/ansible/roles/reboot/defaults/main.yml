@@ -1,0 +1,9 @@
+---
+# Reboot a host that needs it and leave the rest alone. "Needs it" is the
+# same test the updates role and the login screen use: the reboot-required
+# flag, or a newer kernel installed than the one running. Force is for the
+# rare deliberate case and is never the default.
+autolab_reboot_force: false
+# How long to wait for the host to come back. A guest on this node returns
+# in under a minute; the margin is for a fsck or a slow NFS mount.
+autolab_reboot_timeout_s: 600

@@ -70,6 +70,7 @@ builders/ansible/
     motd/
     pbs/
     pbs-restore/
+    reboot/
     updates/
 ```
 
@@ -224,6 +225,14 @@ playbook takes the rest (`dist` upgrade, so kernel metapackages move),
 autoremoves, and reports which hosts need a reboot — it reboots none. Runs
 one host at a time. The login screen's `Updates` and `Reboot` lines are the
 same facts, read at login.
+
+## Reboot (`reboot.yml`)
+
+Reboots only the hosts that need it — the reboot-required flag, or a newer
+kernel installed than the one running — one at a time, waiting for each to
+come back before the next. The natural follow-up to `updates`. Hosts that
+do not need it are reported and left alone; `confirm: check` lists which
+would reboot.
 
 ## Backups (`backup.yml`)
 

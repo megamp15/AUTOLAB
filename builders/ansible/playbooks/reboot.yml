@@ -1,0 +1,16 @@
+---
+# Reboot the hosts that need it — after the updates playbook has left a new
+# kernel waiting, typically. One host at a time, each waited for before the
+# next starts, so a guest that does not come back stops the run rather than
+# taking the neighbours with it. Hosts that do not need a reboot are left
+# alone; the report says which were which.
+- name: Reboot Builder machines that need it
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+
+  serial: 1
+
+  roles:
+    - role: reboot
+      tags: [reboot]
