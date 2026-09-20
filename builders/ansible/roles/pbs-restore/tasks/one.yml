@@ -13,10 +13,21 @@
          if autolab_restore_snapshot | length > 0
          else (autolab_restore_list.stdout | regex_findall('(?m)^(\S+:backup/vm/' ~ guest.vmid ~ '/\S+)') | sort | last | default('')) }}
 
+# A guest asked for by name must have a backup. Under `all`, a guest the
+# job excludes (ark cannot back itself up) is reported and skipped, so the
+# loop reaches every guest that does have one.
 - name: Refuse when there is nothing to restore for {{ guest.name }}
   ansible.builtin.assert:
     that: autolab_restore_volid | length > 0
     fail_msg: "{{ guest.name }} has no backup on {{ autolab_restore_storage }}."
+  when: autolab_restore_vm != 'all'
+
+- name: Record nothing to restore for {{ guest.name }}
+  ansible.builtin.set_fact:
+    autolab_restore_results: >-
+      {{ autolab_restore_results | default([]) + [
+           'RESTORE RESULT ' ~ guest.name ~ ': SKIPPED, no backup on ' ~ autolab_restore_storage] }}
+  when: autolab_restore_volid | length == 0
 
 # Check mode stops here: it names the snapshot and restores nothing.
 - name: Record what check mode would restore for {{ guest.name }}
@@ -24,10 +35,10 @@
     autolab_restore_results: >-
       {{ autolab_restore_results | default([]) + [
            'RESTORE RESULT ' ~ guest.name ~ ': WOULD ' ~ autolab_restore_mode ~ ' from ' ~ autolab_restore_volid] }}
-  when: ansible_check_mode
+  when: ansible_check_mode and autolab_restore_volid | length > 0
 
 - name: Test-restore {{ guest.name }}
-  when: autolab_restore_mode == 'test' and not ansible_check_mode
+  when: autolab_restore_mode == 'test' and not ansible_check_mode and autolab_restore_volid | length > 0
   block:
     - name: Take the next free VMID for {{ guest.name }}
       ansible.builtin.command:
@@ -123,7 +134,7 @@
         fail_msg: "{{ guest.name }}: restored guest never answered the agent — see the log above."
 
 - name: Replace the live guest {{ guest.name }}
-  when: autolab_restore_mode == 'replace' and not ansible_check_mode
+  when: autolab_restore_mode == 'replace' and not ansible_check_mode and autolab_restore_volid | length > 0
   block:
     - name: Stop the live guest {{ guest.name }}
       ansible.builtin.command:
