@@ -68,7 +68,7 @@ machines = {
       # export rule for this host's tailnet address must exist before the
       # backup playbook runs — see docs/gitops/backups.md.
       storage = [
-        { protocol = "nfs", server = "singularity", share = "/volume1/autolab", path = "/mnt/autolab", directories = ["ark"] },
+        { protocol = "nfs", server = "singularity", share = "/volume1/autolab", path = "/mnt/autolab", directories = ["ark"], mode = "0750" },
       ]
     }
   }
