@@ -69,6 +69,7 @@ builders/ansible/
     docker-host/
     motd/
     pbs/
+    updates/
 ```
 
 ## First run
@@ -205,6 +206,15 @@ The `harden.yml` playbook is the common baseline every managed server receives:
   notices under `/etc/update-motd.d` are switched off so plain OpenSSH logins
   do not print them either. Provider hosts are green, tenant hosts cyan.
   `run-parts /etc/autolab/motd.d` prints it again from a running shell.
+
+## Updates (`updates.yml`)
+
+Every pending package update, applied on purpose. The baseline's
+unattended-upgrades takes security updates daily and nothing else; this
+playbook takes the rest (`dist` upgrade, so kernel metapackages move),
+autoremoves, and reports which hosts need a reboot — it reboots none. Runs
+one host at a time. The login screen's `Updates` and `Reboot` lines are the
+same facts, read at login.
 
 ## Backups (`backup.yml`)
 

@@ -1,0 +1,11 @@
+---
+# Apply every pending package update. The baseline leaves this to
+# unattended-upgrades, which only takes security updates; everything else
+# waits for a deliberate run of this role, so a kernel or a service restart
+# happens when someone chose it. Nothing here reboots: the role reports what
+# needs one and the login screen keeps saying so until it happens.
+
+# dist rather than safe: a Debian kernel update arrives as a new package the
+# metapackage depends on, which `apt-get upgrade` holds back forever.
+autolab_updates_upgrade: dist
+autolab_updates_autoremove: true
