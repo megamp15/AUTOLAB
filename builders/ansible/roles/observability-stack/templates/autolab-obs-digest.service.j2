@@ -7,4 +7,6 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/autolab/obs-digest.env
+# Written by the backup playbook once PBS exists; optional until then.
+EnvironmentFile=-/etc/autolab/obs-digest-pbs.env
 ExecStart=/usr/local/bin/autolab-obs-digest

@@ -19,3 +19,35 @@
       ansible.builtin.include_role:
         name: pbs
       when: autolab_builder.backup.server | default(false) | bool
+
+# The morning digest reads PBS directly — Proxmox's own listing of backups
+# needs write-capable privileges the exporter token does not have. The
+# secret came from PBS a play ago and never left the run.
+- name: Hand the digest its read-only PBS token
+  hosts: linux_servers
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Find the backup host
+      ansible.builtin.set_fact:
+        autolab_backup_host: >-
+          {{ (hostvars | dict2items
+              | selectattr('value.autolab_builder.backup.server', 'defined')
+              | selectattr('value.autolab_builder.backup.server')
+              | map(attribute='key') | list | first) | default('') }}
+
+    - name: Write the digest's PBS settings
+      ansible.builtin.template:
+        src: ../roles/observability-stack/templates/autolab-obs-digest-pbs.env.j2
+        dest: /etc/autolab/obs-digest-pbs.env
+        owner: root
+        group: root
+        mode: "0600"
+      vars:
+        pbs: "{{ hostvars[autolab_backup_host] }}"
+      when:
+        - autolab_builder.observability.stack | default(false) | bool
+        - autolab_backup_host | length > 0
+        - hostvars[autolab_backup_host].autolab_pbs_digest_token_secret is defined
+      no_log: true

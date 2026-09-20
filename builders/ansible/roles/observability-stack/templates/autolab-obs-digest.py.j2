@@ -8,6 +8,7 @@
 # silencing the whole thing, because a missing digest is the one failure
 # nobody would notice.
 import datetime as dt
+import hashlib
 import json
 import os
 import re
@@ -27,6 +28,10 @@ GRAFANA = os.environ["GRAFANA_URL"]
 NTFY_URL = os.environ["NTFY_URL"]
 NTFY_TOPIC = os.environ["NTFY_TOPIC"]
 BACKUP_STORAGE = os.environ.get("BACKUP_STORAGE", "ark")
+PBS_URL = os.environ.get("PBS_URL", "")
+PBS_AUTH = f"PBSAPIToken={os.environ.get('PBS_TOKEN_ID', '')}:{os.environ.get('PBS_TOKEN_SECRET', '')}"
+PBS_FINGERPRINT = os.environ.get("PBS_FINGERPRINT", "").lower()
+PBS_DATASTORES = [d for d in os.environ.get("PBS_DATASTORES", "").split(",") if d]
 STALE_HOURS = int(os.environ.get("STALE_HOURS", "26"))
 NOW = dt.datetime.now(dt.timezone.utc)
 
@@ -39,6 +44,20 @@ def get(url, headers=None, ctx=None, timeout=20):
 
 def pve(path):
     return get(f"https://{PVE}:8006/api2/json{path}", {"Authorization": PVE_AUTH}, PVE_CTX)["data"]
+
+
+def pbs(path):
+    # Self-signed, so pin the SHA-256 fingerprint the pbs role reported
+    # rather than trusting anything that answers on that port.
+    host, port = urllib.parse.urlparse(PBS_URL).netloc.rsplit(":", 1)
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    der = ssl.PEM_cert_to_DER_cert(ssl.get_server_certificate((host, int(port))))
+    seen = ":".join(f"{b:02x}" for b in hashlib.sha256(der).digest())
+    if PBS_FINGERPRINT and seen != PBS_FINGERPRINT:
+        raise RuntimeError(f"PBS certificate fingerprint {seen[:23]}… does not match the pinned one")
+    return get(f"{PBS_URL}/api2/json{path}", {"Authorization": PBS_AUTH}, ctx)["data"]
 
 
 def prom(query):
@@ -87,24 +106,30 @@ def backups():
     else:
         lines.append("Backup · no vzdump task found")
         problems.append("no vzdump task")
-    content = pve(f"/nodes/{node}/storage/{BACKUP_STORAGE}/content?content=backup")
-    newest = {}
-    for item in content:
-        # A PBS volid carries both facts: …:backup/vm/100/2026-09-20T06:14:36Z.
-        # The listing does not always carry vmid or ctime alongside.
-        m = re.search(r"backup/vm/(\d+)/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)$", item.get("volid", ""))
-        if not m:
-            continue
-        vmid = int(m.group(1))
-        when = item.get("ctime") or dt.datetime.strptime(m.group(2), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc).timestamp()
-        if when > newest.get(vmid, (0,))[0]:
-            newest[vmid] = (when, item.get("size", 0))
-    if not content:
-        lines.append(f"  storage {BACKUP_STORAGE} listed 0 backups for this token — check its Datastore.Audit on /storage/{BACKUP_STORAGE}")
-        problems.append("backup listing empty")
-    elif not newest:
-        lines.append(f"  listing has {len(content)} items but none parsed; first keys: {sorted(content[0].keys())}")
-        problems.append("backup listing unparsed")
+    newest, unverified, failed_verify = {}, [], []
+    if PBS_URL:
+        for store in PBS_DATASTORES or [BACKUP_STORAGE]:
+            for snap in pbs(f"/admin/datastore/{store}/snapshots?backup-type=vm"):
+                vmid = int(snap["backup-id"])
+                when = snap["backup-time"]
+                if when > newest.get(vmid, (0,))[0]:
+                    newest[vmid] = (when, snap.get("size", 0), (snap.get("verification") or {}).get("state"))
+        for vmid, (_, _, state) in newest.items():
+            if state == "failed":
+                failed_verify.append(vmid)
+    else:
+        content = pve(f"/nodes/{node}/storage/{BACKUP_STORAGE}/content?content=backup")
+        for item in content:
+            m = re.search(r"backup/vm/(\d+)/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)$", item.get("volid", ""))
+            if not m:
+                continue
+            vmid = int(m.group(1))
+            when = item.get("ctime") or dt.datetime.strptime(m.group(2), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc).timestamp()
+            if when > newest.get(vmid, (0,))[0]:
+                newest[vmid] = (when, item.get("size", 0), None)
+        if not content:
+            lines.append("  no PBS token yet (run the backup playbook); Proxmox's own listing needs write privileges the exporter token lacks")
+            problems.append("backup listing unavailable")
     parts, stale, never = [], [], []
     for g in sorted(guests, key=lambda g: g["vmid"]):
         if g["vmid"] in newest:
@@ -122,6 +147,16 @@ def backups():
     if never:
         lines.append(f"  ✗ never backed up: {', '.join(never)}")
         problems.append("guests never backed up")
+    if failed_verify:
+        names = [g["name"] for g in guests if g["vmid"] in failed_verify]
+        lines.append(f"  ✗ verify FAILED: {', '.join(names)}")
+        problems.append("verify failed")
+    if PBS_URL:
+        for job in pbs("/admin/verify"):
+            state = job.get("last-run-state")
+            if state and state != "OK":
+                lines.append(f"  ✗ verify job {job['id']}: {state}")
+                problems.append("verify job failed")
     usage = []
     for st in pve(f"/nodes/{node}/storage"):
         if st.get("total") and st.get("type") in ("pbs", "lvmthin", "dir", "zfspool"):

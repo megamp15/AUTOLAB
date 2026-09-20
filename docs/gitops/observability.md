@@ -511,10 +511,16 @@ Hosts · 5 reporting · jwst /16% m22% · ark /9% m31% · …
 Alerts · none firing
 ```
 
-Sources are all already on the stack host: the read-only Proxmox token
-(last `vzdump` task, newest backup per guest on the PBS storage, storage
-usage), Prometheus (root disk and memory per host), Grafana's alert list.
-No new secret. Priority 2 (silent) when everything is fine, 3 with a ⚠️ tag
+Sources: the read-only Proxmox token (last `vzdump` task, storage usage),
+**PBS itself** for the backups (newest snapshot per guest, its verification
+state, failed verify jobs) through a `digest@pbs!obs` token holding only
+`DatastoreAudit`, Prometheus (root disk and memory per host), and Grafana's
+alert list. PBS is asked directly because Proxmox's own listing of backup
+volumes demands `Datastore.AllocateSpace` and `VM.Backup` — write-capable
+privileges a monitoring token should not hold. The PBS token is generated
+by PBS on the backup host, kept there root-only, and handed to the stack
+host by the backup playbook; the digest pins ark's certificate fingerprint.
+No GitHub secret. Priority 2 (silent) when everything is fine, 3 with a ⚠️ tag
 when a line has a ✗; tap-through opens Grafana. Each section fails on its
 own and says so in the message — a digest that reports "backups:
 unavailable" is the point, a digest that does not arrive is the failure
