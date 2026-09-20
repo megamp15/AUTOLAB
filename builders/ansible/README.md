@@ -67,6 +67,7 @@ builders/ansible/
     nfs-client/
     cifs-client/
     docker-host/
+    fail2ban/
     motd/
     pbs/
     backup-now/

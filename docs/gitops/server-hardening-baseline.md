@@ -77,7 +77,8 @@ The universal baseline adds:
 | Optional Docker runtime | `docker-host` via `docker.yml` |
 | Tailscale SSH transport | cloud-init after enrollment; tailnet policy |
 | Login screen: banner, addresses, updates, reboot, firewall, agent, provisioned commit | `motd` |
-| Fail2Ban, Lynis | future roles or extensions |
+| fail2ban — on the hypervisor only (`sshd` and Proxmox UI jails); a VM exposes nothing to ban: ufw admits the tailnet only, password auth is off, Tailscale SSH authenticates before the host sees a packet | `fail2ban` via `proxmox.yml` |
+| Lynis | future |
 
 The login screen is printed by the shell from `/etc/profile.d`, not by PAM:
 Tailscale SSH never runs `pam_motd`, so anything under `/etc/update-motd.d`

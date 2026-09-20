@@ -1,0 +1,5 @@
+# Managed by Ansible — roles/fail2ban. Proxmox VE authentication failures,
+# as pvedaemon writes them to the journal.
+[Definition]
+failregex = pvedaemon\[\d+\]: authentication failure; rhost=<HOST> user=.* msg=.*
+ignoreregex =

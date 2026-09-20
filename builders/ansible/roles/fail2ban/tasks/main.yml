@@ -1,0 +1,48 @@
+---
+- name: Install fail2ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+
+- name: Install the Proxmox filter
+  ansible.builtin.template:
+    src: filter-proxmox.conf.j2
+    dest: /etc/fail2ban/filter.d/proxmox.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: "'proxmox' in autolab_fail2ban_jails"
+  notify: Restart fail2ban
+
+- name: Declare the jails
+  ansible.builtin.template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Enable and start fail2ban
+  ansible.builtin.systemd_service:
+    name: fail2ban
+    state: started
+    enabled: true
+
+- name: Flush handlers so the jails below are the declared ones
+  ansible.builtin.meta: flush_handlers
+
+- name: Read the jails fail2ban is running
+  ansible.builtin.command:
+    argv: [fail2ban-client, status]
+  register: autolab_fail2ban_status
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Every declared jail must be running
+  ansible.builtin.assert:
+    that: item in (autolab_fail2ban_status.stdout | default(''))
+    fail_msg: "fail2ban is not running jail '{{ item }}': {{ autolab_fail2ban_status.stdout | default('') }} {{ autolab_fail2ban_status.stderr | default('') }}"
+  loop: "{{ autolab_fail2ban_jails }}"
+  when: not ansible_check_mode
