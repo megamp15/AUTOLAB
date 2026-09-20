@@ -1,0 +1,60 @@
+---
+- name: Read the job this run mirrors
+  ansible.builtin.command:
+    argv: [pvesh, get, "/cluster/backup/{{ autolab_backup_now_job }}", --output-format, json]
+  register: autolab_backup_now_job_raw
+  changed_when: false
+  check_mode: false
+
+- name: Keep its settings
+  ansible.builtin.set_fact:
+    autolab_backup_now_settings: "{{ autolab_backup_now_job_raw.stdout | from_json }}"
+
+- name: List the guests on this node
+  ansible.builtin.command:
+    argv: [pvesh, get, /cluster/resources, --type, vm, --output-format, json]
+  register: autolab_backup_now_resources
+  changed_when: false
+  check_mode: false
+
+- name: Resolve the target
+  ansible.builtin.set_fact:
+    autolab_backup_now_vmid: >-
+      {{ (autolab_backup_now_resources.stdout | from_json
+          | selectattr('type', 'equalto', 'qemu')
+          | selectattr('name', 'equalto', autolab_backup_now_vm)
+          | map(attribute='vmid') | list | first) | default('') }}
+  when: autolab_backup_now_vm != 'all'
+
+- name: Refuse an unknown guest
+  ansible.builtin.assert:
+    that: autolab_backup_now_vm == 'all' or autolab_backup_now_vmid | string | length > 0
+    fail_msg: "No guest named {{ autolab_backup_now_vm }} on this node."
+
+# vzdump runs guests in turn and keeps going past a failure; the task log
+# is the record and its per-guest lines are quoted below.
+- name: Back up
+  ansible.builtin.command:
+    argv: >-
+      {{ ['vzdump']
+         + (['--all', '1', '--exclude', autolab_backup_now_settings.exclude | default('')]
+            if autolab_backup_now_vm == 'all' else [autolab_backup_now_vmid | string])
+         + ['--storage', autolab_backup_now_settings.storage,
+            '--mode', autolab_backup_now_settings.mode | default('snapshot'),
+            '--compress', autolab_backup_now_settings.compress | default('zstd'),
+            '--quiet', '1'] }}
+  register: autolab_backup_now_run
+  changed_when: true
+  failed_when: false
+
+- name: Report each guest
+  ansible.builtin.debug:
+    msg: >-
+      {{ autolab_backup_now_run.stdout_lines
+         | select('search', 'Finished Backup of VM|Failed at|ERROR: Backup of VM|transferred|Backup job finished')
+         | map('regex_replace', '^INFO: ', '') | list }}
+
+- name: The job must have finished cleanly
+  ansible.builtin.assert:
+    that: autolab_backup_now_run.rc == 0
+    fail_msg: "vzdump exited {{ autolab_backup_now_run.rc }} — see the report above."

@@ -82,6 +82,7 @@ Once the host is on Tailscale, work through the [phase 2 setup checklist](docs/g
 | `06 · Tailscale Policy` | Apply the tailnet policy from Git |
 | `07 · Proxmox Node` | Bring the hypervisor under Ansible: repositories, accounts, backup target, login screen |
 | `08 · PBS Restore` | Restore a guest from Proxmox Backup Server — `test` proves a backup boots, `replace` is the disaster button |
+| `09 · PBS Backup` | Back up a guest, or the nightly job's full scope, right now with the job's own settings |
 | `99 · OpenTofu Destroy` | Tear the stack down, cleaning Tailscale device records |
 
 `90 · Scripts` and `98 · OpenTofu CI` run automatically on push and pull request.

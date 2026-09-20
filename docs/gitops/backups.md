@@ -99,6 +99,16 @@ key ID and application key); an alert on guests without a recent backup and
 on failed verify jobs. Run `08 - PBS Restore` with `vm: all` after the first
 nightly, then monthly.
 
+## Backing up on demand
+
+Workflow **09 - PBS Backup**: `vm` is a guest name or `all`, `confirm:
+BACKUP`. It reads `autolab-nightly`'s storage, mode, compression and
+exclude list from the node and runs `vzdump` with exactly those, so an
+on-demand run is the nightly at a different hour. A guest asked for by
+name is backed up even if the job excludes it — asking by name is the
+override. Run it before anything risky, or after a change you want captured
+before 02:00. PBS deduplicates, so repeating it costs almost nothing.
+
 ## Restoring
 
 Workflow **08 - PBS Restore** is the only way anyone should restore; the
