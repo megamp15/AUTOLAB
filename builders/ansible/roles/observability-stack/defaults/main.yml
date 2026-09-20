@@ -193,9 +193,11 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_loki_port }}/ready"
+  # UGOS's UI, over the tailnet — not the ug.link relay, which routes the
+  # NAS through Ugreen's cloud. Everything on this page stays on the tailnet.
   - name: NAS
     meta: singularity
-    url: "https://singularity.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}"
+    url: "https://singularity.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:9443"
     icon: nas
     check:
       type: tcp
