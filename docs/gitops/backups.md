@@ -117,7 +117,7 @@ remembering under stress.
 
 | Input | Meaning |
 |---|---|
-| `vm` | a guest name from the machines map, or `all` (test mode only) |
+| `vm` | a guest name from the machines map, or `all` (test mode only). A named guest without a backup fails the run; under `all`, a guest the nightly excludes — ark — is reported as `SKIPPED` and the rest continue |
 | `mode: test` | restore to a **new** VMID, boot with `link_down=1`, wait for the guest agent, record `get-osinfo`, stop, destroy. 1 GB, 1 core, `onboot 0`, named `<guest>-restore-test`. |
 | `mode: replace` | stop the live guest, `qmrestore --force` over it, start it, wait for the agent. One guest only. |
 | `snapshot` | a name like `2026-09-20T06:14:36Z`; empty picks the latest |
