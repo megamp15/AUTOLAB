@@ -29,12 +29,21 @@
   environment:
     DEBIAN_FRONTEND: noninteractive
   register: autolab_pbs_install
+  # Check mode cannot write the repository above, so on a host that has never
+  # had it apt cannot see the package at all. That is the install being
+  # pending, not an error.
+  failed_when:
+    - autolab_pbs_install.failed | default(false)
+    - not (ansible_check_mode and 'No package matching' in (autolab_pbs_install.msg | default('')))
 
 # Nothing below can run before the package exists, and check mode does not
 # install it: a host's first check run stops here and reports the install as
 # the pending change; the next run reports the rest.
 - name: Declare the server
-  when: not (ansible_check_mode and autolab_pbs_install is changed)
+  when: >-
+    not (ansible_check_mode
+         and (autolab_pbs_install is changed
+              or 'No package matching' in (autolab_pbs_install.msg | default(''))))
   block:
     - name: Wait for the API to answer
       ansible.builtin.wait_for:
