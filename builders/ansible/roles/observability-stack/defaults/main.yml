@@ -46,6 +46,16 @@ autolab_obs_unmonitored_guests: >-
      | rejectattr('value.autolab_builder.observability.agent')
      | map(attribute='key') | list }}
 
+# Guest names that are never a managed machine, dropped from every join on
+# pve_guest_info. `qmrestore` names a guest "VM <id>" until the restore
+# workflow renames it "<guest>-restore-test"; both series then sit in the
+# staleness window for one id, group_left sees two right-hand matches, and
+# the query fails — for the whole test run, on every rule that joins. The
+# test guest is link-down and unbacked by design, so nothing should watch it.
+autolab_obs_transient_guest_names:
+  - 'VM [0-9]+'
+  - '.*-restore-test'
+
 # Thresholds. Defaults chosen to fire with enough warning to act, not so early
 # that they become background noise people learn to ignore.
 autolab_obs_alert_disk_pct: 85
