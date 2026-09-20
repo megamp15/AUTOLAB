@@ -30,6 +30,19 @@ on the NAS share Builder hosts already mount. The hypervisor sends to it over
 the bridge with a client-side encryption key, so the NAS and B2 only ever
 hold ciphertext.
 
+## State
+
+| | |
+|---|---|
+| `ark` | vm 104, `10.42.0.11`, Debian 13, PBS 4 from packages, hardened |
+| datastore `singularity` | `/mnt/autolab/ark` on the NAS, NFSv3 over the tailnet, export rule for ark with *No mapping* |
+| encryption key | `/etc/pve/priv/storage/ark.enc` on the node; copies in the password manager and R2 (`autolab-keys`) since 2026-09-20 |
+| `autolab-nightly` | enabled 2026-09-20, 02:00, every guest except templates 9000/9002 |
+| first backup | sputnik, 2026-09-20 06:14 UTC, 3.3 GB of 20 GB written in 5 min |
+| first restore | sputnik via `08 - PBS Restore` (test), 2026-09-20 06:30 UTC: `BOOTED as Debian GNU/Linux 13 (trixie)` |
+| offsite copy | not yet — B2 as a second datastore, its own PR |
+| alert | not yet — guests without a recent backup, failed verify |
+
 ## What lives where
 
 | Thing | Where | Owned by |
@@ -78,9 +91,11 @@ hold ciphertext.
    it with the network link down, waits for the guest agent, records the OS
    it reports, and destroys it. Not before this passes is the phase done.
 
-Later, in their own PRs: Backblaze B2 as a second PBS datastore with a sync
-job from the NAS one (two secrets: key ID and application key); an alert on
-guests without a recent backup and on failed verify jobs.
+Steps 1–8 were done on 2026-09-20. Still open, each its own PR: Backblaze
+B2 as a second PBS datastore with a sync job from the NAS one (two secrets:
+key ID and application key); an alert on guests without a recent backup and
+on failed verify jobs. Run `08 - PBS Restore` with `vm: all` after the first
+nightly, then monthly.
 
 ## Restoring
 
