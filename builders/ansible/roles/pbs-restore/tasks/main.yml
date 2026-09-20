@@ -1,0 +1,45 @@
+---
+- name: Check the request
+  ansible.builtin.assert:
+    that:
+      - autolab_restore_mode in ['test', 'replace']
+      - autolab_restore_vm | length > 0
+      - not (autolab_restore_mode == 'replace' and autolab_restore_vm == 'all')
+    fail_msg: >-
+      mode must be test or replace; vm must be a guest name, or `all` in
+      test mode only.
+
+- name: List the guests on this node
+  ansible.builtin.command:
+    argv: [pvesh, get, /cluster/resources, --type, vm, --output-format, json]
+  register: autolab_restore_resources
+  changed_when: false
+  check_mode: false
+
+- name: Keep the QEMU guests
+  ansible.builtin.set_fact:
+    autolab_restore_targets: >-
+      {{ autolab_restore_resources.stdout | from_json
+         | selectattr('type', 'equalto', 'qemu') | list }}
+
+- name: Refuse an unknown guest
+  ansible.builtin.assert:
+    that: >-
+      autolab_restore_vm == 'all'
+      or (autolab_restore_targets | selectattr('name', 'equalto', autolab_restore_vm) | list | length) > 0
+    fail_msg: "No guest named {{ autolab_restore_vm }} on this node."
+
+# Templates are skipped: they are rebuilt from Git, never backed up.
+- name: Restore each target in turn
+  ansible.builtin.include_tasks: one.yml
+  loop: "{{ autolab_restore_targets | sort(attribute='vmid') }}"
+  loop_control:
+    loop_var: guest
+    label: "{{ guest.name }} ({{ guest.vmid }})"
+  when:
+    - (guest.template | default(0) | int) == 0
+    - autolab_restore_vm == 'all' or guest.name == autolab_restore_vm
+
+- name: Results
+  ansible.builtin.debug:
+    msg: "{{ autolab_restore_results | default([]) }}"

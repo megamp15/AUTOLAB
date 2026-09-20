@@ -1,0 +1,24 @@
+---
+# Restore guests from the PBS storage on this node. Two modes:
+#
+#   test     Restore the snapshot to a NEW guest, boot it with its network
+#            link down, wait for the guest agent, record the OS it reports,
+#            then destroy it. Proves the backup is a machine, not a file.
+#            `all` walks every guest that has a backup, one at a time.
+#   replace  Stop the live guest, restore over it, start it. The disaster
+#            button; one guest at a time, and the workflow asks for a typed
+#            confirmation first.
+#
+# The link stays down in test mode because the restored disk carries the
+# original's Tailscale identity: two machines with one node key knock each
+# other off the tailnet, and the live one would lose.
+autolab_restore_vm: ""
+autolab_restore_mode: test
+# A snapshot name such as 2026-09-20T06:14:36Z; empty means the latest.
+autolab_restore_snapshot: ""
+autolab_restore_storage: ark
+autolab_restore_target_storage: local-lvm
+# Test guests are small on purpose: the node's memory is spoken for, and a
+# Debian or Ubuntu guest boots and answers the agent in 1 GB.
+autolab_restore_test_memory_mb: 1024
+autolab_restore_agent_timeout_s: 240

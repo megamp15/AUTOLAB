@@ -73,13 +73,39 @@ hold ciphertext.
    `playbooks/proxmox.yml` in a PR of its own — that PR is the record that
    step 6 happened — and run 07 again. First run: trigger it by hand in the
    PVE UI (Datacenter → Backup → Run now) rather than waiting for 02:00.
-8. **Restore.** Restore one small guest (sputnik) from the PBS storage to a
-   new VMID, boot it, log in. Then delete it. Not before this is the phase
-   done.
+8. **Restore.** Workflow **08 - PBS Restore**, `vm: sputnik`, `mode: test`,
+   `confirm: RESTORE`. It restores the latest snapshot to a new guest, boots
+   it with the network link down, waits for the guest agent, records the OS
+   it reports, and destroys it. Not before this passes is the phase done.
 
 Later, in their own PRs: Backblaze B2 as a second PBS datastore with a sync
 job from the NAS one (two secrets: key ID and application key); an alert on
 guests without a recent backup and on failed verify jobs.
+
+## Restoring
+
+Workflow **08 - PBS Restore** is the only way anyone should restore; the
+commands it runs are in `roles/pbs-restore`, and nothing about them is worth
+remembering under stress.
+
+| Input | Meaning |
+|---|---|
+| `vm` | a guest name from the machines map, or `all` (test mode only) |
+| `mode: test` | restore to a **new** VMID, boot with `link_down=1`, wait for the guest agent, record `get-osinfo`, stop, destroy. 1 GB, 1 core, `onboot 0`, named `<guest>-restore-test`. |
+| `mode: replace` | stop the live guest, `qmrestore --force` over it, start it, wait for the agent. One guest only. |
+| `snapshot` | a name like `2026-09-20T06:14:36Z`; empty picks the latest |
+| `confirm` | `RESTORE` runs it; anything else lists which snapshot would be used and stops |
+
+The link stays down in test mode because the restored disk carries the
+original's Tailscale node key; booted online, two machines fight for it and
+the live one loses. A test guest can therefore never be reached — the guest
+agent is the witness, and `RESTORE RESULT <name>: BOOTED as <os>` in the
+run summary is the proof.
+
+Run the test for `all` after any change to the backup path, and on a
+schedule you would notice missing (monthly is honest). It takes a few
+minutes per guest: reading the snapshot back from the NAS over the tailnet
+is the same slow leg as writing it.
 
 ## Retention and schedule
 

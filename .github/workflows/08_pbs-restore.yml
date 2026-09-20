@@ -1,0 +1,151 @@
+name: 08 - PBS Restore
+run-name: "Restore ${{ inputs.vm }} (${{ inputs.mode }})"
+
+# Restore guests from Proxmox Backup Server. `test` restores the snapshot to
+# a new guest, boots it with its network link down, waits for the guest
+# agent, records the OS it reports and destroys it — the proof that a backup
+# is a machine. `replace` stops the live guest and restores over it: the
+# disaster button, one guest at a time, behind a typed confirmation.
+on:
+  workflow_dispatch:
+    inputs:
+      vm:
+        description: Guest name as in the machines map (sputnik, jwst, …), or `all` for a test of every guest
+        required: true
+        default: sputnik
+        type: string
+      mode:
+        description: test restores a throwaway copy and destroys it; replace overwrites the live guest
+        required: true
+        default: test
+        type: choice
+        options: [test, replace]
+      snapshot:
+        description: "Snapshot to restore, e.g. 2026-09-20T06:14:36Z; empty = latest"
+        required: false
+        default: ''
+        type: string
+      confirm:
+        description: Type RESTORE to run; anything else only lists what would be restored
+        required: true
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: pbs-restore
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    name: Restore ${{ inputs.vm }} (${{ inputs.mode }})
+    runs-on: ubuntu-latest
+    env:
+      PVE_LIMIT: proxmox_nodes
+      RESTORE_VM: ${{ inputs.vm }}
+      RESTORE_MODE: ${{ inputs.mode }}
+      RESTORE_SNAPSHOT: ${{ inputs.snapshot }}
+      RESTORE_CONFIRM: ${{ inputs.confirm }}
+    steps:
+      - name: Refuse a replace of everything
+        run: |
+          if [[ "$RESTORE_MODE" == "replace" && "$RESTORE_VM" == "all" ]]; then
+            echo "replace takes one guest name, never all" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+
+      - uses: ./.github/actions/connect-tailscale
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+
+      - name: Install Ansible and its collections
+        working-directory: builders/ansible
+        run: |
+          python -m pip install 'ansible-core>=2.21,<2.22'
+          for attempt in 1 2 3; do
+            ansible-galaxy collection install -r requirements.yml && break
+            [ "$attempt" = 3 ] && { echo "failed after 3 attempts" >&2; exit 1; }
+            echo "attempt $attempt failed; retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
+
+      - name: Wait for Tailscale and SSH readiness
+        working-directory: builders/ansible
+        run: |
+          user=gitops
+          mapfile -t hosts < <(ansible -i inventories/hypervisors/hosts.yml "$PVE_LIMIT" \
+            --list-hosts 2>/dev/null | tail -n +2 | sed 's/[[:space:]]//g' | grep -v '^$')
+          if [[ ${#hosts[@]} -eq 0 ]]; then
+            echo "No hosts matched limit '$PVE_LIMIT'; nothing to check." >&2
+            exit 1
+          fi
+          echo "Readiness check covers ${#hosts[@]} node(s) as $user."
+          install -d -m 700 "$HOME/.ssh"
+          touch "$HOME/.ssh/known_hosts"
+          for name in "${hosts[@]}"; do
+            addr="$(ansible -i inventories/hypervisors/hosts.yml "$name" \
+              -m debug -a 'var=ansible_host' 2>/dev/null \
+              | sed -n 's/.*"ansible_host": "\(.*\)".*/\1/p' | head -1)"
+            addr="${addr:-$name}"
+            for attempt in {1..12}; do
+              if ! ping_output=$(tailscale ping --until-direct=false --c 1 --timeout=5s "$addr" 2>&1); then
+                failure="Tailscale reachability failed for $addr: $ping_output"
+              elif ! ssh-keygen -F "$addr" >/dev/null && ! ssh-keyscan -H -t ed25519 -T 5 "$addr" >> "$HOME/.ssh/known_hosts" 2>/dev/null; then
+                failure="Could not collect an ED25519 host key for $addr"
+              elif ! ssh_output=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 "$user@$addr" true 2>&1); then
+                failure="SSH readiness failed for $user@$addr: $ssh_output"
+              else
+                break
+              fi
+              if [[ "$attempt" == 12 ]]; then
+                echo "$failure" >&2
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+
+      - name: Run the restore playbook
+        working-directory: builders/ansible
+        run: |
+          set -o pipefail
+          args=(-i inventories/hypervisors/hosts.yml playbooks/restore.yml --limit "$PVE_LIMIT")
+          args+=(-e autolab_proxmox_user=gitops)
+          args+=(-e "autolab_restore_vm=$RESTORE_VM" -e "autolab_restore_mode=$RESTORE_MODE" -e "autolab_restore_snapshot=$RESTORE_SNAPSHOT")
+          if [ "$RESTORE_CONFIRM" != "RESTORE" ]; then
+            echo "confirm was not RESTORE; listing only." | tee "$GITHUB_WORKSPACE/restore-output.log"
+            args+=(--check)
+          fi
+          ansible-playbook "${args[@]}" 2>&1 | tee -a "$GITHUB_WORKSPACE/restore-output.log"
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: 'true'
+          ANSIBLE_SSH_COMMON_ARGS: '-o StrictHostKeyChecking=yes'
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## PBS restore"
+            echo ""
+            echo "- guest: \`$RESTORE_VM\`"
+            echo "- mode: \`$RESTORE_MODE\`"
+            echo "- snapshot: \`${RESTORE_SNAPSHOT:-latest}\`"
+            echo "- confirmed: \`$([[ "$RESTORE_CONFIRM" == "RESTORE" ]] && echo yes || echo no)\`"
+            echo ""
+            grep -o 'RESTORE RESULT .*' "$GITHUB_WORKSPACE/restore-output.log" 2>/dev/null | sed 's/^/- /' | sed 's/["\\]//g' || true
+            recap="$(awk '/^PLAY RECAP/{getline; print; exit}' "$GITHUB_WORKSPACE/restore-output.log" 2>/dev/null || true)"
+            echo ""
+            echo "\`\`\`"
+            echo "${recap:-no recap (an earlier step failed)}"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
