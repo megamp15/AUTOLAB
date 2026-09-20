@@ -16,6 +16,7 @@ autolab_obs_images:
   # tag is not proof that a registry tag exists; check the registry.
   grafana: "grafana/grafana:13.2.2"
   pve_exporter: "prompve/prometheus-pve-exporter:3.10.0"
+  homepage: "nginx:1.31.6-alpine"
 
 # Metrics live on local disk. A TSDB does heavy random I/O with mmap and file
 # locking, which NFS handles poorly — Prometheus documents non-POSIX
@@ -148,3 +149,62 @@ autolab_obs_backup_metrics_interval: 15min
 # A running guest whose newest backup is older than this pages. A nightly
 # plus two hours of slack, like the digest's stale threshold.
 autolab_obs_alert_backup_max_age_hours: 26
+
+# The homepage: the Singularity design (docs/design) served by nginx on the
+# tailnet address, fed by status.json which the digest script writes every
+# minute. Links are declared here; guests are discovered from Proxmox. A
+# link with a `check` gets a live up/down dot; without one it is a plain
+# link. Hosts are named by MagicDNS so the addresses follow the devices.
+autolab_obs_homepage_enabled: true
+autolab_obs_homepage_port: 8080
+autolab_obs_homepage_links:
+  - name: Proxmox VE
+    meta: "{{ autolab_obs_pve_host.split('.')[0] }}"
+    url: "https://{{ autolab_obs_pve_host }}:8006"
+    icon: hypervisor
+    check:
+      type: http
+      target: "https://{{ autolab_obs_pve_host }}:8006"
+  - name: Backup Server
+    meta: ark
+    url: "https://ark.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:8007"
+    icon: backup
+    check:
+      type: tcp
+      target: "ark.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:8007"
+  - name: Grafana
+    meta: dashboards
+    url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_grafana_port }}"
+    icon: metrics
+    check:
+      type: http
+      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_grafana_port }}/api/health"
+  - name: Prometheus
+    meta: metrics
+    url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_prometheus_port }}"
+    icon: metrics
+    check:
+      type: http
+      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_prometheus_port }}/-/ready"
+  - name: Loki
+    meta: logs
+    url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_grafana_port }}/explore"
+    icon: logs
+    check:
+      type: http
+      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_loki_port }}/ready"
+  - name: NAS
+    meta: singularity
+    url: "https://singularity.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}"
+    icon: nas
+    check:
+      type: tcp
+      target: "singularity.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:2049"
+  - name: Tailscale
+    meta: admin console
+    url: https://login.tailscale.com/admin/machines
+    icon: tailnet
+  - name: GitHub
+    meta: megamp15/AUTOLAB
+    url: https://github.com/megamp15/AUTOLAB
+    icon: repo

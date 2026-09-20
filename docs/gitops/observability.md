@@ -497,6 +497,22 @@ script chowns the copied blocks to uid 65534 — a root-owned data directory is
 unreadable to it and Prometheus starts with an empty database rather than
 failing, which would read as a lost snapshot.
 
+## The homepage
+
+`http://jwst.<tailnet>:8080` — the Singularity design (`docs/design/`), a
+scroll-driven monochrome page: scroll through the black hole and the lab's
+services and guests appear, each with a live dot, plus a three-line feed.
+Static files served by nginx from the observability compose, bound to the
+tailnet address like everything else here. The data is one file:
+`status.json`, written every minute by `autolab-obs-digest --status` from
+the same Proxmox, PBS and Grafana sources the digest reads.
+
+Rows: the links declared in `autolab_obs_homepage_links` (a `check` gives
+a link its dot: `http` counts any answer below 500, `tcp` a connect) and
+every non-template guest from Proxmox with its newest backup age. Feed:
+the last vzdump, alerts firing, hosts reporting. A `status.json` older than
+five minutes is called out on the page itself rather than shown as current.
+
 ## The morning digest
 
 Alerts say what is broken. The digest says what did not happen: one ntfy

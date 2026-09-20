@@ -45,3 +45,10 @@
     name: autolab-obs-backup-metrics.service
     state: started
   failed_when: false
+
+- name: Write status once
+  ansible.builtin.systemd_service:
+    name: autolab-obs-status.service
+    state: started
+    daemon_reload: true
+  failed_when: false

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AUTOLAB</title>
+<!--
+  Managed by Ansible — roles/observability-stack. The "Singularity" design
+  (docs/design/singularity.dc.html) ported to a page with no framework: the
+  canvas, scramble and drag code is the original's; rows and feed come from
+  status.json, written next to this file every minute by the digest script.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#FFFFFF; }
+  a { color: inherit; text-decoration: none; }
+  a:hover { color: inherit; }
+  [data-sg-root] { --sg-p:0; --sg-enter:0; --sg-glitch:0; --sg-flood:0; --sg-bg:#FFFFFF; --sg-fg:#0A0A0A; position:relative; background:var(--sg-bg); color:var(--sg-fg); font-family:'Space Grotesk',system-ui,sans-serif; }
+  .mono { font-family:'IBM Plex Mono',monospace; }
+  .row { position:relative; display:flex; align-items:center; gap:16px; padding:10px 2px; transition:padding-left .25s ease; }
+  .row:hover { padding-left:10px; }
+  .row svg { flex:none; }
+  .row .name { font-size:13.5px; letter-spacing:.02em; flex:1 1 auto; min-width:0; }
+  .row .meta { font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.14em; opacity:.55; white-space:nowrap; }
+  .row .dot { width:5px; height:5px; border-radius:50%; flex:none; border:1px solid currentColor; }
+  .row .line { position:absolute; left:0; right:0; bottom:0; height:1px; background:currentColor; opacity:.35; }
+  .feed { display:flex; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; line-height:1.6; }
+  .feed .t { opacity:.5; font-variant-numeric:tabular-nums; }
+  .hint { position:fixed; left:0; right:0; bottom:18px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.3em; opacity:.35; pointer-events:none; }
+</style>
+</head>
+<body>
+<div data-sg-root="1">
+  <div style="height:230vh;">
+    <div style="position:sticky; top:0; height:100vh; overflow:hidden;">
+      <canvas data-sg-sky="1" style="position:absolute; inset:0; width:100%; height:100%; display:block;"></canvas>
+      <div id="stage" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:clamp(20px,5vw,64px); pointer-events:none;">
+        <div style="width:min(760px,100%); display:flex; flex-direction:column; gap:clamp(16px,2.6vh,26px); filter:blur(calc((1 - var(--sg-flood)) * 3px)); transform:scaleY(calc(0.82 + var(--sg-flood) * 0.18));">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; opacity:calc((var(--sg-flood) - 0.02) * 9);">
+            <span class="mono" style="font-size:11px; letter-spacing:.34em;">AUTOLAB</span>
+            <div style="display:flex; align-items:center; gap:14px;">
+              <span id="clock" class="mono" style="font-size:11px; letter-spacing:.2em; font-variant-numeric:tabular-nums;">--:--</span>
+              <button id="flip" style="padding:6px 12px; cursor:pointer; background:transparent; color:var(--sg-fg); border:1px solid var(--sg-fg); border-radius:999px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.22em; text-transform:uppercase;">Black</button>
+            </div>
+          </div>
+          <div style="height:1px; background:var(--sg-fg); transform:scaleX(min(1, calc(var(--sg-flood) * 1.6))); opacity:calc(var(--sg-flood) * 4);"></div>
+          <div id="rows" style="display:flex; flex-direction:column;"></div>
+          <div id="feed" style="display:flex; flex-direction:column; gap:8px; opacity:calc((var(--sg-flood) - 0.66) * 8);"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="hint" id="hint">SCROLL</div>
+
+<script>
+(() => {
+  const clamp = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
+  const ICONS = {
+    hypervisor: 'M3 4.5h18v5H3zM3 14.5h18v5H3zM6.5 7h.01M6.5 17h.01',
+    backup: 'M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z',
+    metrics: 'M4 18V7M9 18v-6M14 18V4M19 18v-9',
+    logs: 'M4 7h16M4 12h16M4 17h10',
+    nas: 'M3 4.5h18v12H3zM8.5 20.5h7M12 16.5v4',
+    tailnet: 'M3 12h4l2.5-6 3.5 12 2.5-6H21',
+    repo: 'M7 8l-4 4 4 4M17 8l4 4-4 4M14 5l-4 14',
+    guest: 'M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5',
+    tenant: 'M4 6h16v12H4zM9.5 10l5 2-5 2z'
+  };
+
+  const state = { dark: false, rows: [], feed: [], stale: false };
+  const root = document.querySelector('[data-sg-root]');
+  const sky = document.querySelector('[data-sg-sky]');
+  const stage = document.getElementById('stage');
+  const rowsEl = document.getElementById('rows');
+  const feedEl = document.getElementById('feed');
+  const hint = document.getElementById('hint');
+
+  // ---- data --------------------------------------------------------------
+  function render() {
+    rowsEl.replaceChildren(...state.rows.map((r, i) => {
+      const a = document.createElement('a');
+      a.className = 'row';
+      a.href = r.url || '#';
+      if (r.url && /^https?:/.test(r.url)) a.target = '_blank';
+      const d = (0.04 + i * 0.05).toFixed(3);
+      const x = (i % 2 ? -1 : 1) * (26 + i * 5);
+      const op = r.up ? 1 : .42;
+      a.style.opacity = `calc((var(--sg-flood) - ${d}) * 9)`;
+      a.style.transform = `translateX(calc((1 - var(--sg-flood)) * ${x}px))`;
+      a.innerHTML =
+        `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="90" style="opacity:${op}; stroke-dashoffset:calc((1 - var(--sg-flood)) * 90);"><path d="${ICONS[r.icon] || ICONS.guest}"></path></svg>` +
+        `<span class="name" data-final="" style="opacity:${op};"></span>` +
+        `<span class="meta"></span>` +
+        `<span class="dot" style="background:${r.up ? 'currentColor' : 'transparent'};"></span>` +
+        `<span class="line" style="transform:scaleX(min(1, calc((var(--sg-flood) - ${d}) * 3)));"></span>`;
+      a.querySelector('.name').setAttribute('data-final', r.name);
+      a.querySelector('.name').textContent = r.name;
+      a.querySelector('.meta').textContent = r.meta || '';
+      return a;
+    }));
+    feedEl.replaceChildren(...state.feed.map(f => {
+      const div = document.createElement('div');
+      div.className = 'feed';
+      div.innerHTML = '<span class="t"></span><span style="text-wrap:pretty;"></span>';
+      div.children[0].textContent = f.time;
+      div.children[1].textContent = f.text;
+      return div;
+    }));
+    scrambleDone = -1;
+  }
+
+  async function load() {
+    try {
+      const r = await fetch('status.json?t=' + Date.now(), { cache: 'no-store' });
+      const j = await r.json();
+      state.rows = j.rows || [];
+      state.feed = j.feed || [];
+      const age = (Date.now() / 1000) - (j.generated || 0);
+      state.stale = age > 300;
+      if (state.stale) state.feed = [{ time: '--:--', text: `status.json is ${Math.round(age / 60)} min old — the collector on jwst has stopped` }, ...state.feed];
+    } catch (e) {
+      state.rows = [];
+      state.feed = [{ time: '--:--', text: 'status.json unavailable: ' + e }];
+    }
+    render();
+  }
+  load();
+  setInterval(load, 30000);
+
+  // ---- clock / flip ------------------------------------------------------
+  const pad = (n) => String(n).padStart(2, '0');
+  const clockEl = document.getElementById('clock');
+  const tickClock = () => { const d = new Date(); clockEl.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+  tickClock(); setInterval(tickClock, 1000);
+  const flipBtn = document.getElementById('flip');
+  try { state.dark = localStorage.getItem('autolab-dark') === '1'; } catch (e) {}
+  flipBtn.textContent = state.dark ? 'White' : 'Black';
+  flipBtn.addEventListener('click', () => {
+    state.dark = !state.dark;
+    flipBtn.textContent = state.dark ? 'White' : 'Black';
+    try { localStorage.setItem('autolab-dark', state.dark ? '1' : '0'); } catch (e) {}
+  });
+
+  // ---- the original's motion, verbatim in spirit -------------------------
+  const S = { recon: 0, off: { x: 0, y: 0 }, drag: null, parts: null, noise: null, spin: 0 };
+  let px = { p: 0, enter: 0, glitch: 0, flood: 0, bg: '#FFF', fg: '#000' };
+  let scrambleDone = -1, pointerOn = false, _t = 0, _pt = 0, dpr = 1, w = 1, h = 1;
+
+  const toRGB = (hex) => { const n = String(hex).replace('#', ''); const v = n.length === 3 ? n.split('').map(x => x + x).join('') : n; const num = parseInt(v, 16) || 0; return [(num >> 16) & 255, (num >> 8) & 255, num & 255]; };
+  const mix = (a, b, t) => { const A = toRGB(a), B = toRGB(b); return 'rgb(' + Math.round(A[0] + (B[0] - A[0]) * t) + ',' + Math.round(A[1] + (B[1] - A[1]) * t) + ',' + Math.round(A[2] + (B[2] - A[2]) * t) + ')'; };
+  const rgba = (col, a) => { const al = Math.max(0, Math.min(1, a)).toFixed(3); const m = String(col).match(/rgb\((\d+),(\d+),(\d+)\)/); if (m) return 'rgba(' + m[1] + ',' + m[2] + ',' + m[3] + ',' + al + ')'; const c = toRGB(col); return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + al + ')'; };
+
+  function frame() {
+    const doc = document.documentElement;
+    const max = Math.max(1, doc.scrollHeight - window.innerHeight);
+    const p = clamp((window.scrollY || doc.scrollTop) / max);
+    const enter = clamp(p / 0.82);
+    const glitch = clamp((p - 0.82) / 0.16);
+    const now = performance.now();
+    const dt = Math.min(0.06, Math.max(0, (now - (_t || now)) / 1000));
+    _t = now;
+    const target = glitch >= 1 ? 1 : 0;
+    const rate = target ? dt / 1.9 : -dt / 1.1;
+    S.recon = clamp(S.recon + rate);
+    const flood = S.recon;
+    const paper = state.dark ? '#08080A' : '#FFFFFF';
+    const ink = state.dark ? '#F4F4F5' : '#0A0A0A';
+    const u = clamp((p - 0.86) / 0.06), sm = u * u * (3 - 2 * u);
+    px = { p, enter, glitch, flood, bg: mix(paper, ink, sm), fg: mix(ink, paper, sm) };
+    root.style.setProperty('--sg-p', p.toFixed(4));
+    root.style.setProperty('--sg-enter', enter.toFixed(4));
+    root.style.setProperty('--sg-glitch', glitch.toFixed(4));
+    root.style.setProperty('--sg-flood', flood.toFixed(4));
+    root.style.setProperty('--sg-bg', px.bg);
+    root.style.setProperty('--sg-fg', px.fg);
+    document.body.style.background = px.bg;
+    const want = flood > 0.5;
+    if (want !== pointerOn) { pointerOn = want; stage.style.pointerEvents = want ? 'auto' : 'none'; }
+    hint.style.opacity = p < 0.05 ? '.35' : '0';
+  }
+
+  function size() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const r = sky.getBoundingClientRect();
+    const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+    if (sky.width !== W || sky.height !== H) { sky.width = W; sky.height = H; }
+    w = r.width; h = r.height;
+  }
+
+  function seedParts() {
+    S.parts = [];
+    for (let k = 0; k < 520; k++) { const u = Math.pow(Math.random(), .8); S.parts.push({ r: 1.08 + u * 2.5, a: Math.random() * 6.2832, b: .35 + Math.random() * .65, t: Math.random() * .9 + .3 }); }
+    S.noise = [];
+    for (let k = 0; k < 80; k++) S.noise.push({ y: Math.random(), h: Math.random() * .05 + .004, o: Math.random() - .5, s: Math.random() });
+  }
+
+  function arc(ctx, cx, cy, s, tilt, fg) {
+    ctx.strokeStyle = rgba(fg, s[3]); ctx.lineWidth = .6 + s[4] * 1.5;
+    ctx.beginPath(); ctx.ellipse(cx, cy, s[0], s[0] * tilt, 0, s[1], s[1] + s[2]); ctx.stroke();
+  }
+
+  function paint(T) {
+    size();
+    if (!S.parts) seedParts();
+    const ctx = sky.getContext('2d'); if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const fg = px.fg, bg = px.bg, off = S.off;
+    const cx = w * .5 + off.x * .85, cy = h * .5 + off.y * .5;
+    const enter = px.enter, glitch = px.glitch, flood = px.flood;
+    if (flood > 0.02) {
+      const hr = Math.max(w, h) * (.5 + .08 * Math.sin(T * .5));
+      const hg = ctx.createRadialGradient(cx, cy, 0, cx, cy, hr);
+      hg.addColorStop(0, rgba(fg, .05 * flood)); hg.addColorStop(.55, rgba(fg, .015 * flood)); hg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = hg; ctx.fillRect(0, 0, w, h);
+    }
+    if (glitch > 0.001 && glitch < 0.999) {
+      const g = Math.sin(Math.PI * glitch);
+      for (let k = 0; k < S.noise.length; k++) {
+        const n = S.noise[k]; const y = ((n.y + T * .4 * n.s) % 1) * h; const bh = n.h * h * (0.4 + g);
+        const dx = n.o * w * .7 * g * (Math.sin(T * 40 + k) > .2 ? 1 : .2);
+        ctx.fillStyle = rgba(fg, .12 + .5 * g * n.s); ctx.fillRect(dx, y, w * (.25 + n.s * .75), Math.max(1, bh * .3));
+      }
+      for (let k = 0; k < 160; k++) {
+        const x = (Math.sin(k * 12.9898 + T * 9) * .5 + .5) * w, y = (Math.sin(k * 78.233 + T * 7) * .5 + .5) * h;
+        ctx.fillStyle = rgba(fg, .5 * g); ctx.fillRect(x, y, 2 + (k % 5), 2);
+      }
+      ctx.fillStyle = rgba(fg, .1 * g); ctx.fillRect(0, 0, w, h);
+    }
+    const fade = 1 - glitch;
+    if (fade <= 0.002) return;
+    const base = Math.min(w, h) * .14;
+    const R = base * (1 + enter * enter * 6.5);
+    const tilt = Math.max(.04, Math.min(.8, .19 + enter * .1 + (off.y / h) * .9));
+    const stretch = 1 + enter * enter * 14;
+    const breathe = 1 + .02 * Math.sin(T * .7);
+    const dtp = Math.min(0.05, Math.max(0, T - (_pt || T))); _pt = T;
+    S.spin += dtp * (.55 + enter * 3.4);
+    const hr = R * 3.4 * breathe;
+    const halo = ctx.createRadialGradient(cx, cy, R * .85, cx, cy, hr);
+    halo.addColorStop(0, rgba(fg, .1 * fade)); halo.addColorStop(.18, rgba(fg, .05 * fade)); halo.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(cx, cy, hr, 0, 6.2832); ctx.fill();
+    const lensFade = fade * (1 - enter * .85);
+    if (lensFade > .004) {
+      const lensR = Math.min(R, Math.min(w, h) * .55);
+      for (let k = 0; k < 22; k++) {
+        const u = k / 22; ctx.strokeStyle = rgba(fg, (.085 - u * .075) * lensFade); ctx.lineWidth = 1 + (1 - u) * 1.4;
+        ctx.beginPath(); ctx.ellipse(cx, cy, lensR * (1.06 + u * .5), lensR * (1.42 + u * .85) * (1 + .012 * Math.sin(T * 1.2 + k)), 0, 0, 6.2832); ctx.stroke();
+      }
+    }
+    const front = [];
+    for (let k = 0; k < S.parts.length; k++) {
+      const p = S.parts[k]; const rad = R * p.r * (1 - enter * .18); const spd = .9 / Math.pow(p.r, 1.4); const ang = p.a + S.spin * spd;
+      const dA = (.03 + p.t * .09) * (1 + stretch * .5) / p.r; const dop = Math.cos(ang) < 0 ? 1.7 : .5;
+      const alpha = .1 * p.b * dop * fade * (1 + enter * .5); const seg = [rad, ang, dA, alpha, p.t];
+      if (Math.sin(ang) > 0) front.push(seg); else arc(ctx, cx, cy, seg, tilt, fg);
+    }
+    ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(cx, cy, R * .995, 0, 6.2832); ctx.fill();
+    const shimmer = .45 + .18 * Math.sin(T * 2.1) + .1 * Math.sin(T * 5.3);
+    ctx.strokeStyle = rgba(fg, shimmer * fade); ctx.lineWidth = 1.2 + .5 * Math.sin(T * 1.7);
+    ctx.beginPath(); ctx.arc(cx, cy, R * 1.008, 0, 6.2832); ctx.stroke();
+    ctx.strokeStyle = rgba(fg, .12 * fade); ctx.lineWidth = 6 + 3 * Math.sin(T * .9);
+    ctx.beginPath(); ctx.arc(cx, cy, R * 1.05, 0, 6.2832); ctx.stroke();
+    for (let k = 0; k < front.length; k++) arc(ctx, cx, cy, front[k], tilt, fg);
+  }
+
+  function scramble(T) {
+    const r = S.recon;
+    if (r <= 0 || scrambleDone === r) return;
+    const nodes = root.querySelectorAll('[data-final]');
+    const GL = '01<>[]{}/\\|=+*#%$&';
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i], fin = n.getAttribute('data-final') || '';
+      const local = clamp((r - i * 0.045) / 0.4);
+      if (local >= 1) { if (n.textContent !== fin) n.textContent = fin; continue; }
+      const keep = Math.floor(fin.length * local);
+      let out = fin.slice(0, keep);
+      for (let k = keep; k < fin.length; k++) out += fin[k] === ' ' ? ' ' : GL[Math.floor((Math.sin(k * 91.7 + i * 13.3 + T * 22) * .5 + .5) * GL.length) % GL.length];
+      n.textContent = out;
+    }
+    if (r >= 1) scrambleDone = r;
+  }
+
+  // drag the hole
+  root.style.cursor = 'grab';
+  root.addEventListener('contextmenu', (e) => e.preventDefault());
+  root.addEventListener('pointerdown', (e) => {
+    if (e.target.closest && e.target.closest('a,button')) return;
+    e.preventDefault(); S.drag = { x: e.clientX, y: e.clientY }; root.style.cursor = 'grabbing';
+    try { root.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  window.addEventListener('pointermove', (e) => {
+    const d = S.drag; if (!d) return;
+    const lx = window.innerWidth * .45, ly = window.innerHeight * .45, o = S.off;
+    o.x = Math.max(-lx, Math.min(lx, o.x + (e.clientX - d.x))); o.y = Math.max(-ly, Math.min(ly, o.y + (e.clientY - d.y)));
+    S.drag = { x: e.clientX, y: e.clientY };
+  });
+  const end = () => { S.drag = null; root.style.cursor = 'grab'; };
+  window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+
+  const loop = (t) => { requestAnimationFrame(loop); try { frame(); paint(t / 1000); scramble(t / 1000); } catch (e) {} };
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

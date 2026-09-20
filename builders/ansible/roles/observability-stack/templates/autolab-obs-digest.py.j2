@@ -14,6 +14,7 @@ import os
 import re
 import ssl
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -117,6 +118,92 @@ def write_metrics():
     os.replace(tmp, path)
     print(f"wrote {path}: {len(newest)} guests with backups, {len(excluded)} excluded")
 
+
+def probe(check):
+    # up/down for a homepage row. http: any answer below 500 counts (a login
+    # page is up); tcp: the port accepts. Self-signed everywhere, so no
+    # verification — this is reachability, not identity.
+    kind, target = check.get("type"), check.get("target")
+    try:
+        if kind == "http":
+            ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+            req = urllib.request.Request(target, method="GET")
+            try:
+                with urllib.request.urlopen(req, timeout=6, context=ctx) as r:
+                    return r.status < 500
+            except urllib.error.HTTPError as e:
+                return e.code < 500
+        if kind == "tcp":
+            import socket
+            host, port = target.rsplit(":", 1)
+            with socket.create_connection((host, int(port)), timeout=6):
+                return True
+    except Exception:  # noqa: BLE001
+        return False
+    return True
+
+
+def write_status(path):
+    # --status <file>: rows and feed for the homepage. Links come from
+    # /etc/autolab/homepage.json (the role writes it from the machines
+    # map's neighbours and the declared services); guests come from Proxmox
+    # with their newest backup age from PBS.
+    with open("/etc/autolab/homepage.json") as f:
+        conf = json.load(f)
+    rows = []
+    for link in conf.get("links", []):
+        up = probe(link.get("check", {})) if link.get("check") else True
+        rows.append({"name": link["name"], "meta": link.get("meta", ""), "url": link.get("url", "#"),
+                     "icon": link.get("icon", "guest"), "up": up})
+    feed = []
+    try:
+        node = pve("/cluster/resources?type=node")[0]["node"]
+        guests = [g for g in pve("/cluster/resources?type=vm") if g.get("type") == "qemu" and not g.get("template")]
+        newest = {}
+        if PBS_URL:
+            for store in PBS_DATASTORES or [BACKUP_STORAGE]:
+                for snap in pbs(f"/admin/datastore/{store}/snapshots?backup-type=vm"):
+                    vmid = int(snap["backup-id"]); newest[vmid] = max(newest.get(vmid, 0), snap["backup-time"])
+        for g in sorted(guests, key=lambda g: g["vmid"]):
+            running = g.get("status") == "running"
+            meta = "running" if running else g.get("status", "?")
+            if g["vmid"] in newest:
+                meta += " · backup " + age(newest[g["vmid"]])[0]
+            rows.append({"name": g["name"], "meta": meta, "icon": "tenant" if g["name"].startswith("qnta") else "guest",
+                         "url": f"https://{PVE}:8006/#v1:0:=qemu%2F{g['vmid']}", "up": running})
+        tasks = [t for t in pve(f"/nodes/{node}/tasks?typefilter=vzdump&limit=5&source=all") if t.get("endtime")]
+        if tasks:
+            last = max(tasks, key=lambda t: t["endtime"])
+            ok = last.get("status") == "OK"
+            feed.append({"time": dt.datetime.fromtimestamp(last["endtime"]).strftime("%H:%M"),
+                         "text": ("backup OK" if ok else "backup FAILED: " + str(last.get("status"))) + f" · {(last['endtime'] - last['starttime']) / 60:.0f} min"})
+    except Exception as e:  # noqa: BLE001
+        feed.append({"time": "--:--", "text": f"proxmox: {type(e).__name__}"})
+    try:
+        firing = [a for a in get(f"{GRAFANA}/api/prometheus/grafana/api/v1/alerts")["data"]["alerts"] if a["state"] == "Alerting"]
+        if firing:
+            names = sorted({a["labels"].get("alertname", "?") for a in firing})
+            feed.append({"time": NOW.astimezone().strftime("%H:%M"), "text": f"{len(firing)} alert{'s' if len(firing) > 1 else ''} firing: " + ", ".join(names)})
+        else:
+            feed.append({"time": NOW.astimezone().strftime("%H:%M"), "text": "no alerts firing"})
+    except Exception as e:  # noqa: BLE001
+        feed.append({"time": "--:--", "text": f"grafana: {type(e).__name__}"})
+    try:
+        up = prom('count(up{job="integrations/unix"} == 1) or count(up == 1)')
+        n = int(float(up[0]["value"][1])) if up else 0
+        feed.append({"time": NOW.astimezone().strftime("%H:%M"), "text": f"{n} host{'s' if n != 1 else ''} reporting metrics"})
+    except Exception as e:  # noqa: BLE001
+        feed.append({"time": "--:--", "text": f"prometheus: {type(e).__name__}"})
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump({"generated": int(NOW.timestamp()), "rows": rows, "feed": feed[:3]}, f)
+    os.replace(tmp, path)
+    print(f"wrote {path}: {len(rows)} rows, {len(feed)} feed lines")
+
+
+if "--status" in sys.argv:
+    write_status(sys.argv[sys.argv.index("--status") + 1])
+    sys.exit(0)
 
 if "--metrics" in sys.argv:
     if not PBS_URL:

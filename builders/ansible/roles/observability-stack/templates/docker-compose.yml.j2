@@ -60,6 +60,18 @@ services:
       - ./grafana/data:/var/lib/grafana
     ports:
       - "{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}:3000"
+{% if autolab_obs_homepage_enabled | bool %}
+
+  # The homepage: static files and a status.json the digest script writes
+  # every minute. Nothing dynamic runs in the container.
+  homepage:
+    image: {{ autolab_obs_images.homepage }}
+    restart: unless-stopped
+    volumes:
+      - ./homepage/site:/usr/share/nginx/html:ro
+    ports:
+      - "{{ autolab_tailscale_ip }}:{{ autolab_obs_homepage_port }}:80"
+{% endif %}
 {% if autolab_obs_pve_token_id | length > 0 %}
 
   # Scrapes the Proxmox API, so it needs no agent on the hypervisor. Not
