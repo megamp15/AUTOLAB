@@ -12,6 +12,10 @@
 
 - name: Deploy the observability backends on the stack host
   hosts: linux_servers
+  # A notified restart must survive a later failure in the play: a rule file
+  # that changed with no restart behind it is a change Grafana never saw,
+  # and the next run sees no change to notify on.
+  force_handlers: true
   become: true
   gather_facts: true
 
