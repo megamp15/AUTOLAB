@@ -656,6 +656,26 @@ as healthy, and nothing about the query, the series count or the rule listing
 looked wrong. Assert on a metric whose matching value is truthy — here
 `pve_onboot_status == 1 unless on(id) pve_up == 1`, which returns 1.
 
+**A rename is a duplicate series, and a query error is an alert.** A restore
+test creates its guest as `VM 102` and renames it `sputnik-restore-test`; both
+`pve_guest_info` series sit in the staleness window under one `id`, so every
+rule that joins guest names fails with *many-to-many matching not allowed* for
+the whole run. `max by (id, name)` cannot fold two names. With
+`execErrState: Error`, a failure that outlasts the rule's `for` pages as
+`DatasourceError`, so a monthly restore-all would have paged monthly. Observed
+live during the first `all` run: two rules at `health=error`, both `pending`.
+The joins now drop names no managed guest has
+(`autolab_obs_transient_guest_names`).
+
+**A textfile that is deleted is not a textfile that is stale.** With the
+metrics gone, `time() - max(collector_timestamp)` returns nothing, and
+`noDataState: OK` calls nothing healthy — the stale warning could only fire
+when the file stayed behind with an old value. Meanwhile `Backup is missing`
+lost `autolab_backup_excluded` along with everything else and paged for ark
+too. Observed live in the fire test. Both rules now read the textfile through
+`last_over_time(...[7d])`, so they judge the collector's last facts until it
+writes again.
+
 **`CommonAnnotations` is empty whenever instances disagree.** Grafana populates
 it only with annotations identical across every alert in the group, so a rule
 firing for one host carries its summary and the same rule firing for three
