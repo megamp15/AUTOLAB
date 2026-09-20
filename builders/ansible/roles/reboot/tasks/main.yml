@@ -1,0 +1,46 @@
+---
+- name: See whether the reboot-required flag is set
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: autolab_reboot_flag
+
+- name: Compare the running kernel with the newest installed
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      find /boot -maxdepth 1 -name 'vmlinuz-*' | sed 's|.*/vmlinuz-||' | sort -V | tail -n 1
+    executable: /bin/bash
+  register: autolab_reboot_newest_kernel
+  changed_when: false
+  check_mode: false
+
+- name: Decide
+  ansible.builtin.set_fact:
+    autolab_reboot_needed: >-
+      {{ autolab_reboot_force | bool
+         or autolab_reboot_flag.stat.exists
+         or (autolab_reboot_newest_kernel.stdout | length > 0
+             and autolab_reboot_newest_kernel.stdout != ansible_kernel) }}
+
+- name: Reboot and wait for the host to return
+  ansible.builtin.reboot:
+    reboot_timeout: "{{ autolab_reboot_timeout_s }}"
+    msg: "Autolab reboot playbook: {{ 'forced' if autolab_reboot_force | bool else 'kernel ' ~ autolab_reboot_newest_kernel.stdout ~ ' installed' }}"
+  when: autolab_reboot_needed | bool
+  register: autolab_reboot_result
+
+- name: Read the kernel it came back on
+  ansible.builtin.command:
+    argv: [uname, -r]
+  register: autolab_reboot_kernel_after
+  changed_when: false
+  check_mode: false
+
+- name: Report
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}:
+      {{ 'rebooted in ' ~ autolab_reboot_result.elapsed ~ 's, now running ' ~ autolab_reboot_kernel_after.stdout
+         if autolab_reboot_result is not skipped and autolab_reboot_result.rebooted | default(false)
+         else ('would reboot (check mode)' if ansible_check_mode and autolab_reboot_needed | bool
+               else 'no reboot needed, running ' ~ autolab_reboot_kernel_after.stdout) }}

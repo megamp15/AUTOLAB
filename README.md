@@ -78,7 +78,7 @@ Once the host is on Tailscale, work through the [phase 2 setup checklist](docs/g
 | `01 · Bootstrap private VM network` | One-time `vmbr1` + NAT for Wi-Fi-only hosts |
 | `02 · Packer Build` | Build a VM template from the [catalog](infra/packer/template-catalog.yaml) |
 | `03 · OpenTofu Plan` / `04 · Apply` | Plan and apply the `lab` stack |
-| `05 · Ansible Builder` | Harden VMs; run `docker`, `storage`, `backup`, `updates` or `tailscale-update` on demand |
+| `05 · Ansible Builder` | Harden VMs; run `docker`, `storage`, `backup`, `updates`, `reboot` or `tailscale-update` on demand |
 | `06 · Tailscale Policy` | Apply the tailnet policy from Git |
 | `07 · Proxmox Node` | Bring the hypervisor under Ansible: repositories, accounts, backup target, login screen |
 | `08 · PBS Restore` | Restore a guest from Proxmox Backup Server — `test` proves a backup boots, `replace` is the disaster button |
