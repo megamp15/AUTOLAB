@@ -39,7 +39,7 @@ hold ciphertext.
 | encryption key | `/etc/pve/priv/storage/ark.enc` on the node; copies in the password manager and R2 (`autolab-keys`) since 2026-09-20 |
 | `autolab-nightly` | enabled 2026-09-20, 02:00, every guest except templates 9000/9002 |
 | first backup | sputnik, 2026-09-20 06:14 UTC, 3.3 GB of 20 GB written in 5 min |
-| first restore | sputnik via `08 - PBS Restore` (test), 2026-09-20 06:30 UTC: `BOOTED as Debian GNU/Linux 13 (trixie)` |
+| first restore | sputnik via `09 - PBS Restore` (test), 2026-09-20 06:30 UTC: `BOOTED as Debian GNU/Linux 13 (trixie)` |
 | offsite copy | not yet — B2 as a second datastore, its own PR |
 | digest | the 06:00 ntfy digest reports last night's vzdump, each guest's newest backup age, stale/never, storage headroom — see [observability](./observability.md#the-morning-digest) |
 | alert | not yet as a Grafana rule — the digest flags stale and never-backed-up guests every morning; a paging rule follows |
@@ -88,7 +88,7 @@ hold ciphertext.
    `playbooks/proxmox.yml` in a PR of its own — that PR is the record that
    step 6 happened — and run 07 again. First run: trigger it by hand in the
    PVE UI (Datacenter → Backup → Run now) rather than waiting for 02:00.
-8. **Restore.** Workflow **08 - PBS Restore**, `vm: sputnik`, `mode: test`,
+8. **Restore.** Workflow **09 - PBS Restore**, `vm: sputnik`, `mode: test`,
    `confirm: RESTORE`. It restores the latest snapshot to a new guest, boots
    it with the network link down, waits for the guest agent, records the OS
    it reports, and destroys it. Not before this passes is the phase done.
@@ -96,12 +96,12 @@ hold ciphertext.
 Steps 1–8 were done on 2026-09-20. Still open, each its own PR: Backblaze
 B2 as a second PBS datastore with a sync job from the NAS one (two secrets:
 key ID and application key); an alert on guests without a recent backup and
-on failed verify jobs. Run `08 - PBS Restore` with `vm: all` after the first
+on failed verify jobs. Run `09 - PBS Restore` with `vm: all` after the first
 nightly, then monthly.
 
 ## Backing up on demand
 
-Workflow **09 - PBS Backup**: `vm` is a guest name or `all`, `confirm:
+Workflow **08 - PBS Backup**: `vm` is a guest name or `all`, `confirm:
 BACKUP`. It reads `autolab-nightly`'s storage, mode, compression and
 exclude list from the node and runs `vzdump` with exactly those, so an
 on-demand run is the nightly at a different hour. A guest asked for by
@@ -111,7 +111,7 @@ before 02:00. PBS deduplicates, so repeating it costs almost nothing.
 
 ## Restoring
 
-Workflow **08 - PBS Restore** is the only way anyone should restore; the
+Workflow **09 - PBS Restore** is the only way anyone should restore; the
 commands it runs are in `roles/pbs-restore`, and nothing about them is worth
 remembering under stress.
 

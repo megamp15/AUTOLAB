@@ -213,13 +213,13 @@ The `harden.yml` playbook is the common baseline every managed server receives:
 
 ## Backup now (`backup-now.yml`)
 
-Run by workflow **09 - PBS Backup** against the hypervisor inventory: the
+Run by workflow **08 - PBS Backup** against the hypervisor inventory: the
 nightly job's settings, on demand, for one guest or all. See
 [backups](../../docs/gitops/backups.md#backing-up-on-demand).
 
 ## Restore (`restore.yml`)
 
-Run by workflow **08 - PBS Restore** against the hypervisor inventory.
+Run by workflow **09 - PBS Restore** against the hypervisor inventory.
 `test` restores a throwaway copy of a guest, boots it isolated, checks the
 guest agent answers and destroys it; `replace` overwrites the live guest.
 See [backups](../../docs/gitops/backups.md#restoring).

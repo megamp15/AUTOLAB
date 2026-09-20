@@ -1,32 +1,20 @@
-name: 08 - PBS Restore
-run-name: "Restore ${{ inputs.vm }} (${{ inputs.mode }})"
+name: 08 - PBS Backup
+run-name: "Back up ${{ inputs.vm }}"
 
-# Restore guests from Proxmox Backup Server. `test` restores the snapshot to
-# a new guest, boots it with its network link down, waits for the guest
-# agent, records the OS it reports and destroys it — the proof that a backup
-# is a machine. `replace` stops the live guest and restores over it: the
-# disaster button, one guest at a time, behind a typed confirmation.
+# A backup on demand, identical to the nightly: the job's storage, mode,
+# compression and exclude list are read from the node, so the only choice
+# here is what to back up. Safe at any hour — PBS deduplicates, so a second
+# backup of an unchanged guest costs almost nothing.
 on:
   workflow_dispatch:
     inputs:
       vm:
-        description: Guest name as in the machines map (sputnik, jwst, …), or `all` for a test of every guest
+        description: Guest name as in the machines map, or `all` for the job's full scope
         required: true
-        default: sputnik
-        type: string
-      mode:
-        description: test restores a throwaway copy and destroys it; replace overwrites the live guest
-        required: true
-        default: test
-        type: choice
-        options: [test, replace]
-      snapshot:
-        description: "Snapshot to restore, e.g. 2026-09-20T06:14:36Z; empty = latest"
-        required: false
-        default: ''
+        default: all
         type: string
       confirm:
-        description: Type RESTORE to run; anything else only lists what would be restored
+        description: Type BACKUP to run; anything else only shows what would be backed up
         required: true
         default: ''
         type: string
@@ -36,27 +24,18 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pbs-restore
+  group: pbs-backup
   cancel-in-progress: false
 
 jobs:
-  restore:
-    name: Restore ${{ inputs.vm }} (${{ inputs.mode }})
+  backup:
+    name: Back up ${{ inputs.vm }}
     runs-on: ubuntu-latest
     env:
       PVE_LIMIT: proxmox_nodes
-      RESTORE_VM: ${{ inputs.vm }}
-      RESTORE_MODE: ${{ inputs.mode }}
-      RESTORE_SNAPSHOT: ${{ inputs.snapshot }}
-      RESTORE_CONFIRM: ${{ inputs.confirm }}
+      BACKUP_VM: ${{ inputs.vm }}
+      BACKUP_CONFIRM: ${{ inputs.confirm }}
     steps:
-      - name: Refuse a replace of everything
-        run: |
-          if [[ "$RESTORE_MODE" == "replace" && "$RESTORE_VM" == "all" ]]; then
-            echo "replace takes one guest name, never all" >&2
-            exit 1
-          fi
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -115,18 +94,17 @@ jobs:
             done
           done
 
-      - name: Run the restore playbook
+      - name: Run the backup playbook
         working-directory: builders/ansible
         run: |
           set -o pipefail
-          args=(-i inventories/hypervisors/hosts.yml playbooks/restore.yml --limit "$PVE_LIMIT")
-          args+=(-e autolab_proxmox_user=gitops)
-          args+=(-e "autolab_restore_vm=$RESTORE_VM" -e "autolab_restore_mode=$RESTORE_MODE" -e "autolab_restore_snapshot=$RESTORE_SNAPSHOT")
-          if [ "$RESTORE_CONFIRM" != "RESTORE" ]; then
-            echo "confirm was not RESTORE; listing only." | tee "$GITHUB_WORKSPACE/restore-output.log"
+          args=(-i inventories/hypervisors/hosts.yml playbooks/backup-now.yml --limit "$PVE_LIMIT")
+          args+=(-e autolab_proxmox_user=gitops -e "autolab_backup_now_vm=$BACKUP_VM")
+          if [ "$BACKUP_CONFIRM" != "BACKUP" ]; then
+            echo "confirm was not BACKUP; check mode only." | tee "$GITHUB_WORKSPACE/backup-output.log"
             args+=(--check)
           fi
-          ansible-playbook "${args[@]}" 2>&1 | tee -a "$GITHUB_WORKSPACE/restore-output.log"
+          ansible-playbook "${args[@]}" 2>&1 | tee -a "$GITHUB_WORKSPACE/backup-output.log"
         env:
           ANSIBLE_HOST_KEY_CHECKING: 'true'
           ANSIBLE_SSH_COMMON_ARGS: '-o StrictHostKeyChecking=yes'
@@ -135,15 +113,13 @@ jobs:
         if: always()
         run: |
           {
-            echo "## PBS restore"
+            echo "## PBS backup"
             echo ""
-            echo "- guest: \`$RESTORE_VM\`"
-            echo "- mode: \`$RESTORE_MODE\`"
-            echo "- snapshot: \`${RESTORE_SNAPSHOT:-latest}\`"
-            echo "- confirmed: \`$([[ "$RESTORE_CONFIRM" == "RESTORE" ]] && echo yes || echo no)\`"
+            echo "- guest: \`$BACKUP_VM\`"
+            echo "- confirmed: \`$([[ "$BACKUP_CONFIRM" == "BACKUP" ]] && echo yes || echo no)\`"
             echo ""
-            grep -o 'RESTORE RESULT .*' "$GITHUB_WORKSPACE/restore-output.log" 2>/dev/null | sed 's/^/- /' | sed 's/["\\]//g' || true
-            recap="$(awk '/^PLAY RECAP/{getline; print; exit}' "$GITHUB_WORKSPACE/restore-output.log" 2>/dev/null || true)"
+            grep -oE '"(Finished Backup of VM|Failed at|ERROR: Backup of VM|transferred|Backup job finished)[^"]*"' "$GITHUB_WORKSPACE/backup-output.log" 2>/dev/null | tr -d '"' | sed 's/^/- /' || true
+            recap="$(awk '/^PLAY RECAP/{getline; print; exit}' "$GITHUB_WORKSPACE/backup-output.log" 2>/dev/null || true)"
             echo ""
             echo "\`\`\`"
             echo "${recap:-no recap (an earlier step failed)}"
