@@ -312,6 +312,6 @@
 
     - name: Remember it too
       ansible.builtin.set_fact:
+        # "Fingerprint (sha256): aa:bb:…" — everything after the label.
         autolab_pbs_fingerprint: >-
-          {{ autolab_pbs_cert.stdout_lines | select('search', 'Fingerprint') | first
-             | regex_replace('^.*\\)\\s*:\\s*', '') | trim }}
+          {{ ((autolab_pbs_cert.stdout_lines | select('search', 'Fingerprint') | first).split('): ') | last) | trim }}
