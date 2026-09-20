@@ -265,23 +265,25 @@
       when: autolab_pbs_digest_generated is not skipped
       no_log: true
 
-    - name: Grant the token read access to the datastores
+    # A token's permissions are intersected with its user's, so the grant
+    # goes to both — a token with an ACL and a user without one gets 403.
+    - name: Grant the digest read access to the datastores
       ansible.builtin.command:
         argv:
           - proxmox-backup-manager
           - acl
           - update
-          - "/datastore/{{ item.name }}"
+          - "/datastore/{{ item.0.name }}"
           - DatastoreAudit
           - --auth-id
-          - "{{ autolab_pbs_digest_user }}!{{ autolab_pbs_digest_token_name }}"
-      loop: "{{ autolab_pbs_datastores }}"
+          - "{{ item.1 }}"
+      loop: "{{ autolab_pbs_datastores | product([autolab_pbs_digest_user, autolab_pbs_digest_user ~ '!' ~ autolab_pbs_digest_token_name]) | list }}"
       loop_control:
-        label: "digest token DatastoreAudit on {{ item.name }}"
+        label: "{{ item.1 }} DatastoreAudit on {{ item.0.name }}"
       when: >-
         autolab_pbs_have.acls
-        | selectattr('path', 'equalto', '/datastore/' ~ item.name)
-        | selectattr('ugid', 'equalto', autolab_pbs_digest_user ~ '!' ~ autolab_pbs_digest_token_name)
+        | selectattr('path', 'equalto', '/datastore/' ~ item.0.name)
+        | selectattr('ugid', 'equalto', item.1)
         | selectattr('roleid', 'equalto', 'DatastoreAudit')
         | list | length == 0
       changed_when: true

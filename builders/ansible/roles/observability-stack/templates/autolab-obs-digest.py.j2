@@ -101,6 +101,12 @@ def backups():
         lines.append(f"Backup · last vzdump {started} {'OK' if ok else 'FAILED: ' + str(last.get('status'))} ({mins:.0f} min)")
         if not ok:
             problems.append("vzdump failed")
+            # vzdump's log carries one line per failed guest; quote them
+            # rather than making anyone open the task viewer to find out.
+            log = pve(f"/nodes/{node}/tasks/{urllib.parse.quote(last['upid'])}/log?limit=2000")
+            errors = [e["t"] for e in log if "ERROR: Backup of VM" in e.get("t", "")]
+            for line in errors[:6]:
+                lines.append("  ✗ " + line.replace("ERROR: Backup of ", "")[:160])
         if (NOW - dt.datetime.fromtimestamp(last["endtime"], dt.timezone.utc)).total_seconds() > STALE_HOURS * 3600:
             problems.append("no vzdump in a day")
     else:
