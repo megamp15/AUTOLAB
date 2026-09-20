@@ -202,6 +202,8 @@ The `harden.yml` playbook is the common baseline every managed server receives:
 - Tailscale/private management firewall access
 - Tailscale SSH transport (cloud-init installs/enables it after enrollment;
   tailnet policy grants CI access)
+- fail2ban with an `sshd` jail; the tailnet and the node's bridge address are
+  never banned
 - login screen (`motd`): the hostname as a banner, then the facts an operator
   otherwise goes looking for — stack and plane, tailnet and bridge addresses,
   pending updates, whether a reboot is due, firewall and agent state, and the

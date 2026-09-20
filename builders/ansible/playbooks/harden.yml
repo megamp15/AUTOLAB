@@ -44,3 +44,8 @@
       tags: [firewall]
     - role: motd
       tags: [motd]
+    # sshd only: a VM exposes nothing else. The proxmox jail is the node's.
+    - role: fail2ban
+      tags: [fail2ban]
+      vars:
+        autolab_fail2ban_jails: [sshd]
