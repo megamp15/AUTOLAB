@@ -66,10 +66,14 @@ load test_helper
   [[ "$output" == *"PKR_VAR_iso_checksum=sha256:c3514bf0056180d09376462a7a1b4f213c1d6e8ea67fae5c25099c6fd3d8274b"* ]]
 }
 
-@test "resolve-packer-template.sh rejects blocked ubuntu-26.04" {
+@test "resolve-packer-template.sh resolves runnable ubuntu-26.04 from catalog" {
   run bash "${SCRIPT_DIR}/../../../scripts/resolve-packer-template.sh" ubuntu-26.04
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"not implemented (status=blocked)"* ]]
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_STATUS=implemented"* ]]
+  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_RELEASE=26.04.1"* ]]
+  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_VM_ID=9001"* ]]
+  [[ "$output" == *"PKR_VAR_iso_url=https://releases.ubuntu.com/26.04/ubuntu-26.04.1-live-server-amd64.iso"* ]]
+  [[ "$output" == *"PKR_VAR_iso_checksum=sha256:cc8a95cde20f6ced61a322420de00f10cc3c90ced545daa46cb9c1a117f1d927"* ]]
 }
 
 @test "resolve-packer-template.sh rejects unknown templates" {
