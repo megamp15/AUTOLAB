@@ -1,0 +1,50 @@
+---
+- name: Refresh the package index
+  ansible.builtin.apt:
+    update_cache: true
+  changed_when: false
+
+- name: Apply every pending update
+  ansible.builtin.apt:
+    upgrade: "{{ autolab_updates_upgrade }}"
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  register: autolab_updates_result
+
+- name: Remove what nothing depends on any more
+  ansible.builtin.apt:
+    autoremove: true
+    purge: true
+  when: autolab_updates_autoremove | bool
+
+- name: Drop downloaded archives
+  ansible.builtin.apt:
+    autoclean: true
+  changed_when: false
+
+- name: See whether a reboot is due
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: autolab_updates_reboot_flag
+
+# The flag file is only written where update-notifier-common is installed
+# (Ubuntu), so a Debian host is judged by its newest kernel on disk.
+- name: Compare the running kernel with the newest installed
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      find /boot -maxdepth 1 -name 'vmlinuz-*' | sed 's|.*/vmlinuz-||' | sort -V | tail -n 1
+    executable: /bin/bash
+  register: autolab_updates_newest_kernel
+  changed_when: false
+  check_mode: false
+
+- name: Report
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}:
+      {{ 'updates applied' if autolab_updates_result is changed else 'already up to date' }};
+      running {{ ansible_kernel }}, newest installed {{ autolab_updates_newest_kernel.stdout }};
+      reboot {{ 'REQUIRED' if (autolab_updates_reboot_flag.stat.exists
+                              or autolab_updates_newest_kernel.stdout != ansible_kernel)
+                else 'not needed' }}

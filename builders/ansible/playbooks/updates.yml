@@ -1,0 +1,20 @@
+---
+# Every pending package update, on purpose. unattended-upgrades handles
+# security on its own; this is the rest, run when someone decided it was
+# time. Reports which hosts need a reboot and reboots none of them.
+- name: Apply pending updates on Builder machines
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+
+  module_defaults:
+    ansible.builtin.apt:
+      lock_timeout: 900
+
+  # One host at a time, so a bad update stops the run before it reaches the
+  # next machine rather than landing everywhere at once.
+  serial: 1
+
+  roles:
+    - role: updates
+      tags: [updates]
