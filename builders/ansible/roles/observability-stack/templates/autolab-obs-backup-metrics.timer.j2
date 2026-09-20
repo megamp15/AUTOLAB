@@ -1,0 +1,11 @@
+# Managed by Ansible — roles/observability-stack.
+[Unit]
+Description=Backup ages from PBS into a textfile for Alloy
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec={{ autolab_obs_backup_metrics_interval }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

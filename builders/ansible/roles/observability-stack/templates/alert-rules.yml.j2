@@ -220,3 +220,76 @@ groups:
                 - evaluator:
                     type: gt
                     params: [{{ autolab_obs_alert_pve_storage_pct }}]
+
+      - uid: autolab-backup-missing
+        title: Backup is missing
+        condition: THRESHOLD
+        for: 30m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "{% raw %}{{ $labels.name }} has no backup newer than {% endraw %}{{ autolab_obs_alert_backup_max_age_hours }}h"
+          description: "A running guest the nightly should cover has no recent backup on PBS — job disabled, node off at 02:00, ark or the NAS unreachable, or the guest was never backed up. Exclusions come from the job itself."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              # Running, non-template guests (same shape as the agent rule),
+              # minus those the vzdump job excludes on purpose, minus those
+              # with a backup younger than the threshold. What remains is a
+              # guest that should have been backed up and was not — stale and
+              # never-backed-up alike. The backup facts come from the stack
+              # host's collector (autolab-obs-digest --metrics), which reads
+              # PBS with a read-only token.
+              expr: '((pve_up{id=~"qemu/.*"} == 1) * on(id) group_left(name) max by (id, name) (pve_guest_info{template="0"})) unless on(name) (max by (name) (autolab_backup_excluded) == 1) unless on(name) ((time() - max by (name) (autolab_backup_last_seconds)) < {{ autolab_obs_alert_backup_max_age_hours }} * 3600)'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.5]
+
+      - uid: autolab-backup-collector-stale
+        title: Backup collector is stale
+        condition: THRESHOLD
+        for: 15m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "{% raw %}The backup collector last wrote {{ printf \{% endraw %}"%.0f\" $value }} minutes ago"
+          description: "The stack host's PBS collector has not refreshed the backup ages. While it is stale, 'Backup is missing' judges old facts — fix the collector before trusting either silence or a page."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: '(time() - max(autolab_backup_collector_timestamp_seconds)) / 60'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [60]

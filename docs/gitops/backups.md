@@ -42,7 +42,7 @@ hold ciphertext.
 | first restore | sputnik via `09 - PBS Restore` (test), 2026-09-20 06:30 UTC: `BOOTED as Debian GNU/Linux 13 (trixie)` |
 | offsite copy | not yet — B2 as a second datastore, its own PR |
 | digest | the 06:00 ntfy digest reports last night's vzdump, each guest's newest backup age, stale/never, storage headroom — see [observability](./observability.md#the-morning-digest) |
-| alert | not yet as a Grafana rule — the digest flags stale and never-backed-up guests every morning; a paging rule follows |
+| alert | **Backup is missing** (critical, pages) when a running guest the job covers has no backup newer than 26 h; **Backup collector is stale** (warning) guards the collector itself — see [observability](./observability.md#alerting) |
 
 ## What lives where
 
