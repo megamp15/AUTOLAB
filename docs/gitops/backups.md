@@ -128,7 +128,7 @@ is the same slow leg as writing it.
 
 | Job | Where | When | Keeps |
 |---|---|---|---|
-| vzdump `autolab-nightly` | node | 02:00, all guests except templates 9000/9002, snapshot mode, zstd | — |
+| vzdump `autolab-nightly` | node | 02:00, all guests except the templates and ark itself, snapshot mode, zstd | — |
 | prune `singularity-prune` | PBS | 03:00 | 7 daily, 4 weekly, 6 monthly |
 | GC | PBS | 03:30 | frees chunks nothing references |
 | verify `singularity-verify` | PBS | Saturday 04:00 | re-reads anything not verified in 30 days |
@@ -138,6 +138,13 @@ guests produce; revisit when a tenant's data grows.
 
 ## Things that will mislead you
 
+- **ark must not be in its own backup job.** Snapshot mode freezes the
+  guest's filesystems through the agent; a frozen PBS cannot accept the
+  connection from the node backing it up, and vzdump waits until
+  `backup connect failed: http request timed out`. The first nightly failed
+  on exactly this. Nothing on ark needs backing up — chunks are on the NAS,
+  the key is off the node, the `pbs` role recreates its configuration — so
+  `104` is in the job's `exclude` and the digest lists it as excluded.
 - **`pvesm add` refuses the server without a fingerprint, and the one it
   wants is SHA-256 of the certificate PBS generated for itself.** The role
   reads it over the bridge with `openssl s_client` at configure time and pins

@@ -104,8 +104,29 @@
   when: item.id not in (autolab_pve_jobs_present | map(attribute='id') | list)
   changed_when: true
 
-# Only the enabled flag converges after creation: it is the one field meant
-# to flip (off until the key is safe, on after), and the rest is declared once.
+# The exclude list converges too: which guests a job skips is a fact that
+# changes as the node does, and the first nightly proved it.
+- name: Converge the exclude list
+  ansible.builtin.command:
+    argv:
+      - pvesh
+      - set
+      - "/cluster/backup/{{ item.id }}"
+      - --exclude
+      - "{{ item.exclude | default([]) | map('string') | join(',') }}"
+  loop: "{{ autolab_pve_backup_jobs }}"
+  loop_control:
+    label: "{{ item.id }} exclude={{ item.exclude | default([]) | join(',') }}"
+  vars:
+    current: "{{ autolab_pve_jobs_present | selectattr('id', 'equalto', item.id) | map(attribute='exclude') | first | default('') }}"
+  when:
+    - autolab_pve_jobs_present | selectattr('id', 'equalto', item.id) | list | length > 0
+    - (current | string | split(',') | map('trim') | reject('equalto', '') | map('int') | sort | list)
+      != (item.exclude | default([]) | map('int') | sort | list)
+  changed_when: true
+
+# The enabled flag is the one field meant to flip (off until the key is
+# safe, on after); the rest is declared once.
 - name: Converge the enabled flag
   ansible.builtin.command:
     argv:
