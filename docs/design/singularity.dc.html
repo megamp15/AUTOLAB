@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#FFFFFF; }
+  a { color: inherit; text-decoration: none; }
+  a:hover { color: inherit; }
+</style>
+</helmet>
+
+<div data-sg-root="1" ref="{{ rootRef }}" style="--sg-p:0; --sg-enter:0; --sg-glitch:0; --sg-flood:0; --sg-bg:#FFFFFF; --sg-fg:#0A0A0A; position:relative; background:var(--sg-bg); color:var(--sg-fg); font-family:'Space Grotesk',system-ui,sans-serif;">
+
+  <div style="height:230vh;">
+    <div style="position:sticky; top:0; height:100vh; overflow:hidden;">
+
+      <canvas data-sg-sky="1" ref="{{ skyRef }}" style="position:absolute; inset:0; width:100%; height:100%; display:block;"></canvas>
+
+      <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:clamp(20px,5vw,64px); pointer-events:{{ pointer }};">
+        <div style="width:min(760px,100%); display:flex; flex-direction:column; gap:clamp(16px,2.6vh,26px); filter:blur(calc((1 - var(--sg-flood)) * 3px)); transform:scaleY(calc(0.82 + var(--sg-flood) * 0.18));">
+
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; opacity:calc((var(--sg-flood) - 0.02) * 9);">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.34em;">MERIDIAN</span>
+            <div style="display:flex; align-items:center; gap:14px;">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.2em; font-variant-numeric:tabular-nums;">{{ clock }}</span>
+              <button onClick="{{ flip }}" style="padding:6px 12px; cursor:pointer; background:transparent; color:var(--sg-fg); border:1px solid var(--sg-fg); border-radius:999px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.22em; text-transform:uppercase;">{{ modeLabel }}</button>
+            </div>
+          </div>
+
+          <div style="height:1px; background:var(--sg-fg); transform:scaleX(min(1, calc(var(--sg-flood) * 1.6))); opacity:calc(var(--sg-flood) * 4);"></div>
+
+          <div style="display:flex; flex-direction:column;">
+            <sc-for list="{{ rows }}" as="r" hint-placeholder-count="9">
+              <a href="{{ r.url }}" style="position:relative; display:flex; align-items:center; gap:16px; padding:10px 2px; opacity:calc((var(--sg-flood) - {{ r.d }}) * 9); transform:translateX(calc((1 - var(--sg-flood)) * {{ r.x }})); transition:padding-left .25s ease;" style-hover="padding-left:10px;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="90" style="flex:none; opacity:{{ r.op }}; stroke-dashoffset:calc((1 - var(--sg-flood)) * 90);"><path d="{{ r.d2 }}"></path></svg>
+                <span data-final="{{ r.name }}" style="font-size:13.5px; letter-spacing:.02em; flex:1 1 auto; min-width:0; opacity:{{ r.op }};">{{ r.name }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.14em; opacity:.55; white-space:nowrap;">{{ r.meta }}</span>
+                <span style="width:5px; height:5px; border-radius:50%; flex:none; border:1px solid currentColor; background:{{ r.dot }};"></span>
+                <span style="position:absolute; left:0; right:0; bottom:0; height:1px; background:currentColor; opacity:.35; transform:scaleX(min(1, calc((var(--sg-flood) - {{ r.d }}) * 3)));"></span>
+              </a>
+            </sc-for>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:8px; opacity:calc((var(--sg-flood) - 0.66) * 8);">
+            <sc-for list="{{ feed }}" as="f" hint-placeholder-count="3">
+              <div style="display:flex; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; line-height:1.6;">
+                <span style="opacity:.5; font-variant-numeric:tabular-nums;">{{ f.time }}</span>
+                <span style="text-wrap:pretty;">{{ f.text }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1200,&quot;height&quot;:800},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Black hole&quot;,&quot;options&quot;:[&quot;Black hole&quot;,&quot;White hole&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;dispatch&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const ROWS = [
+  { name:'Proxmox VE', meta:'pve-01', up:true, d2:'M3 4.5h18v5H3zM3 14.5h18v5H3zM6.5 7h.01M6.5 17h.01' },
+  { name:'docker-01', meta:'14 ctr', up:true, d2:'M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5' },
+  { name:'ubuntu-svc', meta:'4c / 8g', up:true, d2:'M3 4.5h18v12H3zM8.5 20.5h7M12 16.5v4' },
+  { name:'win-lab', meta:'dormant', up:false, d2:'M4 7h16M4 12h16M4 17h10' },
+  { name:'Grafana', meta:'metrics', up:true, d2:'M4 18V7M9 18v-6M14 18V4M19 18v-9' },
+  { name:'Uptime Kuma', meta:'monitors', up:true, d2:'M3 12h4l2.5-6 3.5 12 2.5-6H21' },
+  { name:'Vaultwarden', meta:'secrets', up:true, d2:'M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z' },
+  { name:'Jellyfin', meta:'media', up:true, d2:'M4 6h16v12H4zM9.5 10l5 2-5 2z' },
+  { name:'Gitea', meta:'repos', up:true, d2:'M7 8l-4 4 4 4M17 8l4 4-4 4M14 5l-4 14' }
+];
+
+const FEED = [
+  { time:'23:12', text:'Rubin Observatory — first deep-field batch released.' },
+  { time:'21:40', text:'docker-01 backup complete, 4m 12s.' },
+  { time:'19:05', text:'ISS pass 22:58 · mag −3.1 · 71°.' }
+];
+
+const clamp = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
+
+class Component extends DCLogic {
+  state = { dark: false, phase: 0, now: new Date() };
+  rootRef = React.createRef();
+  skyRef = React.createRef();
+
+  componentDidMount() {
+    this.setState({ dark: this.props.mode === 'White hole' });
+    this.tick = setInterval(() => this.setState({ now: new Date() }), 1000);
+    Component.live = this; Component.start();
+  }
+  componentDidUpdate() { Component.live = this; Component.start(); this.frame(); }
+  componentWillUnmount() { clearInterval(this.tick); }
+
+  static start() {
+    if (Component.looping) return;
+    Component.looping = true;
+    const tick = (t) => {
+      requestAnimationFrame(tick);
+      const c = Component.live;
+      const el = document.querySelector('[data-sg-root]');
+      if (!c || !el) return;
+      c.rootEl = el;
+      c.skyEl = el.querySelector('[data-sg-sky]');
+      try { c.frame(); c.paint(t / 1000); c.scramble(t / 1000); } catch (err) {}
+    };
+    requestAnimationFrame(tick);
+  }
+
+  root() { return this.rootEl || this.rootRef.current; }
+  sky() { return this.skyEl || this.skyRef.current; }
+
+  frame() {
+    const el = this.root(); if (!el) return;
+    const doc = document.documentElement;
+    const max = Math.max(1, doc.scrollHeight - window.innerHeight);
+    const p = clamp((window.scrollY || doc.scrollTop) / max);
+    const enter = clamp(p / 0.82);
+    const glitch = clamp((p - 0.82) / 0.16);
+    const now = performance.now();
+    const dt = Math.min(0.06, Math.max(0, (now - (this._t || now)) / 1000));
+    this._t = now;
+    const target = glitch >= 1 ? 1 : 0;
+    const rate = target ? dt / 1.9 : -dt / 1.1;
+    Component.recon = clamp((Component.recon || 0) + rate);
+    this.recon = Component.recon;
+    const flood = this.recon;
+    const dark = this.state.dark;
+    const paper = dark ? '#08080A' : '#FFFFFF';
+    const ink = dark ? '#F4F4F5' : '#0A0A0A';
+    const u = clamp((p - 0.86) / 0.06), sm = u * u * (3 - 2 * u);
+    this.px = { p, enter, glitch, flood, bg: this.mix(paper, ink, sm), fg: this.mix(ink, paper, sm) };
+    this.bindDrag(el);
+    el.style.setProperty('--sg-p', p.toFixed(4));
+    el.style.setProperty('--sg-enter', enter.toFixed(4));
+    el.style.setProperty('--sg-glitch', glitch.toFixed(4));
+    el.style.setProperty('--sg-flood', flood.toFixed(4));
+    el.style.setProperty('--sg-bg', this.px.bg);
+    el.style.setProperty('--sg-fg', this.px.fg);
+    document.body.style.background = this.px.bg;
+    const wantPointer = flood > 0.5;
+    if (wantPointer !== this._pointer) { this._pointer = wantPointer; this.setState({ phase: wantPointer ? 1 : 0 }); }
+  }
+
+  size() {
+    const c = this.sky(); if (!c) return false;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const r = c.getBoundingClientRect();
+    const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+    if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+    this.dpr = dpr; this.w = r.width; this.h = r.height;
+    return true;
+  }
+
+  seedParts() {
+    this.parts = [];
+    for (let k = 0; k < 520; k++) {
+      const u = Math.pow(Math.random(), .8);
+      this.parts.push({ r: 1.08 + u * 2.5, a: Math.random() * 6.2832, b: .35 + Math.random() * .65, t: Math.random() * .9 + .3 });
+    }
+    this.noise = [];
+    for (let k = 0; k < 80; k++) this.noise.push({ y: Math.random(), h: Math.random() * .05 + .004, o: Math.random() - .5, s: Math.random() });
+  }
+
+  paint(T) {
+    if (!this.size()) return;
+    if (!this.parts) this.seedParts();
+    const c = this.sky(); if (!c) return;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    const { w, h, dpr } = this, px = this.px || { enter: 0, glitch: 0, flood: 0, bg: '#FFF', fg: '#000' };
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    const fg = px.fg, bg = px.bg;
+    const off = Component.off || (Component.off = { x: 0, y: 0 });
+    const cx = w * .5 + off.x * .85, cy = h * .5 + off.y * .5;
+    const enter = px.enter, glitch = px.glitch, flood = px.flood;
+
+    if (flood > 0.02) {
+      const hr = Math.max(w, h) * (.5 + .08 * Math.sin(T * .5));
+      const hg = ctx.createRadialGradient(cx, cy, 0, cx, cy, hr);
+      hg.addColorStop(0, this.rgba(fg, .05 * flood));
+      hg.addColorStop(.55, this.rgba(fg, .015 * flood));
+      hg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = hg; ctx.fillRect(0, 0, w, h);
+    }
+
+    if (glitch > 0.001 && glitch < 0.999) {
+      const g = Math.sin(Math.PI * glitch);
+      for (let k = 0; k < this.noise.length; k++) {
+        const n = this.noise[k];
+        const y = ((n.y + T * .4 * n.s) % 1) * h;
+        const bh = n.h * h * (0.4 + g);
+        const dx = n.o * w * .7 * g * (Math.sin(T * 40 + k) > .2 ? 1 : .2);
+        ctx.fillStyle = this.rgba(fg, .12 + .5 * g * n.s);
+        ctx.fillRect(dx, y, w * (.25 + n.s * .75), Math.max(1, bh * .3));
+      }
+      for (let k = 0; k < 160; k++) {
+        const x = (Math.sin(k * 12.9898 + T * 9) * .5 + .5) * w;
+        const y = (Math.sin(k * 78.233 + T * 7) * .5 + .5) * h;
+        ctx.fillStyle = this.rgba(fg, .5 * g);
+        ctx.fillRect(x, y, 2 + (k % 5), 2);
+      }
+      ctx.fillStyle = this.rgba(fg, .1 * g);
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    const fade = 1 - glitch;
+    if (fade <= 0.002) return;
+    const base = Math.min(w, h) * .14;
+    const R = base * (1 + enter * enter * 6.5);
+    const tilt = Math.max(.04, Math.min(.8, .19 + enter * .1 + (Component.off ? Component.off.y / h : 0) * .9));
+    const stretch = 1 + enter * enter * 14;
+    const breathe = 1 + .02 * Math.sin(T * .7);
+    const dtp = Math.min(0.05, Math.max(0, T - (this._pt || T)));
+    this._pt = T;
+    this.spin = (this.spin || 0) + dtp * (.55 + enter * 3.4);
+
+    const hr = R * 3.4 * breathe;
+    const halo = ctx.createRadialGradient(cx, cy, R * .85, cx, cy, hr);
+    halo.addColorStop(0, this.rgba(fg, .1 * fade));
+    halo.addColorStop(.18, this.rgba(fg, .05 * fade));
+    halo.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(cx, cy, hr, 0, 6.2832); ctx.fill();
+
+    const lensFade = fade * (1 - enter * .85);
+    if (lensFade > .004) {
+      const lensR = Math.min(R, Math.min(w, h) * .55);
+      for (let k = 0; k < 22; k++) {
+        const u = k / 22;
+        ctx.strokeStyle = this.rgba(fg, (.085 - u * .075) * lensFade);
+        ctx.lineWidth = 1 + (1 - u) * 1.4;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, lensR * (1.06 + u * .5), lensR * (1.42 + u * .85) * (1 + .012 * Math.sin(T * 1.2 + k)), 0, 0, 6.2832);
+        ctx.stroke();
+      }
+    }
+
+    const front = [];
+    for (let k = 0; k < this.parts.length; k++) {
+      const p = this.parts[k];
+      const rad = R * p.r * (1 - enter * .18);
+      const spd = .9 / Math.pow(p.r, 1.4);
+      const ang = p.a + this.spin * spd;
+      const dA = (.03 + p.t * .09) * (1 + stretch * .5) / p.r;
+      const dop = Math.cos(ang) < 0 ? 1.7 : .5;
+      const alpha = .1 * p.b * dop * fade * (1 + enter * .5);
+      const seg = [rad, ang, dA, alpha, p.t];
+      if (Math.sin(ang) > 0) front.push(seg); else this.arc(ctx, cx, cy, seg, tilt, fg);
+    }
+
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.arc(cx, cy, R * .995, 0, 6.2832); ctx.fill();
+
+    const shimmer = .45 + .18 * Math.sin(T * 2.1) + .1 * Math.sin(T * 5.3);
+    ctx.strokeStyle = this.rgba(fg, shimmer * fade);
+    ctx.lineWidth = 1.2 + .5 * Math.sin(T * 1.7);
+    ctx.beginPath(); ctx.arc(cx, cy, R * 1.008, 0, 6.2832); ctx.stroke();
+    ctx.strokeStyle = this.rgba(fg, .12 * fade);
+    ctx.lineWidth = 6 + 3 * Math.sin(T * .9);
+    ctx.beginPath(); ctx.arc(cx, cy, R * 1.05, 0, 6.2832); ctx.stroke();
+
+    for (let k = 0; k < front.length; k++) this.arc(ctx, cx, cy, front[k], tilt, fg);
+  }
+
+  scramble(T) {
+    const root = this.root(); if (!root) return;
+    const r = this.recon || 0;
+    if (r <= 0 || this._scrambleDone === r) return;
+    const nodes = root.querySelectorAll('[data-final]');
+    const GL = '01<>[]{}/\\|=+*#%$&';
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i], fin = n.getAttribute('data-final') || '';
+      const local = clamp((r - i * 0.045) / 0.4);
+      if (local >= 1) { if (n.textContent !== fin) n.textContent = fin; continue; }
+      const keep = Math.floor(fin.length * local);
+      let out = fin.slice(0, keep);
+      for (let k = keep; k < fin.length; k++) {
+        out += fin[k] === ' ' ? ' ' : GL[Math.floor((Math.sin(k * 91.7 + i * 13.3 + T * 22) * .5 + .5) * GL.length) % GL.length];
+      }
+      n.textContent = out;
+    }
+    if (r >= 1) this._scrambleDone = r;
+  }
+
+  arc(ctx, cx, cy, s, tilt, fg) {
+    ctx.strokeStyle = this.rgba(fg, s[3]);
+    ctx.lineWidth = .6 + s[4] * 1.5;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, s[0], s[0] * tilt, 0, s[1], s[1] + s[2]);
+    ctx.stroke();
+  }
+
+  toRGB(hex) {
+    const n = String(hex).replace('#', '');
+    const v = n.length === 3 ? n.split('').map(x => x + x).join('') : n;
+    const num = parseInt(v, 16) || 0;
+    return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+  }
+
+  mix(a, b, t) {
+    const A = this.toRGB(a), B = this.toRGB(b);
+    const r = Math.round(A[0] + (B[0] - A[0]) * t), g = Math.round(A[1] + (B[1] - A[1]) * t), bl = Math.round(A[2] + (B[2] - A[2]) * t);
+    return 'rgb(' + r + ',' + g + ',' + bl + ')';
+  }
+
+  bindDrag(el) {
+    if (el._sgBound) return;
+    el._sgBound = true;
+    Component.off = Component.off || { x: 0, y: 0 };
+    el.style.cursor = 'grab';
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    el.addEventListener('pointerdown', (e) => {
+      if (e.target.closest && e.target.closest('a,button')) return;
+      e.preventDefault();
+      Component.drag = { x: e.clientX, y: e.clientY };
+      el.style.cursor = 'grabbing';
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    window.addEventListener('pointermove', (e) => {
+      const d = Component.drag; if (!d) return;
+      const lx = window.innerWidth * .45, ly = window.innerHeight * .45;
+      const o = Component.off;
+      o.x = Math.max(-lx, Math.min(lx, o.x + (e.clientX - d.x)));
+      o.y = Math.max(-ly, Math.min(ly, o.y + (e.clientY - d.y)));
+      Component.drag = { x: e.clientX, y: e.clientY };
+    });
+    const end = () => { Component.drag = null; el.style.cursor = 'grab'; };
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  }
+
+  rgba(col, a) {
+    const al = Math.max(0, Math.min(1, a)).toFixed(3);
+    const m = String(col).match(/rgb\((\d+),(\d+),(\d+)\)/);
+    if (m) return 'rgba(' + m[1] + ',' + m[2] + ',' + m[3] + ',' + al + ')';
+    const c = this.toRGB(col);
+    return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + al + ')';
+  }
+
+  pad(n) { return String(n).padStart(2, '0'); }
+
+  renderVals() {
+    Component.live = this; Component.start();
+    const d = this.state.now;
+    return {
+      rootRef: this.rootRef, skyRef: this.skyRef,
+      modeLabel: this.state.dark ? 'White' : 'Black',
+      flip: () => this.setState(s => ({ dark: !s.dark })),
+      clock: this.pad(d.getHours()) + ':' + this.pad(d.getMinutes()),
+      pointer: this.state.phase ? 'auto' : 'none',
+      rows: ROWS.map((r, i) => ({
+        ...r, url: '#', d: (0.04 + i * 0.05).toFixed(3),
+        x: (i % 2 ? -1 : 1) * (26 + i * 5) + 'px',
+        op: r.up ? 1 : .42,
+        dot: r.up ? 'currentColor' : 'transparent'
+      })),
+      feed: this.props.dispatch === false ? [] : FEED
+    };
+  }
+}
+
+</script>
+</body>
+</html>

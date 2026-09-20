@@ -97,7 +97,7 @@ Autolab is **alpha**. The bootstrap path is used on real hardware; the GitOps la
 | 2A · Provision | OpenTofu modules, Terramate stacks, R2 backend, plan / apply / destroy workflows, committed `lab` machine map | Usable |
 | 2B · Template | Packer catalog: `debian-13`, `ubuntu-24.04` and `ubuntu-26.04` | Usable |
 | 2C · Configure | Ansible baseline (users, SSH, firewall, fail2ban, updates, `gitops` user, login screen), opt-in Docker, Tailscale SSH transport | Usable |
-| 2D · Observe | Alloy on every host; Prometheus, Loki, Grafana and the Proxmox exporter on one. Dashboards and alert rules provisioned from git, alerts delivered to a phone | Usable |
+| 2D · Observe | Alloy on every host; Prometheus, Loki, Grafana and the Proxmox exporter on one. Dashboards and alert rules provisioned from git, alerts delivered to a phone, a morning digest, and a homepage with live status | Usable |
 | 3 · Backup | Proxmox Backup Server on a managed VM, encrypted nightly of every guest to the NAS, restore proven by workflow; offsite copy and the stale-backup alert pending | Usable |
 | VPS track | Cloud-provider stacks that reuse the configure layer | Planned |
 | Service tutorials | Guides for running things on the lab | Planned |
