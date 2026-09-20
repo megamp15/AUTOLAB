@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# WARNING: blocked until Canonical reships an ISO fixing LP #2150636 / #2150640 (kernel 7.0.0-14).
+# 26.04 GA was blocked on LP #2150636 / #2150640 (kernel 7.0.0-14); 26.04.1 is the respin.
 # Ubuntu 26.04 cloud-init VM template
 #
 # Builds a Proxmox VM template from the Ubuntu live-server ISO using

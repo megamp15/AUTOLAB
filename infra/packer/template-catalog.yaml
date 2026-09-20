@@ -20,18 +20,19 @@ templates:
     installer: preseed
 
   - name: ubuntu-26.04
-    release: 26.04
-    status: blocked
-    description: Ubuntu 26.04 cloud-init template (blocked pending Canonical-respun ISO)
-    iso_url: https://releases.ubuntu.com/26.04/ubuntu-26.04-live-server-amd64.iso
-    iso_checksum: sha256:dec49008a71f6098d0bcfc822021f4d042d5f2db279e4d75bdd981304f1ca5d9
+    release: 26.04.1
+    status: implemented
+    description: Ubuntu 26.04.1 cloud-init template
+    iso_url: https://releases.ubuntu.com/26.04/ubuntu-26.04.1-live-server-amd64.iso
+    iso_checksum: sha256:cc8a95cde20f6ced61a322420de00f10cc3c90ced545daa46cb9c1a117f1d927
     directory: infra/packer/templates/ubuntu-26.04
     packer_file: ubuntu-26.04.pkr.hcl
     proxmox_template_name: autolab-ubuntu-26.04-template
     proxmox_template_vm_id: 9001
     provisioning_class: builder_target
     installer: subiquity-autoinstall
-    blocker: "LP #2150636 / #2150640 affect kernel 7.0.0-14; await a Canonical-respun ISO."
+    # 26.04 (April) was blocked on LP #2150636 / #2150640 in kernel 7.0.0-14;
+    # 26.04.1 (August) is the respun ISO that blocker waited for.
 
   - name: ubuntu-24.04
     release: 24.04.3

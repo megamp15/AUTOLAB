@@ -13,6 +13,7 @@ on:
         options:
           - debian-13
           - ubuntu-24.04
+          - ubuntu-26.04
       force_rebuild:
         description: "Replace the existing template or retained failed VM"
         required: true
