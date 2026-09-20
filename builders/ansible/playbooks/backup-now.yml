@@ -1,0 +1,9 @@
+---
+# A backup on demand, identical to the nightly. See docs/gitops/backups.md.
+- name: Back up guests now
+  hosts: proxmox_nodes
+  become: true
+  gather_facts: false
+
+  roles:
+    - role: backup-now

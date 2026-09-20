@@ -69,6 +69,7 @@ builders/ansible/
     docker-host/
     motd/
     pbs/
+    backup-now/
     pbs-restore/
     reboot/
     updates/
@@ -209,6 +210,12 @@ The `harden.yml` playbook is the common baseline every managed server receives:
   do not print them either. Provider hosts are green, tenant hosts cyan.
   `run-parts /etc/autolab/motd.d` prints it again from a running shell.
   The hypervisor gets the same screen from `proxmox.yml`.
+
+## Backup now (`backup-now.yml`)
+
+Run by workflow **09 - PBS Backup** against the hypervisor inventory: the
+nightly job's settings, on demand, for one guest or all. See
+[backups](../../docs/gitops/backups.md#backing-up-on-demand).
 
 ## Restore (`restore.yml`)
 

@@ -1,0 +1,127 @@
+name: 09 - PBS Backup
+run-name: "Back up ${{ inputs.vm }}"
+
+# A backup on demand, identical to the nightly: the job's storage, mode,
+# compression and exclude list are read from the node, so the only choice
+# here is what to back up. Safe at any hour — PBS deduplicates, so a second
+# backup of an unchanged guest costs almost nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      vm:
+        description: Guest name as in the machines map, or `all` for the job's full scope
+        required: true
+        default: all
+        type: string
+      confirm:
+        description: Type BACKUP to run; anything else only shows what would be backed up
+        required: true
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: pbs-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Back up ${{ inputs.vm }}
+    runs-on: ubuntu-latest
+    env:
+      PVE_LIMIT: proxmox_nodes
+      BACKUP_VM: ${{ inputs.vm }}
+      BACKUP_CONFIRM: ${{ inputs.confirm }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+
+      - uses: ./.github/actions/connect-tailscale
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+
+      - name: Install Ansible and its collections
+        working-directory: builders/ansible
+        run: |
+          python -m pip install 'ansible-core>=2.21,<2.22'
+          for attempt in 1 2 3; do
+            ansible-galaxy collection install -r requirements.yml && break
+            [ "$attempt" = 3 ] && { echo "failed after 3 attempts" >&2; exit 1; }
+            echo "attempt $attempt failed; retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
+
+      - name: Wait for Tailscale and SSH readiness
+        working-directory: builders/ansible
+        run: |
+          user=gitops
+          mapfile -t hosts < <(ansible -i inventories/hypervisors/hosts.yml "$PVE_LIMIT" \
+            --list-hosts 2>/dev/null | tail -n +2 | sed 's/[[:space:]]//g' | grep -v '^$')
+          if [[ ${#hosts[@]} -eq 0 ]]; then
+            echo "No hosts matched limit '$PVE_LIMIT'; nothing to check." >&2
+            exit 1
+          fi
+          echo "Readiness check covers ${#hosts[@]} node(s) as $user."
+          install -d -m 700 "$HOME/.ssh"
+          touch "$HOME/.ssh/known_hosts"
+          for name in "${hosts[@]}"; do
+            addr="$(ansible -i inventories/hypervisors/hosts.yml "$name" \
+              -m debug -a 'var=ansible_host' 2>/dev/null \
+              | sed -n 's/.*"ansible_host": "\(.*\)".*/\1/p' | head -1)"
+            addr="${addr:-$name}"
+            for attempt in {1..12}; do
+              if ! ping_output=$(tailscale ping --until-direct=false --c 1 --timeout=5s "$addr" 2>&1); then
+                failure="Tailscale reachability failed for $addr: $ping_output"
+              elif ! ssh-keygen -F "$addr" >/dev/null && ! ssh-keyscan -H -t ed25519 -T 5 "$addr" >> "$HOME/.ssh/known_hosts" 2>/dev/null; then
+                failure="Could not collect an ED25519 host key for $addr"
+              elif ! ssh_output=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 "$user@$addr" true 2>&1); then
+                failure="SSH readiness failed for $user@$addr: $ssh_output"
+              else
+                break
+              fi
+              if [[ "$attempt" == 12 ]]; then
+                echo "$failure" >&2
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+
+      - name: Run the backup playbook
+        working-directory: builders/ansible
+        run: |
+          set -o pipefail
+          args=(-i inventories/hypervisors/hosts.yml playbooks/backup-now.yml --limit "$PVE_LIMIT")
+          args+=(-e autolab_proxmox_user=gitops -e "autolab_backup_now_vm=$BACKUP_VM")
+          if [ "$BACKUP_CONFIRM" != "BACKUP" ]; then
+            echo "confirm was not BACKUP; check mode only." | tee "$GITHUB_WORKSPACE/backup-output.log"
+            args+=(--check)
+          fi
+          ansible-playbook "${args[@]}" 2>&1 | tee -a "$GITHUB_WORKSPACE/backup-output.log"
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: 'true'
+          ANSIBLE_SSH_COMMON_ARGS: '-o StrictHostKeyChecking=yes'
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## PBS backup"
+            echo ""
+            echo "- guest: \`$BACKUP_VM\`"
+            echo "- confirmed: \`$([[ "$BACKUP_CONFIRM" == "BACKUP" ]] && echo yes || echo no)\`"
+            echo ""
+            grep -oE '"(Finished Backup of VM|Failed at|ERROR: Backup of VM|transferred|Backup job finished)[^"]*"' "$GITHUB_WORKSPACE/backup-output.log" 2>/dev/null | tr -d '"' | sed 's/^/- /' || true
+            recap="$(awk '/^PLAY RECAP/{getline; print; exit}' "$GITHUB_WORKSPACE/backup-output.log" 2>/dev/null || true)"
+            echo ""
+            echo "\`\`\`"
+            echo "${recap:-no recap (an earlier step failed)}"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"

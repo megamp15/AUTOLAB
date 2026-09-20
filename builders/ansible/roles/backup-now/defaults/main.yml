@@ -1,0 +1,8 @@
+---
+# Run a backup now, the way the nightly would. The job's own settings —
+# storage, mode, compression, exclude list — are read from the node so an
+# on-demand run cannot drift from the scheduled one. `all` is the job's
+# scope; a guest name backs up that one guest even if the job excludes it,
+# which is the point of asking by name.
+autolab_backup_now_vm: all
+autolab_backup_now_job: autolab-nightly
