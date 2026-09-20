@@ -97,7 +97,7 @@ Autolab is **alpha**. The bootstrap path is used on real hardware; the GitOps la
 | 2B · Template | Packer catalog: `debian-13` and `ubuntu-24.04` implemented, `ubuntu-26.04` blocked on an upstream ISO fix | Usable |
 | 2C · Configure | Ansible baseline (users, SSH, firewall, updates, `gitops` user, login screen), opt-in Docker, Tailscale SSH transport | Usable |
 | 2D · Observe | Alloy on every host; Prometheus, Loki, Grafana and the Proxmox exporter on one. Dashboards and alert rules provisioned from git, alerts delivered to a phone | Usable |
-| 3 · Backup | Proxmox Backup Server, NAS datastore, offsite copy | Next |
+| 3 · Backup | Proxmox Backup Server on a managed VM, encrypted nightly of every guest to the NAS, restore proven by workflow; offsite copy and the stale-backup alert pending | Usable |
 | VPS track | Cloud-provider stacks that reuse the configure layer | Planned |
 | Service tutorials | Guides for running things on the lab | Planned |
 
