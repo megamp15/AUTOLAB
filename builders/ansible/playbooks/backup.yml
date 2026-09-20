@@ -51,3 +51,12 @@
         - autolab_backup_host | length > 0
         - hostvars[autolab_backup_host].autolab_pbs_digest_token_secret is defined
       no_log: true
+      notify: Send a digest with its new source
+
+  # A new source is proven the same way a new script is: by a message.
+  handlers:
+    - name: Send a digest with its new source
+      ansible.builtin.systemd_service:
+        name: autolab-obs-digest.service
+        state: started
+      failed_when: false
