@@ -28,6 +28,10 @@
       - name: megamp15
     autolab_admin_users_absent: []
 
+    # The login screen's Env line. A node is not a stack; it is what the
+    # stacks run on.
+    autolab_environment: hypervisor
+
     # Where this node's backups go. ark's bridge address is a convention
     # (.11, next to jwst's .10), declared in the lab machines map; the
     # hypervisor inventory is static so it is restated here rather than read
@@ -60,3 +64,7 @@
       tags: [proxmox, repos]
     - role: proxmox-nag
       tags: [proxmox, nag]
+    # The same login screen as every guest, in provider green: the one
+    # machine whose "Reboot: required for kernel …" line matters most.
+    - role: motd
+      tags: [proxmox, motd]
