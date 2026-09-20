@@ -41,8 +41,7 @@
             if autolab_backup_now_vm == 'all' else [autolab_backup_now_vmid | string])
          + ['--storage', autolab_backup_now_settings.storage,
             '--mode', autolab_backup_now_settings.mode | default('snapshot'),
-            '--compress', autolab_backup_now_settings.compress | default('zstd'),
-            '--quiet', '1'] }}
+            '--compress', autolab_backup_now_settings.compress | default('zstd')] }}
   register: autolab_backup_now_run
   changed_when: true
   failed_when: false
