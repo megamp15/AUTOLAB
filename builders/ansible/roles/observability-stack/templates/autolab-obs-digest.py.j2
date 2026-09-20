@@ -110,6 +110,7 @@ def write_metrics():
         out.append("autolab_backup_excluded" + labels + " " + ("1" if g["vmid"] in excluded else "0"))
     out.append(f"autolab_backup_collector_timestamp_seconds {int(NOW.timestamp())}")
     path = "/var/lib/autolab/textfile/autolab_backup.prom"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
         f.write("\n".join(out) + "\n")
