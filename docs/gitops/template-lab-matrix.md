@@ -7,7 +7,7 @@ audience: operator
 # Template experiment matrix
 
 Autolab keeps two implemented Linux template paths (`debian-13` and
-`ubuntu-24.04`), plus a blocked Ubuntu 26.04 release and a menu of **disposable experiments** to learn the
+`ubuntu-24.04`, `ubuntu-26.04`) and a menu of **disposable experiments** to learn the
 framework. Experiments are meant to be destroyed when done — not permanently
 supported OS lines.
 
@@ -21,7 +21,7 @@ supported OS lines.
 |--------|-------|------------|---------------|
 | `debian-13` | 2B Packer + 2A OpenTofu | 02 - Packer Build workflow; template VM ID `9000`; candidate can be reviewed before promotion | Machine inventory and template-validation stack; Ansible hardening |
 | `ubuntu-24.04` | 2B Packer + 2A OpenTofu | Runnable Subiquity autoinstall template; distinct template VM ID `9002`; workflow selection is wired | First successful Packer build and `template-validation`; machine inventory; Ansible hardening |
-| `ubuntu-26.04` | Blocked | Preserved source and VM ID `9001` for later retry | LP #2150636 / #2150640 affect kernel `7.0.0-14`; do not run until Canonical provides a respun ISO |
+| `ubuntu-26.04` | Implemented | 26.04.1 ISO, VM ID `9001` | GA ISO was blocked on LP #2150636 / #2150640 (kernel `7.0.0-14`); the .1 point release is the respin |
 
 **Smoke test path:**
 
@@ -29,8 +29,8 @@ supported OS lines.
 2. Review the candidate through the staged lifecycle in
    [template-lifecycle.md](./template-lifecycle.md)
 
-Do not select Ubuntu 26.04 until the Canonical-respun ISO addresses LP
-#2150636 / #2150640 and kernel `7.0.0-14` is no longer affected.
+Ubuntu 26.04 became buildable with the 26.04.1 point release; the GA ISO's
+kernel `7.0.0-14` carried LP #2150636 / #2150640.
 
 ## Documented experiments (not runnable yet)
 
@@ -47,7 +47,7 @@ workflow dropdown and `scripts/resolve-packer-template.sh` rejects them.
 
 | Layer | Owns | Status |
 |-------|------|--------|
-| **2B Packer** | ISO → Proxmox template | `debian-13` and `ubuntu-24.04`; Ubuntu 26.04 blocked |
+| **2B Packer** | ISO → Proxmox template | `debian-13`, `ubuntu-24.04`, `ubuntu-26.04` |
 | **2A OpenTofu** | Clone template → running VM/LXC | Works for `builder_target` with local tfvars |
 | **2A cloud-init** | Admin user, SSH keys, optional Tailscale join | Wired for builder-target VMs |
 | **2C Ansible** | OS hardening after SSH works | Scaffold only (`TODO` debug tasks) |
@@ -84,7 +84,7 @@ infra/packer/
   templates/
     debian-13/          # implemented
     ubuntu-24.04/       # implemented
-    ubuntu-26.04/       # blocked; preserved for a respun ISO
+    ubuntu-26.04/       # 26.04.1
 ```
 
 Installer automation per OS (when built):

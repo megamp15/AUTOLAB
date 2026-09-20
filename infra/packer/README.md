@@ -78,7 +78,7 @@ infra/packer/
         ├── user-data                  # Subiquity NoCloud autoinstall data
         ├── meta-data                  # NoCloud instance metadata
         └── ubuntu-24.04.pkrvars.example
-    └── ubuntu-26.04/                  # blocked pending Canonical-respun ISO
+    └── ubuntu-26.04/                  # 26.04.1
         ├── connection-vars.pkr.hcl   # generated Proxmox connection variables
         ├── template-vars.pkr.hcl     # Ubuntu-specific variables
         ├── ubuntu-26.04.pkr.hcl       # Ubuntu 26.04 cloud-init template build
