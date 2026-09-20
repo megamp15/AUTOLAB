@@ -18,13 +18,15 @@ autolab_pbs_keyring_path: /usr/share/keyrings/proxmox-archive-keyring.gpg
 # the role proves that before creating anything. Retention is PBS's: the
 # hypervisor sends, PBS keeps and prunes. GC runs daily; verify re-reads
 # every chunk of anything not verified in the last 30 days, weekly.
+# Schedules are PBS calendar events: a bare time is daily, `sat 04:00` is
+# weekly — `daily 03:30` is a parse error, not a synonym.
 autolab_pbs_datastores:
   - name: singularity
     path: /mnt/autolab/ark
     comment: Chunk store on the NAS over NFS
-    gc_schedule: "daily 03:30"
+    gc_schedule: "03:30"
     prune:
-      schedule: "daily 03:00"
+      schedule: "03:00"
       keep_daily: 7
       keep_weekly: 4
       keep_monthly: 6
