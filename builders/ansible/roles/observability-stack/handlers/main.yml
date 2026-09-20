@@ -25,3 +25,10 @@
   listen: Send a digest
   ansible.builtin.debug:
     msg: "{{ autolab_obs_digest_journal.stdout_lines }}"
+
+- name: Collect backup metrics once
+  listen: Send a digest
+  ansible.builtin.systemd_service:
+    name: autolab-obs-backup-metrics.service
+    state: started
+  failed_when: false

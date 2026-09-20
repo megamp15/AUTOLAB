@@ -15,6 +15,11 @@ prometheus.exporter.unix "node" {
   filesystem {
     fs_types_exclude = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"
   }
+  // Anything a host knows that no exporter does — the backup collector on
+  // the stack host writes here. Empty on most hosts, and that is fine.
+  textfile {
+    directory = "/var/lib/autolab/textfile"
+  }
 }
 
 prometheus.scrape "node" {

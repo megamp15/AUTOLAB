@@ -66,6 +66,14 @@
 # Alloy reads the whole directory, so a stale file left by a previous config
 # would still be loaded. One managed file keeps what runs equal to what is in
 # git.
+- name: Own the textfile directory the exporter reads
+  ansible.builtin.file:
+    path: /var/lib/autolab/textfile
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Install the Alloy configuration
   ansible.builtin.template:
     src: config.alloy.j2

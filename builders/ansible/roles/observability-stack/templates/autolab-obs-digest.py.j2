@@ -81,6 +81,47 @@ problems = []
 lines = []
 
 
+def write_metrics():
+    # --metrics: one textfile for Alloy's unix exporter, so Prometheus knows
+    # each guest's newest backup and which guests the job skips on purpose.
+    # The alert rules read these; the digest reads the same sources directly.
+    node = pve("/cluster/resources?type=node")[0]["node"]
+    guests = [g for g in pve("/cluster/resources?type=vm") if g.get("type") == "qemu" and not g.get("template")]
+    excluded = set()
+    for job in pve("/cluster/backup"):
+        excluded.update(int(v) for v in str(job.get("exclude", "")).split(",") if v.strip())
+    newest = {}
+    for store in PBS_DATASTORES or [BACKUP_STORAGE]:
+        for snap in pbs(f"/admin/datastore/{store}/snapshots?backup-type=vm"):
+            vmid = int(snap["backup-id"])
+            newest[vmid] = max(newest.get(vmid, 0), snap["backup-time"])
+    out = ["# HELP autolab_backup_last_seconds Unix time of the guest's newest backup on PBS.",
+           "# TYPE autolab_backup_last_seconds gauge",
+           "# HELP autolab_backup_excluded 1 when a vzdump job excludes the guest on purpose.",
+           "# TYPE autolab_backup_excluded gauge",
+           "# HELP autolab_backup_collector_timestamp_seconds When this file was written.",
+           "# TYPE autolab_backup_collector_timestamp_seconds gauge"]
+    for g in sorted(guests, key=lambda g: g["vmid"]):
+        labels = f'name="{g["name"]}",vmid="{g["vmid"]}"'
+        if g["vmid"] in newest:
+            out.append(f"autolab_backup_last_seconds{{{labels}}} {newest[g['vmid']]}")
+        out.append(f"autolab_backup_excluded{{{labels}}} {1 if g['vmid'] in excluded else 0}")
+    out.append(f"autolab_backup_collector_timestamp_seconds {int(NOW.timestamp())}")
+    path = "/var/lib/autolab/textfile/autolab_backup.prom"
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        f.write("\n".join(out) + "\n")
+    os.replace(tmp, path)
+    print(f"wrote {path}: {len(newest)} guests with backups, {len(excluded)} excluded")
+
+
+if "--metrics" in sys.argv:
+    if not PBS_URL:
+        sys.exit("no PBS settings; run the backup playbook first")
+    write_metrics()
+    sys.exit(0)
+
+
 def section(fn):
     try:
         fn()

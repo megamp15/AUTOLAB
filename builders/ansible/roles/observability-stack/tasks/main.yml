@@ -390,7 +390,7 @@
   when: autolab_obs_digest_active | bool
   notify: Send a digest
 
-- name: Install the digest timer
+- name: Install the digest and backup-metrics timers
   ansible.builtin.template:
     src: "{{ item }}.j2"
     dest: "/etc/systemd/system/{{ item }}"
@@ -400,6 +400,16 @@
   loop:
     - autolab-obs-digest.service
     - autolab-obs-digest.timer
+    - autolab-obs-backup-metrics.service
+    - autolab-obs-backup-metrics.timer
+  when: autolab_obs_digest_active | bool
+
+- name: Enable the backup-metrics timer
+  ansible.builtin.systemd_service:
+    name: autolab-obs-backup-metrics.timer
+    state: started
+    enabled: true
+    daemon_reload: true
   when: autolab_obs_digest_active | bool
 
 - name: Enable the digest timer
