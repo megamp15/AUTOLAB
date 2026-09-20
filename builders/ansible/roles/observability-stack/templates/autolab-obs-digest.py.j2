@@ -10,6 +10,7 @@
 import datetime as dt
 import json
 import os
+import re
 import ssl
 import sys
 import urllib.parse
@@ -89,13 +90,21 @@ def backups():
     content = pve(f"/nodes/{node}/storage/{BACKUP_STORAGE}/content?content=backup")
     newest = {}
     for item in content:
-        vmid = int(item.get("vmid", 0))
-        # A PBS volid ends in the snapshot time: …/vm/100/2026-09-20T06:14:36Z.
-        # The listing does not always carry ctime, and this is the same fact.
-        when = item.get("ctime") or dt.datetime.strptime(
-            item["volid"].rsplit("/", 1)[-1], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc).timestamp()
+        # A PBS volid carries both facts: …:backup/vm/100/2026-09-20T06:14:36Z.
+        # The listing does not always carry vmid or ctime alongside.
+        m = re.search(r"backup/vm/(\d+)/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)$", item.get("volid", ""))
+        if not m:
+            continue
+        vmid = int(m.group(1))
+        when = item.get("ctime") or dt.datetime.strptime(m.group(2), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc).timestamp()
         if when > newest.get(vmid, (0,))[0]:
             newest[vmid] = (when, item.get("size", 0))
+    if not content:
+        lines.append(f"  storage {BACKUP_STORAGE} listed 0 backups for this token — check its Datastore.Audit on /storage/{BACKUP_STORAGE}")
+        problems.append("backup listing empty")
+    elif not newest:
+        lines.append(f"  listing has {len(content)} items but none parsed; first keys: {sorted(content[0].keys())}")
+        problems.append("backup listing unparsed")
     parts, stale, never = [], [], []
     for g in sorted(guests, key=lambda g: g["vmid"]):
         if g["vmid"] in newest:
@@ -105,7 +114,8 @@ def backups():
                 stale.append(g["name"])
         else:
             never.append(g["name"])
-    lines.append("  " + " · ".join(parts) if parts else "  no backups on the storage")
+    if parts:
+        lines.append("  " + " · ".join(parts))
     if stale:
         lines.append(f"  ✗ stale (>{STALE_HOURS}h): {', '.join(stale)}")
         problems.append("stale backups")
