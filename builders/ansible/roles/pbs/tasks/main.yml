@@ -240,8 +240,6 @@
           - generate-token
           - "{{ autolab_pbs_digest_user }}"
           - "{{ autolab_pbs_digest_token_name }}"
-          - --output-format
-          - json
       register: autolab_pbs_digest_generated
       when: >-
         (autolab_pbs_digest_user ~ '!' ~ autolab_pbs_digest_token_name)
@@ -258,7 +256,8 @@
 
     - name: Keep the secret on this host
       ansible.builtin.copy:
-        content: "{{ (autolab_pbs_digest_generated.stdout | from_json).value }}\n"
+        # generate-token prints `Result: {…}` and takes no output format.
+        content: "{{ (autolab_pbs_digest_generated.stdout | regex_replace('^\\s*Result:\\s*', '') | from_json).value }}\n"
         dest: "{{ autolab_pbs_digest_token_file }}"
         owner: root
         group: root
