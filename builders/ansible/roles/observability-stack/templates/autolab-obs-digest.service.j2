@@ -1,0 +1,10 @@
+# Managed by Ansible — roles/observability-stack.
+[Unit]
+Description=Morning digest to ntfy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/autolab/obs-digest.env
+ExecStart=/usr/local/bin/autolab-obs-digest

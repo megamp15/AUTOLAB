@@ -3,3 +3,25 @@
   community.docker.docker_compose_v2:
     project_src: "{{ autolab_obs_root }}"
     state: restarted
+
+# A new digest announces itself, so the first install and every change is
+# proven by a message rather than by waiting for 06:00. The run's output is
+# echoed into the play so the message can be read in the workflow log.
+- name: Run the digest once
+  listen: Send a digest
+  ansible.builtin.systemd_service:
+    name: autolab-obs-digest.service
+    state: started
+    daemon_reload: true
+
+- name: Read what it sent
+  listen: Send a digest
+  ansible.builtin.command:
+    argv: [journalctl, -u, autolab-obs-digest.service, --no-pager, -o, cat, --since, "-2min"]
+  register: autolab_obs_digest_journal
+  changed_when: false
+
+- name: Show the digest
+  listen: Send a digest
+  ansible.builtin.debug:
+    msg: "{{ autolab_obs_digest_journal.stdout_lines }}"

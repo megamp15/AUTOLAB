@@ -353,3 +353,69 @@
   when:
     - autolab_obs_backup_dir | length > 0
     - autolab_obs_backup_parent.stat.exists | default(false)
+
+- name: Decide whether the digest can run here
+  ansible.builtin.set_fact:
+    autolab_obs_digest_active: >-
+      {{ autolab_obs_digest_enabled | bool
+         and autolab_obs_ntfy_topic | length > 0
+         and autolab_obs_pve_token_secret | length > 0 }}
+
+- name: Own the directory the digest reads its settings from
+  ansible.builtin.file:
+    path: /etc/autolab
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: autolab_obs_digest_active | bool
+
+- name: Install the digest's settings
+  ansible.builtin.template:
+    src: autolab-obs-digest.env.j2
+    dest: /etc/autolab/obs-digest.env
+    owner: root
+    group: root
+    mode: "0600"
+  when: autolab_obs_digest_active | bool
+  notify: Send a digest
+
+- name: Install the digest
+  ansible.builtin.template:
+    src: autolab-obs-digest.py.j2
+    dest: /usr/local/bin/autolab-obs-digest
+    owner: root
+    group: root
+    mode: "0700"
+  when: autolab_obs_digest_active | bool
+  notify: Send a digest
+
+- name: Install the digest timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - autolab-obs-digest.service
+    - autolab-obs-digest.timer
+  when: autolab_obs_digest_active | bool
+
+- name: Enable the digest timer
+  ansible.builtin.systemd_service:
+    name: autolab-obs-digest.timer
+    state: started
+    enabled: true
+    daemon_reload: true
+  when: autolab_obs_digest_active | bool
+
+# Switching it off is a stop, not a removal: the units stay for the next
+# time it is switched on, and a host that never had it reports nothing.
+- name: Stop the digest timer where it is switched off
+  ansible.builtin.systemd_service:
+    name: autolab-obs-digest.timer
+    state: stopped
+    enabled: false
+  when: not autolab_obs_digest_active | bool
+  failed_when: false

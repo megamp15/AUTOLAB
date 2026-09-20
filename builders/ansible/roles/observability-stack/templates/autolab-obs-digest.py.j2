@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+# Managed by Ansible — roles/observability-stack. Mode 0700; reads a token.
+#
+# The morning digest: one ntfy message with the facts the alert rules do not
+# cover — did last night's backup run, how old is each guest's newest
+# backup, how much room is left, what is firing. Every section degrades on
+# its own: a collector that fails says so in the message rather than
+# silencing the whole thing, because a missing digest is the one failure
+# nobody would notice.
+import datetime as dt
+import json
+import os
+import ssl
+import sys
+import urllib.parse
+import urllib.request
+
+PVE = os.environ["PVE_HOST"]
+PVE_AUTH = f"PVEAPIToken={os.environ['PVE_TOKEN_ID']}={os.environ['PVE_TOKEN_SECRET']}"
+PVE_CTX = ssl.create_default_context()
+if os.environ.get("PVE_VERIFY_SSL", "false").lower() != "true":
+    PVE_CTX.check_hostname = False
+    PVE_CTX.verify_mode = ssl.CERT_NONE
+PROM = os.environ["PROMETHEUS_URL"]
+GRAFANA = os.environ["GRAFANA_URL"]
+NTFY_URL = os.environ["NTFY_URL"]
+NTFY_TOPIC = os.environ["NTFY_TOPIC"]
+BACKUP_STORAGE = os.environ.get("BACKUP_STORAGE", "ark")
+STALE_HOURS = int(os.environ.get("STALE_HOURS", "26"))
+NOW = dt.datetime.now(dt.timezone.utc)
+
+
+def get(url, headers=None, ctx=None, timeout=20):
+    req = urllib.request.Request(url, headers=headers or {})
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+        return json.load(r)
+
+
+def pve(path):
+    return get(f"https://{PVE}:8006/api2/json{path}", {"Authorization": PVE_AUTH}, PVE_CTX)["data"]
+
+
+def prom(query):
+    q = urllib.parse.quote(query)
+    return get(f"{PROM}/api/v1/query?query={q}")["data"]["result"]
+
+
+def human(n):
+    for unit in ("B", "K", "M", "G", "T"):
+        if n < 1024 or unit == "T":
+            return f"{n:.0f}{unit}" if unit == "B" else f"{n:.1f}{unit}".replace(".0", "")
+        n /= 1024
+
+
+def age(ts):
+    hours = (NOW - dt.datetime.fromtimestamp(ts, dt.timezone.utc)).total_seconds() / 3600
+    return f"{hours:.0f}h" if hours < 48 else f"{hours / 24:.0f}d", hours
+
+
+problems = []
+lines = []
+
+
+def section(fn):
+    try:
+        fn()
+    except Exception as e:  # noqa: BLE001 — the digest must still send
+        lines.append(f"{fn.__name__}: unavailable ({type(e).__name__}: {e})")
+        problems.append(fn.__name__)
+
+
+def backups():
+    node = pve("/cluster/resources?type=node")[0]["node"]
+    guests = [g for g in pve("/cluster/resources?type=vm") if g.get("type") == "qemu" and not g.get("template")]
+    tasks = [t for t in pve(f"/nodes/{node}/tasks?typefilter=vzdump&limit=10&source=all") if t.get("endtime")]
+    if tasks:
+        last = max(tasks, key=lambda t: t["endtime"])
+        started = dt.datetime.fromtimestamp(last["starttime"]).strftime("%a %H:%M")
+        mins = (last["endtime"] - last["starttime"]) / 60
+        ok = last.get("status") == "OK"
+        lines.append(f"Backup · last vzdump {started} {'OK' if ok else 'FAILED: ' + str(last.get('status'))} ({mins:.0f} min)")
+        if not ok:
+            problems.append("vzdump failed")
+        if (NOW - dt.datetime.fromtimestamp(last["endtime"], dt.timezone.utc)).total_seconds() > STALE_HOURS * 3600:
+            problems.append("no vzdump in a day")
+    else:
+        lines.append("Backup · no vzdump task found")
+        problems.append("no vzdump task")
+    content = pve(f"/nodes/{node}/storage/{BACKUP_STORAGE}/content?content=backup")
+    newest = {}
+    for item in content:
+        vmid = int(item.get("vmid", 0))
+        if item.get("ctime", 0) > newest.get(vmid, (0,))[0]:
+            newest[vmid] = (item["ctime"], item.get("size", 0))
+    parts, stale, never = [], [], []
+    for g in sorted(guests, key=lambda g: g["vmid"]):
+        if g["vmid"] in newest:
+            label, hours = age(newest[g["vmid"]][0])
+            parts.append(f"{g['name']} {label}")
+            if hours > STALE_HOURS:
+                stale.append(g["name"])
+        else:
+            never.append(g["name"])
+    lines.append("  " + " · ".join(parts) if parts else "  no backups on the storage")
+    if stale:
+        lines.append(f"  ✗ stale (>{STALE_HOURS}h): {', '.join(stale)}")
+        problems.append("stale backups")
+    if never:
+        lines.append(f"  ✗ never backed up: {', '.join(never)}")
+        problems.append("guests never backed up")
+    usage = []
+    for st in pve(f"/nodes/{node}/storage"):
+        if st.get("total") and st.get("type") in ("pbs", "lvmthin", "dir", "zfspool"):
+            pct = 100 * st["used"] / st["total"]
+            usage.append(f"{st['storage']} {pct:.0f}% of {human(st['total'])}")
+            if pct > 85:
+                problems.append(f"{st['storage']} {pct:.0f}% full")
+    lines.append("Storage · " + " · ".join(usage))
+
+
+def hosts():
+    disk = {r["metric"]["instance"]: float(r["value"][1]) for r in prom('100 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100')}
+    mem = {r["metric"]["instance"]: float(r["value"][1]) for r in prom("100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)")}
+    parts = []
+    for host in sorted(disk):
+        parts.append(f"{host} /{disk[host]:.0f}% m{mem.get(host, 0):.0f}%")
+        if disk[host] > 85:
+            problems.append(f"{host} root {disk[host]:.0f}% full")
+    lines.append(f"Hosts · {len(parts)} reporting · " + " · ".join(parts))
+
+
+def alerts():
+    firing = [a for a in get(f"{GRAFANA}/api/prometheus/grafana/api/v1/alerts")["data"]["alerts"] if a["state"] == "Alerting"]
+    if firing:
+        names = sorted({f"{a['labels'].get('alertname')} ({a['labels'].get('name') or a['labels'].get('instance') or '-'})" for a in firing})
+        lines.append(f"Alerts · ✗ {len(firing)} firing: " + "; ".join(names))
+        problems.append("alerts firing")
+    else:
+        lines.append("Alerts · none firing")
+
+
+for fn in (backups, hosts, alerts):
+    section(fn)
+
+title = f"AUTOLAB · {NOW.astimezone().strftime('%a %d %b')}"
+if problems:
+    title += f" · {len(problems)} to look at"
+payload = {
+    "topic": NTFY_TOPIC,
+    "title": title,
+    "message": "\n".join(lines),
+    "priority": 3 if problems else 2,
+    "tags": ["warning"] if problems else ["clipboard"],
+    "click": GRAFANA,
+}
+req = urllib.request.Request(NTFY_URL, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+with urllib.request.urlopen(req, timeout=20) as r:
+    r.read()
+print(payload["title"])
+print(payload["message"])
+sys.exit(0)

@@ -41,7 +41,8 @@ hold ciphertext.
 | first backup | sputnik, 2026-09-20 06:14 UTC, 3.3 GB of 20 GB written in 5 min |
 | first restore | sputnik via `08 - PBS Restore` (test), 2026-09-20 06:30 UTC: `BOOTED as Debian GNU/Linux 13 (trixie)` |
 | offsite copy | not yet — B2 as a second datastore, its own PR |
-| alert | not yet — guests without a recent backup, failed verify |
+| digest | the 06:00 ntfy digest reports last night's vzdump, each guest's newest backup age, stale/never, storage headroom — see [observability](./observability.md#the-morning-digest) |
+| alert | not yet as a Grafana rule — the digest flags stale and never-backed-up guests every morning; a paging rule follows |
 
 ## What lives where
 
