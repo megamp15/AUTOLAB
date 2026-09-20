@@ -69,6 +69,7 @@ builders/ansible/
     docker-host/
     motd/
     pbs/
+    pbs-restore/
     updates/
 ```
 
@@ -206,6 +207,13 @@ The `harden.yml` playbook is the common baseline every managed server receives:
   notices under `/etc/update-motd.d` are switched off so plain OpenSSH logins
   do not print them either. Provider hosts are green, tenant hosts cyan.
   `run-parts /etc/autolab/motd.d` prints it again from a running shell.
+
+## Restore (`restore.yml`)
+
+Run by workflow **08 - PBS Restore** against the hypervisor inventory.
+`test` restores a throwaway copy of a guest, boots it isolated, checks the
+guest agent answers and destroys it; `replace` overwrites the live guest.
+See [backups](../../docs/gitops/backups.md#restoring).
 
 ## Updates (`updates.yml`)
 

@@ -79,6 +79,9 @@ Once the host is on Tailscale, work through the [phase 2 setup checklist](docs/g
 | `02 · Packer Build` | Build a VM template from the [catalog](infra/packer/template-catalog.yaml) |
 | `03 · OpenTofu Plan` / `04 · Apply` | Plan and apply the `lab` stack |
 | `05 · Ansible Builder` | Harden VMs; run `docker`, `storage`, `backup`, `updates` or `tailscale-update` on demand |
+| `06 · Tailscale Policy` | Apply the tailnet policy from Git |
+| `07 · Proxmox Node` | Bring the hypervisor under Ansible: repositories, accounts, backup target, login screen |
+| `08 · PBS Restore` | Restore a guest from Proxmox Backup Server — `test` proves a backup boots, `replace` is the disaster button |
 | `99 · OpenTofu Destroy` | Tear the stack down, cleaning Tailscale device records |
 
 `90 · Scripts` and `98 · OpenTofu CI` run automatically on push and pull request.

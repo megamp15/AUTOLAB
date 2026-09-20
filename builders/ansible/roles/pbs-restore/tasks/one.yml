@@ -1,0 +1,164 @@
+---
+- name: List backups of {{ guest.name }}
+  ansible.builtin.command:
+    argv: [pvesm, list, "{{ autolab_restore_storage }}", --vmid, "{{ guest.vmid }}"]
+  register: autolab_restore_list
+  changed_when: false
+  check_mode: false
+
+- name: Choose the snapshot for {{ guest.name }}
+  ansible.builtin.set_fact:
+    autolab_restore_volid: >-
+      {{ (autolab_restore_storage ~ ':backup/vm/' ~ guest.vmid ~ '/' ~ autolab_restore_snapshot)
+         if autolab_restore_snapshot | length > 0
+         else (autolab_restore_list.stdout | regex_findall('(?m)^(\S+:backup/vm/' ~ guest.vmid ~ '/\S+)') | sort | last | default('')) }}
+
+- name: Refuse when there is nothing to restore for {{ guest.name }}
+  ansible.builtin.assert:
+    that: autolab_restore_volid | length > 0
+    fail_msg: "{{ guest.name }} has no backup on {{ autolab_restore_storage }}."
+
+# Check mode stops here: it names the snapshot and restores nothing.
+- name: Record what check mode would restore for {{ guest.name }}
+  ansible.builtin.set_fact:
+    autolab_restore_results: >-
+      {{ autolab_restore_results | default([]) + [
+           'RESTORE RESULT ' ~ guest.name ~ ': WOULD ' ~ autolab_restore_mode ~ ' from ' ~ autolab_restore_volid] }}
+  when: ansible_check_mode
+
+- name: Test-restore {{ guest.name }}
+  when: autolab_restore_mode == 'test' and not ansible_check_mode
+  block:
+    - name: Take the next free VMID for {{ guest.name }}
+      ansible.builtin.command:
+        argv: [pvesh, get, /cluster/nextid]
+      register: autolab_restore_nextid
+      changed_when: false
+
+    - name: Restore to a new guest {{ autolab_restore_nextid.stdout }}
+      ansible.builtin.command:
+        argv:
+          - qmrestore
+          - "{{ autolab_restore_volid }}"
+          - "{{ autolab_restore_nextid.stdout }}"
+          - --storage
+          - "{{ autolab_restore_target_storage }}"
+          - --unique
+          - "1"
+      changed_when: true
+
+    - name: Read the restored network device of {{ autolab_restore_nextid.stdout }}
+      ansible.builtin.command:
+        argv: [qm, config, "{{ autolab_restore_nextid.stdout }}"]
+      register: autolab_restore_config
+      changed_when: false
+
+    # Link down, small, never autostarts, named so nobody mistakes it.
+    - name: Isolate and shrink test guest {{ autolab_restore_nextid.stdout }}
+      ansible.builtin.command:
+        argv:
+          - qm
+          - set
+          - "{{ autolab_restore_nextid.stdout }}"
+          - --name
+          - "{{ guest.name }}-restore-test"
+          - --net0
+          - "{{ (autolab_restore_config.stdout | regex_search('(?m)^net0: (.*)$', '\\1') | first) ~ ',link_down=1' }}"
+          - --memory
+          - "{{ autolab_restore_test_memory_mb }}"
+          - --cores
+          - "1"
+          - --onboot
+          - "0"
+      changed_when: true
+
+    - name: Boot test guest {{ autolab_restore_nextid.stdout }}
+      ansible.builtin.command:
+        argv: [qm, start, "{{ autolab_restore_nextid.stdout }}"]
+      changed_when: true
+
+    - name: Wait for the guest agent of {{ guest.name }}
+      ansible.builtin.command:
+        argv: [qm, agent, "{{ autolab_restore_nextid.stdout }}", ping]
+      register: autolab_restore_ping
+      until: autolab_restore_ping.rc == 0
+      retries: "{{ (autolab_restore_agent_timeout_s / 10) | int }}"
+      delay: 10
+      changed_when: false
+      failed_when: false
+
+    - name: Ask the restored OS what it is, {{ guest.name }}
+      ansible.builtin.command:
+        argv: [qm, guest, cmd, "{{ autolab_restore_nextid.stdout }}", get-osinfo]
+      register: autolab_restore_osinfo
+      changed_when: false
+      failed_when: false
+
+    - name: Record the result for {{ guest.name }}
+      ansible.builtin.set_fact:
+        autolab_restore_results: >-
+          {{ autolab_restore_results | default([]) + [
+               'RESTORE RESULT ' ~ guest.name ~ ': ' ~
+               ('BOOTED as ' ~ ((autolab_restore_osinfo.stdout | from_json)['pretty-name'] | default('?'))
+                if autolab_restore_ping.rc == 0 else 'FAILED to answer the guest agent within ' ~ autolab_restore_agent_timeout_s ~ 's')
+               ~ ' from ' ~ autolab_restore_volid ~ ' (test guest ' ~ autolab_restore_nextid.stdout ~ ', destroyed)'] }}
+  always:
+    - name: Stop the test guest of {{ guest.name }}
+      ansible.builtin.command:
+        argv: [qm, stop, "{{ autolab_restore_nextid.stdout }}", --timeout, "60"]
+      when: autolab_restore_nextid is defined and autolab_restore_nextid.stdout | default('') | length > 0
+      changed_when: true
+      failed_when: false
+
+    - name: Destroy the test guest of {{ guest.name }}
+      ansible.builtin.command:
+        argv: [qm, destroy, "{{ autolab_restore_nextid.stdout }}", --purge, "1", --destroy-unreferenced-disks, "1"]
+      when: autolab_restore_nextid is defined and autolab_restore_nextid.stdout | default('') | length > 0
+      changed_when: true
+      failed_when: false
+
+    - name: Require a booted test guest for {{ guest.name }}
+      ansible.builtin.assert:
+        that: autolab_restore_ping.rc | default(1) == 0
+        fail_msg: "{{ guest.name }}: restored guest never answered the agent — see the log above."
+
+- name: Replace the live guest {{ guest.name }}
+  when: autolab_restore_mode == 'replace' and not ansible_check_mode
+  block:
+    - name: Stop the live guest {{ guest.name }}
+      ansible.builtin.command:
+        argv: [qm, stop, "{{ guest.vmid }}", --timeout, "120"]
+      changed_when: true
+      failed_when: false
+
+    - name: Restore over live guest {{ guest.vmid }}
+      ansible.builtin.command:
+        argv:
+          - qmrestore
+          - "{{ autolab_restore_volid }}"
+          - "{{ guest.vmid }}"
+          - --storage
+          - "{{ autolab_restore_target_storage }}"
+          - --force
+          - "1"
+      changed_when: true
+
+    - name: Start the live guest {{ guest.name }}
+      ansible.builtin.command:
+        argv: [qm, start, "{{ guest.vmid }}"]
+      changed_when: true
+
+    - name: Wait for the guest agent of {{ guest.name }}
+      ansible.builtin.command:
+        argv: [qm, agent, "{{ guest.vmid }}", ping]
+      register: autolab_restore_ping
+      until: autolab_restore_ping.rc == 0
+      retries: "{{ (autolab_restore_agent_timeout_s / 10) | int }}"
+      delay: 10
+      changed_when: false
+
+    - name: Record the result for {{ guest.name }}
+      ansible.builtin.set_fact:
+        autolab_restore_results: >-
+          {{ autolab_restore_results | default([]) + [
+               'RESTORE RESULT ' ~ guest.name ~ ': REPLACED from ' ~ autolab_restore_volid ~ ' and running'] }}

@@ -1,0 +1,10 @@
+---
+# Restore guests from Proxmox Backup Server. `test` proves a backup boots;
+# `replace` is the disaster button. See docs/gitops/backups.md.
+- name: Restore guests from the backup server
+  hosts: proxmox_nodes
+  become: true
+  gather_facts: false
+
+  roles:
+    - role: pbs-restore
