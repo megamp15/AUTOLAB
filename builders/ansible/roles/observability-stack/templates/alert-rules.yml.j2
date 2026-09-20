@@ -222,6 +222,12 @@ groups:
                     type: gt
                     params: [{{ autolab_obs_alert_pve_storage_pct }}]
 
+      # The two backup rules read the digest's textfile through
+      # last_over_time so they judge the collector's last facts even after the
+      # file is gone (timer stopped and file removed, textfile dir cleared,
+      # stack host rebuilt). Without it, absence forgets which guests the job
+      # excludes and pages for all of them at once, and the stale rule — whose
+      # metric then no longer exists — never fires to say why.
       - uid: autolab-backup-missing
         title: Backup is missing
         condition: THRESHOLD
@@ -250,7 +256,7 @@ groups:
               # never-backed-up alike. The backup facts come from the stack
               # host's collector (autolab-obs-digest --metrics), which reads
               # PBS with a read-only token.
-              expr: '((pve_up{id=~"qemu/.*"} == 1) * on(id) group_left(name) max by (id, name) (pve_guest_info{template="0"})) unless on(name) (max by (name) (autolab_backup_excluded) == 1) unless on(name) ((time() - max by (name) (autolab_backup_last_seconds)) < {{ autolab_obs_alert_backup_max_age_hours }} * 3600)'
+              expr: '((pve_up{id=~"qemu/.*"} == 1) * on(id) group_left(name) max by (id, name) (pve_guest_info{template="0"})) unless on(name) (max by (name) (last_over_time(autolab_backup_excluded[7d])) == 1) unless on(name) ((time() - max by (name) (last_over_time(autolab_backup_last_seconds[7d]))) < {{ autolab_obs_alert_backup_max_age_hours }} * 3600)'
           - refId: THRESHOLD
             datasourceUid: __expr__
             model:
@@ -283,7 +289,7 @@ groups:
               refId: QUERY
               instant: true
               editorMode: code
-              expr: '(time() - max(autolab_backup_collector_timestamp_seconds)) / 60'
+              expr: '(time() - max(last_over_time(autolab_backup_collector_timestamp_seconds[7d]))) / 60'
           - refId: THRESHOLD
             datasourceUid: __expr__
             model:
