@@ -136,9 +136,16 @@ def backups():
         if not content:
             lines.append("  no PBS token yet (run the backup playbook); Proxmox's own listing needs write privileges the exporter token lacks")
             problems.append("backup listing unavailable")
-    parts, stale, never = [], [], []
+    # Guests a vzdump job excludes on purpose are neither stale nor never;
+    # they are listed so the omission is visible, not alarming.
+    excluded = set()
+    for job in pve("/cluster/backup"):
+        excluded.update(int(v) for v in str(job.get("exclude", "")).split(",") if v.strip())
+    parts, stale, never, skipped = [], [], [], []
     for g in sorted(guests, key=lambda g: g["vmid"]):
-        if g["vmid"] in newest:
+        if g["vmid"] in excluded and g["vmid"] not in newest:
+            skipped.append(g["name"])
+        elif g["vmid"] in newest:
             label, hours = age(newest[g["vmid"]][0])
             parts.append(f"{g['name']} {label}")
             if hours > STALE_HOURS:
@@ -153,6 +160,8 @@ def backups():
     if never:
         lines.append(f"  ✗ never backed up: {', '.join(never)}")
         problems.append("guests never backed up")
+    if skipped:
+        lines.append(f"  excluded by the job: {', '.join(skipped)}")
     if failed_verify:
         names = [g["name"] for g in guests if g["vmid"] in failed_verify]
         lines.append(f"  ✗ verify FAILED: {', '.join(names)}")

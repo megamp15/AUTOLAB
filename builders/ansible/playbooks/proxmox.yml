@@ -43,14 +43,19 @@
         username: pve@pbs
 
     # Enabled 2026-09-20, once /etc/pve/priv/storage/ark.enc was in the
-    # password manager and R2 — this line is the record of that. Templates
-    # are excluded: they are rebuilt from Git, and 9000 alone is 4 GB a
-    # night otherwise.
+    # password manager and R2 — this line is the record of that.
+    #
+    # Excluded: the templates (rebuilt from Git; 9000 alone is 4 GB a night)
+    # and ark itself (104). Snapshot mode freezes the guest's filesystems,
+    # and a frozen PBS cannot accept the backup connection from the node —
+    # the first nightly deadlocked on exactly that. Nothing on ark needs
+    # backing up: the chunk store is on the NAS, the key is off the node,
+    # and the pbs role recreates its configuration.
     autolab_pve_backup_jobs:
       - id: autolab-nightly
         storage: ark
         schedule: "02:00"
-        exclude: [9000, 9002]
+        exclude: [9000, 9001, 9002, 104]
         enabled: true
 
   roles:
