@@ -165,6 +165,7 @@ locally it is `--tags`:
 | `ssh` | `ssh-hardening` |
 | `firewall` | `firewall` |
 | `motd` | `motd` |
+| `fail2ban` | `fail2ban` |
 
 ```bash
 ansible-playbook -i /tmp/autolab-inventory.json playbooks/harden.yml --tags users

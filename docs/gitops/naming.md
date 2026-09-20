@@ -42,6 +42,7 @@ inventory.
 |---|---|---|
 | Storage | gravity wells — everything collapses inward | `singularity` |
 | Observability | observatories and telescopes — they watch | `jwst`, `chandra`, `hubble`, `kepler` |
+| Backup | vessels that carry everything through | `ark` |
 | Disposable / test | early probes and satellites — built to prove a thing, then discarded | `sputnik`, `pioneer`, `explorer`, `voyager` |
 | Cluster control plane | navigation stars — they guide | `polaris`, `vega`, `sirius`, `canopus` |
 | Cluster workers | energetic emitters — they do the work | `pulsar-NN`, `quasar-NN` — numbered, being interchangeable |
@@ -57,6 +58,8 @@ incident, which is the only time anyone reads it carefully.
 | `singularity` | NAS | everything collapses inward; it is where the data goes |
 | `jwst` | observability | the James Webb telescope sees infrared, so it sees *through* the dust that blocks optical instruments |
 | `sputnik` | disposable probe | the first satellite: simple, proved the concept, then burned up |
+| `ark` | backup server | it carries everything through the flood; what is on it is what survives |
+| `pioneer` | (retired) | a throwaway static VM that proved the resolver fix in #78, then was destroyed |
 
 ## Renaming costs a rebuild
 
