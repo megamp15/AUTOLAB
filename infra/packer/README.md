@@ -183,7 +183,7 @@ For now, `template-schema.yaml` generates only the `configure-packer-template` a
 | `ssh_password` | CI secret / local input | Yes | Temporary build-only SSH password for provisioning |
 | `network_bridge` | `vmbr0` | No | Local Packer default for build VM |
 | `vm_template_name` | Catalog resolver | No | Fixed template name owned by the catalog entry |
-| `vm_id` | Catalog resolver (`9000` Debian, `9002` Ubuntu 24.04; `9001` reserved) | No | Fixed Proxmox VM ID owned by the catalog entry |
+| `vm_id` | Catalog resolver (`9000` Debian, `9001` Ubuntu 26.04, `9002` Ubuntu 24.04) | No | Fixed Proxmox VM ID owned by the catalog entry |
 | `ssh_public_keys` | `[]` | No | SSH keys to inject |
 | `ssh_bastion_host` | `PROXMOX_HOST` | No | Proxmox SSH bastion host |
 | `ssh_bastion_username` | `root` | No | Proxmox SSH bastion username |
