@@ -1,6 +1,6 @@
 ---
 tags: [gitops, cloudflare, tunnel, traefik, pocket-id, ingress]
-status: draft
+status: active
 audience: operator
 ---
 
@@ -171,6 +171,17 @@ arrives; `start cloudflared` clears it.
 A line in `ingress.auto.tfvars` and its Traefik route on horizon. Removing one
 is the reverse. The tunnel config's catch-all means a hostname that exists in
 DNS but not in Traefik gets a 404, not a service.
+
+## What was proven, and how
+
+| claim | how |
+|---|---|
+| nothing listens on horizon | `ss -ltnp`: one published port, `127.0.0.1:2000`, for the local agent |
+| an unrouted hostname reaches no service | `home` and `grafana` answered 404 from Traefik until their routes existed; the tunnel's catch-all is `http_status:404` |
+| nothing gets past the login | unauthenticated browser → 302 to Pocket ID; non-browser → 401; forged session cookie → 302; nginx on jwst logged zero requests during all of it |
+| the login works from the internet | a phone on LTE: `home.<zone>` → passkey → homepage; `grafana.<zone>` → silent, already signed in, Server Admin |
+| the tunnel alert pages | `docker compose stop cloudflared`: 530 on every public name within a minute, *Tunnel is down* delivered at +6 min 36 s, resolved 3 min after `start` |
+| the homepage watches the door | its *Pocket ID* row probes through Cloudflare every minute; the fire test showed it green on a dead tunnel until the probe named itself (Cloudflare answers a bare Python client with 403) |
 
 ## Not exposed, on purpose
 
