@@ -574,6 +574,13 @@ changes to the rest. It now resolves the limit through ansible itself, and fails
 loudly when a pattern matches nothing rather than checking zero hosts and
 reporting success.
 
+**Cloudflare answers a bare Python client with 403, and 403 reads as "up".**
+The homepage probes count any status below 500 as reachable, which is right
+for a login page and wrong for Cloudflare's browser-integrity check, which
+rejects Python's default User-Agent before the tunnel is consulted. The
+first tunnel fire test showed the *Pocket ID* row green while every public
+name was serving 530. The probe now sends `autolab-status/1.0`.
+
 **Anonymous viewing ends when Grafana goes public.** It was deliberate while
 the tailnet was the only way in. Once `GRAFANA_OIDC_CLIENT_ID` is set the
 ingress phase routes `grafana.<zone>` through the tunnel, and the same

@@ -123,11 +123,16 @@ def probe(check):
     # up/down for a homepage row. http: any answer below 500 counts (a login
     # page is up); tcp: the port accepts. Self-signed everywhere, so no
     # verification — this is reachability, not identity.
+    #
+    # A named User-Agent, because a public row goes through Cloudflare, whose
+    # browser-integrity check answers Python's default agent with 403 before
+    # the tunnel is consulted — and 403 is "below 500". The first tunnel fire
+    # test showed the row green on a tunnel that was down.
     kind, target = check.get("type"), check.get("target")
     try:
         if kind == "http":
             ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
-            req = urllib.request.Request(target, method="GET")
+            req = urllib.request.Request(target, method="GET", headers={"User-Agent": "autolab-status/1.0"})
             try:
                 with urllib.request.urlopen(req, timeout=6, context=ctx) as r:
                     return r.status < 500
