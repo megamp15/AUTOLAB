@@ -73,6 +73,39 @@ machines = {
     }
   }
 
+  # Ingress. The one machine deliberately exposed to the internet, so it gets
+  # nothing else to lose: cloudflared dials Cloudflare outbound (no port is
+  # opened anywhere), Traefik routes the public hostnames to services on
+  # other hosts over the tailnet, and Pocket ID is the login. A horizon is
+  # where the outside meets the lab — see naming.md, which reserved the name.
+  #
+  # No bridge address: it serves nothing on the bridge and reaches jwst by
+  # MagicDNS like everything else. No firewall rules: the only traffic in
+  # arrives through the tunnel, inside the compose network. 1 GB holds the
+  # three processes (about 100 MB together) with room for Alloy and Docker;
+  # the node has 15.5 GB, 14 already allocated, and this is the last of it.
+  # 105: 102 and 103 stay free for restore tests, which take the next id.
+  horizon = {
+    type                    = "vm"
+    provisioning_class      = "builder_target"
+    name                    = "horizon"
+    vm_id                   = 105
+    node_name               = "xps-pve"
+    template_vm_id          = 9000
+    datastore_id            = "local-lvm"
+    cloud_init_datastore_id = "local-lvm"
+    cpu_cores               = 1
+    memory_mb               = 1024
+    disk_size_gb            = 20
+    ipv4_address            = "dhcp"
+    builder = {
+      docker_enabled = true
+      ingress = {
+        stack = true
+      }
+    }
+  }
+
   # Observability host. Named for what it does, not where it sits — see the
   # naming scheme in docs/gitops/naming.md.
   #
