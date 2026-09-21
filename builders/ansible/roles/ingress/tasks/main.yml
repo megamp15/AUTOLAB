@@ -89,18 +89,41 @@
     cmd: "umask 077 && openssl rand -hex 16 > {{ autolab_ingress_state_dir }}/oidc-plugin-secret"
     creates: "{{ autolab_ingress_state_dir }}/oidc-plugin-secret"
 
+# Check mode on a fresh host generates nothing, so there is nothing to read
+# yet; the templates below render with a placeholder so the run can still
+# show every other change it would make. On a provisioned host the files
+# exist and check mode reads the real values, so the diff stays honest.
+- name: See whether the secrets exist yet
+  ansible.builtin.stat:
+    path: "{{ autolab_ingress_state_dir }}/{{ item }}"
+  loop: [pocket-id-encryption-key, oidc-plugin-secret]
+  register: autolab_ingress_secret_files
+
 - name: Read the generated secrets
   ansible.builtin.slurp:
-    src: "{{ autolab_ingress_state_dir }}/{{ item }}"
-  loop: [pocket-id-encryption-key, oidc-plugin-secret]
+    src: "{{ item.stat.path }}"
+  loop: "{{ autolab_ingress_secret_files.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stat.exists
   register: autolab_ingress_generated
   no_log: true
 
 - name: Set the generated secrets as facts
   ansible.builtin.set_fact:
-    autolab_ingress_pocket_id_encryption_key: "{{ (autolab_ingress_generated.results[0].content | b64decode).strip() }}"
-    autolab_ingress_oidc_plugin_secret: "{{ (autolab_ingress_generated.results[1].content | b64decode).strip() }}"
+    autolab_ingress_pocket_id_encryption_key: >-
+      {{ (autolab_ingress_generated.results[0].content | b64decode).strip()
+         if autolab_ingress_secret_files.results[0].stat.exists else 'not-generated-yet-check-mode' }}
+    autolab_ingress_oidc_plugin_secret: >-
+      {{ (autolab_ingress_generated.results[1].content | b64decode).strip()
+         if autolab_ingress_secret_files.results[1].stat.exists else 'not-generated-yet-check-mode' }}
   no_log: true
+
+- name: Refuse to apply without the generated secrets
+  ansible.builtin.assert:
+    that: autolab_ingress_secret_files.results | map(attribute='stat.exists') | list is all
+    fail_msg: "The generated secrets are missing after generation; refusing to render placeholders for real."
+  when: not ansible_check_mode
 
 - name: Install the compose file
   ansible.builtin.template:
