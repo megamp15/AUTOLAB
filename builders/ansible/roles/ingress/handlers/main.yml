@@ -3,3 +3,6 @@
   community.docker.docker_compose_v2:
     project_src: "{{ autolab_ingress_root }}"
     state: restarted
+  # Check mode on a fresh host notifies this from templates it did not write;
+  # there is no project to restart until the first apply.
+  when: not ansible_check_mode or autolab_ingress_compose_file.stat.exists
