@@ -26,6 +26,9 @@ if os.environ.get("PVE_VERIFY_SSL", "false").lower() != "true":
     PVE_CTX.verify_mode = ssl.CERT_NONE
 PROM = os.environ["PROMETHEUS_URL"]
 GRAFANA = os.environ["GRAFANA_URL"]
+# A service-account token once anonymous viewing is off (Grafana public); the
+# role writes it next to the PBS token. Without it the alert list is 401.
+GRAFANA_HEADERS = {"Authorization": f"Bearer {os.environ['GRAFANA_TOKEN']}"} if os.environ.get("GRAFANA_TOKEN") else {}
 NTFY_URL = os.environ["NTFY_URL"]
 NTFY_TOPIC = os.environ["NTFY_TOPIC"]
 BACKUP_STORAGE = os.environ.get("BACKUP_STORAGE", "ark")
@@ -185,7 +188,7 @@ def write_status(path):
     except Exception as e:  # noqa: BLE001
         feed.append({"time": "--:--", "text": f"proxmox: {type(e).__name__}"})
     try:
-        firing = [a for a in get(f"{GRAFANA}/api/prometheus/grafana/api/v1/alerts")["data"]["alerts"] if a["state"] == "Alerting"]
+        firing = [a for a in get(f"{GRAFANA}/api/prometheus/grafana/api/v1/alerts", GRAFANA_HEADERS)["data"]["alerts"] if a["state"] == "Alerting"]
         if firing:
             names = sorted({a["labels"].get("alertname", "?") for a in firing})
             feed.append({"time": NOW.astimezone().strftime("%H:%M"), "text": f"{len(firing)} alert{'s' if len(firing) > 1 else ''} firing: " + ", ".join(names)})
@@ -330,7 +333,7 @@ def hosts():
 
 
 def alerts():
-    firing = [a for a in get(f"{GRAFANA}/api/prometheus/grafana/api/v1/alerts")["data"]["alerts"] if a["state"] == "Alerting"]
+    firing = [a for a in get(f"{GRAFANA}/api/prometheus/grafana/api/v1/alerts", GRAFANA_HEADERS)["data"]["alerts"] if a["state"] == "Alerting"]
     if firing:
         names = sorted({f"{a['labels'].get('alertname')} ({a['labels'].get('name') or a['labels'].get('instance') or '-'})" for a in firing})
         lines.append(f"Alerts · ✗ {len(firing)} firing: " + "; ".join(names))

@@ -8,4 +8,6 @@ Wants=network-online.target
 Type=oneshot
 EnvironmentFile=/etc/autolab/obs-digest.env
 EnvironmentFile=-/etc/autolab/obs-digest-pbs.env
+# Written by the role once Grafana needs a login; optional until then.
+EnvironmentFile=-/etc/autolab/obs-digest-grafana.env
 ExecStart=/usr/local/bin/autolab-obs-digest --status {{ autolab_obs_root }}/homepage/site/status.json

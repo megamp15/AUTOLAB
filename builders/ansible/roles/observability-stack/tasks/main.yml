@@ -262,6 +262,72 @@
   changed_when: false
   no_log: true
 
+# Once Grafana logs people in, the digest and the status writer need a login
+# too: a Viewer service account with one token, made through the API with the
+# admin password and kept next to the PBS token. Made once — a token is shown
+# once — and the file is the guard. A rebuilt host has neither the file nor
+# the Grafana it belonged to, so both come back together.
+- name: See whether the digest already has a Grafana token
+  ansible.builtin.stat:
+    path: /etc/autolab/obs-digest-grafana.env
+  register: autolab_obs_grafana_token_file
+
+- name: Give the digest a Grafana login
+  when:
+    - autolab_obs_grafana_oidc_client_id | length > 0
+    - autolab_obs_grafana_admin_password | length > 0
+    - not autolab_obs_grafana_token_file.stat.exists
+    - not ansible_check_mode
+  no_log: true
+  block:
+    - name: Look for the digest's service account
+      ansible.builtin.uri:
+        url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}/api/serviceaccounts/search?query=autolab-digest"
+        user: admin
+        password: "{{ autolab_obs_grafana_admin_password }}"
+        force_basic_auth: true
+      register: autolab_obs_sa_search
+
+    - name: Create the digest's service account
+      ansible.builtin.uri:
+        url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}/api/serviceaccounts"
+        method: POST
+        user: admin
+        password: "{{ autolab_obs_grafana_admin_password }}"
+        force_basic_auth: true
+        body_format: json
+        body: { name: autolab-digest, role: Viewer }
+        status_code: [201]
+      register: autolab_obs_sa_created
+      when: autolab_obs_sa_search.json.totalCount | int == 0
+
+    - name: Note the service account's id
+      ansible.builtin.set_fact:
+        autolab_obs_sa_id: >-
+          {{ autolab_obs_sa_created.json.id if autolab_obs_sa_created is not skipped
+             else autolab_obs_sa_search.json.serviceAccounts[0].id }}
+
+    - name: Make the digest's token
+      ansible.builtin.uri:
+        url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}/api/serviceaccounts/{{ autolab_obs_sa_id }}/tokens"
+        method: POST
+        user: admin
+        password: "{{ autolab_obs_grafana_admin_password }}"
+        force_basic_auth: true
+        body_format: json
+        body: { name: "digest-{{ ansible_date_time.epoch }}" }
+        status_code: [200]
+      register: autolab_obs_sa_token
+
+    - name: Keep the token where the digest reads it
+      ansible.builtin.copy:
+        content: "GRAFANA_TOKEN={{ autolab_obs_sa_token.json.key }}\n"
+        dest: /etc/autolab/obs-digest-grafana.env
+        owner: root
+        group: root
+        mode: "0600"
+      notify: Send a digest
+
 - name: Wait for Prometheus to accept writes
   ansible.builtin.uri:
     url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_prometheus_port }}/-/ready"
