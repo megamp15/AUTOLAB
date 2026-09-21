@@ -74,6 +74,9 @@ jobs:
     # stack falls through to the repository-level values.
     environment: ${{ inputs.environment }}
     env:
+      # Referenced so the runner masks it from the job's first log line. A
+      # public log then shows `xps-pve.***`. Not a secret, just not published.
+      AUTOLAB_TAILNET_DOMAIN: ${{ secrets.TAILNET_DOMAIN }}
       TF_VAR_tailscale_vm_tag: ${{ vars.TAILSCALE_VM_TAG || 'tag:autolab-vm' }}
       TF_VAR_builder_ssh_public_key: ${{ vars.BUILDER_SSH_PUBLIC_KEY }}
       TF_VAR_nas_server: ${{ vars.NAS_SERVER }}

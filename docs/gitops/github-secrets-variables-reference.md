@@ -89,6 +89,7 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `NTFY_TOPIC` | `autolab-pulsar-xxxxxxxxxx` | Ansible Builder | ntfy topic that alerts publish to. It is the **entire** credential — holding it lets anyone read these alerts and publish to them — so it is a secret, not a variable, and carries random entropy rather than a guessable name. Unset means alerts stay in Grafana and are pushed nowhere. |
 | `GF_SECURITY_ADMIN_PASSWORD` | a generated password | Ansible Builder | Grafana admin login. Anonymous *viewing* is deliberate, but the admin account can rewrite dashboards, add datasources and change where alerts go — on the default `admin`/`admin` that is handed to anyone on the tailnet. Unset leaves the existing password alone. |
 | `PACKER_SSH_PASSWORD` | generated password | Packer Build | Temporary build-only password. Not your SSH key. |
+| `TAILNET_DOMAIN` | `xxx-yyy.ts.net` | every workflow that joins the tailnet | Not a credential. Referenced only so the runner masks it: GitHub masks a secret from a job's first log line, a variable never, and a public repository publishes its logs. Unset means logs show the name; nothing else changes. |
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |
 | `R2_SECRET_ACCESS_KEY` | `xyz789...` | OpenTofu | Same. Shown once. |
 | `PVE_SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH...` | Packer Build | Required only as the Proxmox bastion key; never reuse it for a VM. |
