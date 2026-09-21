@@ -1,0 +1,43 @@
+# Managed by Ansible — roles/ingress. Local edits are overwritten.
+#
+# No service publishes a port. cloudflared dials Cloudflare outbound and hands
+# every request to Traefik over this compose network; Traefik reaches the
+# services it routes over the tailnet; Pocket ID is only ever reached through
+# Traefik. The host firewall sees nothing inbound because nothing is.
+services:
+  cloudflared:
+    image: {{ autolab_ingress_images.cloudflared }}
+    restart: unless-stopped
+    env_file: cloudflared.env
+    # --no-autoupdate: the image tag is the version. Metrics on the compose
+    # network only, for the tunnel alert.
+    command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 run
+    depends_on: [traefik]
+
+  traefik:
+    image: {{ autolab_ingress_images.traefik }}
+    restart: unless-stopped
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+    # Tailscale's resolver, so `jwst.<tailnet>` resolves inside the container
+    # the way it does on the host. Docker's embedded DNS would otherwise fall
+    # back to the host's upstream servers, which know nothing about MagicDNS.
+    dns:
+      - 100.100.100.100
+    dns_search:
+      - {{ autolab_ingress_tailnet_domain }}
+    depends_on: [pocket-id]
+
+  pocket-id:
+    image: {{ autolab_ingress_images.pocket_id }}
+    restart: unless-stopped
+    env_file: pocket-id.env
+    volumes:
+      - ./pocket-id:/app/data
+    healthcheck:
+      test: ["CMD", "/app/pocket-id", "healthcheck"]
+      interval: 1m30s
+      timeout: 5s
+      retries: 2
+      start_period: 10s

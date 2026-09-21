@@ -1,0 +1,185 @@
+---
+- name: Require a Debian-family Builder target
+  ansible.builtin.assert:
+    that: ansible_os_family == "Debian"
+    fail_msg: "Autolab Builder currently supports Debian-family hosts only."
+
+- name: Require Docker on the ingress host
+  ansible.builtin.assert:
+    that: (autolab_builder | default({})).docker_enabled | default(false) | bool
+    fail_msg: >-
+      The ingress stack needs Docker. Set builder.docker_enabled = true for
+      this machine in machines.auto.tfvars and run the docker playbook first.
+
+- name: Require what the workflow reads from the Cloudflare stack
+  ansible.builtin.assert:
+    that:
+      - autolab_ingress_tunnel_token | length > 0
+      - autolab_ingress_zone | length > 0
+      - autolab_ingress_stack_host | length > 0
+    fail_msg: >-
+      autolab_ingress_tunnel_token and autolab_ingress_zone come from the
+      Cloudflare stack's outputs (workflow 05 reads them when playbook is
+      ingress); autolab_ingress_stack_host is the observability host's
+      MagicDNS name. All three are required.
+
+# The compose waits for this address at boot; nothing binds to it.
+- name: Discover this host's tailnet address
+  ansible.builtin.command: tailscale ip -4
+  register: autolab_ingress_tailscale_ip_raw
+  check_mode: false
+  changed_when: false
+
+- name: Set the tailnet address fact
+  ansible.builtin.set_fact:
+    autolab_ingress_tailscale_ip: "{{ autolab_ingress_tailscale_ip_raw.stdout_lines[0] }}"
+
+# The inventory names hosts by their bare MagicDNS label. Inside Traefik's
+# container only the tailnet's resolver is used, so the label needs the
+# tailnet domain behind it; the domain is whatever this host's own name ends in.
+- name: Discover this host's MagicDNS name
+  ansible.builtin.command: tailscale status --json
+  register: autolab_ingress_tailscale_status
+  check_mode: false
+  changed_when: false
+
+- name: Set the tailnet domain fact
+  ansible.builtin.set_fact:
+    autolab_ingress_tailnet_domain: >-
+      {{ (autolab_ingress_tailscale_status.stdout | from_json).Self.DNSName
+         | regex_replace('\.$', '') | regex_replace('^[^.]+\.', '') }}
+
+- name: Set the observability host's full name
+  ansible.builtin.set_fact:
+    autolab_ingress_stack_fqdn: >-
+      {{ autolab_ingress_stack_host if '.' in autolab_ingress_stack_host
+         else autolab_ingress_stack_host ~ '.' ~ autolab_ingress_tailnet_domain }}
+
+- name: Create the ingress directory tree
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - "{{ autolab_ingress_root }}"
+    - "{{ autolab_ingress_root }}/traefik"
+    - "{{ autolab_ingress_root }}/traefik/dynamic"
+    - "{{ autolab_ingress_state_dir }}"
+
+# Pocket ID runs as uid 1000 and writes its SQLite and uploads here.
+- name: Give Pocket ID its data directory
+  ansible.builtin.file:
+    path: "{{ autolab_ingress_root }}/pocket-id"
+    state: directory
+    owner: 1000
+    group: 1000
+    mode: "0750"
+
+# Generated once, kept next to the data they protect. `creates` makes the
+# second run a no-op, and check mode never generates.
+- name: Generate Pocket ID's encryption key once
+  ansible.builtin.shell:
+    cmd: "umask 077 && openssl rand -base64 32 > {{ autolab_ingress_state_dir }}/pocket-id-encryption-key"
+    creates: "{{ autolab_ingress_state_dir }}/pocket-id-encryption-key"
+
+- name: Generate the OIDC plugin's cookie secret once
+  ansible.builtin.shell:
+    cmd: "umask 077 && openssl rand -hex 16 > {{ autolab_ingress_state_dir }}/oidc-plugin-secret"
+    creates: "{{ autolab_ingress_state_dir }}/oidc-plugin-secret"
+
+- name: Read the generated secrets
+  ansible.builtin.slurp:
+    src: "{{ autolab_ingress_state_dir }}/{{ item }}"
+  loop: [pocket-id-encryption-key, oidc-plugin-secret]
+  register: autolab_ingress_generated
+  no_log: true
+
+- name: Set the generated secrets as facts
+  ansible.builtin.set_fact:
+    autolab_ingress_pocket_id_encryption_key: "{{ (autolab_ingress_generated.results[0].content | b64decode).strip() }}"
+    autolab_ingress_oidc_plugin_secret: "{{ (autolab_ingress_generated.results[1].content | b64decode).strip() }}"
+  no_log: true
+
+- name: Install the compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ autolab_ingress_root }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart ingress stack
+
+- name: Install the connector's environment
+  ansible.builtin.template:
+    src: cloudflared.env.j2
+    dest: "{{ autolab_ingress_root }}/cloudflared.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart ingress stack
+
+- name: Install Pocket ID's environment
+  ansible.builtin.template:
+    src: pocket-id.env.j2
+    dest: "{{ autolab_ingress_root }}/pocket-id.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart ingress stack
+
+# Static config is read at start: the entrypoint, the plugin, the file
+# provider. A change here is a restart.
+- name: Install Traefik's static configuration
+  ansible.builtin.template:
+    src: traefik.yml.j2
+    dest: "{{ autolab_ingress_root }}/traefik/traefik.yml"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart ingress stack
+
+# Dynamic config is watched: routers, services and the middleware reload
+# without a restart. Holds the client secret, hence 0600.
+- name: Install Traefik's routes
+  ansible.builtin.template:
+    src: traefik-dynamic.yml.j2
+    dest: "{{ autolab_ingress_root }}/traefik/dynamic/autolab.yml"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+# Same boot problem the observability stack has: dockerd restarts containers
+# before tailscaled has an address, and Traefik's upstreams are on the
+# tailnet. The unit waits, then composes up.
+- name: Install the boot unit
+  ansible.builtin.template:
+    src: autolab-ingress.service.j2
+    dest: /etc/systemd/system/autolab-ingress.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart ingress stack
+
+- name: Enable the boot unit
+  ansible.builtin.systemd_service:
+    name: autolab-ingress.service
+    enabled: true
+    daemon_reload: true
+
+- name: Start the ingress stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ autolab_ingress_root }}"
+    state: present
+    pull: missing
+  register: autolab_ingress_compose
+
+- name: Say which routes exist
+  ansible.builtin.debug:
+    msg: >-
+      Routes: auth (Pocket ID){{ ', home (behind Pocket ID)' if autolab_ingress_homepage_client_id | length > 0 else '' }}.
+      {{ 'The homepage has no route until INGRESS_HOMEPAGE_CLIENT_ID/SECRET are set.' if autolab_ingress_homepage_client_id | length == 0 else '' }}

@@ -1,0 +1,34 @@
+---
+# The front door: the Cloudflare tunnel connector, Traefik and Pocket ID on
+# the machine marked `ingress.stack = true`. Selected by machine policy, so
+# moving ingress to another VM is a machines.auto.tfvars change.
+#
+# The workflow supplies what this play cannot know: the tunnel token and the
+# zone from the Cloudflare stack's outputs, and the OIDC client for the
+# homepage once it exists in Pocket ID.
+
+- name: Deploy the ingress stack
+  hosts: linux_servers
+  force_handlers: true
+  become: true
+  gather_facts: true
+
+  module_defaults:
+    ansible.builtin.apt:
+      lock_timeout: 900
+
+  vars:
+    # The observability host by MagicDNS name: Traefik routes the homepage and
+    # Grafana there. Found in the inventory the same way the backup playbook
+    # finds the stack host, so nothing here names a machine.
+    autolab_ingress_stack_host: >-
+      {{ (groups['linux_servers']
+          | map('extract', hostvars)
+          | selectattr('autolab_builder.observability.stack', 'defined')
+          | selectattr('autolab_builder.observability.stack')
+          | map(attribute='ansible_host') | list | first | default('')) }}
+
+  roles:
+    - role: ingress
+      when: ((autolab_builder | default({})).ingress | default({})).stack | default(false) | bool
+      tags: [ingress]

@@ -1,0 +1,57 @@
+---
+# The lab's front door. Runs only on the machine marked `ingress.stack = true`:
+# the Cloudflare tunnel connector, Traefik and Pocket ID, as one compose.
+# Nothing here publishes a port on the host. The only way in is the tunnel,
+# and the only thing the tunnel reaches is Traefik.
+
+autolab_ingress_root: /opt/autolab/ingress
+
+# Secrets that only matter relative to the data next to them live here, not
+# in GitHub: Pocket ID's encryption key protects its SQLite, the plugin's
+# secret protects its session cookies. Generated once on first run; a
+# rebuilt horizon starts with an empty Pocket ID either way, and a restored
+# one restores both.
+autolab_ingress_state_dir: /etc/autolab/ingress
+
+# Pinned. The plugin version is also pinned in Traefik's static config, and
+# Traefik fetches it at start, so a bump is a restart away.
+autolab_ingress_images:
+  cloudflared: "cloudflare/cloudflared:2026.9.1"
+  traefik: "traefik:v3.7.13"
+  pocket_id: "pocketid/pocket-id:v2.16.0"
+autolab_ingress_oidc_plugin_version: "v0.21.0"
+
+# The zone and the labels under it. The Cloudflare stack owns the records;
+# these must agree with infra/stacks/cloudflare/ingress.auto.tfvars, which
+# is why the workflow passes them in from that stack's outputs.
+autolab_ingress_zone: ""
+autolab_ingress_hostnames:
+  auth: "auth"
+  home: "home"
+  grafana: "grafana"
+
+# The tunnel token, read by the workflow from the Cloudflare stack's state.
+# Never in git, never in a log.
+autolab_ingress_tunnel_token: ""
+
+# Where the routed services live. MagicDNS names, resolved inside Traefik's
+# container by Tailscale's own resolver, so a rebuilt jwst keeps working.
+autolab_ingress_upstreams:
+  homepage: "http://{{ autolab_ingress_stack_fqdn }}:8080"
+  grafana: "http://{{ autolab_ingress_stack_fqdn }}:3000"
+# The observability host as the inventory names it (a bare MagicDNS label);
+# the role appends this host's tailnet domain to make the full name.
+autolab_ingress_stack_host: ""
+
+# The homepage's OIDC client, registered in Pocket ID by hand after its first
+# run. Until both are set the homepage has no route at all — a 404, not a
+# public page.
+autolab_ingress_homepage_client_id: ""
+autolab_ingress_homepage_client_secret: ""
+
+# Groups Pocket ID must put in the token for the homepage to open.
+autolab_ingress_homepage_groups: [admins, viewers]
+
+# How long a login lasts on the homepage before the plugin asks Pocket ID
+# again (silently, if Pocket ID's own session is still alive). Seconds.
+autolab_ingress_session_max_age: 604800
