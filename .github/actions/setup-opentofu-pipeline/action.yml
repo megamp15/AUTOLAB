@@ -81,6 +81,7 @@ runs:
       with:
         oauth-client-id: ${{ inputs.tailscale_oauth_client_id }}
         oauth-secret: ${{ inputs.tailscale_oauth_secret }}
+        mask-tailnet-of: ${{ inputs.proxmox_host }}
         audience: ${{ inputs.tailscale_oidc_audience }}
 
     - name: Configure R2 credentials

@@ -84,7 +84,7 @@ checks that the value exists, then interpolates it into
 no name has to be configured. If it ever fails to resolve, substitute the
 literal tailnet name from the admin console's top-left corner
 (`megamp15.github`) — note that is the *tailnet name*, not the MagicDNS suffix
-(`bobtail-dinosaur.ts.net`), which is a different value.
+(`<your-tailnet>.ts.net`), which is a different value.
 
 ### 1. Scope the CI-runner client
 
