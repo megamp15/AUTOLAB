@@ -39,6 +39,18 @@ prometheus.scrape "alloy" {
   scrape_interval = "{{ autolab_obs_scrape_interval }}"
 }
 
+{% if ((autolab_builder | default({})).ingress | default({})).stack | default(false) | bool %}
+// The tunnel connector's own metrics, published by the ingress compose on
+// this host's loopback only. cloudflared_tunnel_ha_connections is the
+// number of connections to Cloudflare's edge; the "Tunnel is down" rule
+// watches it.
+prometheus.scrape "cloudflared" {
+  targets         = [{"__address__" = "127.0.0.1:2000", "job" = "cloudflared"}]
+  forward_to      = [prometheus.remote_write.stack.receiver]
+  scrape_interval = "{{ autolab_obs_scrape_interval }}"
+}
+
+{% endif %}
 prometheus.remote_write "stack" {
   endpoint {
     url = "{{ autolab_obs_metrics_endpoint }}"

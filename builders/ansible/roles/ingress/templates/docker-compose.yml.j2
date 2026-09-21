@@ -1,6 +1,7 @@
 # Managed by Ansible — roles/ingress. Local edits are overwritten.
 #
-# No service publishes a port. cloudflared dials Cloudflare outbound and hands
+# No service publishes a port, except cloudflared's metrics on loopback for
+# the local agent. cloudflared dials Cloudflare outbound and hands
 # every request to Traefik over this compose network; Traefik reaches the
 # services it routes over the tailnet; Pocket ID is only ever reached through
 # Traefik. The host firewall sees nothing inbound because nothing is.

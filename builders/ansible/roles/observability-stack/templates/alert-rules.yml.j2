@@ -303,3 +303,43 @@ groups:
                 - evaluator:
                     type: gt
                     params: [60]
+
+      # The front door. cloudflared reports how many connections it holds to
+      # Cloudflare's edge; zero means every public hostname is Cloudflare's
+      # error page. The rule is 1 when bad, 0 when fine, so the comparison
+      # trap above does not apply: `== bool` and `1 - up` both yield 1.
+      # No connector metric at all with the scrape itself failing is the
+      # container being down, which the `or` branch catches; the agent
+      # being down is "Agent is not reporting", not this.
+      - uid: autolab-tunnel-down
+        title: Tunnel is down
+        condition: THRESHOLD
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "The Cloudflare tunnel has no connection to the edge"
+          description: "cloudflared on the ingress host holds no connection to Cloudflare, so every public hostname is serving Cloudflare's error 530. The tailnet is unaffected. Check `docker compose ps` in /opt/autolab/ingress on the ingress host, then the tunnel's page in the Zero Trust dashboard."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: '(max(cloudflared_tunnel_ha_connections) == bool 0) or (1 - max(up{job="cloudflared"}))'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.5]

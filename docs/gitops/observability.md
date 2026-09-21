@@ -370,6 +370,7 @@ provisioned as files for the same reason dashboards are.
 | Guest is stopped but set to start on boot | Proxmox reports a guest down that is flagged `onboot` | 5m | critical |
 | Backup is missing | a running guest the nightly should cover has no backup on PBS newer than 26 h — excluded guests come from the job itself | 30m | critical |
 | Backup collector is stale | the stack host's PBS collector has not written backup ages for over an hour — counted from its last write, so a deleted textfile counts as stale, not as healthy | 15m | warning |
+| Tunnel is down | cloudflared on the ingress host holds no connection to Cloudflare's edge, or its container is gone: every public hostname is Cloudflare's 530 — [ingress](./ingress.md#watching-the-tunnel) | 5m | critical |
 | Agent is not reporting | Proxmox says the guest runs, but no node metrics arrive | 10m | critical |
 | Root filesystem almost full | `/` above `autolab_obs_alert_disk_pct` | 15m | warning |
 | Memory nearly exhausted | available memory below `autolab_obs_alert_memory_pct` | 15m | warning |

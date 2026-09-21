@@ -151,6 +151,21 @@ Cloudflare and the tunnel: a red dot there is the tunnel.
    *Server Admin*. `http://jwst.<tailnet>:3000` shows the same login page,
    no anonymous dashboards.
 
+## Watching the tunnel
+
+Two watchers, different questions. The homepage's *Pocket ID* row asks
+"does the front door answer from the internet?" every minute, through
+Cloudflare and the tunnel; red there is the whole path. The **Tunnel is
+down** rule asks cloudflared itself: it publishes its metrics on horizon's
+loopback, Alloy scrapes them, and `cloudflared_tunnel_ha_connections` at
+zero for five minutes pages as critical. The tailnet is never affected by
+either; only the public names are.
+
+Proof, as with every rule: on horizon, `sudo docker compose
+--project-directory /opt/autolab/ingress stop cloudflared`. Within a minute
+the public names answer Cloudflare's 530; at about six minutes the page
+arrives; `start cloudflared` clears it.
+
 ## Adding a public hostname
 
 A line in `ingress.auto.tfvars` and its Traefik route on horizon. Removing one
