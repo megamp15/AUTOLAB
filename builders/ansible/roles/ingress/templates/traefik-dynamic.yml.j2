@@ -9,7 +9,7 @@ http:
       rule: "Host(`{{ auth_host }}`)"
       entryPoints: [web]
       service: pocket-id
-{% if autolab_ingress_homepage_client_id | length > 0 %}
+{% if autolab_ingress_traefik_client_id | length > 0 %}
     home:
       rule: "Host(`{{ autolab_ingress_hostnames.home }}.{{ zone }}`)"
       entryPoints: [web]
@@ -22,7 +22,7 @@ http:
       loadBalancer:
         servers:
           - url: "http://pocket-id:1411"
-{% if autolab_ingress_homepage_client_id | length > 0 %}
+{% if autolab_ingress_traefik_client_id | length > 0 %}
     homepage:
       loadBalancer:
         servers:
@@ -35,8 +35,8 @@ http:
           Secret: "{{ autolab_ingress_oidc_plugin_secret }}"
           Provider:
             Url: "https://{{ auth_host }}/"
-            ClientId: "{{ autolab_ingress_homepage_client_id }}"
-            ClientSecret: "{{ autolab_ingress_homepage_client_secret }}"
+            ClientId: "{{ autolab_ingress_traefik_client_id }}"
+            ClientSecret: "{{ autolab_ingress_traefik_client_secret }}"
           Scopes: ["openid", "profile", "email", "groups"]
           SessionCookie:
             MaxAge: {{ autolab_ingress_session_max_age }}

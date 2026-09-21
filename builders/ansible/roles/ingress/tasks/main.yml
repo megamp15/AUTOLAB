@@ -219,5 +219,5 @@
 - name: Say which routes exist
   ansible.builtin.debug:
     msg: >-
-      Routes: auth (Pocket ID){{ ', home (behind Pocket ID)' if autolab_ingress_homepage_client_id | length > 0 else '' }}.
-      {{ 'The homepage has no route until INGRESS_HOMEPAGE_CLIENT_ID/SECRET are set.' if autolab_ingress_homepage_client_id | length == 0 else '' }}
+      Routes: auth (Pocket ID){{ ', home (behind Pocket ID)' if autolab_ingress_traefik_client_id | length > 0 else '' }}.
+      {{ 'Nothing behind the plugin has a route until INGRESS_TRAEFIK_CLIENT_ID/SECRET are set.' if autolab_ingress_traefik_client_id | length == 0 else '' }}
