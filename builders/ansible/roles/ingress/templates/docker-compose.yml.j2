@@ -13,6 +13,10 @@ services:
     # --no-autoupdate: the image tag is the version. Metrics on the compose
     # network only, for the tunnel alert.
     command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 run
+    # The one published port, and only on loopback: Alloy on this host scrapes
+    # the connector's metrics. Nothing off the host can reach it.
+    ports:
+      - "127.0.0.1:2000:2000"
     depends_on: [traefik]
 
   traefik:
