@@ -33,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PVE_LIMIT: proxmox_nodes
+      AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
       BACKUP_VM: ${{ inputs.vm }}
       BACKUP_CONFIRM: ${{ inputs.confirm }}
     steps:
@@ -46,6 +47,7 @@ jobs:
         with:
           oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+          mask-tailnet-of: ${{ vars.PROXMOX_HOST }}
 
       - name: Install Ansible and its collections
         working-directory: builders/ansible
