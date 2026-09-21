@@ -43,11 +43,14 @@ autolab_ingress_upstreams:
 # the role appends this host's tailnet domain to make the full name.
 autolab_ingress_stack_host: ""
 
-# The homepage's OIDC client, registered in Pocket ID by hand after its first
-# run. Until both are set the homepage has no route at all — a 404, not a
+# The OIDC client the Traefik plugin logs people in with — one client for
+# every hostname the plugin protects, registered in Pocket ID by hand after
+# its first run with a wildcard callback (https://*.<zone>/oidc/callback).
+# Apps that speak OIDC themselves (Grafana) register their own. Until both
+# are set, nothing the plugin would protect has a route: a 404, not a
 # public page.
-autolab_ingress_homepage_client_id: ""
-autolab_ingress_homepage_client_secret: ""
+autolab_ingress_traefik_client_id: ""
+autolab_ingress_traefik_client_secret: ""
 
 # Groups Pocket ID must put in the token for the homepage to open.
 autolab_ingress_homepage_groups: [admins, viewers]

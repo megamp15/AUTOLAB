@@ -92,8 +92,8 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `PACKER_SSH_PASSWORD` | generated password | Packer Build | Temporary build-only password. Not your SSH key. |
 | `TAILNET_DOMAIN` | `xxx-yyy.ts.net` | every workflow that joins the tailnet | Not a credential. Referenced only so the runner masks it: GitHub masks a secret from a job's first log line, a variable never, and a public repository publishes its logs. Unset means logs show the name; nothing else changes. |
 | `CLOUDFLARE_API_TOKEN` | `v1.0-...` | 10 - Cloudflare | Custom token: Zone → DNS → Edit and Account → Cloudflare Tunnel → Edit, scoped to the one zone and account. See [ingress](./ingress.md). |
-| `INGRESS_HOMEPAGE_CLIENT_ID` | `<uuid>` | Ansible Builder (`ingress`) | OIDC client for the homepage, registered in Pocket ID by hand after its first run. Unset means the homepage has no route. |
-| `INGRESS_HOMEPAGE_CLIENT_SECRET` | `<random>` | Ansible Builder (`ingress`) | Its secret. Shown once by Pocket ID. |
+| `INGRESS_TRAEFIK_CLIENT_ID` | `<uuid>` | Ansible Builder (`ingress`) | The Traefik plugin's OIDC client in Pocket ID: one for every hostname the plugin protects (wildcard callback). Unset means nothing behind the plugin has a route. |
+| `INGRESS_TRAEFIK_CLIENT_SECRET` | `<random>` | Ansible Builder (`ingress`) | Its secret. Shown once by Pocket ID. |
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |
 | `R2_SECRET_ACCESS_KEY` | `xyz789...` | OpenTofu | Same. Shown once. |
 | `PVE_SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH...` | Packer Build | Required only as the Proxmox bastion key; never reuse it for a VM. |

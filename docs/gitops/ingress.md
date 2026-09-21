@@ -107,11 +107,13 @@ including during setup.
    admin: a name, an email, and a passkey. Register the passkey on the
    phone; add a second one from a laptop before inviting anyone.
 2. *User Groups*: create `admins` and `viewers`. Put yourself in `admins`.
-3. *OIDC Clients* → *Add*: name `homepage`, callback URL
-   `https://home.<zone>/oidc/callback`, logout callback the same. Save, and
-   copy the client ID and secret it shows.
-4. Repository secrets `INGRESS_HOMEPAGE_CLIENT_ID` and
-   `INGRESS_HOMEPAGE_CLIENT_SECRET`. Run the `ingress` playbook again. The
+3. *OIDC Clients* → *Add*: name `traefik`, callback URL
+   `https://*.<zone>/oidc/callback`, logout callback the same, *Skip
+   Consent Screen* on. This one client serves every hostname the plugin
+   protects; only apps that speak OIDC themselves (Grafana) get their own.
+   Save, open it, *Generate* the secret, copy both.
+4. Repository secrets `INGRESS_TRAEFIK_CLIENT_ID` and
+   `INGRESS_TRAEFIK_CLIENT_SECRET`. Run the `ingress` playbook again. The
    home route now exists, behind the plugin, allowing `admins` and `viewers`.
 5. From a phone on LTE: `https://home.<zone>` → Pocket ID's passkey prompt →
    the homepage. Sign out of Pocket ID, try again as a user in no group:
