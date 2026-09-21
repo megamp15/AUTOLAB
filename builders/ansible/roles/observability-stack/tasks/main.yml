@@ -449,8 +449,8 @@
   when: autolab_obs_homepage_enabled | bool
 
 - name: Declare the homepage's links
-  ansible.builtin.copy:
-    content: "{{ {'links': autolab_obs_homepage_links} | to_nice_json }}\n"
+  ansible.builtin.template:
+    src: homepage.json.j2
     dest: /etc/autolab/homepage.json
     owner: root
     group: root
