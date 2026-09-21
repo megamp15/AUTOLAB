@@ -138,7 +138,7 @@ OpenTofu state is stored in Cloudflare R2 (S3-compatible, free tier).
 - [ ] Go to **Manage R2 API Tokens** and create a token with **Object Read & Write** permissions
 - [ ] Save the **Access Key ID** and **Secret Access Key** — you will add them as `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` in GitHub
 - [ ] Copy your **Cloudflare Account ID** from the R2 dashboard URL (the `YOUR_ACCOUNT_ID` part in `https://dash.cloudflare.com/YOUR_ACCOUNT_ID/r2/...`)
-- [ ] Add the account ID as `R2_ACCOUNT_ID` in GitHub Environment secrets
+- [ ] Add the account ID as the repository **variable** `CLOUDFLARE_ACCOUNT_ID` (it is an identifier, not a credential, and later Cloudflare stacks reuse it)
 
 See [05 - R2 state backend](./05-r2-state-backend.md) for the full guide.
 
@@ -172,13 +172,13 @@ Enterprise-only feature** — not available on Free/Team plans for private repos
 | `TAILSCALE_OAUTH_CLIENT_ID` | Existing Tailscale client ID used with GitHub OIDC/WIF; no Builder OAuth secret |
 | `TAILSCALE_VM_OAUTH_CLIENT_ID` | Dedicated Tailscale OAuth client ID for VM enrollment AND destroy-time device cleanup (Plan/Apply/Destroy). Create it in the admin console, separate from the CI-runner client, with **both** `auth_keys` (Write, `tag:autolab-vm` selected) for minting enrollment keys and `devices:core` (Write) for cleanup. |
 | `TAILSCALE_VM_OAUTH_SECRET` | Secret for the same client (`tskey-client-secret-...`, shown once). See `docs/gitops/tailscale-device-lifecycle.md`. |
-| `R2_ACCOUNT_ID` | Cloudflare account ID from step 4 |
+| `CLOUDFLARE_ACCOUNT_ID` | variable: Cloudflare account ID from step 4 |
 | `R2_ACCESS_KEY_ID` | R2 access key ID from step 4 |
 | `R2_SECRET_ACCESS_KEY` | R2 secret access key from step 4 |
 
 Repository-level secrets are read directly by the workflows.
 
-For initial Builder canary validation, reuse `R2_ACCOUNT_ID`,
+For initial Builder canary validation, reuse `CLOUDFLARE_ACCOUNT_ID`,
 `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` with the existing state bucket.
 Builder-specific credentials are not an immediate prerequisite.
 

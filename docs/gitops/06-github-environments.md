@@ -57,7 +57,7 @@ Set at repository or environment level:
 |--------|---------|-------|
 | `PROXMOX_API_TOKEN` | Packer, OpenTofu | Full token string. Not root password. |
 | `PACKER_SSH_PASSWORD` | Packer Build | Temporary build-only password. |
-| `R2_ACCOUNT_ID` | OpenTofu | State backend. |
+| `CLOUDFLARE_ACCOUNT_ID` | OpenTofu, Ansible Builder | **Variable**, not a secret: the Cloudflare account ID is in every dashboard URL and is useless without a token. Names the R2 endpoint for state; later stacks on the same account (tunnels, DNS) reuse it. |
 | `R2_ACCESS_KEY_ID` | OpenTofu | State backend. |
 | `R2_SECRET_ACCESS_KEY` | OpenTofu | Shown once at creation. |
 | `TAILSCALE_OAUTH_CLIENT_ID` | Builder | Existing client ID used with GitHub OIDC/WIF. |
@@ -68,13 +68,13 @@ Set at repository or environment level:
 SSH keys for **cloned VMs** come from `infra/stacks/lab/machines.auto.tfvars`
 (`identity_defaults.ssh_public_keys`), not from a GitHub secret.
 
-For initial Builder canary validation, reuse the existing `R2_ACCOUNT_ID`,
+For initial Builder canary validation, reuse the existing `CLOUDFLARE_ACCOUNT_ID`,
 `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`. Do not require separate
 Builder credentials yet.
 
 > **TODO after successful canary validation:** add
 > `BUILDER_R2_ACCESS_KEY_ID` and `BUILDER_R2_SECRET_ACCESS_KEY` with R2 Object
-> Read-only access to the existing state bucket. Reuse `R2_ACCOUNT_ID`; do not
+> Read-only access to the existing state bucket. Reuse `CLOUDFLARE_ACCOUNT_ID`; do not
 > create a second account or bucket.
 
 ## If you already used repository secrets

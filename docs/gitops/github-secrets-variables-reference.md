@@ -18,9 +18,9 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 | Workflow | Variables (`vars.*`) | Secrets (`secrets.*`) |
 |----------|----------------------|------------------------|
 | **Packer Build** | `PROXMOX_HOST`, `PROXMOX_LAN_IP`, `PROXMOX_PACKER_NETWORK_BRIDGE`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `PVE_SSH_PRIVATE_KEY` |
-| **OpenTofu Plan** | `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `TAILSCALE_VM_TAG` (optional), `BUILDER_SSH_PUBLIC_KEY` (tenant stacks) | `PROXMOX_API_TOKEN`, `PVE_SSH_PRIVATE_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` |
+| **OpenTofu Plan** | `CLOUDFLARE_ACCOUNT_ID`, `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `TAILSCALE_VM_TAG` (optional), `BUILDER_SSH_PUBLIC_KEY` (tenant stacks) | `PROXMOX_API_TOKEN`, `PVE_SSH_PRIVATE_KEY`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` |
 | **OpenTofu Apply/Destroy** | same as Plan | same as Plan |
-| **Ansible Builder** | `BUILDER_SSH_PUBLIC_KEY` (optional) | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `BUILDER_SSH_PRIVATE_KEY` (tenant stacks) |
+| **Ansible Builder** | `CLOUDFLARE_ACCOUNT_ID`, `BUILDER_SSH_PUBLIC_KEY` (optional) | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `BUILDER_SSH_PRIVATE_KEY` (tenant stacks) |
 | **Tailscale Policy** | — | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET` |
 
 The Ansible Builder additionally reads `PROXMOX_HOST`, `PVE_EXPORTER_TOKEN_ID`,
@@ -89,7 +89,6 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `NTFY_TOPIC` | `autolab-pulsar-xxxxxxxxxx` | Ansible Builder | ntfy topic that alerts publish to. It is the **entire** credential — holding it lets anyone read these alerts and publish to them — so it is a secret, not a variable, and carries random entropy rather than a guessable name. Unset means alerts stay in Grafana and are pushed nowhere. |
 | `GF_SECURITY_ADMIN_PASSWORD` | a generated password | Ansible Builder | Grafana admin login. Anonymous *viewing* is deliberate, but the admin account can rewrite dashboards, add datasources and change where alerts go — on the default `admin`/`admin` that is handed to anyone on the tailnet. Unset leaves the existing password alone. |
 | `PACKER_SSH_PASSWORD` | generated password | Packer Build | Temporary build-only password. Not your SSH key. |
-| `R2_ACCOUNT_ID` | `a1b2c3...` | OpenTofu | Cloudflare dashboard URL / R2 page. |
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |
 | `R2_SECRET_ACCESS_KEY` | `xyz789...` | OpenTofu | Same. Shown once. |
 | `PVE_SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH...` | Packer Build | Required only as the Proxmox bastion key; never reuse it for a VM. |
@@ -174,8 +173,8 @@ same workflow enrols VMs on a different tailnet. Typed confirmations and the
 - [ ] `TAILSCALE_OAUTH_SECRET` — required; how the runner authenticates
 - [ ] `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` (OpenTofu only)
 - [ ] Add the `policy_file` scope to the existing `TAILSCALE_OAUTH_CLIENT_ID` credential — no new secret; see [tailnet policy GitOps](./tailnet-policy-gitops.md)
-- [ ] `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
-- [ ] Ansible Builder still reuses `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`; see *Open: scope Builder's R2 access to read-only* below
+- [ ] `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (secrets) and `CLOUDFLARE_ACCOUNT_ID` (variable)
+- [ ] Ansible Builder still reuses `CLOUDFLARE_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`; see *Open: scope Builder's R2 access to read-only* below
 
 ### Open: scope Builder's R2 access to read-only
 

@@ -129,7 +129,7 @@ r2_action() {
       --arg endpoint "${R2_ENDPOINT}" \
       --arg access_key_id "${ACCESS_KEY_ID}" \
       --arg secret_access_key "${SECRET_ACCESS_KEY}" \
-      '{bucket_name: $bucket_name, token_name: $token_name, account_id: $account_id, endpoint: $endpoint, github_environment: {secrets: {R2_ACCESS_KEY_ID: $access_key_id, R2_SECRET_ACCESS_KEY: $secret_access_key}, variables: {R2_ACCOUNT_ID: $account_id}}, local_environment: {AWS_ACCESS_KEY_ID: $access_key_id, AWS_SECRET_ACCESS_KEY: $secret_access_key, R2_ENDPOINT: $endpoint}}'
+      '{bucket_name: $bucket_name, token_name: $token_name, account_id: $account_id, endpoint: $endpoint, github_environment: {secrets: {R2_ACCESS_KEY_ID: $access_key_id, R2_SECRET_ACCESS_KEY: $secret_access_key}, variables: {CLOUDFLARE_ACCOUNT_ID: $account_id}}, local_environment: {AWS_ACCESS_KEY_ID: $access_key_id, AWS_SECRET_ACCESS_KEY: $secret_access_key, R2_ENDPOINT: $endpoint}}'
     return 0
   fi
 
