@@ -188,11 +188,20 @@
     mode: "0644"
   notify: Restart ingress stack
 
+# On a fresh host in check mode the unit and the compose file were not
+# written, so systemd and compose have nothing to look at. Once the host is
+# provisioned both files exist and check mode inspects them for real.
+- name: See whether the stack was ever installed
+  ansible.builtin.stat:
+    path: "{{ autolab_ingress_root }}/docker-compose.yml"
+  register: autolab_ingress_compose_file
+
 - name: Enable the boot unit
   ansible.builtin.systemd_service:
     name: autolab-ingress.service
     enabled: true
     daemon_reload: true
+  when: not ansible_check_mode or autolab_ingress_compose_file.stat.exists
 
 - name: Start the ingress stack
   community.docker.docker_compose_v2:
@@ -200,6 +209,12 @@
     state: present
     pull: missing
   register: autolab_ingress_compose
+  when: not ansible_check_mode or autolab_ingress_compose_file.stat.exists
+
+- name: Note what check mode could not inspect
+  ansible.builtin.debug:
+    msg: "First run: the unit and the compose would be installed and started; check mode cannot show what a stack that does not exist yet would do."
+  when: ansible_check_mode and not autolab_ingress_compose_file.stat.exists
 
 - name: Say which routes exist
   ansible.builtin.debug:
