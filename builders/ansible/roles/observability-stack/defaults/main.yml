@@ -31,6 +31,24 @@ autolab_obs_retention_time: "90d"
 # guard rail.
 autolab_obs_retention_size: "2GB"
 
+# The public side, once the ingress phase is live. The workflow fills these
+# from the Cloudflare stack's outputs and from Grafana's OIDC client in
+# Pocket ID. Empty means Grafana stays as it was: tailnet-only, anonymous
+# viewer. Set, Grafana gets its public root URL, logs in via Pocket ID and
+# anonymous viewing goes off — a public route plus anonymous viewing would
+# be public dashboards. The homepage's links follow.
+autolab_obs_public_zone: ""
+autolab_obs_public_hosts:
+  grafana: grafana
+  auth: auth
+  home: home
+autolab_obs_grafana_oidc_client_id: ""
+autolab_obs_grafana_oidc_client_secret: ""
+# Pocket ID groups → Grafana roles. admins are server admins; anyone else
+# Pocket ID lets in is a viewer unless an editors group says otherwise.
+autolab_obs_grafana_role_attribute_path: >-
+  contains(groups[*], 'admins') && 'GrafanaAdmin' || contains(groups[*], 'editors') && 'Editor' || 'Viewer'
+
 # Alerting. Rules are provisioned from files like dashboards; an alert that
 # exists only in a UI is as unreviewable as a dashboard that does.
 autolab_obs_alerts_enabled: true
@@ -167,6 +185,13 @@ autolab_obs_alert_backup_max_age_hours: 26
 # link. Hosts are named by MagicDNS so the addresses follow the devices.
 autolab_obs_homepage_enabled: true
 autolab_obs_homepage_port: 8080
+# Grafana's address as people should open it: the public name once the
+# ingress phase is live, the tailnet address until then. Also its root_url.
+autolab_obs_grafana_public_url: >-
+  {{ 'https://' ~ autolab_obs_public_hosts.grafana ~ '.' ~ autolab_obs_public_zone
+     if autolab_obs_public_zone | length > 0
+     else 'http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_obs_grafana_port }}
+
 autolab_obs_homepage_links:
   - name: Proxmox VE
     meta: "{{ autolab_obs_pve_host.split('.')[0] }}"
@@ -184,7 +209,7 @@ autolab_obs_homepage_links:
       target: "ark.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:8007"
   - name: Grafana
     meta: dashboards
-    url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_grafana_port }}"
+    url: "{{ autolab_obs_grafana_public_url }}"
     icon: metrics
     check:
       type: http
@@ -198,7 +223,7 @@ autolab_obs_homepage_links:
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_prometheus_port }}/-/ready"
   - name: Loki
     meta: logs
-    url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_grafana_port }}/explore"
+    url: "{{ autolab_obs_grafana_public_url }}/explore"
     icon: logs
     check:
       type: http
@@ -212,6 +237,17 @@ autolab_obs_homepage_links:
     check:
       type: tcp
       target: "singularity.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:2049"
+  # The login itself, reached the way a phone on LTE reaches it: through
+  # Cloudflare and the tunnel. A red dot here is the tunnel, not Pocket ID.
+  # `enabled` false drops the row before the file is written.
+  - name: Pocket ID
+    meta: sign in
+    url: "https://{{ autolab_obs_public_hosts.auth }}.{{ autolab_obs_public_zone }}"
+    icon: tailnet
+    enabled: "{{ autolab_obs_public_zone | length > 0 }}"
+    check:
+      type: http
+      target: "https://{{ autolab_obs_public_hosts.auth }}.{{ autolab_obs_public_zone }}/"
   - name: Tailscale
     meta: admin console
     url: https://login.tailscale.com/admin/machines

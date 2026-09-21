@@ -123,6 +123,34 @@ Inviting someone is Pocket ID's *Users* → *Add* → group → send the setup
 link it produces. Removing them from the group is enough; the plugin checks
 the groups claim on every login and on every session renewal.
 
+## Grafana
+
+Grafana speaks OIDC itself, so it gets its own client and no plugin in
+front. Once its client exists, three things change at once, all from the same
+secret: Grafana's root URL becomes `https://grafana.<zone>`, it logs people
+in via Pocket ID with `admins` → server admin and everyone else a viewer, and
+**anonymous viewing goes off**, tailnet included. A public route plus an
+anonymous viewer would be public dashboards. The admin password stays as the
+break-glass login. The homepage's Grafana and Loki links switch to the public
+name, and it gains a *Pocket ID · sign in* row whose check goes out through
+Cloudflare and the tunnel: a red dot there is the tunnel.
+
+1. Pocket ID → *OIDC Clients* → *Add*: name `grafana`, callback URL
+   `https://grafana.<zone>/login/generic_oauth`, logout callback
+   `https://grafana.<zone>/login`, *Skip Consent Screen* on. Save, open it,
+   *Generate* the secret.
+2. Repository secrets `GRAFANA_OIDC_CLIENT_ID` and
+   `GRAFANA_OIDC_CLIENT_SECRET`.
+3. Run **observability** first (Grafana restarts with its login on), then
+   **ingress** (the `grafana` route appears). In that order: the route is
+   keyed on the same secret, and a route in front of a Grafana that has not
+   restarted yet would serve the anonymous viewer to the internet for the
+   minutes in between.
+4. Proof: `https://grafana.<zone>` → *Sign in with Pocket ID* → passkey (or
+   nothing, if the homepage already signed you in) → your name top right,
+   *Server Admin*. `http://jwst.<tailnet>:3000` shows the same login page,
+   no anonymous dashboards.
+
 ## Adding a public hostname
 
 A line in `ingress.auto.tfvars` and its Traefik route on horizon. Removing one

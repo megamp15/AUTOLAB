@@ -38,11 +38,37 @@ services:
     restart: unless-stopped
     depends_on: [prometheus, loki]
     environment:
+{% if autolab_obs_grafana_oidc_client_id | length > 0 %}
+      # Public, behind Pocket ID. Anonymous viewing is off: this Grafana is
+      # reachable through the tunnel, and a public route plus anonymous
+      # viewing would be public dashboards. Everyone signs in with a passkey,
+      # tailnet included; the admin password stays as the break-glass login.
+      GF_SERVER_ROOT_URL: "{{ autolab_obs_grafana_public_url }}"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
+      GF_AUTH_GENERIC_OAUTH_NAME: "Pocket ID"
+      GF_AUTH_GENERIC_OAUTH_CLIENT_ID: "{{ autolab_obs_grafana_oidc_client_id }}"
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: "{{ autolab_obs_grafana_oidc_client_secret }}"
+      GF_AUTH_GENERIC_OAUTH_SCOPES: "openid profile email groups"
+      GF_AUTH_GENERIC_OAUTH_AUTH_URL: "https://{{ autolab_obs_public_hosts.auth }}.{{ autolab_obs_public_zone }}/authorize"
+      GF_AUTH_GENERIC_OAUTH_TOKEN_URL: "https://{{ autolab_obs_public_hosts.auth }}.{{ autolab_obs_public_zone }}/api/oidc/token"
+      GF_AUTH_GENERIC_OAUTH_API_URL: "https://{{ autolab_obs_public_hosts.auth }}.{{ autolab_obs_public_zone }}/api/oidc/userinfo"
+      GF_AUTH_GENERIC_OAUTH_USE_PKCE: "false"
+      GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true"
+      GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN: "false"
+      GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH: "preferred_username"
+      GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH: "name"
+      GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH: "email"
+      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: "{{ autolab_obs_grafana_role_attribute_path }}"
+      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT: "false"
+      GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN: "true"
+{% else %}
       # Anonymous viewing is deliberate: reaching this at all already required
       # passing the tailnet ACL, and a second password to lose helps nobody in a
       # single-operator lab. Editing still requires a login.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+{% endif %}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"

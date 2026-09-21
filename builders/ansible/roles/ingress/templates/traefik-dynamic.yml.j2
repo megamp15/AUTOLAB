@@ -16,12 +16,24 @@ http:
       middlewares: [oidc-home]
       service: homepage
 {% endif %}
+{% if autolab_ingress_grafana_route | bool %}
+    grafana:
+      rule: "Host(`{{ autolab_ingress_hostnames.grafana }}.{{ zone }}`)"
+      entryPoints: [web]
+      service: grafana
+{% endif %}
 
   services:
     pocket-id:
       loadBalancer:
         servers:
           - url: "http://pocket-id:1411"
+{% if autolab_ingress_grafana_route | bool %}
+    grafana:
+      loadBalancer:
+        servers:
+          - url: "{{ autolab_ingress_upstreams.grafana }}"
+{% endif %}
 {% if autolab_ingress_traefik_client_id | length > 0 %}
     homepage:
       loadBalancer:

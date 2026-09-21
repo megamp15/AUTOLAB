@@ -1,0 +1,8 @@
+{#- Rows with `enabled: false` are dropped; the key itself never reaches the file. -#}
+{% set ns = namespace(rows=[]) %}
+{% for link in autolab_obs_homepage_links %}
+{%   if link.enabled | default(true) | bool %}
+{%     set ns.rows = ns.rows + [link | dict2items | rejectattr('key', 'equalto', 'enabled') | list | items2dict] %}
+{%   endif %}
+{% endfor %}
+{{ {'links': ns.rows} | to_nice_json }}

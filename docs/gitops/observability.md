@@ -573,6 +573,12 @@ changes to the rest. It now resolves the limit through ansible itself, and fails
 loudly when a pattern matches nothing rather than checking zero hosts and
 reporting success.
 
+**Anonymous viewing ends when Grafana goes public.** It was deliberate while
+the tailnet was the only way in. Once `GRAFANA_OIDC_CLIENT_ID` is set the
+ingress phase routes `grafana.<zone>` through the tunnel, and the same
+switch turns anonymous viewing off everywhere and turns Pocket ID login on.
+See [ingress](./ingress.md#grafana).
+
 **`noDataState` defaults to firing when healthy.** Grafana treats an empty
 result as a fault. Most of these rules return series *only* when something is
 wrong, so the default fires them precisely when nothing is. They set

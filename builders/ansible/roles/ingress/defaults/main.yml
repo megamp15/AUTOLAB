@@ -52,6 +52,12 @@ autolab_ingress_stack_host: ""
 autolab_ingress_traefik_client_id: ""
 autolab_ingress_traefik_client_secret: ""
 
+# Grafana gets a route only once it logs people in itself (its OIDC client
+# in Pocket ID, applied by the observability playbook). Before that a route
+# would expose the anonymous viewer to the internet. The workflow sets this
+# from the same secret the observability playbook reads.
+autolab_ingress_grafana_route: false
+
 # Groups Pocket ID must put in the token for the homepage to open.
 autolab_ingress_homepage_groups: [admins, viewers]
 
