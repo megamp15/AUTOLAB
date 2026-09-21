@@ -1,0 +1,47 @@
+# Managed by Ansible — roles/ingress. Watched: edits here reload without a
+# restart. A hostname without a router here gets Traefik's 404, never a
+# service — the tunnel hands every public hostname to this file.
+{% set zone = autolab_ingress_zone %}
+{% set auth_host = autolab_ingress_hostnames.auth ~ '.' ~ zone %}
+http:
+  routers:
+    auth:
+      rule: "Host(`{{ auth_host }}`)"
+      entryPoints: [web]
+      service: pocket-id
+{% if autolab_ingress_homepage_client_id | length > 0 %}
+    home:
+      rule: "Host(`{{ autolab_ingress_hostnames.home }}.{{ zone }}`)"
+      entryPoints: [web]
+      middlewares: [oidc-home]
+      service: homepage
+{% endif %}
+
+  services:
+    pocket-id:
+      loadBalancer:
+        servers:
+          - url: "http://pocket-id:1411"
+{% if autolab_ingress_homepage_client_id | length > 0 %}
+    homepage:
+      loadBalancer:
+        servers:
+          - url: "{{ autolab_ingress_upstreams.homepage }}"
+
+  middlewares:
+    oidc-home:
+      plugin:
+        traefik-oidc-auth:
+          Secret: "{{ autolab_ingress_oidc_plugin_secret }}"
+          Provider:
+            Url: "https://{{ auth_host }}/"
+            ClientId: "{{ autolab_ingress_homepage_client_id }}"
+            ClientSecret: "{{ autolab_ingress_homepage_client_secret }}"
+          Scopes: ["openid", "profile", "email", "groups"]
+          SessionCookie:
+            MaxAge: {{ autolab_ingress_session_max_age }}
+          Authorization:
+            AssertClaims:
+              - Name: groups
+                AnyOf: {{ autolab_ingress_homepage_groups | to_json }}
+{% endif %}

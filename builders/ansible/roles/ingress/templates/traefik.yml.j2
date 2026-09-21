@@ -1,0 +1,29 @@
+# Managed by Ansible — roles/ingress. Static configuration; a change here is
+# a restart, which the role notifies.
+entryPoints:
+  web:
+    address: ":80"
+    # TLS ended at Cloudflare; cloudflared speaks plain HTTP on the compose
+    # network. Tell upstreams the truth about the scheme.
+    forwardedHeaders:
+      insecure: true
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+# The homepage cannot run an OIDC login itself. This plugin does it for any
+# router that names its middleware. Fetched from the plugin registry at start.
+experimental:
+  plugins:
+    traefik-oidc-auth:
+      moduleName: github.com/sevensolutions/traefik-oidc-auth
+      version: {{ autolab_ingress_oidc_plugin_version }}
+
+api:
+  dashboard: false
+
+log:
+  level: INFO
+accessLog: {}

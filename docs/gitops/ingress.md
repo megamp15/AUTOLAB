@@ -77,6 +77,50 @@ resolve to Cloudflare and a browser shows Cloudflare's error 1033, *tunnel has
 no connector*: correct, and the proof that nothing of ours is reachable until
 horizon runs cloudflared.
 
+## Bringing horizon up
+
+Workflow **05 - Ansible Builder**, playbook `ingress`, on `lab`. The job reads
+the tunnel token, the zone and the hostname labels from the Cloudflare
+stack's state and hands them to the role; the token is masked before
+anything can print it. The role brings up one compose on horizon:
+
+| service | reaches | reached by |
+|---|---|---|
+| `cloudflared` | Cloudflare, outbound | nothing |
+| `traefik` | Pocket ID on the compose network; jwst over the tailnet | cloudflared only |
+| `pocket-id` | nothing | Traefik only |
+
+No port is published on the host. Two secrets are generated on horizon on
+the first run and kept in `/etc/autolab/ingress`: Pocket ID's encryption key
+and the OIDC plugin's cookie secret. They live and die with the SQLite next
+to them, so they belong on the same disk and in the same nightly backup, not
+in GitHub.
+
+After the first run, `https://auth.<zone>` is Pocket ID and `https://home.<zone>`
+is a 404 from Traefik. The homepage has no route until its OIDC client
+exists, which is the next section. Nothing is ever reachable without a login,
+including during setup.
+
+## First login, and the homepage's client
+
+1. Open `https://auth.<zone>`. Pocket ID's first run asks for the first
+   admin: a name, an email, and a passkey. Register the passkey on the
+   phone; add a second one from a laptop before inviting anyone.
+2. *User Groups*: create `admins` and `viewers`. Put yourself in `admins`.
+3. *OIDC Clients* → *Add*: name `homepage`, callback URL
+   `https://home.<zone>/oidc/callback`, logout callback the same. Save, and
+   copy the client ID and secret it shows.
+4. Repository secrets `INGRESS_HOMEPAGE_CLIENT_ID` and
+   `INGRESS_HOMEPAGE_CLIENT_SECRET`. Run the `ingress` playbook again. The
+   home route now exists, behind the plugin, allowing `admins` and `viewers`.
+5. From a phone on LTE: `https://home.<zone>` → Pocket ID's passkey prompt →
+   the homepage. Sign out of Pocket ID, try again as a user in no group:
+   403 from Traefik, the homepage never answered.
+
+Inviting someone is Pocket ID's *Users* → *Add* → group → send the setup
+link it produces. Removing them from the group is enough; the plugin checks
+the groups claim on every login and on every session renewal.
+
 ## Adding a public hostname
 
 A line in `ingress.auto.tfvars` and its Traefik route on horizon. Removing one
