@@ -46,6 +46,7 @@ flowchart LR
 | **Provision** | Create VMs from a committed machine map, state in Cloudflare R2 | GitHub Actions over Tailscale | [`infra/`](infra/) |
 | **Configure** | Users, SSH hardening, firewall, fail2ban, updates, login screen, optional Docker | GitHub Actions via Tailscale SSH | [`builders/ansible/`](builders/ansible/) |
 | **Observe** | Metrics, logs, dashboards and alerts — all provisioned from git | Agent on every host, stack on one | [`builders/ansible/roles/observability-*`](builders/ansible/roles/) |
+| **Expose** | Public hostnames through a Cloudflare tunnel, one passkey login (Pocket ID) for everything behind it | Records and tunnel from git; one VM runs the connector, Traefik and the login | [`infra/stacks/cloudflare/`](infra/stacks/cloudflare/), [`roles/ingress`](builders/ansible/roles/ingress/) |
 
 The bootstrap layer is manual on purpose: you cannot GitOps your way onto a host that has no working uplink yet. Everything after it is driven from git. A future VPS track skips the first two layers and reuses the last two.
 
