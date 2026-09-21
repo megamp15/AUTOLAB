@@ -574,6 +574,19 @@ changes to the rest. It now resolves the limit through ansible itself, and fails
 loudly when a pattern matches nothing rather than checking zero hosts and
 reporting success.
 
+**A new guest paged for a missing backup three times on its first evening.**
+"No backup newer than 26 h" is also true of a guest created four hours
+ago. The rule now also requires the exporter to have seen the guest for at
+least the threshold, so a first nightly gets to happen before anyone is
+paged about it.
+
+**Anonymous off means the digest is logged out too.** The morning digest
+and the homepage's status writer read Grafana's alert list, anonymously
+until Grafana went public. The role now makes a Viewer service account and
+one token through the API with the admin password, kept in
+`/etc/autolab/obs-digest-grafana.env` next to the PBS token; the first
+digest after the switch read `alerts: unavailable (HTTP Error 401)`.
+
 **Cloudflare answers a bare Python client with 403, and 403 reads as "up".**
 The homepage probes count any status below 500 as reachable, which is right
 for a login page and wrong for Cloudflare's browser-integrity check, which

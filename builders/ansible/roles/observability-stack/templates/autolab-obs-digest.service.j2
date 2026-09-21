@@ -9,4 +9,6 @@ Type=oneshot
 EnvironmentFile=/etc/autolab/obs-digest.env
 # Written by the backup playbook once PBS exists; optional until then.
 EnvironmentFile=-/etc/autolab/obs-digest-pbs.env
+# Written by the role once Grafana needs a login; optional until then.
+EnvironmentFile=-/etc/autolab/obs-digest-grafana.env
 ExecStart=/usr/local/bin/autolab-obs-digest
