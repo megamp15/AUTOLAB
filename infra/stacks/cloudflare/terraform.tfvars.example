@@ -1,0 +1,4 @@
+# Local use only. CI supplies these from repository secrets and variables.
+cloudflare_api_token  = "cf-token-scoped-to-this-zone-and-account"
+cloudflare_account_id = "0123456789abcdef0123456789abcdef"
+cloudflare_zone_id    = "0123456789abcdef0123456789abcdef"

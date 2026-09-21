@@ -20,6 +20,7 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 | **Packer Build** | `PROXMOX_HOST`, `PROXMOX_LAN_IP`, `PROXMOX_PACKER_NETWORK_BRIDGE`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `PVE_SSH_PRIVATE_KEY` |
 | **OpenTofu Plan** | `CLOUDFLARE_ACCOUNT_ID`, `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `TAILSCALE_VM_TAG` (optional), `BUILDER_SSH_PUBLIC_KEY` (tenant stacks) | `PROXMOX_API_TOKEN`, `PVE_SSH_PRIVATE_KEY`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` |
 | **OpenTofu Apply/Destroy** | same as Plan | same as Plan |
+| **Cloudflare** | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID` | `CLOUDFLARE_API_TOKEN`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
 | **Ansible Builder** | `CLOUDFLARE_ACCOUNT_ID`, `BUILDER_SSH_PUBLIC_KEY` (optional) | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `BUILDER_SSH_PRIVATE_KEY` (tenant stacks) |
 | **Tailscale Policy** | — | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET` |
 
@@ -90,6 +91,7 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `GF_SECURITY_ADMIN_PASSWORD` | a generated password | Ansible Builder | Grafana admin login. Anonymous *viewing* is deliberate, but the admin account can rewrite dashboards, add datasources and change where alerts go — on the default `admin`/`admin` that is handed to anyone on the tailnet. Unset leaves the existing password alone. |
 | `PACKER_SSH_PASSWORD` | generated password | Packer Build | Temporary build-only password. Not your SSH key. |
 | `TAILNET_DOMAIN` | `xxx-yyy.ts.net` | every workflow that joins the tailnet | Not a credential. Referenced only so the runner masks it: GitHub masks a secret from a job's first log line, a variable never, and a public repository publishes its logs. Unset means logs show the name; nothing else changes. |
+| `CLOUDFLARE_API_TOKEN` | `v1.0-...` | 10 - Cloudflare | Custom token: Zone → DNS → Edit and Account → Cloudflare Tunnel → Edit, scoped to the one zone and account. See [ingress](./ingress.md). |
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |
 | `R2_SECRET_ACCESS_KEY` | `xyz789...` | OpenTofu | Same. Shown once. |
 | `PVE_SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH...` | Packer Build | Required only as the Proxmox bastion key; never reuse it for a VM. |

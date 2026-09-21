@@ -1,0 +1,83 @@
+name: 10 - Cloudflare
+run-name: "Cloudflare ${{ inputs.confirm == 'apply' && 'apply' || 'plan' }}"
+
+# The zone's public records and the tunnel that serves them, as OpenTofu in
+# infra/stacks/cloudflare. This is the difference from clicking routes into
+# the Zero Trust dashboard: a hostname is a reviewable diff.
+#
+# Its own workflow rather than a third environment in 03/04: those join the
+# tailnet and configure a Proxmox connection on every run, and this stack
+# needs neither. Plan by default; `confirm: apply` applies the same plan.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type apply to make changes; anything else only plans
+        required: false
+        default: plan
+
+permissions:
+  contents: read
+
+# Shares the state bucket with the Proxmox stacks, so it shares their lock.
+concurrency:
+  group: opentofu-state
+  cancel-in-progress: false
+
+jobs:
+  cloudflare:
+    name: Cloudflare ${{ inputs.confirm == 'apply' && 'apply' || 'plan' }}
+    runs-on: ubuntu-latest
+    env:
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_cloudflare_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
+    defaults:
+      run:
+        working-directory: infra/stacks/cloudflare
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Refuse to run without the token
+        run: |
+          if [[ -z "${TF_VAR_cloudflare_api_token}" || -z "${TF_VAR_cloudflare_zone_id}" ]]; then
+            echo "CLOUDFLARE_API_TOKEN (secret) and CLOUDFLARE_ZONE_ID (variable) are required." >&2
+            exit 1
+          fi
+
+      - uses: ./.github/actions/setup-opentofu-pipeline
+        with:
+          env_dir: infra/stacks/cloudflare
+          connect_tailscale: 'false'
+          configure_proxmox: 'false'
+          r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Plan
+        id: plan
+        run: bash "${GITHUB_WORKSPACE}/scripts/tofu-plan.sh" --summary-default "Cloudflare plan completed."
+
+      - name: Apply
+        if: inputs.confirm == 'apply'
+        run: tofu apply -input=false -auto-approve -no-color tfplan | tee apply.txt
+
+      - name: What the zone now answers for
+        if: inputs.confirm == 'apply'
+        run: |
+          {
+            echo "## Cloudflare"
+            echo "- Apply: $(grep -E '^Apply complete!' apply.txt | tail -n 1 || echo 'not available')"
+            echo "- Tunnel: \`$(tofu output -raw tunnel_id)\`"
+            echo "- Hostnames:"
+            tofu output -json public_hostnames | python3 -c 'import sys,json; [print(f"  - {h}") for h in json.load(sys.stdin)]'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Job summary
+        if: always() && inputs.confirm != 'apply'
+        run: |
+          {
+            echo "## Cloudflare plan"
+            echo "- ${{ steps.plan.outputs.summary_line || 'Plan did not complete.' }}"
+            echo "- Re-run with \`confirm: apply\` to make it so."
+          } >> "$GITHUB_STEP_SUMMARY"
