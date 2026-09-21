@@ -100,7 +100,7 @@ jobs:
           # do not reach the playbook step.
           r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
           r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          r2_account_id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Install Ansible and its collections
         working-directory: builders/ansible
