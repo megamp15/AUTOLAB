@@ -19,6 +19,11 @@ on:
 permissions:
   contents: read
 
+env:
+  TF_IN_AUTOMATION: true
+  # setup-opentofu expects the workflow to name the cache directory, as 03/04 do.
+  TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+
 # Shares the state bucket with the Proxmox stacks, so it shares their lock.
 concurrency:
   group: opentofu-state
