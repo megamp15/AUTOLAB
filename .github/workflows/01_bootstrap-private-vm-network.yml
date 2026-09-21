@@ -9,6 +9,10 @@ permissions:
 jobs:
   bootstrap:
     runs-on: ubuntu-latest
+    env:
+      # Referenced so the runner masks it from the job's first log line. A
+      # public log then shows `xps-pve.***`. Not a secret, just not published.
+      AUTOLAB_TAILNET_DOMAIN: ${{ secrets.TAILNET_DOMAIN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -16,7 +20,6 @@ jobs:
         with:
           oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
-          mask-tailnet-of: ${{ vars.PROXMOX_HOST }}
 
       - name: Configure SSH to Proxmox
         env:

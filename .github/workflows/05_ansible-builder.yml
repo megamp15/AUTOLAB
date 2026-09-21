@@ -64,6 +64,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment || 'lab' }}
     env:
+      # Referenced so the runner masks it from the job's first log line. A
+      # public log then shows `xps-pve.***`. Not a secret, just not published.
+      AUTOLAB_TAILNET_DOMAIN: ${{ secrets.TAILNET_DOMAIN }}
       # workflow_dispatch supplies inputs; push supplies none. Resolving both
       # into one place keeps the rest of the job identical for either trigger.
       BUILDER_ENVIRONMENT: ${{ inputs.environment || 'lab' }}
