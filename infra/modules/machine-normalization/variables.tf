@@ -73,6 +73,12 @@ variable "machines" {
       backup = optional(object({
         server = optional(bool, false)
       }), {})
+      # The machine that fronts the lab for the internet: the Cloudflare
+      # tunnel connector, Traefik and the identity provider, as one compose.
+      # The ingress playbook finds it by this flag, nothing else reads it.
+      ingress = optional(object({
+        stack = optional(bool, false)
+      }), {})
     }), {})
   }))
   default = {}
