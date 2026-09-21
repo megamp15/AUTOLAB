@@ -185,11 +185,12 @@ autolab_obs_alert_backup_max_age_hours: 26
 # link. Hosts are named by MagicDNS so the addresses follow the devices.
 autolab_obs_homepage_enabled: true
 autolab_obs_homepage_port: 8080
-# Grafana's address as people should open it: the public name once the
-# ingress phase is live, the tailnet address until then. Also its root_url.
+# Grafana's address as people should open it: the public name once Grafana
+# logs people in itself (the same switch that gives it a public route), the
+# tailnet address until then. Also its root_url.
 autolab_obs_grafana_public_url: >-
   {{ 'https://' ~ autolab_obs_public_hosts.grafana ~ '.' ~ autolab_obs_public_zone
-     if autolab_obs_public_zone | length > 0
+     if autolab_obs_grafana_oidc_client_id | length > 0
      else 'http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_obs_grafana_port }}
 
 autolab_obs_homepage_links:
