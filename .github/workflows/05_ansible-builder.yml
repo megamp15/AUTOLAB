@@ -134,6 +134,49 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/generate-ansible-inventory.py" \
             "$RUNNER_TEMP/builder-machines.json" --output "$RUNNER_TEMP/inventory.json" --user "$user"
 
+      # The ingress stack needs three things only the Cloudflare stack knows:
+      # the tunnel token, the zone, and the hostnames. They are read from that
+      # stack's state in R2 — the same bucket the inventory just came from, so
+      # this runs before the credentials are dropped below — into a vars file
+      # of its own. The token never touches a shell string or the log: Python
+      # reads it from tofu's output and masks it before anything can print it.
+      - name: Read the Cloudflare stack's outputs for the ingress playbook
+        if: inputs.playbook == 'ingress'
+        working-directory: infra/stacks/cloudflare
+        env:
+          AUTOLAB_INGRESS_HOMEPAGE_CLIENT_ID: ${{ secrets.INGRESS_HOMEPAGE_CLIENT_ID }}
+          AUTOLAB_INGRESS_HOMEPAGE_CLIENT_SECRET: ${{ secrets.INGRESS_HOMEPAGE_CLIENT_SECRET }}
+        run: |
+          for attempt in 1 2 3; do
+            tofu init -input=false -backend-config="endpoint=$R2_ENDPOINT" >/dev/null && break
+            [ "$attempt" = 3 ] && { echo "tofu init failed after 3 attempts" >&2; exit 1; }
+            sleep $((attempt * 10))
+          done
+          tofu output -json > "$RUNNER_TEMP/cloudflare-outputs.json"
+          umask 077
+          python3 - "$RUNNER_TEMP/cloudflare-outputs.json" "$RUNNER_TEMP/ingress-vars.json" <<'PY'
+          import json, os, sys
+          outputs = json.load(open(sys.argv[1]))
+          token = outputs["tunnel_token"]["value"]
+          print(f"::add-mask::{token}")
+          extra = {}
+          extra.update({
+              "autolab_ingress_tunnel_token": token,
+              "autolab_ingress_zone": outputs["zone_name"]["value"],
+              "autolab_ingress_hostnames": outputs["hostname_labels"]["value"],
+              "autolab_ingress_homepage_client_id": os.environ.get("AUTOLAB_INGRESS_HOMEPAGE_CLIENT_ID", ""),
+              "autolab_ingress_homepage_client_secret": os.environ.get("AUTOLAB_INGRESS_HOMEPAGE_CLIENT_SECRET", ""),
+          })
+          json.dump(extra, open(sys.argv[2], "w"))
+          print(f"Tunnel {outputs['tunnel_id']['value']} for zone {outputs['zone_name']['value']}: {', '.join(outputs['hostname_labels']['value'].values())}")
+          PY
+          rm -f "$RUNNER_TEMP/cloudflare-outputs.json"
+          if [ -n "${AUTOLAB_INGRESS_HOMEPAGE_CLIENT_ID}" ]; then
+            echo "Homepage OIDC client supplied; the home route will be rendered."
+          else
+            echo "No INGRESS_HOMEPAGE_CLIENT_ID; the homepage keeps no route until Pocket ID has the client."
+          fi
+
       - name: Drop state credentials before Ansible runs
         run: |
           # setup-opentofu-pipeline writes the R2 keys to GITHUB_ENV, which is
@@ -335,54 +378,13 @@ jobs:
             echo "No OBSERVABILITY_STACK_ADDRESS; management-plane hosts cannot run the agent."
           fi
 
-      # The ingress stack needs three things only the Cloudflare stack knows:
-      # the tunnel token, the zone, and the hostnames. They are read from that
-      # stack's state in R2 — the same bucket this job already initialised for
-      # the inventory — and merged into the extra-vars file. The token never
-      # touches a shell string or the log: Python reads it from tofu's stdout
-      # and masks it before anything else can print it.
-      - name: Read the Cloudflare stack's outputs for the ingress playbook
-        if: inputs.playbook == 'ingress'
-        working-directory: infra/stacks/cloudflare
-        env:
-          AUTOLAB_INGRESS_HOMEPAGE_CLIENT_ID: ${{ secrets.INGRESS_HOMEPAGE_CLIENT_ID }}
-          AUTOLAB_INGRESS_HOMEPAGE_CLIENT_SECRET: ${{ secrets.INGRESS_HOMEPAGE_CLIENT_SECRET }}
-        run: |
-          for attempt in 1 2 3; do
-            tofu init -input=false -backend-config="endpoint=$R2_ENDPOINT" >/dev/null && break
-            [ "$attempt" = 3 ] && { echo "tofu init failed after 3 attempts" >&2; exit 1; }
-            sleep $((attempt * 10))
-          done
-          tofu output -json > "$RUNNER_TEMP/cloudflare-outputs.json"
-          python3 - "$RUNNER_TEMP/cloudflare-outputs.json" "$RUNNER_TEMP/extra-vars.json" <<'PY'
-          import json, os, sys
-          outputs = json.load(open(sys.argv[1]))
-          token = outputs["tunnel_token"]["value"]
-          print(f"::add-mask::{token}")
-          extra = json.load(open(sys.argv[2]))
-          extra.update({
-              "autolab_ingress_tunnel_token": token,
-              "autolab_ingress_zone": outputs["zone_name"]["value"],
-              "autolab_ingress_hostnames": outputs["hostname_labels"]["value"],
-              "autolab_ingress_homepage_client_id": os.environ.get("AUTOLAB_INGRESS_HOMEPAGE_CLIENT_ID", ""),
-              "autolab_ingress_homepage_client_secret": os.environ.get("AUTOLAB_INGRESS_HOMEPAGE_CLIENT_SECRET", ""),
-          })
-          json.dump(extra, open(sys.argv[2], "w"))
-          print(f"Tunnel {outputs['tunnel_id']['value']} for zone {outputs['zone_name']['value']}: {', '.join(outputs['hostname_labels']['value'].values())}")
-          PY
-          rm -f "$RUNNER_TEMP/cloudflare-outputs.json"
-          if [ -n "${AUTOLAB_INGRESS_HOMEPAGE_CLIENT_ID}" ]; then
-            echo "Homepage OIDC client supplied; the home route will be rendered."
-          else
-            echo "No INGRESS_HOMEPAGE_CLIENT_ID; the homepage keeps no route until Pocket ID has the client."
-          fi
-
       - name: Run Builder playbook
         working-directory: builders/ansible
         run: |
           set -o pipefail
           args=(-i "$RUNNER_TEMP/inventory.json" "playbooks/${BUILDER_PLAYBOOK}.yml" --limit "$BUILDER_LIMIT")
           args+=(--extra-vars "@$RUNNER_TEMP/extra-vars.json")
+          if [ -f "$RUNNER_TEMP/ingress-vars.json" ]; then args+=(--extra-vars "@$RUNNER_TEMP/ingress-vars.json"); fi
           if [ -n "$BUILDER_TAGS" ]; then args+=(--tags "$BUILDER_TAGS"); fi
           if [ "$BUILDER_CONFIRM" != "apply" ]; then args+=(--check); fi
           ansible-playbook "${args[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/ansible-output.log"
@@ -394,7 +396,7 @@ jobs:
       # ephemeral but the step is cheap and makes the lifetime explicit.
       - name: Remove the rendered extra variables
         if: always()
-        run: rm -f "$RUNNER_TEMP/extra-vars.json"
+        run: rm -f "$RUNNER_TEMP/extra-vars.json" "$RUNNER_TEMP/ingress-vars.json"
 
       - name: Job summary
         if: always()
