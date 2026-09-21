@@ -9,6 +9,8 @@
 # first one. A tenant stack whose map is ignored merges green and applies
 # nothing, which is how the hypervisor inventory once went missing too.
 !infra/stacks/*/machines.auto.tfvars
+# The Cloudflare stack's hostnames are declarations, not secrets.
+!infra/stacks/cloudflare/ingress.auto.tfvars
 *.tfvars.json
 !*.tfvars.example
 *.pkrvars.hcl
