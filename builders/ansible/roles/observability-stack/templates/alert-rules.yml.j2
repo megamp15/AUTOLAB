@@ -348,3 +348,79 @@ groups:
                 - evaluator:
                     type: gt
                     params: [0.5]
+
+      # Containers, from the cAdvisor on each Docker host. Warnings, not
+      # pages: a container restarting at 3am is worth reading over coffee,
+      # not worth waking anyone. Both are 1-when-bad expressions, so the
+      # comparison trap that once silenced the guest-down rule cannot apply.
+      - uid: autolab-container-restart-loop
+        title: Container is restart-looping
+        condition: THRESHOLD
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "{% raw %}{{ $labels.name }} on {{ $labels.instance }} restarted {{ printf \{% endraw %}"%.0f\" $value }} times in 15 minutes"
+          description: "A restart policy is keeping this container alive rather than the container staying alive. Its logs are in Loki under the same name — {job=\"docker\", container=\"<name>\"} — and they outlive each restart, which is the point of collecting them."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              # A deploy restarts a container once, and two deploys inside
+              # the window is normal on a working afternoon. Four is not.
+              expr: 'sum by (instance, name) (changes(container_start_time_seconds{name!=""}[15m]))'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [3]
+
+      - uid: autolab-container-vanished
+        title: Container has vanished
+        condition: THRESHOLD
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "{% raw %}{{ $labels.name }} is no longer running on {{ $labels.instance }}{% endraw %}"
+          description: "A container that was running ten minutes ago is gone, and its host's cAdvisor is still reporting — so this is the container leaving, not the collector. Expected after removing it from builder.services; a surprise otherwise."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              # `and on (instance) up == 1` is the whole difference between
+              # "this container stopped" and "the collector stopped and took
+              # every container on the host with it", which would otherwise
+              # fire once per container at the same moment.
+              expr: '(count by (instance, name) (container_last_seen{name!=""} offset 10m) unless count by (instance, name) (container_last_seen{name!=""})) and on (instance) (up{job="cadvisor"} == 1)'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.5]

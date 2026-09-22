@@ -371,6 +371,8 @@ provisioned as files for the same reason dashboards are.
 | Backup is missing | a running guest the nightly should cover has no backup on PBS newer than 26 h — excluded guests come from the job itself | 30m | critical |
 | Backup collector is stale | the stack host's PBS collector has not written backup ages for over an hour — counted from its last write, so a deleted textfile counts as stale, not as healthy | 15m | warning |
 | Tunnel is down | cloudflared on the ingress host holds no connection to Cloudflare's edge, or its container is gone: every public hostname is Cloudflare's 530 — [ingress](./ingress.md#watching-the-tunnel) | 5m | critical |
+| Container is restart-looping | a container restarted more than three times in fifteen minutes: the restart policy is keeping it alive rather than the container staying alive | 10m | warning |
+| Container has vanished | a container that was running ten minutes ago is gone while its host's cAdvisor still reports — the container left, not the collector | 10m | warning |
 | Agent is not reporting | Proxmox says the guest runs, but no node metrics arrive | 10m | critical |
 | Root filesystem almost full | `/` above `autolab_obs_alert_disk_pct` | 15m | warning |
 | Memory nearly exhausted | available memory below `autolab_obs_alert_memory_pct` | 15m | warning |
@@ -589,6 +591,17 @@ first symptom is the host rather than the container. `docker-host` writes
 `max-size` and `max-file` into `daemon.json`; the daemon is reloaded rather
 than restarted, because the options are read when a container is created and
 a restart would stop every container on the host to achieve nothing.
+
+### The container dashboard
+
+*Autolab — Containers* shows CPU, memory, network and restarts per
+container, with that selection's logs underneath from Loki. Two variables:
+host and container, both multi-select, the second narrowed by the first.
+
+The restarts panel is the one worth watching. A container appearing there
+repeatedly is crash-looping, and its logs are in the panel below it — which
+they would not be without collecting them off the host, because a recreated
+container takes its own logs with it.
 
 ## Things that will mislead you
 
