@@ -61,9 +61,11 @@
       {{ autolab_ingress_pbs_host if '.' in autolab_ingress_pbs_host or autolab_ingress_pbs_host | length == 0
          else autolab_ingress_pbs_host ~ '.' ~ autolab_ingress_tailnet_domain }}
 
-# Machine routes keyed by the machine's own label, built here because a
-# YAML key cannot be templated in defaults.
-- name: Name the machine routes after the machines
+# Hypervisor nodes are named after themselves — there can be several and
+# each is its own place — so that route's key is built here, since a YAML
+# key cannot be templated in defaults. Everything else is named for what it
+# is (pbs, nas, prometheus, home), whichever machine happens to run it.
+- name: Name the node's route after the node
   vars:
     own: {login: own, insecure_upstream: true}
   ansible.builtin.set_fact:
@@ -71,9 +73,9 @@
       {{ autolab_ingress_service_routes | combine({
            (autolab_ingress_pve_host.split('.')[0]):
              own | combine({'upstream': 'https://' ~ autolab_ingress_pve_host ~ ':8006'}),
-           (autolab_ingress_pbs_host.split('.')[0]):
+           'pbs':
              own | combine({'upstream': 'https://' ~ autolab_ingress_pbs_fqdn ~ ':8007'}),
-           (autolab_ingress_nas_host.split('.')[0]):
+           'nas':
              own | combine({'upstream': 'https://' ~ autolab_ingress_nas_host ~ '.' ~ autolab_ingress_tailnet_domain ~ ':9443'}),
          }) }}
 

@@ -79,9 +79,10 @@ autolab_ingress_internal_label: ""
 autolab_ingress_acme_dns_token: ""
 autolab_ingress_acme_email: ""
 
-# Internal names. Services are named for what they do (home, prometheus);
-# machines are named for what they are (xps-pve, ark, singularity), so a
-# second Proxmox node is <its-name>.<label>.<zone> with nothing renamed.
+# Internal names. Hypervisor nodes are named after themselves (xps-pve):
+# there can be several and each is its own place, so a second node is
+# <its-name>.<label>.<zone> with nothing renamed. Everything else is named
+# for what it is (pbs, nas, prometheus, home), whichever machine runs it.
 # Proxmox, PBS and UGOS present self-signed certificates, so those go
 # through a transport that does not verify them: the hop is tailnet to
 # tailnet, and the browser sees the real certificate Traefik holds.

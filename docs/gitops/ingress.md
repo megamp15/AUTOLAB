@@ -184,7 +184,7 @@ is untouched and remains the break-glass login.
 
 1. Pocket ID → *OIDC Clients* → *Add*: name `proxmox`, callback URLs
    `https://xps-pve.lab.<zone>`, `https://xps-pve.lab.<zone>/`,
-   `https://ark.lab.<zone>`, `https://ark.lab.<zone>/` (PVE and PBS send the
+   `https://pbs.lab.<zone>`, `https://pbs.lab.<zone>/` (PVE and PBS send the
    page's origin, with or without the slash depending on version); *Skip
    Consent Screen* on. Save, open, *Generate* the secret.
 2. Repository secrets `PROXMOX_OIDC_CLIENT_ID`, `PROXMOX_OIDC_CLIENT_SECRET`;
@@ -195,7 +195,7 @@ is untouched and remains the break-glass login.
    `openid.yml` do the work; both list before they add, so re-runs update.
 4. Proof: `https://xps-pve.lab.<zone>` → realm *Pocket ID* → *Login* →
    passkey (or silent) → the node, as `<you>@pocketid` with Administrator.
-   Same at `https://ark.lab.<zone>`. Pick the realm once; the browser
+   Same at `https://pbs.lab.<zone>`. Pick the realm once; the browser
    remembers it.
 
 ## What was proven, and how
@@ -235,11 +235,12 @@ machine, so it can do nothing else.
 | `home.lab.<zone>` | the homepage on jwst | the plugin, same session as `home.<zone>` |
 | `prometheus.lab.<zone>` | Prometheus on jwst | the plugin |
 | `xps-pve.lab.<zone>` | the node's :8006 | Proxmox's own, until it joins the SSO |
-| `ark.lab.<zone>` | PBS on :8007 | PBS's own, until it joins the SSO |
-| `singularity.lab.<zone>` | UGOS on :9443 | UGOS's own |
+| `pbs.lab.<zone>` | PBS on :8007 (ark) | PBS's own, until it joins the SSO |
+| `nas.lab.<zone>` | UGOS on :9443 (singularity) | UGOS's own |
 
-Services are named for what they do, machines for what they are: a second
-Proxmox node is `<its-name>.lab.<zone>` with nothing renamed.
+Hypervisor nodes are named after themselves, since there can be several and
+each is its own place: a second node is `<its-name>.lab.<zone>` with nothing
+renamed. Everything else is named for what it is, whichever machine runs it.
 
 Proxmox, PBS and UGOS present self-signed certificates; Traefik does not
 verify that hop (tailnet to tailnet, identity is the tailnet's job) and the
