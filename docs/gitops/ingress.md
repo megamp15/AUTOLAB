@@ -208,6 +208,9 @@ is untouched and remains the break-glass login.
 | the login works from the internet | a phone on LTE: `home.<zone>` → passkey → homepage; `grafana.<zone>` → silent, already signed in, Server Admin |
 | the tunnel alert pages | `docker compose stop cloudflared`: 530 on every public name within a minute, *Tunnel is down* delivered at +6 min 36 s, resolved 3 min after `start` |
 | the homepage watches the door | its *Pocket ID* row probes through Cloudflare every minute; the fire test showed it green on a dead tunnel until the probe named itself (Cloudflare answers a bare Python client with 403) |
+| the tailnet side is invisible outside | `dig home.lab.<zone>` answers horizon's address on the tailnet (any other name: REFUSED) and nothing from public resolvers |
+| real certificates on the tailnet | every `*.lab.<zone>` name verifies (`ssl_verify_result=0`), `http://` answers 301 to `https://`; the user saw the padlock on `xps-pve.lab` |
+| the same login on Proxmox and PBS | realm *Pocket ID* on both login pages; the user signed into each as `megamp15@pocketid` with full rights |
 
 ## The tailnet side
 
