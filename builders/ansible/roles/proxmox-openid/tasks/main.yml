@@ -44,9 +44,29 @@
          ] }}
   no_log: true
   changed_when: true
-# The group does not exist until the first admin logs in and PVE creates it
-# from the claim; an ACL on a group that does not exist yet is accepted and
-# takes effect the moment the group appears.
+# PVE would create the group on the first admin's login, but refuses an ACL
+# on a group that does not exist yet, so it is created empty here and the
+# realm fills its membership from the token (groups-overwrite).
+- name: List the groups
+  ansible.builtin.command:
+    argv: [pveum, group, list, --output-format, json]
+  register: autolab_pve_groups
+  changed_when: false
+  check_mode: false
+
+- name: Create the admins group for the realm to fill
+  ansible.builtin.command:
+    argv:
+      - pveum
+      - group
+      - add
+      - "{{ autolab_pve_openid_admin_group }}-{{ autolab_pve_openid_realm }}"
+      - "--comment=Pocket ID {{ autolab_pve_openid_admin_group }}, membership synced from the groups claim"
+  when: >-
+    (autolab_pve_openid_admin_group ~ '-' ~ autolab_pve_openid_realm)
+    not in (autolab_pve_groups.stdout | from_json | map(attribute='groupid') | list)
+  changed_when: true
+
 - name: List the ACLs
   ansible.builtin.command:
     argv: [pveum, acl, list, --output-format, json]
