@@ -141,7 +141,7 @@ jobs:
       # of its own. The token never touches a shell string or the log: Python
       # reads it from tofu's output and masks it before anything can print it.
       - name: Read the Cloudflare stack's outputs for the ingress and observability playbooks
-        if: env.BUILDER_PLAYBOOK == 'ingress' || env.BUILDER_PLAYBOOK == 'observability'
+        if: env.BUILDER_PLAYBOOK == 'ingress' || env.BUILDER_PLAYBOOK == 'observability' || env.BUILDER_PLAYBOOK == 'backup'
         working-directory: infra/stacks/cloudflare
         env:
           AUTOLAB_INGRESS_TRAEFIK_CLIENT_ID: ${{ secrets.INGRESS_TRAEFIK_CLIENT_ID }}
@@ -156,6 +156,11 @@ jobs:
           # can do nothing else), and the account Let's Encrypt writes to.
           AUTOLAB_INGRESS_ACME_DNS_TOKEN: ${{ secrets.INGRESS_ACME_DNS_TOKEN }}
           AUTOLAB_INGRESS_ACME_EMAIL: ${{ vars.INGRESS_ACME_EMAIL }}
+          # PBS's OpenID realm: the client it shares with the Proxmox node,
+          # and the Pocket ID user who is its admin (PBS has no group mapping).
+          AUTOLAB_PROXMOX_OIDC_CLIENT_ID: ${{ secrets.PROXMOX_OIDC_CLIENT_ID }}
+          AUTOLAB_PROXMOX_OIDC_CLIENT_SECRET: ${{ secrets.PROXMOX_OIDC_CLIENT_SECRET }}
+          AUTOLAB_POCKET_ID_ADMIN_USER: ${{ vars.POCKET_ID_ADMIN_USER }}
         run: |
           for attempt in 1 2 3; do
             tofu init -input=false -backend-config="endpoint=$R2_ENDPOINT" >/dev/null && break
@@ -181,6 +186,7 @@ jobs:
                   "autolab_obs_public_zone": zone,
                   "autolab_obs_public_hosts": outputs["hostname_labels"]["value"],
                   "autolab_obs_internal_label": internal,
+                  "autolab_pbs_openid_issuer_url": "https://" + outputs["hostname_labels"]["value"]["auth"] + "." + zone,
               })
               print(f"Tunnel {outputs['tunnel_id']['value']} for zone {zone}: {', '.join(outputs['hostname_labels']['value'].values())}")
           else:
@@ -194,6 +200,9 @@ jobs:
               "autolab_ingress_grafana_route": bool(grafana_client),
               "autolab_ingress_acme_dns_token": os.environ.get("AUTOLAB_INGRESS_ACME_DNS_TOKEN", ""),
               "autolab_ingress_acme_email": os.environ.get("AUTOLAB_INGRESS_ACME_EMAIL", ""),
+              "autolab_pbs_openid_client_id": os.environ.get("AUTOLAB_PROXMOX_OIDC_CLIENT_ID", ""),
+              "autolab_pbs_openid_client_secret": os.environ.get("AUTOLAB_PROXMOX_OIDC_CLIENT_SECRET", ""),
+              "autolab_pbs_openid_admin_user": os.environ.get("AUTOLAB_POCKET_ID_ADMIN_USER", ""),
           })
           json.dump(extra, open(sys.argv[2], "w"))
           PY

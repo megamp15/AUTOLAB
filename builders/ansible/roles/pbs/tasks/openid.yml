@@ -1,0 +1,61 @@
+---
+# Pocket ID on PBS's login page. `openid create` refuses an existing realm,
+# so it is listed first and created or updated accordingly.
+- name: List the OpenID realms
+  ansible.builtin.command:
+    argv: [proxmox-backup-manager, openid, list, --output-format, json]
+  register: autolab_pbs_openid_realms
+  changed_when: false
+  check_mode: false
+
+- name: Note whether the realm exists
+  ansible.builtin.set_fact:
+    autolab_pbs_openid_exists: >-
+      {{ autolab_pbs_openid_realm in (autolab_pbs_openid_realms.stdout | from_json | map(attribute='realm') | list) }}
+
+# `create` takes the issuer and client id as positional-ish required options;
+# `update` takes the same names. Re-applied on every run so a changed secret
+# lands.
+- name: Create or update the Pocket ID realm
+  ansible.builtin.command:
+    argv: >-
+      {{ ['proxmox-backup-manager', 'openid', 'update' if autolab_pbs_openid_exists | bool else 'create', autolab_pbs_openid_realm,
+          '--issuer-url', autolab_pbs_openid_issuer_url,
+          '--client-id', autolab_pbs_openid_client_id,
+          '--client-key', autolab_pbs_openid_client_secret,
+          '--autocreate', 'true',
+          '--username-claim', autolab_pbs_openid_username_claim,
+          '--scopes', 'email',
+          '--scopes', 'profile',
+          '--comment', autolab_pbs_openid_comment] }}
+  no_log: true
+  changed_when: true
+
+- name: List the ACLs
+  ansible.builtin.command:
+    argv: [proxmox-backup-manager, acl, list, --output-format, json]
+  register: autolab_pbs_acls
+  changed_when: false
+  check_mode: false
+
+# Accepted before the user exists; effective the moment the first login
+# creates them.
+- name: Give the named admin the Admin role on everything
+  ansible.builtin.command:
+    argv:
+      - proxmox-backup-manager
+      - acl
+      - update
+      - /
+      - Admin
+      - --auth-id
+      - "{{ autolab_pbs_openid_admin_user }}@{{ autolab_pbs_openid_realm }}"
+  when:
+    - autolab_pbs_openid_admin_user | length > 0
+    - >-
+      autolab_pbs_acls.stdout | from_json
+      | selectattr('path', 'equalto', '/')
+      | selectattr('roleid', 'equalto', 'Admin')
+      | selectattr('ugid', 'equalto', autolab_pbs_openid_admin_user ~ '@' ~ autolab_pbs_openid_realm)
+      | list | length == 0
+  changed_when: true

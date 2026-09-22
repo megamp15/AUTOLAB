@@ -172,6 +172,32 @@ A line in `ingress.auto.tfvars` and its Traefik route on horizon. Removing one
 is the reverse. The tunnel config's catch-all means a hostname that exists in
 DNS but not in Traefik gets a 404, not a service.
 
+## Proxmox and PBS on the same login
+
+Both speak OpenID natively, so neither goes behind the plugin: their login
+pages gain a *Pocket ID* realm next to *Linux PAM*. One Pocket ID client
+serves both (a client can hold several callback URLs); PVE maps the
+`groups` claim to groups named `<group>-pocketid` and the role gives
+`admins-pocketid` Administrator on `/`; PBS has no group mapping, so one
+named user gets Admin on `/`. Users are created on first login; `root@pam`
+is untouched and remains the break-glass login.
+
+1. Pocket ID → *OIDC Clients* → *Add*: name `proxmox`, callback URLs
+   `https://xps-pve.lab.<zone>`, `https://xps-pve.lab.<zone>/`,
+   `https://ark.lab.<zone>`, `https://ark.lab.<zone>/` (PVE and PBS send the
+   page's origin, with or without the slash depending on version); *Skip
+   Consent Screen* on. Save, open, *Generate* the secret.
+2. Repository secrets `PROXMOX_OIDC_CLIENT_ID`, `PROXMOX_OIDC_CLIENT_SECRET`;
+   variables `POCKET_ID_URL` (`https://auth.<zone>`) and
+   `POCKET_ID_ADMIN_USER` (your Pocket ID username).
+3. `07 - Proxmox Node` (check, then apply) for the node; `05` with the
+   `backup` playbook for ark. Roles `proxmox-openid` and the `pbs` role's
+   `openid.yml` do the work; both list before they add, so re-runs update.
+4. Proof: `https://xps-pve.lab.<zone>` → realm *Pocket ID* → *Login* →
+   passkey (or silent) → the node, as `<you>@pocketid` with Administrator.
+   Same at `https://ark.lab.<zone>`. Pick the realm once; the browser
+   remembers it.
+
 ## What was proven, and how
 
 | claim | how |

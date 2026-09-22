@@ -317,3 +317,12 @@
         # "Fingerprint (sha256): aa:bb:…" — everything after the label.
         autolab_pbs_fingerprint: >-
           {{ ((autolab_pbs_cert.stdout_lines | select('search', 'Fingerprint') | first).split('): ') | last) | trim }}
+
+# Pocket ID on the login page, once the ingress phase gave PBS an issuer to
+# trust. Nothing happens until the client exists.
+- name: Offer Pocket ID on the login page
+  ansible.builtin.include_tasks: openid.yml
+  when:
+    - autolab_pbs_openid_client_id | length > 0
+    - autolab_pbs_openid_issuer_url | length > 0
+    - not ansible_check_mode or autolab_pbs_install is not changed

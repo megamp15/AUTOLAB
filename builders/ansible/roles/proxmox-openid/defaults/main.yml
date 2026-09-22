@@ -1,0 +1,16 @@
+---
+# Pocket ID as an OpenID realm on the Proxmox VE node. One client in Pocket
+# ID serves PVE and PBS both; the workflow hands the id and secret in. Empty
+# id = nothing is configured and nothing is removed.
+autolab_pve_openid_realm: pocketid
+autolab_pve_openid_comment: "Pocket ID"
+autolab_pve_openid_issuer_url: ""
+autolab_pve_openid_client_id: ""
+autolab_pve_openid_client_secret: ""
+# PVE creates a user on first login (username claim → <name>@pocketid) and
+# creates and syncs groups from the token's `groups` claim, named
+# <group>-<realm>. The ACL below is what makes the admins group matter.
+autolab_pve_openid_username_claim: preferred_username
+autolab_pve_openid_groups_claim: groups
+autolab_pve_openid_admin_group: admins
+autolab_pve_openid_admin_role: Administrator
