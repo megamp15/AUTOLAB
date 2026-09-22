@@ -627,6 +627,21 @@ one token through the API with the admin password, kept in
 `/etc/autolab/obs-digest-grafana.env` next to the PBS token; the first
 digest after the switch read `alerts: unavailable (HTTP Error 401)`.
 
+**The homepage was a scene before it was a page.** Its intro is driven by
+scroll position inside a sticky `100vh` stage with `overflow: hidden`, which
+is fine while the list fits: once it does not, the rows past the fold cannot
+be reached at all, and scrolling up to look for them rewinds the animation
+instead. On a phone that is the whole experience. It now switches to a plain
+scrolling document when the viewport is narrow, when the reader asks for
+less motion, or when the list outgrows the screen — the starfield stays,
+fixed behind the content.
+
+**A staggered reveal with a fixed step stops revealing.** The same page
+scrambled each label in turn at `r - i * 0.045`, which reaches 1 only for
+the first fourteen nodes: every row after that stayed scrambled permanently,
+and the lab grew past fourteen without anyone connecting the two. The step
+is now derived from the number of nodes, so the last one always lands.
+
 **Ansible renders templates with `trim_blocks`, a bare Jinja environment
 does not.** A compose file assembled from one included fragment per service
 parsed cleanly locally and arrived on the host with every service glued onto

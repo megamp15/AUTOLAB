@@ -29,12 +29,26 @@
   .feed { display:flex; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; line-height:1.6; }
   .feed .t { opacity:.5; font-variant-numeric:tabular-nums; }
   .hint { position:fixed; left:0; right:0; bottom:18px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.3em; opacity:.35; pointer-events:none; }
+
+  /* Static mode: the page stops being a scroll-driven scene and becomes a
+     document. Used on phones, when someone asks for less motion, and when the
+     list is taller than the screen — a sticky 100vh stage with overflow
+     hidden makes rows past the fold unreachable, and scrolling back up to
+     look for them rewinds the intro instead. The starfield stays, fixed
+     behind the content. */
+  [data-sg-root].static .scene { height:auto !important; }
+  [data-sg-root].static .stick { position:static !important; height:auto !important; overflow:visible !important; }
+  [data-sg-root].static canvas[data-sg-sky] { position:fixed !important; }
+  [data-sg-root].static #stage { position:static !important; pointer-events:auto !important;
+    min-height:100dvh; padding-block:clamp(24px,6vh,64px) !important; }
+  [data-sg-root].static #stage > div { filter:none !important; transform:none !important; }
+  [data-sg-root].static .hint { display:none; }
 </style>
 </head>
 <body>
 <div data-sg-root="1">
-  <div style="height:230vh;">
-    <div style="position:sticky; top:0; height:100vh; overflow:hidden;">
+  <div class="scene" style="height:230vh;">
+    <div class="stick" style="position:sticky; top:0; height:100vh; overflow:hidden;">
       <canvas data-sg-sky="1" style="position:absolute; inset:0; width:100%; height:100%; display:block;"></canvas>
       <div id="stage" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:clamp(20px,5vw,64px); pointer-events:none;">
         <div style="width:min(760px,100%); display:flex; flex-direction:column; gap:clamp(16px,2.6vh,26px); filter:blur(calc((1 - var(--sg-flood)) * 3px)); transform:scaleY(calc(0.82 + var(--sg-flood) * 0.18));">
@@ -74,6 +88,9 @@
   const root = document.querySelector('[data-sg-root]');
   const sky = document.querySelector('[data-sg-sky]');
   const stage = document.getElementById('stage');
+  // Declared up here because load() may reach decideMode() before the
+  // frame-state block below has run.
+  let staticMode = false;
   const rowsEl = document.getElementById('rows');
   const feedEl = document.getElementById('feed');
   const hint = document.getElementById('hint');
@@ -126,6 +143,9 @@
       state.feed = [{ time: '--:--', text: 'status.json unavailable: ' + e }];
     }
     render();
+    // The list just changed size, which is one of the things that decides
+    // whether this page is a scene or a document.
+    decideMode();
   }
   load();
   setInterval(load, 30000);
@@ -153,7 +173,38 @@
   const mix = (a, b, t) => { const A = toRGB(a), B = toRGB(b); return 'rgb(' + Math.round(A[0] + (B[0] - A[0]) * t) + ',' + Math.round(A[1] + (B[1] - A[1]) * t) + ',' + Math.round(A[2] + (B[2] - A[2]) * t) + ')'; };
   const rgba = (col, a) => { const al = Math.max(0, Math.min(1, a)).toFixed(3); const m = String(col).match(/rgb\((\d+),(\d+),(\d+)\)/); if (m) return 'rgba(' + m[1] + ',' + m[2] + ',' + m[3] + ',' + al + ')'; const c = toRGB(col); return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + al + ')'; };
 
+  // A phone, a request for less motion, or a list that no longer fits: the
+  // scene becomes a plain scrolling document. Re-decided on resize and
+  // whenever the rows are rebuilt, because the list grows with the lab.
+  const lessMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  function decideMode() {
+    const content = stage.firstElementChild;
+    const tall = content ? content.scrollHeight > window.innerHeight * 0.88 : false;
+    const want = window.innerWidth <= 820 || lessMotion.matches || tall;
+    if (want !== staticMode) {
+      staticMode = want;
+      root.classList.toggle('static', want);
+    }
+    return staticMode;
+  }
+
   function frame() {
+    if (staticMode) {
+      // Fully arrived, and staying there: no scroll position drives this.
+      S.recon = 1;
+      const paper = state.dark ? '#08080A' : '#FFFFFF';
+      const ink = state.dark ? '#F4F4F5' : '#0A0A0A';
+      px = { p: 1, enter: 1, glitch: 1, flood: 1, bg: paper, fg: ink };
+      root.style.setProperty('--sg-p', '1');
+      root.style.setProperty('--sg-enter', '1');
+      root.style.setProperty('--sg-glitch', '1');
+      root.style.setProperty('--sg-flood', '1');
+      root.style.setProperty('--sg-bg', px.bg);
+      root.style.setProperty('--sg-fg', px.fg);
+      document.body.style.background = px.bg;
+      if (!pointerOn) { pointerOn = true; stage.style.pointerEvents = 'auto'; }
+      return;
+    }
     const doc = document.documentElement;
     const max = Math.max(1, doc.scrollHeight - window.innerHeight);
     const p = clamp((window.scrollY || doc.scrollTop) / max);
@@ -183,6 +234,7 @@
   }
 
   function size() {
+    decideMode();
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     const r = sky.getBoundingClientRect();
     const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
@@ -272,9 +324,15 @@
     if (r <= 0 || scrambleDone === r) return;
     const nodes = root.querySelectorAll('[data-final]');
     const GL = '01<>[]{}/\\|=+*#%$&';
+    // The stagger has to fit the list, not a fixed count. At a flat 0.045 a
+    // reveal only ever reached node 13: every row after that stayed
+    // scrambled for good, and the lab grew past that without anyone
+    // noticing. Spread the same 0.6 of the range across however many nodes
+    // exist, so the last one still lands exactly at 1.
+    const step = 0.6 / Math.max(1, nodes.length - 1);
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i], fin = n.getAttribute('data-final') || '';
-      const local = clamp((r - i * 0.045) / 0.4);
+      const local = clamp((r - i * step) / 0.4);
       if (local >= 1) { if (n.textContent !== fin) n.textContent = fin; continue; }
       const keep = Math.floor(fin.length * local);
       let out = fin.slice(0, keep);
