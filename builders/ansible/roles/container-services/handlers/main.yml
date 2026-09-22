@@ -3,4 +3,5 @@
   community.docker.docker_compose_v2:
     project_src: "{{ autolab_services_root }}"
     state: restarted
+  # Check mode on a fresh host notifies this from a file it did not write.
   when: not ansible_check_mode

@@ -66,11 +66,20 @@
     mode: "0644"
   notify: Restart the services stack
 
+# On a fresh host in check mode nothing above was written, so systemd has no
+# unit to enable and Compose no project to inspect. Once the host has run for
+# real both exist and check mode reports against them.
+- name: See whether the stack was ever installed
+  ansible.builtin.stat:
+    path: /etc/systemd/system/autolab-services.service
+  register: autolab_services_unit
+
 - name: Enable the boot unit
   ansible.builtin.systemd_service:
     name: autolab-services.service
     enabled: true
     daemon_reload: true
+  when: not ansible_check_mode or autolab_services_unit.stat.exists
 
 # present, not restarted: restart acts on containers that already exist and
 # would create nothing on a first run. remove_orphans is what makes taking a
