@@ -21,7 +21,10 @@ services:
       - --store_container_labels=false
       - --whitelisted_container_labels=com.docker.compose.project,com.docker.compose.service
       - --housekeeping_interval={{ autolab_obs_scrape_interval }}
-      - --disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,percpu,process,referenced_memory,resctrl,sched,tcp,udp
+      # disk and diskIO are 85% of the output — container_fs_* is per device
+      # per container, 42 series each, and the host's own filesystems are
+      # node_exporter's job. What is left is cpu, memory and network.
+      - --disable_metrics=advtcp,cpu_topology,cpuset,disk,diskIO,hugetlb,memory_numa,percpu,process,referenced_memory,resctrl,sched,tcp,udp
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
