@@ -627,6 +627,13 @@ one token through the API with the admin password, kept in
 `/etc/autolab/obs-digest-grafana.env` next to the PBS token; the first
 digest after the switch read `alerts: unavailable (HTTP Error 401)`.
 
+**`docker_compose_v2` with `state: restarted` creates nothing.** Restart acts
+on containers that already exist, so the first run on a host — where the
+project has never been up — restarts nothing, creates nothing, and reports
+`ok`. cAdvisor was declared, templated and absent for a deploy because of
+it. `state: present` runs `up -d`, which also recreates a service whose
+config changed, so the conditional was pointless as well as broken.
+
 **Cloudflare answers a bare Python client with 403, and 403 reads as "up".**
 The homepage probes count any status below 500 as reachable, which is right
 for a login page and wrong for Cloudflare's browser-integrity check, which
