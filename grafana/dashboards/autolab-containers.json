@@ -1,0 +1,261 @@
+{
+ "apiVersion": "dashboard.grafana.app/v1",
+ "kind": "Dashboard",
+ "metadata": {
+  "name": "autolab-containers"
+ },
+ "spec": {
+  "title": "Autolab \u2014 Containers",
+  "description": "Per-container CPU, memory, network and logs, from cAdvisor and the Docker log source on every Docker host.",
+  "tags": [
+   "autolab",
+   "provisioned",
+   "containers"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": {
+   "from": "now-6h",
+   "to": "now"
+  },
+  "templating": {
+   "list": [
+    {
+     "name": "DS",
+     "type": "datasource",
+     "query": "prometheus",
+     "current": {},
+     "hide": 0
+    },
+    {
+     "name": "DS_LOKI",
+     "type": "datasource",
+     "query": "loki",
+     "current": {},
+     "hide": 0
+    },
+    {
+     "name": "host",
+     "type": "query",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${DS}"
+     },
+     "query": "label_values(container_last_seen{name!=\"\"}, instance)",
+     "refresh": 1,
+     "includeAll": true,
+     "multi": true,
+     "current": {
+      "text": "All",
+      "value": "$__all"
+     }
+    },
+    {
+     "name": "container",
+     "type": "query",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${DS}"
+     },
+     "query": "label_values(container_last_seen{name!=\"\", instance=~\"$host\"}, name)",
+     "refresh": 2,
+     "includeAll": true,
+     "multi": true,
+     "current": {
+      "text": "All",
+      "value": "$__all"
+     }
+    }
+   ]
+  },
+  "panels": [
+   {
+    "id": 1,
+    "title": "CPU by container",
+    "type": "timeseries",
+    "gridPos": {
+     "h": 8,
+     "w": 12,
+     "x": 0,
+     "y": 0
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "${DS}"
+    },
+    "fieldConfig": {
+     "defaults": {
+      "custom": {
+       "fillOpacity": 8,
+       "lineWidth": 2
+      },
+      "unit": "percent"
+     },
+     "overrides": []
+    },
+    "targets": [
+     {
+      "expr": "sum by (instance, name) (rate(container_cpu_usage_seconds_total{name=~\"$container\", instance=~\"$host\"}[5m])) * 100",
+      "refId": "A",
+      "legendFormat": "{{instance}} \u00b7 {{name}}"
+     }
+    ],
+    "description": "Share of one core. Above 100% means more than one core's worth."
+   },
+   {
+    "id": 2,
+    "title": "Memory by container",
+    "type": "timeseries",
+    "gridPos": {
+     "h": 8,
+     "w": 12,
+     "x": 12,
+     "y": 0
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "${DS}"
+    },
+    "fieldConfig": {
+     "defaults": {
+      "custom": {
+       "fillOpacity": 8,
+       "lineWidth": 2
+      },
+      "unit": "bytes"
+     },
+     "overrides": []
+    },
+    "targets": [
+     {
+      "expr": "sum by (instance, name) (container_memory_working_set_bytes{name=~\"$container\", instance=~\"$host\"})",
+      "refId": "A",
+      "legendFormat": "{{instance}} \u00b7 {{name}}"
+     }
+    ],
+    "description": "Working set: what the container would have to page in if it were evicted, which is the number that matters on a host with 6 GB."
+   },
+   {
+    "id": 3,
+    "title": "Restarts in the window",
+    "type": "table",
+    "gridPos": {
+     "h": 8,
+     "w": 8,
+     "x": 0,
+     "y": 8
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "${DS}"
+    },
+    "fieldConfig": {
+     "defaults": {
+      "custom": {
+       "fillOpacity": 8,
+       "lineWidth": 2
+      }
+     },
+     "overrides": []
+    },
+    "targets": [
+     {
+      "expr": "sum by (instance, name) (changes(container_start_time_seconds{name=~\"$container\", instance=~\"$host\"}[$__range]))",
+      "refId": "A",
+      "legendFormat": "{{instance}} \u00b7 {{name}}",
+      "instant": true,
+      "format": "table"
+     }
+    ],
+    "description": "A container that keeps reappearing here is crash-looping: the restart policy is hiding a failure rather than fixing it.",
+    "transformations": [
+     {
+      "id": "organize",
+      "options": {
+       "excludeByName": {
+        "Time": true
+       }
+      }
+     }
+    ]
+   },
+   {
+    "id": 4,
+    "title": "Network",
+    "type": "timeseries",
+    "gridPos": {
+     "h": 8,
+     "w": 16,
+     "x": 8,
+     "y": 8
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "${DS}"
+    },
+    "fieldConfig": {
+     "defaults": {
+      "custom": {
+       "fillOpacity": 8,
+       "lineWidth": 2
+      },
+      "unit": "Bps"
+     },
+     "overrides": []
+    },
+    "targets": [
+     {
+      "expr": "sum by (name) (rate(container_network_receive_bytes_total{name=~\"$container\", instance=~\"$host\"}[5m]))",
+      "refId": "A",
+      "legendFormat": "{{name}} in"
+     },
+     {
+      "expr": "-sum by (name) (rate(container_network_transmit_bytes_total{name=~\"$container\", instance=~\"$host\"}[5m]))",
+      "refId": "B",
+      "legendFormat": "{{name}} out"
+     }
+    ],
+    "description": "Out is drawn negative, so a busy container is symmetrical rather than stacked."
+   },
+   {
+    "id": 5,
+    "title": "Logs",
+    "type": "logs",
+    "gridPos": {
+     "h": 12,
+     "w": 24,
+     "x": 0,
+     "y": 16
+    },
+    "datasource": {
+     "type": "loki",
+     "uid": "${DS_LOKI}"
+    },
+    "fieldConfig": {
+     "defaults": {
+      "custom": {
+       "fillOpacity": 8,
+       "lineWidth": 2
+      }
+     },
+     "overrides": []
+    },
+    "targets": [
+     {
+      "expr": "{job=\"docker\", host=~\"$host\", container=~\"$container\"}",
+      "refId": "A"
+     }
+    ],
+    "description": "The same containers, from Loki. Labelled by Compose project and service, so a container being recreated does not break the query.",
+    "options": {
+     "showTime": true,
+     "wrapLogMessage": true,
+     "sortOrder": "Descending",
+     "enableLogDetails": true
+    }
+   }
+  ],
+  "links": []
+ }
+}
