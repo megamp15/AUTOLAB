@@ -42,6 +42,10 @@ autolab_obs_public_hosts:
   grafana: grafana
   auth: auth
   home: home
+# The tailnet side of ingress: *.<label>.<zone> names with real certificates,
+# reachable only on the tailnet. Empty means the rows keep their raw
+# addresses and ports.
+autolab_obs_internal_label: ""
 autolab_obs_grafana_oidc_client_id: ""
 autolab_obs_grafana_oidc_client_secret: ""
 # Pocket ID groups → Grafana roles. admins are server admins; anyone else
@@ -193,17 +197,21 @@ autolab_obs_grafana_public_url: >-
      if autolab_obs_grafana_oidc_client_id | length > 0
      else 'http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_obs_grafana_port }}
 
+# An internal name when the tailnet side exists, the raw address otherwise.
+autolab_obs_lab_url: >-
+  {%- if autolab_obs_internal_label | length > 0 -%}https://{name}.{{ autolab_obs_internal_label }}.{{ autolab_obs_public_zone }}{%- else -%}{raw}{%- endif -%}
+
 autolab_obs_homepage_links:
   - name: Proxmox VE
     meta: "{{ autolab_obs_pve_host.split('.')[0] }}"
-    url: "https://{{ autolab_obs_pve_host }}:8006"
+    url: "{{ autolab_obs_lab_url.format(name='proxmox', raw='https://' ~ autolab_obs_pve_host ~ ':8006') }}"
     icon: hypervisor
     check:
       type: http
       target: "https://{{ autolab_obs_pve_host }}:8006"
   - name: Backup Server
     meta: ark
-    url: "https://ark.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:8007"
+    url: "{{ autolab_obs_lab_url.format(name='pbs', raw='https://ark.' ~ autolab_tailscale_fqdn.split('.', 1)[1] ~ ':8007') }}"
     icon: backup
     check:
       type: tcp
@@ -217,7 +225,7 @@ autolab_obs_homepage_links:
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_grafana_port }}/api/health"
   - name: Prometheus
     meta: metrics
-    url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_prometheus_port }}"
+    url: "{{ autolab_obs_lab_url.format(name='prometheus', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_obs_prometheus_port) }}"
     icon: metrics
     check:
       type: http
@@ -233,7 +241,7 @@ autolab_obs_homepage_links:
   # NAS through Ugreen's cloud. Everything on this page stays on the tailnet.
   - name: NAS
     meta: singularity
-    url: "https://singularity.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:9443"
+    url: "{{ autolab_obs_lab_url.format(name='nas', raw='https://singularity.' ~ autolab_tailscale_fqdn.split('.', 1)[1] ~ ':9443') }}"
     icon: nas
     check:
       type: tcp

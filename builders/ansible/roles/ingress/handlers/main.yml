@@ -6,3 +6,9 @@
   # Check mode on a fresh host notifies this from templates it did not write;
   # there is no project to restart until the first apply.
   when: not ansible_check_mode or autolab_ingress_compose_file.stat.exists
+
+- name: Restart the tailnet-side resolver
+  ansible.builtin.systemd_service:
+    name: dnsmasq
+    state: restarted
+  when: not ansible_check_mode

@@ -151,6 +151,11 @@ jobs:
           # a public route. Run observability before ingress when setting it.
           AUTOLAB_GRAFANA_OIDC_CLIENT_ID: ${{ secrets.GRAFANA_OIDC_CLIENT_ID }}
           AUTOLAB_GRAFANA_OIDC_CLIENT_SECRET: ${{ secrets.GRAFANA_OIDC_CLIENT_SECRET }}
+          # The tailnet side: a DNS-only Cloudflare token for the wildcard
+          # certificate's DNS challenge (it lives on the exposed host, so it
+          # can do nothing else), and the account Let's Encrypt writes to.
+          AUTOLAB_INGRESS_ACME_DNS_TOKEN: ${{ secrets.INGRESS_ACME_DNS_TOKEN }}
+          AUTOLAB_INGRESS_ACME_EMAIL: ${{ vars.INGRESS_ACME_EMAIL }}
         run: |
           for attempt in 1 2 3; do
             tofu init -input=false -backend-config="endpoint=$R2_ENDPOINT" >/dev/null && break
@@ -167,12 +172,15 @@ jobs:
               token = outputs["tunnel_token"]["value"]
               print(f"::add-mask::{token}")
               zone = outputs["zone_name"]["value"]
+              internal = outputs.get("internal_label", {}).get("value", "")
               extra.update({
                   "autolab_ingress_tunnel_token": token,
                   "autolab_ingress_zone": zone,
                   "autolab_ingress_hostnames": outputs["hostname_labels"]["value"],
+                  "autolab_ingress_internal_label": internal,
                   "autolab_obs_public_zone": zone,
                   "autolab_obs_public_hosts": outputs["hostname_labels"]["value"],
+                  "autolab_obs_internal_label": internal,
               })
               print(f"Tunnel {outputs['tunnel_id']['value']} for zone {zone}: {', '.join(outputs['hostname_labels']['value'].values())}")
           else:
@@ -184,6 +192,8 @@ jobs:
               "autolab_obs_grafana_oidc_client_id": grafana_client,
               "autolab_obs_grafana_oidc_client_secret": os.environ.get("AUTOLAB_GRAFANA_OIDC_CLIENT_SECRET", ""),
               "autolab_ingress_grafana_route": bool(grafana_client),
+              "autolab_ingress_acme_dns_token": os.environ.get("AUTOLAB_INGRESS_ACME_DNS_TOKEN", ""),
+              "autolab_ingress_acme_email": os.environ.get("AUTOLAB_INGRESS_ACME_EMAIL", ""),
           })
           json.dump(extra, open(sys.argv[2], "w"))
           PY
@@ -192,6 +202,11 @@ jobs:
             echo "Traefik's OIDC client supplied; routes behind the plugin will be rendered."
           else
             echo "No INGRESS_TRAEFIK_CLIENT_ID; nothing behind the plugin has a route until Pocket ID has the client."
+          fi
+          if [ -n "${AUTOLAB_INGRESS_ACME_DNS_TOKEN}" ]; then
+            echo "DNS-only token supplied; the tailnet side gets a Let's Encrypt certificate."
+          else
+            echo "No INGRESS_ACME_DNS_TOKEN; the tailnet side stays off."
           fi
           if [ -n "${AUTOLAB_GRAFANA_OIDC_CLIENT_ID}" ]; then
             echo "Grafana's OIDC client supplied: Grafana logs in via Pocket ID, anonymous viewing off, public route on."

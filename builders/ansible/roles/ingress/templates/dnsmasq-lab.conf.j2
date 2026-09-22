@@ -1,0 +1,10 @@
+# Managed by Ansible — roles/ingress. The tailnet-side zone, answered on this
+# host's tailnet address only. Tailscale split DNS sends queries for
+# {{ autolab_ingress_internal_label }}.{{ autolab_ingress_zone }} here; nothing else is answered or forwarded.
+listen-address={{ autolab_ingress_tailscale_ip }}
+bind-interfaces
+no-resolv
+no-hosts
+no-poll
+local=/{{ autolab_ingress_internal_label }}.{{ autolab_ingress_zone }}/
+address=/{{ autolab_ingress_internal_label }}.{{ autolab_ingress_zone }}/{{ autolab_ingress_tailscale_ip }}

@@ -23,3 +23,8 @@ output "tunnel_token" {
   value       = data.cloudflare_zero_trust_tunnel_cloudflared_token.autolab.token
   sensitive   = true
 }
+
+output "internal_label" {
+  description = "Sub-label for tailnet-only names (split DNS inside the tailnet, never a public record); empty when none."
+  value       = var.internal_label
+}

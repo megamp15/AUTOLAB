@@ -22,9 +22,18 @@ services:
   traefik:
     image: {{ autolab_ingress_images.traefik }}
     restart: unless-stopped
+    env_file: traefik.env
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./traefik/acme:/letsencrypt
+{% if autolab_ingress_tailnet_side | bool %}
+    # The tailnet's doors, on the tailnet address only. Docker's iptables
+    # rules run ahead of ufw's, so binding 0.0.0.0 would reach the LAN.
+    ports:
+      - "{{ autolab_ingress_tailscale_ip }}:80:8080"
+      - "{{ autolab_ingress_tailscale_ip }}:443:8443"
+{% endif %}
     # Tailscale's resolver, so `jwst.<tailnet>` resolves inside the container
     # the way it does on the host. Docker's embedded DNS would otherwise fall
     # back to the host's upstream servers, which know nothing about MagicDNS.

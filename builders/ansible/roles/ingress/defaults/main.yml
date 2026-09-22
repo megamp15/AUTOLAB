@@ -64,3 +64,44 @@ autolab_ingress_homepage_groups: [admins, viewers]
 # How long a login lasts on the homepage before the plugin asks Pocket ID
 # again (silently, if Pocket ID's own session is still alive). Seconds.
 autolab_ingress_session_max_age: 604800
+
+# ---------------------------------------------------------------------------
+# The tailnet side. *.<label>.<zone> resolves to this host's tailnet address
+# (the Cloudflare stack owns the record); Traefik listens on that address
+# with a Let's Encrypt wildcard certificate obtained through the DNS
+# challenge, and routes each internal name to the service on the tailnet.
+# HTTP on the tailnet redirects to HTTPS. None of this has a public route.
+# Empty label = the tailnet side is off.
+# ---------------------------------------------------------------------------
+autolab_ingress_internal_label: ""
+# A token that can only edit this zone's DNS records: it lives on the exposed
+# machine, so it can do nothing else. Empty = no certificate, no tailnet side.
+autolab_ingress_acme_dns_token: ""
+autolab_ingress_acme_email: ""
+
+# Internal name → upstream. Proxmox, PBS and UGOS present self-signed
+# certificates, so those go through a transport that does not verify them:
+# the hop is tailnet-to-tailnet, and the browser sees the real certificate
+# Traefik holds. Names are bare MagicDNS labels; the role appends the domain.
+autolab_ingress_pve_host: "{{ autolab_obs_pve_host | default('') }}"
+autolab_ingress_pbs_host: ""
+autolab_ingress_nas_host: "singularity"
+autolab_ingress_internal_routes:
+  home:
+    upstream: "http://{{ autolab_ingress_stack_fqdn }}:8080"
+    login: plugin
+  prometheus:
+    upstream: "http://{{ autolab_ingress_stack_fqdn }}:9090"
+    login: plugin
+  proxmox:
+    upstream: "https://{{ autolab_ingress_pve_host }}:8006"
+    login: own
+    insecure_upstream: true
+  pbs:
+    upstream: "https://{{ autolab_ingress_pbs_fqdn }}:8007"
+    login: own
+    insecure_upstream: true
+  nas:
+    upstream: "https://{{ autolab_ingress_nas_host }}.{{ autolab_ingress_tailnet_domain }}:9443"
+    login: own
+    insecure_upstream: true

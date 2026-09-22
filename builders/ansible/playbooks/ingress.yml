@@ -28,6 +28,14 @@
           | selectattr('autolab_builder.observability.stack')
           | map(attribute='ansible_host') | list | first | default('')) }}
 
+    # The backup host the same way, for pbs.<label>.<zone>.
+    autolab_ingress_pbs_host: >-
+      {{ (groups['linux_servers']
+          | map('extract', hostvars)
+          | selectattr('autolab_builder.backup.server', 'defined')
+          | selectattr('autolab_builder.backup.server')
+          | map(attribute='ansible_host') | list | first | default('')) }}
+
   roles:
     - role: ingress
       when: ((autolab_builder | default({})).ingress | default({})).stack | default(false) | bool

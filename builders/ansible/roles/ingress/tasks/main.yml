@@ -55,6 +55,17 @@
       {{ autolab_ingress_stack_host if '.' in autolab_ingress_stack_host
          else autolab_ingress_stack_host ~ '.' ~ autolab_ingress_tailnet_domain }}
 
+- name: Set the backup host's full name
+  ansible.builtin.set_fact:
+    autolab_ingress_pbs_fqdn: >-
+      {{ autolab_ingress_pbs_host if '.' in autolab_ingress_pbs_host or autolab_ingress_pbs_host | length == 0
+         else autolab_ingress_pbs_host ~ '.' ~ autolab_ingress_tailnet_domain }}
+
+- name: Decide whether the tailnet side is on
+  ansible.builtin.set_fact:
+    autolab_ingress_tailnet_side: >-
+      {{ autolab_ingress_internal_label | length > 0 and autolab_ingress_acme_dns_token | length > 0 }}
+
 - name: Create the ingress directory tree
   ansible.builtin.file:
     path: "{{ item }}"
@@ -66,6 +77,7 @@
     - "{{ autolab_ingress_root }}"
     - "{{ autolab_ingress_root }}/traefik"
     - "{{ autolab_ingress_root }}/traefik/dynamic"
+    - "{{ autolab_ingress_root }}/traefik/acme"
     - "{{ autolab_ingress_state_dir }}"
 
 # Pocket ID runs as uid 1000 and writes its SQLite and uploads here.
@@ -154,6 +166,59 @@
   no_log: true
   notify: Restart ingress stack
 
+# Split DNS. *.<label>.<zone> exists only inside the tailnet: dnsmasq on this
+# host's tailnet address answers the zone with that same address, and
+# Tailscale's split DNS sends every device's queries for the label here.
+# Nothing is published in public DNS and nothing about the tailnet is
+# stored anywhere; the address is read from tailscale at deploy time.
+- name: Install the tailnet-side resolver
+  ansible.builtin.apt:
+    name: dnsmasq
+    state: present
+  when: autolab_ingress_tailnet_side | bool
+
+- name: Keep dnsmasq off the host's own resolver
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible — roles/ingress. dnsmasq answers the tailnet only;
+      # the host keeps resolving through systemd-resolved and MagicDNS.
+      DNSMASQ_EXCEPT="lo"
+    dest: /etc/default/dnsmasq
+    owner: root
+    group: root
+    mode: "0644"
+  when: autolab_ingress_tailnet_side | bool
+  notify: Restart the tailnet-side resolver
+
+- name: Configure the tailnet-side zone
+  ansible.builtin.template:
+    src: dnsmasq-lab.conf.j2
+    dest: /etc/dnsmasq.d/autolab-lab.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: autolab_ingress_tailnet_side | bool
+  notify: Restart the tailnet-side resolver
+
+- name: Run the tailnet-side resolver
+  ansible.builtin.systemd_service:
+    name: dnsmasq
+    enabled: true
+    state: started
+  when: autolab_ingress_tailnet_side | bool and not ansible_check_mode
+
+# The DNS-only token for the certificate's DNS challenge. Traefik reads it
+# from its environment; an absent token leaves the tailnet side off.
+- name: Install Traefik's environment
+  ansible.builtin.template:
+    src: traefik.env.j2
+    dest: "{{ autolab_ingress_root }}/traefik.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart ingress stack
+
 # Static config is read at start: the entrypoint, the plugin, the file
 # provider. A change here is a restart.
 - name: Install Traefik's static configuration
@@ -221,6 +286,8 @@
     msg: >-
       Routes: auth (Pocket ID)
       {{- ', home (behind Pocket ID)' if autolab_ingress_traefik_client_id | length > 0 else '' }}
-      {{- ', grafana (logs in itself)' if autolab_ingress_grafana_route | bool else '' }}.
+      {{- ', grafana (logs in itself)' if autolab_ingress_grafana_route | bool else '' }}
+      {{- ('; tailnet side: *.' ~ autolab_ingress_internal_label ~ '.' ~ autolab_ingress_zone ~ ", Let's Encrypt")
+          if autolab_ingress_tailnet_side | bool else '; tailnet side off' }}.
       {{ 'Nothing behind the plugin has a route until INGRESS_TRAEFIK_CLIENT_ID/SECRET are set.'
          if autolab_ingress_traefik_client_id | length == 0 else '' }}

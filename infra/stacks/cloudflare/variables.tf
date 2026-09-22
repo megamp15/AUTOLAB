@@ -39,3 +39,14 @@ variable "public_hostnames" {
     error_message = "At least one public hostname is required; a tunnel with no ingress rule is refused by Cloudflare."
   }
 }
+
+# The tailnet side is not in public DNS at all. *.<label>.<zone> resolves
+# only inside the tailnet (split DNS → a responder on horizon), and the
+# certificate's DNS challenge needs no record here beyond the TXT it writes
+# itself. The label is declared in this stack so the ingress role and the
+# homepage read one source; empty turns the tailnet side off.
+variable "internal_label" {
+  description = "Sub-label under the zone for tailnet-only names, e.g. lab → *.lab.<zone>. Empty = none."
+  type        = string
+  default     = "lab"
+}
