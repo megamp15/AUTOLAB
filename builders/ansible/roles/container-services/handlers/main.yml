@@ -1,0 +1,6 @@
+---
+- name: Restart the services stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ autolab_services_root }}"
+    state: restarted
+  when: not ansible_check_mode

@@ -1,0 +1,18 @@
+---
+# The lab's container services, on whichever machine the machines map gives a
+# builder.services list. Selected by machine policy like the observability
+# stack and the ingress host, so moving them is a machines.auto.tfvars change.
+
+- name: Deploy the container services
+  hosts: linux_servers
+  force_handlers: true
+  become: true
+  gather_facts: true
+
+  module_defaults:
+    ansible.builtin.apt:
+      lock_timeout: 900
+
+  roles:
+    - role: container-services
+      tags: [services]

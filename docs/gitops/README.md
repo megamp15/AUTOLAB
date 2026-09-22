@@ -89,6 +89,7 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
 15. [Observability](./observability.md)
 16. [Backups](./backups.md)
 17. [Ingress](./ingress.md)
+18. [Container services](./services.md)
 17. [Server hardening baseline](./server-hardening-baseline.md)
 18. [Security sources](./security-sources.md)
 

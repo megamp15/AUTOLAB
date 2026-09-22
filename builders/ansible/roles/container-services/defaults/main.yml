@@ -1,0 +1,45 @@
+---
+# The lab's own container services, on whichever machine the machines map
+# names. One Compose project; one template per service, so a service is
+# added, removed or upgraded on its own.
+#
+# Enabled per machine: builder.services = ["portainer", "registry", …].
+# A name not in the catalog fails the run rather than being ignored.
+
+# Every service this role knows how to run. A machine's list is checked
+# against it, so a typo fails by name instead of rendering a broken file.
+autolab_services_catalog: [portainer, registry, registry-ui, diun]
+
+autolab_services_root: /opt/autolab/services
+autolab_services_enabled: "{{ (autolab_builder | default({})).services | default([]) }}"
+
+# Pinned, like every other image in this lab: a management UI that upgrades
+# itself overnight is a management UI that broke itself overnight.
+autolab_services_images:
+  portainer: "portainer/portainer-ce:2.45.1"
+  registry: "registry:3.1.1"
+  registry_ui: "joxit/docker-registry-ui:2.6.0"
+  diun: "crazymax/diun:4.33.0"
+
+# Host ports, bound to the tailnet address only. Docker writes its iptables
+# rules ahead of ufw's, so 0.0.0.0 would reach the LAN whatever the host
+# firewall says — the same reason the observability stack binds this way.
+autolab_services_ports:
+  portainer: 9000
+  registry: 5000
+  registry_ui: 8082
+
+# What the registry answers to. The tailnet is the boundary, as it is for
+# Prometheus and Loki: reaching this address at all means passing the tailnet
+# ACL. Tenants are on another tailnet and cannot see it.
+autolab_services_registry_delete_enabled: true
+
+# Diun watches the images this lab runs and says when a newer tag exists. It
+# never updates anything: versions are pinned in git, and an image that
+# changed under you is the thing this lab is built to avoid.
+autolab_services_diun_schedule: "0 8 * * *"
+autolab_services_diun_ntfy_topic: "{{ autolab_obs_ntfy_topic | default('') }}"
+autolab_services_diun_ntfy_url: "{{ autolab_obs_ntfy_url | default('https://ntfy.sh') }}"
+
+# Diun stamps its notifications with a local time.
+autolab_services_timezone: "{{ autolab_timezone | default('UTC') }}"

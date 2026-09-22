@@ -1,0 +1,19 @@
+[Unit]
+Description=Autolab container services — start once the tailnet address exists
+Wants=tailscaled.service docker.service
+After=tailscaled.service docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Ports bind to the tailnet address, which tailscaled configures after
+# dockerd has already started its restart-policy containers. This unit owns
+# the boot path; the restart policy stays the crash backstop.
+TimeoutStartSec=180
+Restart=on-failure
+RestartSec=10
+ExecStartPre=/bin/sh -c 'until ip -4 addr show dev tailscale0 | grep -qF "{{ autolab_services_tailscale_ip }}/"; do sleep 2; done'
+ExecStart=/usr/bin/docker compose --project-directory {{ autolab_services_root }} up -d
+
+[Install]
+WantedBy=multi-user.target

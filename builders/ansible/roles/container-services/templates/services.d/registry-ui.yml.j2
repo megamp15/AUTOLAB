@@ -1,0 +1,14 @@
+  registry-ui:
+    image: {{ autolab_services_images.registry_ui }}
+    restart: unless-stopped
+    depends_on: [registry]
+    environment:
+      # The browser talks to the registry directly, so this is the address a
+      # browser can reach, not the compose network's.
+      REGISTRY_URL: "http://{{ autolab_services_fqdn }}:{{ autolab_services_ports.registry }}"
+      REGISTRY_TITLE: "Autolab registry"
+      DELETE_IMAGES: "{{ autolab_services_registry_delete_enabled | string | lower }}"
+      SINGLE_REGISTRY: "true"
+      SHOW_CONTENT_DIGEST: "true"
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.registry_ui }}:80"

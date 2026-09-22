@@ -1,0 +1,92 @@
+---
+- name: Skip when this machine runs no services
+  ansible.builtin.meta: end_role
+  when: autolab_services_enabled | length == 0
+
+- name: Require Docker on the services host
+  ansible.builtin.assert:
+    that: (autolab_builder | default({})).docker_enabled | default(false) | bool
+    fail_msg: >-
+      builder.services needs builder.docker_enabled = true for this machine
+      in machines.auto.tfvars, and the docker playbook run first.
+
+# A name with no template is a typo in the machines map. Caught here, by
+# name, rather than as a Jinja error halfway through rendering a compose file.
+- name: Refuse a service this role does not know
+  ansible.builtin.assert:
+    that: autolab_services_enabled | difference(autolab_services_catalog) | length == 0
+    fail_msg: >-
+      Unknown service(s) {{ autolab_services_enabled | difference(autolab_services_catalog) | join(', ') }}.
+      This role knows: {{ autolab_services_catalog | join(', ') }}.
+
+# Published ports bind here and nowhere else.
+- name: Discover this host's tailnet address
+  ansible.builtin.command: tailscale ip -4
+  register: autolab_services_ip_raw
+  changed_when: false
+  check_mode: false
+
+- name: Discover this host's MagicDNS name
+  ansible.builtin.command: tailscale status --json
+  register: autolab_services_status
+  changed_when: false
+  check_mode: false
+
+# The address for binding, the name for anything a human or a browser is
+# given: an address belongs to a device and changes when the VM is rebuilt.
+- name: Set the tailnet facts
+  ansible.builtin.set_fact:
+    autolab_services_tailscale_ip: "{{ autolab_services_ip_raw.stdout_lines[0] }}"
+    autolab_services_fqdn: >-
+      {{ (autolab_services_status.stdout | from_json).Self.DNSName | regex_replace('\.$', '') }}
+
+- name: Create the services directory
+  ansible.builtin.file:
+    path: "{{ autolab_services_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Assemble the services compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ autolab_services_root }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart the services stack
+
+- name: Install the boot unit
+  ansible.builtin.template:
+    src: autolab-services.service.j2
+    dest: /etc/systemd/system/autolab-services.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart the services stack
+
+- name: Enable the boot unit
+  ansible.builtin.systemd_service:
+    name: autolab-services.service
+    enabled: true
+    daemon_reload: true
+
+# present, not restarted: restart acts on containers that already exist and
+# would create nothing on a first run. remove_orphans is what makes taking a
+# service out of the list actually remove its container.
+- name: Bring the services up
+  community.docker.docker_compose_v2:
+    project_src: "{{ autolab_services_root }}"
+    state: present
+    pull: missing
+    remove_orphans: true
+  when: not ansible_check_mode
+
+- name: Say what is running and where
+  ansible.builtin.debug:
+    msg: >-
+      {{ autolab_services_enabled | join(', ') }} on {{ autolab_services_fqdn }}
+      {{- ' — portainer :' ~ autolab_services_ports.portainer if 'portainer' in autolab_services_enabled else '' }}
+      {{- ', registry :' ~ autolab_services_ports.registry if 'registry' in autolab_services_enabled else '' }}
+      {{- ', registry-ui :' ~ autolab_services_ports.registry_ui if 'registry-ui' in autolab_services_enabled else '' }}

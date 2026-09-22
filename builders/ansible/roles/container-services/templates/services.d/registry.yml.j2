@@ -1,0 +1,12 @@
+  registry:
+    image: {{ autolab_services_images.registry }}
+    restart: unless-stopped
+    environment:
+      # Deleting a tag only unlinks it; garbage collection reclaims the space
+      # and needs the registry read-only or stopped, so it stays a deliberate
+      # act rather than a schedule.
+      REGISTRY_STORAGE_DELETE_ENABLED: "{{ autolab_services_registry_delete_enabled | string | lower }}"
+    volumes:
+      - registry-data:/var/lib/registry
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.registry }}:5000"
