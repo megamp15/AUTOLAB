@@ -627,6 +627,12 @@ one token through the API with the admin password, kept in
 `/etc/autolab/obs-digest-grafana.env` next to the PBS token; the first
 digest after the switch read `alerts: unavailable (HTTP Error 401)`.
 
+**A loopback scrape labels every host the same.** A target's address becomes
+its `instance`, and `127.0.0.1:8081` is the same string on every machine, so
+each host's containers arrived indistinguishable from the next host's and
+joined to nothing — node_exporter's series use the host name. Targets
+written by hand name their `instance`.
+
 **`docker_compose_v2` with `state: restarted` creates nothing.** Restart acts
 on containers that already exist, so the first run on a host — where the
 project has never been up — restarts nothing, creates nothing, and reports

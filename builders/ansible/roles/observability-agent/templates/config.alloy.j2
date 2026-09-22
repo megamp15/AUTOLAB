@@ -47,7 +47,15 @@ prometheus.scrape "alloy" {
 // host's cgroup tree and the Docker daemon, which is what the container's
 // mounts give it. `--docker_only` is what keeps the systemd noise out.
 prometheus.scrape "containers" {
-  targets         = [{"__address__" = "127.0.0.1:{{ autolab_obs_cadvisor_port }}", "job" = "cadvisor"}]
+  // `instance` is named, because the address is the same literal on every
+  // host: without it every host's containers arrive as 127.0.0.1:8081 and
+  // there is no way to tell one host's from another's, or to join them to
+  // node_exporter's series, which use the host name.
+  targets         = [{
+    "__address__" = "127.0.0.1:{{ autolab_obs_cadvisor_port }}",
+    "job"         = "cadvisor",
+    "instance"    = "{{ inventory_hostname }}",
+  }]
   forward_to      = [prometheus.remote_write.stack.receiver]
   scrape_interval = "{{ autolab_obs_scrape_interval }}"
 }
@@ -59,7 +67,11 @@ prometheus.scrape "containers" {
 // number of connections to Cloudflare's edge; the "Tunnel is down" rule
 // watches it.
 prometheus.scrape "cloudflared" {
-  targets         = [{"__address__" = "127.0.0.1:2000", "job" = "cloudflared"}]
+  targets         = [{
+    "__address__" = "127.0.0.1:2000",
+    "job"         = "cloudflared",
+    "instance"    = "{{ inventory_hostname }}",
+  }]
   forward_to      = [prometheus.remote_write.stack.receiver]
   scrape_interval = "{{ autolab_obs_scrape_interval }}"
 }
