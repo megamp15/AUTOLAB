@@ -30,6 +30,32 @@
   no_log: true
   changed_when: true
 
+# PBS refuses a role for a user that does not exist, and the realm would
+# only create them on first login. Created here, empty; the realm's
+# autocreate still covers everyone else.
+- name: List the users
+  ansible.builtin.command:
+    argv: [proxmox-backup-manager, user, list, --output-format, json]
+  register: autolab_pbs_users
+  changed_when: false
+  check_mode: false
+
+- name: Create the named admin ahead of their first login
+  ansible.builtin.command:
+    argv:
+      - proxmox-backup-manager
+      - user
+      - create
+      - "{{ autolab_pbs_openid_admin_user }}@{{ autolab_pbs_openid_realm }}"
+      - --comment
+      - "Pocket ID admin, created ahead of first login"
+  when:
+    - autolab_pbs_openid_admin_user | length > 0
+    - >-
+      (autolab_pbs_openid_admin_user ~ '@' ~ autolab_pbs_openid_realm)
+      not in (autolab_pbs_users.stdout | from_json | map(attribute='userid') | list)
+  changed_when: true
+
 - name: List the ACLs
   ansible.builtin.command:
     argv: [proxmox-backup-manager, acl, list, --output-format, json]
@@ -37,8 +63,6 @@
   changed_when: false
   check_mode: false
 
-# Accepted before the user exists; effective the moment the first login
-# creates them.
 - name: Give the named admin the Admin role on everything
   ansible.builtin.command:
     argv:
