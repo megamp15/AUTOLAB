@@ -93,6 +93,17 @@
     append: true
   notify: Restart alloy
 
+# Both Docker pipelines talk to the daemon socket, which is root:docker 0660.
+# The same shape as the journal group above: membership, not a socket mode
+# change, and nothing else on the host gains access.
+- name: Let Alloy read the Docker socket
+  ansible.builtin.user:
+    name: alloy
+    groups: docker
+    append: true
+  when: autolab_builder.docker_enabled | default(false) | bool
+  notify: Restart alloy
+
 - name: Enable and start Alloy
   ansible.builtin.service:
     name: alloy

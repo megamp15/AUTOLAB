@@ -11,3 +11,13 @@
     state: started
     enabled: true
   when: autolab_docker_enabled | bool
+
+- name: Bound the container logs
+  ansible.builtin.template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+  when: autolab_docker_enabled | bool
+  notify: Reload the Docker daemon
