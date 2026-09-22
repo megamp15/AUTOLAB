@@ -296,7 +296,9 @@
         password: "{{ autolab_obs_grafana_admin_password }}"
         force_basic_auth: true
         body_format: json
-        body: { name: autolab-digest, role: Viewer }
+        body:
+          name: autolab-digest
+          role: Viewer
         status_code: [201]
       register: autolab_obs_sa_created
       when: autolab_obs_sa_search.json.totalCount | int == 0
@@ -315,7 +317,8 @@
         password: "{{ autolab_obs_grafana_admin_password }}"
         force_basic_auth: true
         body_format: json
-        body: { name: "digest-{{ ansible_date_time.epoch }}" }
+        body:
+          name: "digest-{{ ansible_date_time.epoch }}"
         status_code: [200]
       register: autolab_obs_sa_token
 
