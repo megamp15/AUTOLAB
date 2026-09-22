@@ -640,6 +640,24 @@ one token through the API with the admin password, kept in
 `/etc/autolab/obs-digest-grafana.env` next to the PBS token; the first
 digest after the switch read `alerts: unavailable (HTTP Error 401)`.
 
+**`container_start_time_seconds` is creation time, not start time.** The
+obvious way to count container restarts does not count them: cAdvisor
+reports when the container was created, and Docker restarting a container
+does not recreate it, so the value never moves. Proven with a deliberate
+crash-looper — Docker's own `RestartCount` reached 35 while
+`changes(container_start_time_seconds[15m])` read 0 throughout. A restart
+does recreate the container's cgroup, which resets its CPU counter, so
+`resets(container_cpu_usage_seconds_total[15m])` is the signal that works.
+It undercounts a little (10 against roughly 20 real restarts in the window,
+because restarts between two scrapes merge), which is fine for a threshold
+and would not have been fine for a number anyone quoted.
+
+**A container that dies faster than the scrape interval is invisible.** The
+first version of that crash-looper exited every 4 seconds, and cAdvisor at a
+15-second interval mostly caught it stopped: 2 samples in 20 minutes, no
+usable series at all. Anything that restarts faster than the scrape cannot
+be measured by the scrape; it shows up as a gap, not as a count.
+
 **The homepage was a scene before it was a page.** Its intro is driven by
 scroll position inside a sticky `100vh` stage with `overflow: hidden`, which
 is fine while the list fits: once it does not, the rows past the fold cannot

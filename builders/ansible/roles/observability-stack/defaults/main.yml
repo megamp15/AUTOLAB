@@ -9,7 +9,7 @@ autolab_obs_root: /opt/autolab/observability
 # version is what makes a dashboard reproducible.
 autolab_obs_images:
   prometheus: "prom/prometheus:v3.14.0"
-  loki: "grafana/loki:3.7.7"
+  loki: "grafana/loki:3.7.8"
   # grafana/grafana, not grafana/grafana-oss. Both are the OSS build — the
   # enterprise image is grafana/grafana-enterprise — but grafana-oss stopped
   # publishing after 13.0.2 while grafana/grafana is current. A GitHub release

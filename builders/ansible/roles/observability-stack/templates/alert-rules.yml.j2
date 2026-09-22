@@ -362,7 +362,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "{% raw %}{{ $labels.name }} on {{ $labels.instance }} restarted {{ printf \{% endraw %}"%.0f\" $value }} times in 15 minutes"
+          summary: "{% raw %}{{ $labels.name }} on {{ $labels.instance }} restarted at least {{ printf \{% endraw %}"%.0f\" $value }} times in 15 minutes"
           description: "A restart policy is keeping this container alive rather than the container staying alive. Its logs are in Loki under the same name — {job=\"docker\", container=\"<name>\"} — and they outlive each restart, which is the point of collecting them."
         data:
           - refId: QUERY
@@ -374,9 +374,17 @@ groups:
               refId: QUERY
               instant: true
               editorMode: code
-              # A deploy restarts a container once, and two deploys inside
+              # Counter resets, not start time. cAdvisor's
+              # container_start_time_seconds is the container's *creation*
+              # time and does not move when Docker restarts it — measured
+              # against a deliberate crash-looper: Docker counted 35
+              # restarts while changes() on that metric read 0. A restart
+              # recreates the cgroup, which resets the CPU counter, and
+              # resets() counts exactly that.
+              #
+              # A deploy recreates a container once, and two deploys inside
               # the window is normal on a working afternoon. Four is not.
-              expr: 'sum by (instance, name) (changes(container_start_time_seconds{name!=""}[15m]))'
+              expr: 'sum by (instance, name) (resets(container_cpu_usage_seconds_total{name!=""}[15m]))'
           - refId: THRESHOLD
             datasourceUid: __expr__
             model:
