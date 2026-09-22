@@ -162,7 +162,7 @@ def write_status(path):
     for link in conf.get("links", []):
         up = probe(link.get("check", {})) if link.get("check") else True
         rows.append({"name": link["name"], "meta": link.get("meta", ""), "url": link.get("url", "#"),
-                     "icon": link.get("icon", "guest"), "up": up})
+                     "icon": link.get("icon", "guest"), "group": link.get("group", ""), "up": up})
     feed = []
     try:
         node = pve("/cluster/resources?type=node")[0]["node"]
@@ -178,12 +178,14 @@ def write_status(path):
             if g["vmid"] in newest:
                 meta += " · backup " + age(newest[g["vmid"]])[0]
             rows.append({"name": g["name"], "meta": meta, "icon": "tenant" if g["name"].startswith("qnta") else "guest",
+                         "group": "machines",
                          "url": f"https://{PVE}:8006/#v1:0:=qemu%2F{g['vmid']}", "up": running})
         tasks = [t for t in pve(f"/nodes/{node}/tasks?typefilter=vzdump&limit=5&source=all") if t.get("endtime")]
         if tasks:
             last = max(tasks, key=lambda t: t["endtime"])
             ok = last.get("status") == "OK"
-            feed.append({"time": dt.datetime.fromtimestamp(last["endtime"]).strftime("%H:%M"),
+            feed.append({"ts": last["endtime"],
+                         "time": dt.datetime.fromtimestamp(last["endtime"]).strftime("%H:%M"),
                          "text": ("backup OK" if ok else "backup FAILED: " + str(last.get("status"))) + f" · {(last['endtime'] - last['starttime']) / 60:.0f} min"})
     except Exception as e:  # noqa: BLE001
         feed.append({"time": "--:--", "text": f"proxmox: {type(e).__name__}"})
@@ -191,15 +193,15 @@ def write_status(path):
         firing = [a for a in get(f"{GRAFANA}/api/prometheus/grafana/api/v1/alerts", GRAFANA_HEADERS)["data"]["alerts"] if a["state"] == "Alerting"]
         if firing:
             names = sorted({a["labels"].get("alertname", "?") for a in firing})
-            feed.append({"time": NOW.astimezone().strftime("%H:%M"), "text": f"{len(firing)} alert{'s' if len(firing) > 1 else ''} firing: " + ", ".join(names)})
+            feed.append({"ts": NOW.timestamp(), "time": NOW.astimezone().strftime("%H:%M"), "text": f"{len(firing)} alert{'s' if len(firing) > 1 else ''} firing: " + ", ".join(names)})
         else:
-            feed.append({"time": NOW.astimezone().strftime("%H:%M"), "text": "no alerts firing"})
+            feed.append({"ts": NOW.timestamp(), "time": NOW.astimezone().strftime("%H:%M"), "text": "no alerts firing"})
     except Exception as e:  # noqa: BLE001
         feed.append({"time": "--:--", "text": f"grafana: {type(e).__name__}"})
     try:
         up = prom('count(up{job="integrations/unix"} == 1) or count(up == 1)')
         n = int(float(up[0]["value"][1])) if up else 0
-        feed.append({"time": NOW.astimezone().strftime("%H:%M"), "text": f"{n} host{'s' if n != 1 else ''} reporting metrics"})
+        feed.append({"ts": NOW.timestamp(), "time": NOW.astimezone().strftime("%H:%M"), "text": f"{n} host{'s' if n != 1 else ''} reporting metrics"})
     except Exception as e:  # noqa: BLE001
         feed.append({"time": "--:--", "text": f"prometheus: {type(e).__name__}"})
     tmp = path + ".tmp"

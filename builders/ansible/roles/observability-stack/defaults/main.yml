@@ -203,6 +203,7 @@ autolab_obs_lab_url: >-
 
 autolab_obs_homepage_links:
   - name: Proxmox VE
+    group: infrastructure
     meta: "{{ autolab_obs_pve_host.split('.')[0] }}"
     url: "{{ autolab_obs_lab_url.format(name=autolab_obs_pve_host.split('.')[0], raw='https://' ~ autolab_obs_pve_host ~ ':8006') }}"
     icon: hypervisor
@@ -210,36 +211,15 @@ autolab_obs_homepage_links:
       type: http
       target: "https://{{ autolab_obs_pve_host }}:8006"
   - name: Backup Server
+    group: infrastructure
     meta: ark
     url: "{{ autolab_obs_lab_url.format(name='pbs', raw='https://ark.' ~ autolab_tailscale_fqdn.split('.', 1)[1] ~ ':8007') }}"
     icon: backup
     check:
       type: tcp
       target: "ark.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:8007"
-  - name: Grafana
-    meta: dashboards
-    url: "{{ autolab_obs_grafana_public_url }}"
-    icon: metrics
-    check:
-      type: http
-      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_grafana_port }}/api/health"
-  - name: Prometheus
-    meta: metrics
-    url: "{{ autolab_obs_lab_url.format(name='prometheus', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_obs_prometheus_port) }}"
-    icon: metrics
-    check:
-      type: http
-      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_prometheus_port }}/-/ready"
-  - name: Loki
-    meta: logs
-    url: "{{ autolab_obs_grafana_public_url }}/explore"
-    icon: logs
-    check:
-      type: http
-      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_loki_port }}/ready"
-  # UGOS's UI, over the tailnet — not the ug.link relay, which routes the
-  # NAS through Ugreen's cloud. Everything on this page stays on the tailnet.
   - name: NAS
+    group: infrastructure
     meta: singularity
     url: "{{ autolab_obs_lab_url.format(name='nas', raw='https://singularity.' ~ autolab_tailscale_fqdn.split('.', 1)[1] ~ ':9443') }}"
     icon: nas
@@ -249,7 +229,39 @@ autolab_obs_homepage_links:
   # The login itself, reached the way a phone on LTE reaches it: through
   # Cloudflare and the tunnel. A red dot here is the tunnel, not Pocket ID.
   # `enabled` false drops the row before the file is written.
+  - name: Tailscale
+    group: infrastructure
+    meta: admin console
+    url: https://login.tailscale.com/admin/machines
+    icon: tailnet
+  - name: Grafana
+    group: observability
+    meta: dashboards
+    url: "{{ autolab_obs_grafana_public_url }}"
+    icon: metrics
+    check:
+      type: http
+      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_grafana_port }}/api/health"
+  - name: Prometheus
+    group: observability
+    meta: metrics
+    url: "{{ autolab_obs_lab_url.format(name='prometheus', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_obs_prometheus_port) }}"
+    icon: metrics
+    check:
+      type: http
+      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_prometheus_port }}/-/ready"
+  - name: Loki
+    group: observability
+    meta: logs
+    url: "{{ autolab_obs_grafana_public_url }}/explore"
+    icon: logs
+    check:
+      type: http
+      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_loki_port }}/ready"
+  # UGOS's UI, over the tailnet — not the ug.link relay, which routes the
+  # NAS through Ugreen's cloud. Everything on this page stays on the tailnet.
   - name: Pocket ID
+    group: services
     meta: sign in
     url: "https://{{ autolab_obs_public_hosts.auth }}.{{ autolab_obs_public_zone }}"
     icon: tailnet
@@ -260,6 +272,7 @@ autolab_obs_homepage_links:
   # The container tooling, when this machine runs it. `enabled` drops a row
   # whose service is not in the machines map, so the page shows what exists.
   - name: Portainer
+    group: services
     meta: containers
     url: "{{ autolab_obs_lab_url.format(name='portainer', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog.portainer.port) }}"
     icon: hypervisor
@@ -268,6 +281,7 @@ autolab_obs_homepage_links:
       type: http
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.portainer.port }}/"
   - name: Registry
+    group: services
     meta: images
     url: "{{ autolab_obs_lab_url.format(name='registry-ui', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog['registry-ui'].port) }}"
     icon: repo
@@ -275,11 +289,8 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.registry.port }}/v2/"
-  - name: Tailscale
-    meta: admin console
-    url: https://login.tailscale.com/admin/machines
-    icon: tailnet
   - name: GitHub
+    group: services
     meta: megamp15/AUTOLAB
     url: https://github.com/megamp15/AUTOLAB
     icon: repo
