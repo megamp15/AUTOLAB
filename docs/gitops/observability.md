@@ -640,6 +640,16 @@ one token through the API with the admin password, kept in
 `/etc/autolab/obs-digest-grafana.env` next to the PBS token; the first
 digest after the switch read `alerts: unavailable (HTTP Error 401)`.
 
+**A rule that remembers for exactly as long as it waits cannot fire.**
+"Container has vanished" compared the containers seen ten minutes ago
+against the containers seen now, and then required that difference to hold
+for ten minutes — so the evidence expired at the moment the rule was
+finally allowed to act on it. Tested by removing a container: the
+expression matched, the alert never fired. The comparison now looks back an
+hour, which is long enough to page and to notice the page. A `for` duration
+is a floor on how long the *condition* must remain true, so whatever
+supplies that condition has to outlast it comfortably.
+
 **`container_start_time_seconds` is creation time, not start time.** The
 obvious way to count container restarts does not count them: cAdvisor
 reports when the container was created, and Docker restarting a container
