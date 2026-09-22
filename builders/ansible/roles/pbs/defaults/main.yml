@@ -52,3 +52,16 @@ autolab_pbs_pve_role: DatastoreBackup
 autolab_pbs_digest_user: digest@pbs
 autolab_pbs_digest_token_name: obs
 autolab_pbs_digest_token_file: /etc/autolab/pbs-digest-token
+
+# Pocket ID as an OpenID realm, the same client the Proxmox node uses. PBS
+# creates the user on first login (<username claim>@pocketid) but has no
+# group mapping, so the admin is named. Empty id = no realm.
+autolab_pbs_openid_realm: pocketid
+autolab_pbs_openid_comment: "Pocket ID"
+autolab_pbs_openid_issuer_url: ""
+autolab_pbs_openid_client_id: ""
+autolab_pbs_openid_client_secret: ""
+autolab_pbs_openid_username_claim: preferred_username
+# The Pocket ID username that gets Admin on everything. Others who log in
+# exist and can do nothing until someone grants them a role.
+autolab_pbs_openid_admin_user: ""

@@ -1,0 +1,72 @@
+---
+# Pocket ID on the node's login page. `pveum` is idempotent by intent but
+# not by behaviour — `realm add` on an existing realm errors — so the realm
+# is listed first and added or modified accordingly. root@pam is untouched.
+- name: Skip when no client is configured
+  ansible.builtin.meta: end_role
+  when: autolab_pve_openid_client_id | length == 0
+
+- name: Require the issuer
+  ansible.builtin.assert:
+    that: autolab_pve_openid_issuer_url | length > 0
+    fail_msg: "autolab_pve_openid_issuer_url is empty; the workflow sets it from POCKET_ID_URL."
+
+- name: List the realms
+  ansible.builtin.command:
+    argv: [pveum, realm, list, --output-format, json]
+  register: autolab_pve_realms
+  changed_when: false
+  check_mode: false
+
+- name: Note whether the realm exists
+  ansible.builtin.set_fact:
+    autolab_pve_openid_exists: >-
+      {{ autolab_pve_openid_realm in (autolab_pve_realms.stdout | from_json | map(attribute='realm') | list) }}
+
+# `add` takes --type, `modify` does not; everything else is the same either
+# way and is re-applied on every run so a changed secret lands.
+- name: Add or update the Pocket ID realm
+  ansible.builtin.command:
+    argv: >-
+      {{ ['pveum', 'realm', 'modify' if autolab_pve_openid_exists | bool else 'add', autolab_pve_openid_realm]
+         + ([] if autolab_pve_openid_exists | bool else ['--type=openid'])
+         + [
+           '--issuer-url=' ~ autolab_pve_openid_issuer_url,
+           '--client-id=' ~ autolab_pve_openid_client_id,
+           '--client-key=' ~ autolab_pve_openid_client_secret,
+           '--autocreate=1',
+           '--username-claim=' ~ autolab_pve_openid_username_claim,
+           '--groups-claim=' ~ autolab_pve_openid_groups_claim,
+           '--groups-autocreate=1',
+           '--groups-overwrite=1',
+           '--scopes=email profile ' ~ autolab_pve_openid_groups_claim,
+           '--comment=' ~ autolab_pve_openid_comment,
+         ] }}
+  no_log: true
+  changed_when: true
+# The group does not exist until the first admin logs in and PVE creates it
+# from the claim; an ACL on a group that does not exist yet is accepted and
+# takes effect the moment the group appears.
+- name: List the ACLs
+  ansible.builtin.command:
+    argv: [pveum, acl, list, --output-format, json]
+  register: autolab_pve_acls
+  changed_when: false
+  check_mode: false
+
+- name: Give the admins group the Administrator role on everything
+  ansible.builtin.command:
+    argv:
+      - pveum
+      - acl
+      - modify
+      - /
+      - "--groups={{ autolab_pve_openid_admin_group }}-{{ autolab_pve_openid_realm }}"
+      - "--roles={{ autolab_pve_openid_admin_role }}"
+  when: >-
+    autolab_pve_acls.stdout | from_json
+    | selectattr('path', 'equalto', '/')
+    | selectattr('roleid', 'equalto', autolab_pve_openid_admin_role)
+    | selectattr('ugid', 'equalto', autolab_pve_openid_admin_group ~ '-' ~ autolab_pve_openid_realm)
+    | list | length == 0
+  changed_when: true

@@ -211,7 +211,7 @@ autolab_obs_homepage_links:
       target: "https://{{ autolab_obs_pve_host }}:8006"
   - name: Backup Server
     meta: ark
-    url: "{{ autolab_obs_lab_url.format(name='ark', raw='https://ark.' ~ autolab_tailscale_fqdn.split('.', 1)[1] ~ ':8007') }}"
+    url: "{{ autolab_obs_lab_url.format(name='pbs', raw='https://ark.' ~ autolab_tailscale_fqdn.split('.', 1)[1] ~ ':8007') }}"
     icon: backup
     check:
       type: tcp
@@ -241,7 +241,7 @@ autolab_obs_homepage_links:
   # NAS through Ugreen's cloud. Everything on this page stays on the tailnet.
   - name: NAS
     meta: singularity
-    url: "{{ autolab_obs_lab_url.format(name='singularity', raw='https://singularity.' ~ autolab_tailscale_fqdn.split('.', 1)[1] ~ ':9443') }}"
+    url: "{{ autolab_obs_lab_url.format(name='nas', raw='https://singularity.' ~ autolab_tailscale_fqdn.split('.', 1)[1] ~ ':9443') }}"
     icon: nas
     check:
       type: tcp

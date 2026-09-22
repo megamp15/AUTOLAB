@@ -118,6 +118,11 @@ jobs:
           AUTOLAB_PBS_PVE_PASSWORD: ${{ secrets.PBS_PVE_PASSWORD }}
           # Shown on the node's login screen as the commit its baseline came from.
           AUTOLAB_GIT_SHA: ${{ github.sha }}
+          # Pocket ID as an OpenID realm. One client serves PVE and PBS; the
+          # issuer is the login page's public URL. Unset = no realm.
+          AUTOLAB_POCKET_ID_URL: ${{ vars.POCKET_ID_URL }}
+          AUTOLAB_PROXMOX_OIDC_CLIENT_ID: ${{ secrets.PROXMOX_OIDC_CLIENT_ID }}
+          AUTOLAB_PROXMOX_OIDC_CLIENT_SECRET: ${{ secrets.PROXMOX_OIDC_CLIENT_SECRET }}
         run: |
           umask 077
           python3 - "$RUNNER_TEMP/extra-vars.json" <<'PY'
@@ -125,6 +130,9 @@ jobs:
           json.dump({
               "autolab_pve_pbs_password": os.environ.get("AUTOLAB_PBS_PVE_PASSWORD", ""),
               "autolab_git_sha": os.environ.get("AUTOLAB_GIT_SHA", ""),
+              "autolab_pve_openid_issuer_url": os.environ.get("AUTOLAB_POCKET_ID_URL", ""),
+              "autolab_pve_openid_client_id": os.environ.get("AUTOLAB_PROXMOX_OIDC_CLIENT_ID", ""),
+              "autolab_pve_openid_client_secret": os.environ.get("AUTOLAB_PROXMOX_OIDC_CLIENT_SECRET", ""),
           }, open(sys.argv[1], "w"))
           PY
 

@@ -77,3 +77,7 @@
     # machine whose "Reboot: required for kernel …" line matters most.
     - role: motd
       tags: [proxmox, motd]
+    # Pocket ID on the login page, once the ingress phase gave the node an
+    # issuer to trust. Nothing happens until the client exists.
+    - role: proxmox-openid
+      tags: [proxmox, openid]

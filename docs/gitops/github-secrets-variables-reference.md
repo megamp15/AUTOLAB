@@ -21,7 +21,7 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 | **OpenTofu Plan** | `CLOUDFLARE_ACCOUNT_ID`, `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `TAILSCALE_VM_TAG` (optional), `BUILDER_SSH_PUBLIC_KEY` (tenant stacks) | `PROXMOX_API_TOKEN`, `PVE_SSH_PRIVATE_KEY`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` |
 | **OpenTofu Apply/Destroy** | same as Plan | same as Plan |
 | **Cloudflare** | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID` | `CLOUDFLARE_API_TOKEN`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
-| **Ansible Builder** | `CLOUDFLARE_ACCOUNT_ID`, `INGRESS_ACME_EMAIL`, `BUILDER_SSH_PUBLIC_KEY` (optional) | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `BUILDER_SSH_PRIVATE_KEY` (tenant stacks) |
+| **Ansible Builder** | `CLOUDFLARE_ACCOUNT_ID`, `INGRESS_ACME_EMAIL`, `POCKET_ID_ADMIN_USER`, `BUILDER_SSH_PUBLIC_KEY` (optional) | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `BUILDER_SSH_PRIVATE_KEY` (tenant stacks) |
 | **Tailscale Policy** | — | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET` |
 
 The Ansible Builder additionally reads `PROXMOX_HOST`, `PVE_EXPORTER_TOKEN_ID`,
@@ -97,6 +97,8 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `GRAFANA_OIDC_CLIENT_ID` | `<uuid>` | Ansible Builder (`observability`, `ingress`) | Grafana's own OIDC client in Pocket ID. Set: Grafana logs in via Pocket ID, anonymous viewing off, public route on. Unset: tailnet-only as before. |
 | `GRAFANA_OIDC_CLIENT_SECRET` | `<random>` | Ansible Builder (`observability`) | Its secret. |
 | `INGRESS_ACME_DNS_TOKEN` | `<token>` | Ansible Builder (`ingress`) | A second Cloudflare token: Zone → DNS → Edit on the one zone, nothing else. Lives on horizon for the wildcard certificate's DNS challenge. Unset: the tailnet side stays off. |
+| `PROXMOX_OIDC_CLIENT_ID` | `<uuid>` | Proxmox Node, Ansible Builder (`backup`) | One Pocket ID client for PVE and PBS. Set: both offer a Pocket ID realm. |
+| `PROXMOX_OIDC_CLIENT_SECRET` | `<random>` | same | Its secret. |
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |
 | `R2_SECRET_ACCESS_KEY` | `xyz789...` | OpenTofu | Same. Shown once. |
 | `PVE_SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH...` | Packer Build | Required only as the Proxmox bastion key; never reuse it for a VM. |
