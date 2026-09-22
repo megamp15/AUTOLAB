@@ -1,0 +1,20 @@
+# Managed by Ansible — roles/container-services. Local edits are overwritten.
+#
+# Assembled from one template per service in the role, driven by this
+# machine's builder.services list. A service is added or removed by editing
+# that list; nothing here is written by hand.
+services:
+{% for service in autolab_services_enabled %}
+{% include 'services.d/' ~ service ~ '.yml.j2' %}
+{% endfor %}
+
+volumes:
+{% if 'portainer' in autolab_services_enabled %}
+  portainer-data:
+{% endif %}
+{% if 'registry' in autolab_services_enabled %}
+  registry-data:
+{% endif %}
+{% if 'diun' in autolab_services_enabled %}
+  diun-data:
+{% endif %}

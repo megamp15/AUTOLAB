@@ -1,0 +1,21 @@
+  diun:
+    image: {{ autolab_services_images.diun }}
+    restart: unless-stopped
+    command: serve
+    environment:
+      TZ: "{{ autolab_services_timezone }}"
+      LOG_LEVEL: info
+      DIUN_WATCH_SCHEDULE: "{{ autolab_services_diun_schedule }}"
+      # Every running container on this host, without listing any of them.
+      DIUN_PROVIDERS_DOCKER: "true"
+      # Watch what is running rather than only what is labelled: the point is
+      # to be told about the images this lab actually uses.
+      DIUN_PROVIDERS_DOCKER_WATCHBYDEFAULT: "true"
+{% if autolab_services_diun_ntfy_topic | length > 0 %}
+      DIUN_NOTIF_NTFY_ENDPOINT: "{{ autolab_services_diun_ntfy_url }}"
+      DIUN_NOTIF_NTFY_TOPIC: "{{ autolab_services_diun_ntfy_topic }}"
+      DIUN_NOTIF_NTFY_PRIORITY: "2"
+{% endif %}
+    volumes:
+      - diun-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro

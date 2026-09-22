@@ -164,6 +164,10 @@ variable "machines" {
       ingress = optional(object({
         stack = optional(bool, false)
       }), {})
+      # Container services this machine runs — portainer, registry and the
+      # rest. A list rather than a flag per service: the set is expected to
+      # grow, and one machine runs all of them in one Compose project.
+      services = optional(list(string), [])
     }), {})
   }))
   default = {}

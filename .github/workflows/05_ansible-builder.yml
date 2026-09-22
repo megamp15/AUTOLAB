@@ -25,7 +25,7 @@ on:
         required: true
         default: harden
         type: choice
-        options: [harden, docker, tailscale-update, nfs, storage, observability, backup, ingress, updates, reboot]
+        options: [harden, docker, tailscale-update, nfs, storage, observability, backup, ingress, services, updates, reboot]
       limit:
         description: Optional Ansible host limit
         required: false

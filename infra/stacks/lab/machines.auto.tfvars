@@ -140,6 +140,11 @@ machines = {
       observability = {
         stack = true
       }
+      # The lab's own container tooling, here because this is the machine
+      # with room: Portainer to operate containers, a registry for images
+      # built in CI, its UI, and Diun to say when a pinned image has a newer
+      # tag. Moving them is a line in another machine's map.
+      services = ["portainer", "registry", "registry-ui", "diun"]
       # Grafana is reached over the tailnet, which the baseline already allows
       # on tailscale0. Nothing is opened to the LAN.
       #
