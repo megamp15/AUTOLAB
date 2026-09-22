@@ -1,19 +1,25 @@
 # Managed by Ansible — roles/ingress. Watched: edits here reload without a
 # restart. A hostname without a router here gets Traefik's 404, never a
-# service — the tunnel hands every public hostname to this file.
+# service — the tunnel hands every public hostname to this file, and the
+# tailnet's wildcard record hands every internal name to it too.
 {% set zone = autolab_ingress_zone %}
 {% set auth_host = autolab_ingress_hostnames.auth ~ '.' ~ zone %}
+{% set home_host = autolab_ingress_hostnames.home ~ '.' ~ zone %}
+{% set plugin_on = autolab_ingress_traefik_client_id | length > 0 %}
+{% set tailnet_on = autolab_ingress_tailnet_side | bool %}
+{% set lab = autolab_ingress_internal_label ~ '.' ~ zone %}
 http:
   routers:
+    # --- public, through the tunnel ---------------------------------------
     auth:
       rule: "Host(`{{ auth_host }}`)"
       entryPoints: [web]
       service: pocket-id
-{% if autolab_ingress_traefik_client_id | length > 0 %}
+{% if plugin_on %}
     home:
-      rule: "Host(`{{ autolab_ingress_hostnames.home }}.{{ zone }}`)"
+      rule: "Host(`{{ home_host }}`)"
       entryPoints: [web]
-      middlewares: [oidc-home]
+      middlewares: [oidc]
       service: homepage
 {% endif %}
 {% if autolab_ingress_grafana_route | bool %}
@@ -21,6 +27,25 @@ http:
       rule: "Host(`{{ autolab_ingress_hostnames.grafana }}.{{ zone }}`)"
       entryPoints: [web]
       service: grafana
+{% endif %}
+{% if tailnet_on %}
+    # --- tailnet only, HTTPS with the wildcard certificate ------------------
+{%   for name, route in autolab_ingress_internal_routes.items() %}
+{%     if route.login != 'plugin' or plugin_on %}
+    lab-{{ name }}:
+      rule: "Host(`{{ name }}.{{ lab }}`)"
+      entryPoints: [tailnet-https]
+{%       if route.login == 'plugin' %}
+      middlewares: [oidc]
+{%       endif %}
+      service: lab-{{ name }}
+      tls:
+        certResolver: letsencrypt
+        domains:
+          - main: "{{ lab }}"
+            sans: ["*.{{ lab }}"]
+{%     endif %}
+{%   endfor %}
 {% endif %}
 
   services:
@@ -34,23 +59,50 @@ http:
         servers:
           - url: "{{ autolab_ingress_upstreams.grafana }}"
 {% endif %}
-{% if autolab_ingress_traefik_client_id | length > 0 %}
+{% if plugin_on %}
     homepage:
       loadBalancer:
         servers:
           - url: "{{ autolab_ingress_upstreams.homepage }}"
+{% endif %}
+{% if tailnet_on %}
+{%   for name, route in autolab_ingress_internal_routes.items() %}
+{%     if route.login != 'plugin' or plugin_on %}
+    lab-{{ name }}:
+      loadBalancer:
+{%       if route.insecure_upstream | default(false) %}
+        serversTransport: self-signed-upstream
+{%       endif %}
+        servers:
+          - url: "{{ route.upstream }}"
+{%     endif %}
+{%   endfor %}
 
+  # Proxmox, PBS and UGOS present their own self-signed certificates on the
+  # tailnet. The browser sees Traefik's real one; this hop is tailnet to
+  # tailnet, so identity is the tailnet's job and verification is skipped.
+  serversTransports:
+    self-signed-upstream:
+      insecureSkipVerify: true
+{% endif %}
+{% if plugin_on %}
+
+  # One login for everything the plugin fronts, public or tailnet. The
+  # callback is a single public URL and the cookie is set for the whole zone,
+  # so one session covers home.<zone> and every *.lab.<zone> name alike.
   middlewares:
-    oidc-home:
+    oidc:
       plugin:
         traefik-oidc-auth:
           Secret: "{{ autolab_ingress_oidc_plugin_secret }}"
+          CallbackUri: "https://{{ home_host }}/oidc/callback"
           Provider:
             Url: "https://{{ auth_host }}/"
             ClientId: "{{ autolab_ingress_traefik_client_id }}"
             ClientSecret: "{{ autolab_ingress_traefik_client_secret }}"
           Scopes: ["openid", "profile", "email", "groups"]
           SessionCookie:
+            Domain: ".{{ zone }}"
             MaxAge: {{ autolab_ingress_session_max_age }}
           Authorization:
             AssertClaims:

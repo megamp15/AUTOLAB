@@ -183,9 +183,60 @@ DNS but not in Traefik gets a 404, not a service.
 | the tunnel alert pages | `docker compose stop cloudflared`: 530 on every public name within a minute, *Tunnel is down* delivered at +6 min 36 s, resolved 3 min after `start` |
 | the homepage watches the door | its *Pocket ID* row probes through Cloudflare every minute; the fire test showed it green on a dead tunnel until the probe named itself (Cloudflare answers a bare Python client with 403) |
 
-## Not exposed, on purpose
+## The tailnet side
 
-Proxmox, PBS, Prometheus and the NAS keep their tailnet-only addresses. They
-get no hostname here. The tailnet policy is their login. Bringing the same
-passkey login to them *on the tailnet* is a later step in this phase, and it
-still gives them no public route.
+Proxmox, PBS, Prometheus and the NAS get no public route, ever. What they get
+is the same treatment on the tailnet: a real name, a real certificate, HTTP
+bounced to HTTPS, and for the ones with no login of their own, the same
+passkey session as the public side.
+
+`*.lab.<zone>` is **not in public DNS.** From the internet the name does not
+exist. Inside the tailnet, Tailscale's split DNS sends queries for
+`lab.<zone>` to a small resolver (dnsmasq) on horizon's tailnet address,
+which answers every name under the label with that same address. The
+address is read from `tailscale ip` at deploy time and stored nowhere, so
+neither the public tree nor the logs carry it.
+
+Traefik listens on horizon's tailnet address, :443 with one Let's Encrypt
+wildcard certificate for `*.lab.<zone>`, :80 only to redirect. The
+certificate comes through the DNS challenge, which needs no public record
+beyond the TXT Traefik writes and removes itself, using a second Cloudflare
+token that can only edit this zone's DNS records: it lives on the exposed
+machine, so it can do nothing else.
+
+| name | goes to | login |
+|---|---|---|
+| `home.lab.<zone>` | the homepage on jwst | the plugin, same session as `home.<zone>` |
+| `prometheus.lab.<zone>` | Prometheus on jwst | the plugin |
+| `proxmox.lab.<zone>` | the node's :8006 | Proxmox's own, until it joins the SSO |
+| `pbs.lab.<zone>` | ark's :8007 | PBS's own, until it joins the SSO |
+| `nas.lab.<zone>` | UGOS on :9443 | UGOS's own |
+
+Proxmox, PBS and UGOS present self-signed certificates; Traefik does not
+verify that hop (tailnet to tailnet, identity is the tailnet's job) and the
+browser sees Traefik's real certificate. The plugin's session cookie is set
+for the whole zone with one public callback URL, so a login on
+`home.<zone>` from LTE is the same session as `home.lab.<zone>` at home.
+
+### Setting it up
+
+1. The DNS-only token: My Profile → API Tokens → Create → Custom → *Zone →
+   DNS → Edit*, zone resources *Specific zone → <zone>*, nothing else →
+   repository secret `INGRESS_ACME_DNS_TOKEN`. Repository variable
+   `INGRESS_ACME_EMAIL` for Let's Encrypt's expiry notices.
+2. Run `10 - Cloudflare` (apply) so the stack's `internal_label` output
+   exists, then `05` with the `ingress` playbook. horizon installs dnsmasq
+   and Traefik requests the certificate; `docker compose logs traefik` on
+   horizon shows the ACME exchange.
+3. **Tailscale split DNS**, once, in the admin console: DNS → Nameservers →
+   *Add nameserver* → *Custom* → horizon's tailnet address, *Restrict to
+   domain* `lab.<zone>`. Every tailnet device picks it up through MagicDNS
+   with no per-device change. *(The Tailscale provider can manage this; the
+   CI OAuth client would need the `dns` scope first — see issue #4.)*
+4. Run `05` `observability` so the homepage's rows point at the new names.
+
+Proof: from a tailnet device, `dig home.lab.<zone>` answers horizon's
+address; from LTE it answers nothing. `https://proxmox.lab.<zone>` opens with
+a valid certificate and no warning; `http://` redirects to it.
+`https://home.lab.<zone>` opens without a prompt if `home.<zone>` already
+signed you in.

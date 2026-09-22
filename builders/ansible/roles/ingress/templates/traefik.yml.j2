@@ -1,17 +1,45 @@
 # Managed by Ansible — roles/ingress. Static configuration; a change here is
 # a restart, which the role notifies.
 entryPoints:
+  # cloudflared's door: plain HTTP on the compose network only. TLS ended at
+  # Cloudflare; tell upstreams the truth about the scheme.
   web:
     address: ":80"
-    # TLS ended at Cloudflare; cloudflared speaks plain HTTP on the compose
-    # network. Tell upstreams the truth about the scheme.
     forwardedHeaders:
       insecure: true
+{% if autolab_ingress_tailnet_side | bool %}
+  # The tailnet's doors: published on this host's tailnet address only.
+  # HTTP exists to redirect; nothing is served on it.
+  tailnet-http:
+    address: ":8080"
+    http:
+      redirections:
+        entryPoint:
+          to: tailnet-https
+          scheme: https
+          permanent: true
+  tailnet-https:
+    address: ":8443"
+{% endif %}
 
 providers:
   file:
     directory: /etc/traefik/dynamic
     watch: true
+
+{% if autolab_ingress_tailnet_side | bool %}
+# One wildcard certificate for *.{{ autolab_ingress_internal_label }}.{{ autolab_ingress_zone }} through the DNS
+# challenge: Let's Encrypt never reaches horizon, it reads a TXT record
+# Traefik writes with the DNS-only token. Renewed by Traefik, kept in acme.json.
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: {{ autolab_ingress_acme_email }}
+      storage: /letsencrypt/acme.json
+      dnsChallenge:
+        provider: cloudflare
+        resolvers: ["1.1.1.1:53", "1.0.0.1:53"]
+{% endif %}
 
 # The homepage cannot run an OIDC login itself. This plugin does it for any
 # router that names its middleware. Fetched from the plugin registry at start.
