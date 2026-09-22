@@ -13,9 +13,9 @@
     autolab_pbs_openid_exists: >-
       {{ autolab_pbs_openid_realm in (autolab_pbs_openid_realms.stdout | from_json | map(attribute='realm') | list) }}
 
-# `create` takes the issuer and client id as positional-ish required options;
-# `update` takes the same names. Re-applied on every run so a changed secret
-# lands.
+# `create` and `update` take the same options. Scopes are one
+# space-separated value: repeating --scopes is "duplicate parameter".
+# Re-applied on every run so a changed secret lands.
 - name: Create or update the Pocket ID realm
   ansible.builtin.command:
     argv: >-
@@ -25,8 +25,7 @@
           '--client-key', autolab_pbs_openid_client_secret,
           '--autocreate', 'true',
           '--username-claim', autolab_pbs_openid_username_claim,
-          '--scopes', 'email',
-          '--scopes', 'profile',
+          '--scopes', 'email profile',
           '--comment', autolab_pbs_openid_comment] }}
   no_log: true
   changed_when: true
