@@ -637,6 +637,14 @@ less motion, or when the list outgrows the screen — and the scene still
 plays, on a clock rather than on scroll, because the animation was the point
 of the page and losing it was not an acceptable fix.
 
+**A timestamp written on the server is in the server's timezone.** The
+homepage's feed read an hour ahead of the person looking at it: the stack
+host keeps Eastern time, the person holding the phone is in Central, and the
+lines were formatted where they were written. Times now travel as epoch
+seconds and are rendered in the browser, which is the only place that knows
+where the reader is. The clock in the corner was always right, which is what
+made the mismatch look like a bug in the feed rather than in the timezone.
+
 **A fixed canvas swallows every click beneath it.** Pinning the starfield
 behind a scrolling page needs more than `position: fixed`: a positioned
 element paints above static content, so the sky covered the list and nothing

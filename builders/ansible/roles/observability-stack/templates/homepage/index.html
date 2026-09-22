@@ -27,6 +27,11 @@
   .row .dot { width:5px; height:5px; border-radius:50%; flex:none; border:1px solid currentColor; }
   .row .line { position:absolute; left:0; right:0; bottom:0; height:1px; background:currentColor; opacity:.35; }
   .feed { display:flex; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; line-height:1.6; }
+  /* Seventeen rows is past the point where a flat list can be scanned. The
+     heading borrows the wordmark's voice rather than introducing a new one. */
+  .head { margin:20px 0 4px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.3em; text-transform:uppercase; }
+  .head:first-child { margin-top:0; }
+  .head span { opacity:.45; }
   .feed .t { opacity:.5; font-variant-numeric:tabular-nums; }
   .hint { position:fixed; left:0; right:0; bottom:18px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.3em; opacity:.35; pointer-events:none; }
 
@@ -100,7 +105,25 @@
 
   // ---- data --------------------------------------------------------------
   function render() {
-    rowsEl.replaceChildren(...state.rows.map((r, i) => {
+    const out = [];
+    let group = null;
+    state.rows.forEach((r, i) => {
+      if (r.group && r.group !== group) {
+        group = r.group;
+        const h = document.createElement('div');
+        h.className = 'head';
+        h.innerHTML = '<span></span>';
+        h.firstChild.textContent = group;
+        h.style.opacity = `calc((var(--sg-flood) - ${(0.04 + i * (0.5 / Math.max(1, state.rows.length - 1))).toFixed(3)}) * 9)`;
+        out.push(h);
+      }
+      out.push(row(r, i));
+    });
+    rowsEl.replaceChildren(...out);
+    renderFeed();
+  }
+
+  function row(r, i) {
       const a = document.createElement('a');
       a.className = 'row';
       a.href = r.url || '#';
@@ -129,12 +152,18 @@
       a.querySelector('.name').textContent = r.name;
       a.querySelector('.meta').textContent = r.meta || '';
       return a;
-    }));
+  }
+
+  function renderFeed() {
     feedEl.replaceChildren(...state.feed.map(f => {
       const div = document.createElement('div');
       div.className = 'feed';
       div.innerHTML = '<span class="t"></span><span style="text-wrap:pretty;"></span>';
-      div.children[0].textContent = f.time;
+      // Rendered here, from an epoch, because the machine that wrote this
+      // is not in the same timezone as whoever is holding the phone.
+      div.children[0].textContent = f.ts
+        ? new Date(f.ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+        : f.time;
       div.children[1].textContent = f.text;
       return div;
     }));
