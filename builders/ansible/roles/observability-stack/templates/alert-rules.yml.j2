@@ -410,7 +410,7 @@ groups:
         data:
           - refId: QUERY
             relativeTimeRange:
-              from: 1800
+              from: 7200
               to: 0
             datasourceUid: autolab-prometheus
             model:
@@ -421,7 +421,14 @@ groups:
               # "this container stopped" and "the collector stopped and took
               # every container on the host with it", which would otherwise
               # fire once per container at the same moment.
-              expr: '(count by (instance, name) (container_last_seen{name!=""} offset 10m) unless count by (instance, name) (container_last_seen{name!=""})) and on (instance) (up{job="cadvisor"} == 1)'
+              #
+              # An hour of memory, not ten minutes. With `offset 10m` the
+              # rule remembered the container for exactly as long as its own
+              # `for` required the condition to hold, so it could only fire
+              # on a coincidence — and when tested, it did not fire at all.
+              # count_over_time keeps the container in view for an hour,
+              # which is long enough to page and then to notice the page.
+              expr: '(count by (instance, name) (count_over_time(container_last_seen{name!=""}[1h])) unless count by (instance, name) (container_last_seen{name!=""})) and on (instance) (up{job="cadvisor"} == 1)'
           - refId: THRESHOLD
             datasourceUid: __expr__
             model:
