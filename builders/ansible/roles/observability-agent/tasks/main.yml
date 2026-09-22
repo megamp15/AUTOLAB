@@ -114,12 +114,15 @@
         owner: root
         group: root
         mode: "0644"
-      register: autolab_obs_cadvisor_compose
 
+    # `present`, never `restarted`: restart acts on containers that already
+    # exist, so on a host where the project has never run it restarts nothing,
+    # creates nothing and reports ok. `up -d` recreates a service whose
+    # config changed, which is the whole of what this needs.
     - name: Bring cAdvisor up
       community.docker.docker_compose_v2:
         project_src: /opt/autolab/cadvisor
-        state: "{{ 'restarted' if autolab_obs_cadvisor_compose is changed else 'present' }}"
+        state: present
         pull: missing
       when: not ansible_check_mode
 
