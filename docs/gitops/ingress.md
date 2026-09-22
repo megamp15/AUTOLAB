@@ -208,9 +208,12 @@ machine, so it can do nothing else.
 |---|---|---|
 | `home.lab.<zone>` | the homepage on jwst | the plugin, same session as `home.<zone>` |
 | `prometheus.lab.<zone>` | Prometheus on jwst | the plugin |
-| `proxmox.lab.<zone>` | the node's :8006 | Proxmox's own, until it joins the SSO |
-| `pbs.lab.<zone>` | ark's :8007 | PBS's own, until it joins the SSO |
-| `nas.lab.<zone>` | UGOS on :9443 | UGOS's own |
+| `xps-pve.lab.<zone>` | the node's :8006 | Proxmox's own, until it joins the SSO |
+| `ark.lab.<zone>` | PBS on :8007 | PBS's own, until it joins the SSO |
+| `singularity.lab.<zone>` | UGOS on :9443 | UGOS's own |
+
+Services are named for what they do, machines for what they are: a second
+Proxmox node is `<its-name>.lab.<zone>` with nothing renamed.
 
 Proxmox, PBS and UGOS present self-signed certificates; Traefik does not
 verify that hop (tailnet to tailnet, identity is the tailnet's job) and the
@@ -236,7 +239,7 @@ for the whole zone with one public callback URL, so a login on
 4. Run `05` `observability` so the homepage's rows point at the new names.
 
 Proof: from a tailnet device, `dig home.lab.<zone>` answers horizon's
-address; from LTE it answers nothing. `https://proxmox.lab.<zone>` opens with
+address; from LTE it answers nothing. `https://xps-pve.lab.<zone>` opens with
 a valid certificate and no warning; `http://` redirects to it.
 `https://home.lab.<zone>` opens without a prompt if `home.<zone>` already
 signed you in.
