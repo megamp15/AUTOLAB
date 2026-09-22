@@ -36,6 +36,22 @@
           | selectattr('autolab_builder.backup.server')
           | map(attribute='ansible_host') | list | first | default('')) }}
 
+    # The services host and what it runs, so Traefik routes to whatever the
+    # machines map turned on. Found the same way as the other two.
+    autolab_ingress_services_host: >-
+      {{ (groups['linux_servers']
+          | map('extract', hostvars)
+          | selectattr('autolab_builder.services', 'defined')
+          | selectattr('autolab_builder.services')
+          | map(attribute='ansible_host') | list | first | default('')) }}
+
+    autolab_ingress_services: >-
+      {{ (groups['linux_servers']
+          | map('extract', hostvars)
+          | selectattr('autolab_builder.services', 'defined')
+          | selectattr('autolab_builder.services')
+          | map(attribute='autolab_builder.services') | list | first | default([])) }}
+
   roles:
     - role: ingress
       when: ((autolab_builder | default({})).ingress | default({})).stack | default(false) | bool

@@ -48,6 +48,22 @@
     group: root
     mode: "0755"
 
+# Plaintext, 0600, mounted read-only: what Portainer's --admin-password-file
+# expects. Written before the compose file so the container finds it on its
+# first start, which is the only time it is read.
+- name: Give Portainer its admin password
+  ansible.builtin.copy:
+    content: "{{ autolab_services_portainer_admin_password }}"
+    dest: "{{ autolab_services_root }}/portainer-admin"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  when:
+    - "'portainer' in autolab_services_enabled"
+    - autolab_services_portainer_admin_password | length > 0
+  notify: Restart the services stack
+
 - name: Assemble the services compose file
   ansible.builtin.template:
     src: docker-compose.yml.j2

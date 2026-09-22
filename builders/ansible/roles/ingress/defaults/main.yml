@@ -91,6 +91,11 @@ autolab_ingress_acme_email: ""
 autolab_ingress_pve_host: "{{ autolab_obs_pve_host | default('') }}"
 autolab_ingress_pbs_host: ""
 autolab_ingress_nas_host: "singularity"
+# The services host, and which of the catalog's services it runs. Supplied by
+# the playbook from the machines map; empty means no service routes.
+autolab_ingress_services_host: ""
+autolab_ingress_services: []
+
 autolab_ingress_service_routes:
   home:
     upstream: "http://{{ autolab_ingress_stack_fqdn }}:8080"

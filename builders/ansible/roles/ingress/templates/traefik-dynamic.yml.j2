@@ -46,6 +46,23 @@ http:
             sans: ["*.{{ lab }}"]
 {%     endif %}
 {%   endfor %}
+{%   for name in autolab_ingress_services %}
+{%     set svc = autolab_service_catalog[name] %}
+{%     if svc.port is defined and (svc.login != 'plugin' or plugin_on) %}
+    lab-{{ name }}:
+      rule: "Host(`{{ name }}.{{ lab }}`)"
+      entryPoints: [tailnet-https]
+{%       if svc.login == 'plugin' %}
+      middlewares: [oidc]
+{%       endif %}
+      service: lab-{{ name }}
+      tls:
+        certResolver: letsencrypt
+        domains:
+          - main: "{{ lab }}"
+            sans: ["*.{{ lab }}"]
+{%     endif %}
+{%   endfor %}
 {% endif %}
 
   services:
@@ -75,6 +92,15 @@ http:
 {%       endif %}
         servers:
           - url: "{{ route.upstream }}"
+{%     endif %}
+{%   endfor %}
+{%   for name in autolab_ingress_services %}
+{%     set svc = autolab_service_catalog[name] %}
+{%     if svc.port is defined and (svc.login != 'plugin' or plugin_on) %}
+    lab-{{ name }}:
+      loadBalancer:
+        servers:
+          - url: "http://{{ autolab_ingress_services_fqdn }}:{{ svc.port }}"
 {%     endif %}
 {%   endfor %}
 

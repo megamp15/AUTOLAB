@@ -366,6 +366,9 @@ jobs:
           # the backup playbook and used by the hypervisor playbook (07), so
           # both read the same secret.
           AUTOLAB_PBS_PVE_PASSWORD: ${{ secrets.PBS_PVE_PASSWORD }}
+          # Portainer's own admin account, created at first start so its
+          # setup page never opens — that page expires five minutes in.
+          AUTOLAB_PORTAINER_ADMIN_PASSWORD: ${{ secrets.PORTAINER_ADMIN_PASSWORD }}
         run: |
           out="$RUNNER_TEMP/extra-vars.json"
           umask 077
@@ -391,6 +394,7 @@ jobs:
               "autolab_environment": os.environ.get("AUTOLAB_ENVIRONMENT", ""),
               "autolab_git_sha": os.environ.get("AUTOLAB_GIT_SHA", ""),
               "autolab_pbs_pve_password": os.environ.get("AUTOLAB_PBS_PVE_PASSWORD", ""),
+              "autolab_services_portainer_admin_password": os.environ.get("AUTOLAB_PORTAINER_ADMIN_PASSWORD", ""),
           }, open(sys.argv[1], "w"))
           PY
           if [ -n "${AUTOLAB_BUILDER_SSH_PUBLIC_KEY}" ]; then

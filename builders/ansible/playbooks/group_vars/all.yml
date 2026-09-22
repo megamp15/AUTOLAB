@@ -1,0 +1,30 @@
+---
+# Facts two roles have to agree on, in one place rather than two.
+#
+# container-services publishes these ports on the services host; the ingress
+# role, on a different machine, routes the names to them. A port defined in
+# both roles' defaults would drift the first time one changed, so it lives
+# here, next to the playbooks that load it.
+
+# Every container service the lab knows, what it listens on, and how a person
+# gets in:
+#   plugin — Traefik's OIDC middleware; one passkey, same session as the rest
+#   own    — the service does its own login behind the plugin's absence
+#   none   — no UI to reach
+autolab_service_catalog:
+  portainer:
+    port: 9000
+    login: plugin
+  registry:
+    # No plugin, and not for want of trying: `docker login` and `docker push`
+    # are not browsers and cannot answer a passkey challenge. The name exists
+    # so that pushes get a real certificate — Docker refuses a plain-HTTP
+    # registry without an insecure-registries entry on every client — and the
+    # tailnet remains the gate, as it is for Prometheus.
+    port: 5000
+    login: none
+  registry-ui:
+    port: 8082
+    login: plugin
+  diun:
+    login: none

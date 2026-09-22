@@ -8,7 +8,7 @@
 
 # Every service this role knows how to run. A machine's list is checked
 # against it, so a typo fails by name instead of rendering a broken file.
-autolab_services_catalog: [portainer, registry, registry-ui, diun]
+autolab_services_catalog: "{{ autolab_service_catalog.keys() | list }}"
 
 autolab_services_root: /opt/autolab/services
 autolab_services_enabled: "{{ (autolab_builder | default({})).services | default([]) }}"
@@ -21,13 +21,19 @@ autolab_services_images:
   registry_ui: "joxit/docker-registry-ui:2.6.0"
   diun: "crazymax/diun:4.33.0"
 
-# Host ports, bound to the tailnet address only. Docker writes its iptables
-# rules ahead of ufw's, so 0.0.0.0 would reach the LAN whatever the host
-# firewall says — the same reason the observability stack binds this way.
+# Host ports come from the shared catalog in playbooks/group_vars/all.yml,
+# because the ingress role on another machine routes to the same numbers.
+# Bound to the tailnet address only: Docker writes its iptables rules ahead
+# of ufw's, so 0.0.0.0 would reach the LAN whatever the host firewall says.
 autolab_services_ports:
-  portainer: 9000
-  registry: 5000
-  registry_ui: 8082
+  portainer: "{{ autolab_service_catalog.portainer.port }}"
+  registry: "{{ autolab_service_catalog.registry.port }}"
+  registry_ui: "{{ autolab_service_catalog['registry-ui'].port }}"
+
+# Portainer creates its admin account from this at first start, so there is
+# no five-minute window to lose: leave it empty and Portainer opens its setup
+# page instead, which expires. Ignored once an admin exists.
+autolab_services_portainer_admin_password: ""
 
 # What the registry answers to. The tailnet is the boundary, as it is for
 # Prometheus and Loki: reaching this address at all means passing the tailnet
