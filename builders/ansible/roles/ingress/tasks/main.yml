@@ -61,6 +61,22 @@
       {{ autolab_ingress_pbs_host if '.' in autolab_ingress_pbs_host or autolab_ingress_pbs_host | length == 0
          else autolab_ingress_pbs_host ~ '.' ~ autolab_ingress_tailnet_domain }}
 
+# Machine routes keyed by the machine's own label, built here because a
+# YAML key cannot be templated in defaults.
+- name: Name the machine routes after the machines
+  vars:
+    own: {login: own, insecure_upstream: true}
+  ansible.builtin.set_fact:
+    autolab_ingress_internal_routes: >-
+      {{ autolab_ingress_service_routes | combine({
+           (autolab_ingress_pve_host.split('.')[0]):
+             own | combine({'upstream': 'https://' ~ autolab_ingress_pve_host ~ ':8006'}),
+           (autolab_ingress_pbs_host.split('.')[0]):
+             own | combine({'upstream': 'https://' ~ autolab_ingress_pbs_fqdn ~ ':8007'}),
+           (autolab_ingress_nas_host.split('.')[0]):
+             own | combine({'upstream': 'https://' ~ autolab_ingress_nas_host ~ '.' ~ autolab_ingress_tailnet_domain ~ ':9443'}),
+         }) }}
+
 - name: Decide whether the tailnet side is on
   ansible.builtin.set_fact:
     autolab_ingress_tailnet_side: >-

@@ -79,29 +79,21 @@ autolab_ingress_internal_label: ""
 autolab_ingress_acme_dns_token: ""
 autolab_ingress_acme_email: ""
 
-# Internal name → upstream. Proxmox, PBS and UGOS present self-signed
-# certificates, so those go through a transport that does not verify them:
-# the hop is tailnet-to-tailnet, and the browser sees the real certificate
-# Traefik holds. Names are bare MagicDNS labels; the role appends the domain.
+# Internal names. Services are named for what they do (home, prometheus);
+# machines are named for what they are (xps-pve, ark, singularity), so a
+# second Proxmox node is <its-name>.<label>.<zone> with nothing renamed.
+# Proxmox, PBS and UGOS present self-signed certificates, so those go
+# through a transport that does not verify them: the hop is tailnet to
+# tailnet, and the browser sees the real certificate Traefik holds.
+# Hosts are bare MagicDNS labels; the role appends the domain and builds
+# the machine routes from them at run time.
 autolab_ingress_pve_host: "{{ autolab_obs_pve_host | default('') }}"
 autolab_ingress_pbs_host: ""
 autolab_ingress_nas_host: "singularity"
-autolab_ingress_internal_routes:
+autolab_ingress_service_routes:
   home:
     upstream: "http://{{ autolab_ingress_stack_fqdn }}:8080"
     login: plugin
   prometheus:
     upstream: "http://{{ autolab_ingress_stack_fqdn }}:9090"
     login: plugin
-  proxmox:
-    upstream: "https://{{ autolab_ingress_pve_host }}:8006"
-    login: own
-    insecure_upstream: true
-  pbs:
-    upstream: "https://{{ autolab_ingress_pbs_fqdn }}:8007"
-    login: own
-    insecure_upstream: true
-  nas:
-    upstream: "https://{{ autolab_ingress_nas_host }}.{{ autolab_ingress_tailnet_domain }}:9443"
-    login: own
-    insecure_upstream: true
