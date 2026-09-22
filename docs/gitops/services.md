@@ -62,6 +62,32 @@ login that fronts everything else. Pushing from CI, or letting a tenant pull
 over the management bridge, both need an htpasswd credential first — neither
 is true yet.
 
+## Names and the login
+
+Each service with a UI gets `<name>.lab.<zone>`, a real certificate, and the
+same passkey session as everything else — Traefik's OIDC middleware, from the
+catalog's `login: plugin`. Turning a service on in the machines map is
+therefore enough: the route appears with it.
+
+Two exceptions, both honest:
+
+- **Portainer keeps its own login too.** OIDC is a paid feature in Portainer;
+  Community Edition has only local accounts. So it is one passkey at the
+  edge and then Portainer's admin password behind it. That password is a
+  repository secret written to a file the container reads at first start, so
+  Portainer never opens its setup page — which expires five minutes after the
+  container starts and then refuses to create an admin until it is restarted.
+- **The registry answers `docker`, not a browser.** `docker login` and
+  `docker push` cannot complete a passkey challenge, so `registry.lab.<zone>`
+  skips the middleware. The name still earns its keep: Docker refuses a
+  plain-HTTP registry unless every client carries an `insecure-registries`
+  entry, and this one has a real certificate. The tailnet is the gate, as it
+  is for Prometheus.
+
+The port and the login mode live once, in `playbooks/group_vars/all.yml`,
+because two roles on two different machines have to agree on them: the
+services host publishes the port, and the ingress host routes to it.
+
 ## Diun
 
 It watches every running container on the host and compares the image's tag

@@ -1,7 +1,11 @@
   portainer:
     image: {{ autolab_services_images.portainer }}
     restart: unless-stopped
+{% if autolab_services_portainer_admin_password | length > 0 %}
+    command: -H unix:///var/run/docker.sock --admin-password-file /run/secrets/portainer-admin
+{% else %}
     command: -H unix:///var/run/docker.sock
+{% endif %}
     # The Docker socket is the whole point and the whole risk: Portainer can
     # do anything the daemon can. It is reachable only on the tailnet and
     # only through a login, and it is for operating containers — not for
@@ -9,5 +13,8 @@
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer-data:/data
+{% if autolab_services_portainer_admin_password | length > 0 %}
+      - {{ autolab_services_root }}/portainer-admin:/run/secrets/portainer-admin:ro
+{% endif %}
     ports:
       - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.portainer }}:9000"

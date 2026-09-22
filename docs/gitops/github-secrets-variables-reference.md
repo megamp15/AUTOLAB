@@ -99,6 +99,7 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `INGRESS_ACME_DNS_TOKEN` | `<token>` | Ansible Builder (`ingress`) | A second Cloudflare token: Zone → DNS → Edit on the one zone, nothing else. Lives on horizon for the wildcard certificate's DNS challenge. Unset: the tailnet side stays off. |
 | `PROXMOX_OIDC_CLIENT_ID` | `<uuid>` | Proxmox Node, Ansible Builder (`backup`) | One Pocket ID client for PVE and PBS. Set: both offer a Pocket ID realm. |
 | `PROXMOX_OIDC_CLIENT_SECRET` | `<random>` | same | Its secret. |
+| `PORTAINER_ADMIN_PASSWORD` | a generated password | Ansible Builder (`services`) | Portainer's local admin, created at first start. Unset and Portainer opens its setup page instead, which expires five minutes in. Portainer CE has no OIDC, so this login sits behind the passkey rather than replacing it. |
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |
 | `R2_SECRET_ACCESS_KEY` | `xyz789...` | OpenTofu | Same. Shown once. |
 | `PVE_SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH...` | Packer Build | Required only as the Proxmox bastion key; never reuse it for a VM. |
