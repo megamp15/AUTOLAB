@@ -627,6 +627,15 @@ one token through the API with the admin password, kept in
 `/etc/autolab/obs-digest-grafana.env` next to the PBS token; the first
 digest after the switch read `alerts: unavailable (HTTP Error 401)`.
 
+**Ansible renders templates with `trim_blocks`, a bare Jinja environment
+does not.** A compose file assembled from one included fragment per service
+parsed cleanly locally and arrived on the host with every service glued onto
+the previous line: Ansible trims the newline after a block tag, and Jinja
+drops each included template's trailing newline, so the two together leave
+nothing between fragments. Rendering checks are worth running with
+`trim_blocks=True` — or, as here, with the separator before the fragment
+rather than after, which holds whatever the settings are.
+
 **A loopback scrape labels every host the same.** A target's address becomes
 its `instance`, and `127.0.0.1:8081` is the same string on every machine, so
 each host's containers arrived indistinguishable from the next host's and

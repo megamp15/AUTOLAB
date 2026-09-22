@@ -5,6 +5,7 @@
 # that list; nothing here is written by hand.
 services:
 {% for service in autolab_services_enabled %}
+
 {% include 'services.d/' ~ service ~ '.yml.j2' %}
 {% endfor %}
 
