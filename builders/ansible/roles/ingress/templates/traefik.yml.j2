@@ -13,9 +13,12 @@ entryPoints:
   tailnet-http:
     address: ":8080"
     http:
+      # ":443", not the entrypoint's name: the container listens on 8443
+      # and the host publishes it as 443, and a redirect by name would send
+      # the browser to the container's port.
       redirections:
         entryPoint:
-          to: tailnet-https
+          to: ":443"
           scheme: https
           permanent: true
   tailnet-https:

@@ -182,6 +182,10 @@
     content: |
       # Managed by Ansible — roles/ingress. dnsmasq answers the tailnet only;
       # the host keeps resolving through systemd-resolved and MagicDNS.
+      # CONFIG_DIR is how Debian's unit finds /etc/dnsmasq.d at all — the
+      # first deploy replaced this file without it and dnsmasq came up as a
+      # plain forwarder on every interface, never having read the zone.
+      CONFIG_DIR=/etc/dnsmasq.d,.dpkg-dist,.dpkg-old,.dpkg-new
       DNSMASQ_EXCEPT="lo"
     dest: /etc/default/dnsmasq
     owner: root
