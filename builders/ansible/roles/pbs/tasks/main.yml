@@ -318,6 +318,14 @@
         autolab_pbs_fingerprint: >-
           {{ ((autolab_pbs_cert.stdout_lines | select('search', 'Fingerprint') | first).split('): ') | last) | trim }}
 
+# The same subscription dialog as the node, from the same widget toolkit;
+# the same role removes it, restarting PBS's proxy rather than pveproxy.
+- name: Remove the subscription dialog
+  ansible.builtin.include_role:
+    name: proxmox-nag
+  vars:
+    autolab_proxmox_nag_proxy_service: proxmox-backup-proxy
+
 # Pocket ID on the login page, once the ingress phase gave PBS an issuer to
 # trust. Nothing happens until the client exists.
 - name: Offer Pocket ID on the login page

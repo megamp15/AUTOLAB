@@ -1,3 +1,7 @@
 ---
 autolab_proxmox_nag_remove: true
 autolab_proxmox_widget_toolkit: /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
+# The web proxy to restart after the file changes: pveproxy on a node,
+# proxmox-backup-proxy on PBS, which ships the same toolkit and the same
+# dialog.
+autolab_proxmox_nag_proxy_service: pveproxy

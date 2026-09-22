@@ -1,5 +1,5 @@
 ---
 - name: Restart pveproxy
   ansible.builtin.service:
-    name: pveproxy
+    name: "{{ autolab_proxmox_nag_proxy_service }}"
     state: restarted
