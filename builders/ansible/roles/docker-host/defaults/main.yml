@@ -11,3 +11,12 @@ autolab_docker_enabled: "{{ (autolab_builder | default({})).docker_enabled | def
 autolab_docker_packages:
   - docker.io
   - docker-compose
+
+# Docker's default json-file driver never rotates: one chatty container fills
+# the disk, and the first symptom is the host, not the container. Applied when
+# a container is created, so existing containers keep their current setting
+# until they are next recreated — which every Ansible-managed stack does on
+# its next change.
+autolab_docker_log_driver: json-file
+autolab_docker_log_max_size: 10m
+autolab_docker_log_max_file: "3"

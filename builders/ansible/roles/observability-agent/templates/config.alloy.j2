@@ -39,6 +39,29 @@ prometheus.scrape "alloy" {
   scrape_interval = "{{ autolab_obs_scrape_interval }}"
 }
 
+{% if autolab_builder.docker_enabled | default(false) | bool %}
+// Per-container CPU, memory and network. Three metric groups out of cAdvisor's
+// twenty: the rest (per-CPU, disk, tcp, hugetlb) are what makes cAdvisor a
+// byword for cardinality, and this Prometheus has a 2 GB cap to live within.
+//
+// store_container_labels is off for the same reason — on, it turns every
+// container label into a metric label, and Compose stamps a config hash on
+// every container, so each redeploy would orphan a whole series set. The two
+// labels worth having are named instead.
+prometheus.exporter.cadvisor "containers" {
+  docker_host                  = "unix:///var/run/docker.sock"
+  store_container_labels       = false
+  allowlisted_container_labels = ["com.docker.compose.project", "com.docker.compose.service"]
+  enabled_metrics              = ["cpu", "memory", "network"]
+}
+
+prometheus.scrape "containers" {
+  targets         = prometheus.exporter.cadvisor.containers.targets
+  forward_to      = [prometheus.remote_write.stack.receiver]
+  scrape_interval = "{{ autolab_obs_scrape_interval }}"
+}
+
+{% endif %}
 {% if ((autolab_builder | default({})).ingress | default({})).stack | default(false) | bool %}
 // The tunnel connector's own metrics, published by the ingress compose on
 // this host's loopback only. cloudflared_tunnel_ha_connections is the
@@ -107,6 +130,65 @@ loki.source.journal "journal" {
   }
 }
 
+{% if autolab_builder.docker_enabled | default(false) | bool %}
+// Container stdout, through the Docker API rather than by tailing
+// /var/lib/docker/containers: the API gives the container's identity with the
+// line, and keeps working whatever logging driver the daemon uses.
+//
+// Without this, a container's logs exist only until the container is
+// recreated, and only on that host. With it they are in Loki beside the
+// journal, which is what makes a live-log UI optional rather than the only
+// way to see them.
+discovery.docker "local" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "1m"
+}
+
+// The name arrives as "/name"; Compose's project and service are the labels
+// worth keeping, because they survive a container being recreated while the
+// container id does not.
+discovery.relabel "containers" {
+  targets = discovery.docker.local.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/?(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "project"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+// `job` needs the same treatment the journal source needed: the component
+// names it after itself downstream of the labels block, so the value only
+// sticks after the source.
+loki.relabel "docker" {
+  forward_to = [loki.write.stack.receiver]
+
+  rule {
+    target_label = "job"
+    replacement  = "docker"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.relabel.docker.receiver]
+  labels     = {
+    host = "{{ inventory_hostname }}",
+  }
+}
+
+{% endif %}
 loki.write "stack" {
   endpoint {
     url = "{{ autolab_obs_logs_endpoint }}"

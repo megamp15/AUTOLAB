@@ -550,6 +550,37 @@ time, the backup storage name and the staleness threshold (26 h: a nightly
 plus two hours of slack). A changed script sends one digest immediately,
 echoed into the play, so a deploy proves itself.
 
+## Containers
+
+Every Docker host collects two more streams, and only Docker hosts do:
+
+| | what | where it lands |
+|---|---|---|
+| logs | each container's stdout, read through the Docker API | Loki, `{job="docker"}`, labelled `container`, `project`, `service`, `host` |
+| metrics | per-container CPU, memory and network | Prometheus, the `container_*` series |
+
+The labels are Compose's project and service rather than the container id,
+because those survive a container being recreated and the id does not. The
+logs go to Loki, so they outlive the container: a crash loop is still
+readable after the fifth restart, and on the stack host it sits beside the
+journal for the same minute.
+
+cAdvisor is a byword for cardinality, so three of its twenty metric groups
+are enabled and `store_container_labels` is off — on, every Compose config
+hash would become a metric label and each redeploy would orphan a whole
+series set. This Prometheus has a 2 GB cap to live within.
+
+Alloy reaches the daemon socket by being in the `docker` group, the same way
+it reads the journal through `systemd-journal`. The socket's mode is
+unchanged and nothing else on the host gains access.
+
+**Container logs are bounded at the source too.** Docker's json-file driver
+does not rotate by default, so one chatty container fills the disk and the
+first symptom is the host rather than the container. `docker-host` writes
+`max-size` and `max-file` into `daemon.json`; the daemon is reloaded rather
+than restarted, because the options are read when a container is created and
+a restart would stop every container on the host to achieve nothing.
+
 ## Things that will mislead you
 
 **Editing a dashboard in the UI rewrites it as schema v2.** With dynamic
