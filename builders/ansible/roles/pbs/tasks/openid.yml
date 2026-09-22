@@ -13,20 +13,21 @@
     autolab_pbs_openid_exists: >-
       {{ autolab_pbs_openid_realm in (autolab_pbs_openid_realms.stdout | from_json | map(attribute='realm') | list) }}
 
-# `create` and `update` take the same options. Scopes are one
-# space-separated value: repeating --scopes is "duplicate parameter".
-# Re-applied on every run so a changed secret lands.
+# `update` takes what `create` takes minus --username-claim, which is fixed
+# at creation. Scopes are one space-separated value: repeating --scopes is
+# "duplicate parameter". Re-applied on every run so a changed secret lands.
 - name: Create or update the Pocket ID realm
   ansible.builtin.command:
     argv: >-
-      {{ ['proxmox-backup-manager', 'openid', 'update' if autolab_pbs_openid_exists | bool else 'create', autolab_pbs_openid_realm,
-          '--issuer-url', autolab_pbs_openid_issuer_url,
-          '--client-id', autolab_pbs_openid_client_id,
-          '--client-key', autolab_pbs_openid_client_secret,
-          '--autocreate', 'true',
-          '--username-claim', autolab_pbs_openid_username_claim,
-          '--scopes', 'email profile',
-          '--comment', autolab_pbs_openid_comment] }}
+      {{ ['proxmox-backup-manager', 'openid', 'update' if autolab_pbs_openid_exists | bool else 'create', autolab_pbs_openid_realm]
+         + ([] if autolab_pbs_openid_exists | bool
+            else ['--username-claim', autolab_pbs_openid_username_claim])
+         + ['--issuer-url', autolab_pbs_openid_issuer_url,
+            '--client-id', autolab_pbs_openid_client_id,
+            '--client-key', autolab_pbs_openid_client_secret,
+            '--autocreate', 'true',
+            '--scopes', 'email profile',
+            '--comment', autolab_pbs_openid_comment] }}
   no_log: true
   changed_when: true
 
