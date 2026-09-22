@@ -38,10 +38,12 @@
      behind the content. */
   [data-sg-root].static .scene { height:auto !important; }
   [data-sg-root].static .stick { position:static !important; height:auto !important; overflow:visible !important; }
-  [data-sg-root].static canvas[data-sg-sky] { position:fixed !important; }
-  [data-sg-root].static #stage { position:static !important; pointer-events:auto !important;
+  /* Fixed keeps the sky behind a page that now scrolls. z-index and
+     pointer-events are not decoration: a positioned canvas paints above
+     static content and swallows every click on the list underneath it. */
+  [data-sg-root].static canvas[data-sg-sky] { position:fixed !important; z-index:0; pointer-events:none; }
+  [data-sg-root].static #stage { position:relative !important; z-index:1; pointer-events:auto !important;
     min-height:100dvh; padding-block:clamp(24px,6vh,64px) !important; }
-  [data-sg-root].static #stage > div { filter:none !important; transform:none !important; }
   [data-sg-root].static .hint { display:none; }
 </style>
 </head>
@@ -90,7 +92,8 @@
   const stage = document.getElementById('stage');
   // Declared up here because load() may reach decideMode() before the
   // frame-state block below has run.
-  let staticMode = false;
+  let staticMode = false, introStart = 0;
+  const INTRO_MS = 2400;
   const rowsEl = document.getElementById('rows');
   const feedEl = document.getElementById('feed');
   const hint = document.getElementById('hint');
@@ -102,8 +105,17 @@
       a.className = 'row';
       a.href = r.url || '#';
       if (r.url && /^https?:/.test(r.url)) a.target = '_blank';
-      const d = (0.04 + i * 0.05).toFixed(3);
-      const x = (i % 2 ? -1 : 1) * (26 + i * 5);
+      // The reveal is staggered per row, so the stagger has to fit the list.
+      // At a flat 0.05 the last row of a seventeen-row list starts at 0.84,
+      // which leaves its underline at (1 - 0.84) * 3 = 48% of the width for
+      // good, and a list past twenty rows would have never fully appeared at
+      // all. Spread the same half of the range across however many rows
+      // there are, so the last one still completes.
+      const step = 0.5 / Math.max(1, state.rows.length - 1);
+      const d = (0.04 + i * step).toFixed(3);
+      // The entry offset alternates left and right and grows with the row, to
+      // a point: unbounded, a long list would start its last rows off-screen.
+      const x = (i % 2 ? -1 : 1) * (26 + Math.min(i, 10) * 5);
       const op = r.up ? 1 : .42;
       a.style.opacity = `calc((var(--sg-flood) - ${d}) * 9)`;
       a.style.transform = `translateX(calc((1 - var(--sg-flood)) * ${x}px))`;
@@ -184,30 +196,26 @@
     if (want !== staticMode) {
       staticMode = want;
       root.classList.toggle('static', want);
+      // Entering: the scene has a clock to run against. Leaving: scroll takes
+      // over again from wherever the page happens to be.
+      if (want) introStart = performance.now();
     }
     return staticMode;
   }
 
   function frame() {
-    if (staticMode) {
-      // Fully arrived, and staying there: no scroll position drives this.
-      S.recon = 1;
-      const paper = state.dark ? '#08080A' : '#FFFFFF';
-      const ink = state.dark ? '#F4F4F5' : '#0A0A0A';
-      px = { p: 1, enter: 1, glitch: 1, flood: 1, bg: paper, fg: ink };
-      root.style.setProperty('--sg-p', '1');
-      root.style.setProperty('--sg-enter', '1');
-      root.style.setProperty('--sg-glitch', '1');
-      root.style.setProperty('--sg-flood', '1');
-      root.style.setProperty('--sg-bg', px.bg);
-      root.style.setProperty('--sg-fg', px.fg);
-      document.body.style.background = px.bg;
-      if (!pointerOn) { pointerOn = true; stage.style.pointerEvents = 'auto'; }
-      return;
-    }
     const doc = document.documentElement;
-    const max = Math.max(1, doc.scrollHeight - window.innerHeight);
-    const p = clamp((window.scrollY || doc.scrollTop) / max);
+    // Scroll drives the scene when there is room to scroll through it. When
+    // the page has become a document — a phone, or a list taller than the
+    // screen — the same scene plays on a clock instead, once, and then stays
+    // arrived while the reader scrolls the list underneath it.
+    let p;
+    if (staticMode) {
+      p = clamp((performance.now() - introStart) / INTRO_MS);
+    } else {
+      const max = Math.max(1, doc.scrollHeight - window.innerHeight);
+      p = clamp((window.scrollY || doc.scrollTop) / max);
+    }
     const enter = clamp(p / 0.82);
     const glitch = clamp((p - 0.82) / 0.16);
     const now = performance.now();
@@ -230,7 +238,7 @@
     document.body.style.background = px.bg;
     const want = flood > 0.5;
     if (want !== pointerOn) { pointerOn = want; stage.style.pointerEvents = want ? 'auto' : 'none'; }
-    hint.style.opacity = p < 0.05 ? '.35' : '0';
+    hint.style.opacity = (!staticMode && p < 0.05) ? '.35' : '0';
   }
 
   function size() {

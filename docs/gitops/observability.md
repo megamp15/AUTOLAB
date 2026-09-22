@@ -631,10 +631,17 @@ digest after the switch read `alerts: unavailable (HTTP Error 401)`.
 scroll position inside a sticky `100vh` stage with `overflow: hidden`, which
 is fine while the list fits: once it does not, the rows past the fold cannot
 be reached at all, and scrolling up to look for them rewinds the animation
-instead. On a phone that is the whole experience. It now switches to a plain
+instead. On a phone that is the whole experience. It now becomes a plain
 scrolling document when the viewport is narrow, when the reader asks for
-less motion, or when the list outgrows the screen — the starfield stays,
-fixed behind the content.
+less motion, or when the list outgrows the screen — and the scene still
+plays, on a clock rather than on scroll, because the animation was the point
+of the page and losing it was not an acceptable fix.
+
+**A fixed canvas swallows every click beneath it.** Pinning the starfield
+behind a scrolling page needs more than `position: fixed`: a positioned
+element paints above static content, so the sky covered the list and nothing
+on the page could be clicked — noticed first on the theme button, true of
+every link. `z-index` on both, and `pointer-events: none` on the canvas.
 
 **A staggered reveal with a fixed step stops revealing.** The same page
 scrambled each label in turn at `r - i * 0.045`, which reaches 1 only for
