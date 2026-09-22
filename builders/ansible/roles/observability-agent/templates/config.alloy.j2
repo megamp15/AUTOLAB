@@ -40,23 +40,14 @@ prometheus.scrape "alloy" {
 }
 
 {% if autolab_builder.docker_enabled | default(false) | bool %}
-// Per-container CPU, memory and network. Three metric groups out of cAdvisor's
-// twenty: the rest (per-CPU, disk, tcp, hugetlb) are what makes cAdvisor a
-// byword for cardinality, and this Prometheus has a 2 GB cap to live within.
-//
-// store_container_labels is off for the same reason — on, it turns every
-// container label into a metric label, and Compose stamps a config hash on
-// every container, so each redeploy would orphan a whole series set. The two
-// labels worth having are named instead.
-prometheus.exporter.cadvisor "containers" {
-  docker_host                  = "unix:///var/run/docker.sock"
-  store_container_labels       = false
-  allowlisted_container_labels = ["com.docker.compose.project", "com.docker.compose.service"]
-  enabled_metrics              = ["cpu", "memory", "network"]
-}
-
+// Per-container CPU, memory and network, from cAdvisor on this host's
+// loopback. A container rather than Alloy's embedded exporter: as the
+// sandboxed `alloy` service, that exporter saw only systemd's cgroups —
+// 25 units, 680 series, and not one container. cAdvisor needs to read the
+// host's cgroup tree and the Docker daemon, which is what the container's
+// mounts give it. `--docker_only` is what keeps the systemd noise out.
 prometheus.scrape "containers" {
-  targets         = prometheus.exporter.cadvisor.containers.targets
+  targets         = [{"__address__" = "127.0.0.1:{{ autolab_obs_cadvisor_port }}", "job" = "cadvisor"}]
   forward_to      = [prometheus.remote_write.stack.receiver]
   scrape_interval = "{{ autolab_obs_scrape_interval }}"
 }

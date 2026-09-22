@@ -565,10 +565,19 @@ logs go to Loki, so they outlive the container: a crash loop is still
 readable after the fifth restart, and on the stack host it sits beside the
 journal for the same minute.
 
-cAdvisor is a byword for cardinality, so three of its twenty metric groups
-are enabled and `store_container_labels` is off — on, every Compose config
-hash would become a metric label and each redeploy would orphan a whole
-series set. This Prometheus has a 2 GB cap to live within.
+cAdvisor runs as a container on each Docker host, publishing on loopback for
+that host's Alloy alone. Alloy's embedded cAdvisor exporter was tried first
+and is the wrong tool here: as the sandboxed `alloy` service it could read
+systemd's cgroups but not Docker's, so it produced 25 units and 680 series
+without a single container. The container is privileged and mounts the
+host's cgroup tree, which is what reading container accounting actually
+requires.
+
+`--docker_only` keeps the systemd cgroups out, twelve metric groups are
+disabled, and `store_container_labels` is off with two labels named
+instead — on, every Compose config hash becomes a metric label and each
+redeploy orphans a whole series set. This Prometheus has a 2 GB cap to live
+within.
 
 Alloy reaches the daemon socket by being in the `docker` group, the same way
 it reads the journal through `systemd-journal`. The socket's mode is

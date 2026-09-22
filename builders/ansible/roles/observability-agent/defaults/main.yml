@@ -55,3 +55,8 @@ autolab_alloy_apt_repo: "https://apt.grafana.com"
 # runs, which is under GitOps control and observable in the run log, rather than
 # whenever the package decides.
 autolab_alloy_package_state: latest
+
+# Per-container metrics. cAdvisor runs as a container on every Docker host,
+# publishing on loopback for this host's Alloy alone.
+autolab_obs_cadvisor_image: "gcr.io/cadvisor/cadvisor:v0.55.1"
+autolab_obs_cadvisor_port: 8081

@@ -1,0 +1,32 @@
+# Managed by Ansible — roles/observability-agent. Local edits are overwritten.
+#
+# The one container the agent runs. It answers on loopback, so only this
+# host's Alloy can scrape it, and it talks to nothing itself.
+services:
+  cadvisor:
+    image: {{ autolab_obs_cadvisor_image }}
+    restart: unless-stopped
+    # Reading every container's cgroup accounting is a privileged act on a
+    # host with cgroup v2 under systemd; the alternative was an exporter that
+    # could see nothing.
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    command:
+      # Containers only. Without this the output is every systemd unit on the
+      # host — 25 cgroups of noise for a Prometheus with a 2 GB cap.
+      - --docker_only=true
+      # Compose stamps a config hash on every container, so keeping all
+      # labels would orphan a series set on each redeploy. Two are named.
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.project,com.docker.compose.service
+      - --housekeeping_interval={{ autolab_obs_scrape_interval }}
+      - --disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,percpu,process,referenced_memory,resctrl,sched,tcp,udp
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "127.0.0.1:{{ autolab_obs_cadvisor_port }}:8080"
