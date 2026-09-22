@@ -23,19 +23,20 @@
     autolab_pve_openid_exists: >-
       {{ autolab_pve_openid_realm in (autolab_pve_realms.stdout | from_json | map(attribute='realm') | list) }}
 
-# `add` takes --type, `modify` does not; everything else is the same either
-# way and is re-applied on every run so a changed secret lands.
+# `add` takes --type and --username-claim; `modify` takes neither (the
+# username claim is fixed at creation). Everything else is re-applied on
+# every run so a changed secret lands.
 - name: Add or update the Pocket ID realm
   ansible.builtin.command:
     argv: >-
       {{ ['pveum', 'realm', 'modify' if autolab_pve_openid_exists | bool else 'add', autolab_pve_openid_realm]
-         + ([] if autolab_pve_openid_exists | bool else ['--type=openid'])
+         + ([] if autolab_pve_openid_exists | bool
+            else ['--type=openid', '--username-claim=' ~ autolab_pve_openid_username_claim])
          + [
            '--issuer-url=' ~ autolab_pve_openid_issuer_url,
            '--client-id=' ~ autolab_pve_openid_client_id,
            '--client-key=' ~ autolab_pve_openid_client_secret,
            '--autocreate=1',
-           '--username-claim=' ~ autolab_pve_openid_username_claim,
            '--groups-claim=' ~ autolab_pve_openid_groups_claim,
            '--groups-autocreate=1',
            '--groups-overwrite=1',
