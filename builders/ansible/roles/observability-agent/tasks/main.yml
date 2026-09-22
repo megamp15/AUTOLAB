@@ -93,6 +93,36 @@
     append: true
   notify: Restart alloy
 
+# Per-container metrics. Privileged and mounting the host's cgroup tree,
+# because that is what reading every container's usage requires; in exchange
+# it publishes on loopback only and talks to nothing.
+- name: Run cAdvisor on Docker hosts
+  when: autolab_builder.docker_enabled | default(false) | bool
+  block:
+    - name: Create the cAdvisor directory
+      ansible.builtin.file:
+        path: /opt/autolab/cadvisor
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the cAdvisor compose file
+      ansible.builtin.template:
+        src: docker-compose.cadvisor.yml.j2
+        dest: /opt/autolab/cadvisor/docker-compose.yml
+        owner: root
+        group: root
+        mode: "0644"
+      register: autolab_obs_cadvisor_compose
+
+    - name: Bring cAdvisor up
+      community.docker.docker_compose_v2:
+        project_src: /opt/autolab/cadvisor
+        state: "{{ 'restarted' if autolab_obs_cadvisor_compose is changed else 'present' }}"
+        pull: missing
+      when: not ansible_check_mode
+
 # Both Docker pipelines talk to the daemon socket, which is root:docker 0660.
 # The same shape as the journal group above: membership, not a socket mode
 # change, and nothing else on the host gains access.
