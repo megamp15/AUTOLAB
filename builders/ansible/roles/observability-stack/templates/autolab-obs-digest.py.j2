@@ -19,6 +19,7 @@ import urllib.parse
 import urllib.request
 
 PVE = os.environ["PVE_HOST"]
+PVE_UI = os.environ["PVE_UI_URL"]
 PVE_AUTH = f"PVEAPIToken={os.environ['PVE_TOKEN_ID']}={os.environ['PVE_TOKEN_SECRET']}"
 PVE_CTX = ssl.create_default_context()
 if os.environ.get("PVE_VERIFY_SSL", "false").lower() != "true":
@@ -179,7 +180,7 @@ def write_status(path):
                 meta += " · backup " + age(newest[g["vmid"]])[0]
             rows.append({"name": g["name"], "meta": meta, "icon": "tenant" if g["name"].startswith("qnta") else "guest",
                          "group": "machines",
-                         "url": f"https://{PVE}:8006/#v1:0:=qemu%2F{g['vmid']}", "up": running})
+                         "url": f"{PVE_UI}/#v1:0:=qemu%2F{g['vmid']}", "up": running})
         tasks = [t for t in pve(f"/nodes/{node}/tasks?typefilter=vzdump&limit=5&source=all") if t.get("endtime")]
         if tasks:
             last = max(tasks, key=lambda t: t["endtime"])
