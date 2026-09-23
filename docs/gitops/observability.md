@@ -769,13 +769,10 @@ no safety net either — with the wrong container name it prints
 `No such container` to stderr, and a grep for error patterns filters that away
 into a clean-looking result.
 
-**Grafana's payload template rejects `:=`.** Variable declarations fail to
-parse — `template: :2: unexpected ":=" in command` — and the notifier treats it
-as unrecoverable, dropping the alert after one attempt. Nothing about the rule
-looks wrong: it evaluates, fires, and shows `firing` in the UI. Only the
-delivery is silently lost, and the only evidence is a `ngalert.notifier` line in
-the Grafana log. Build payloads from literal JSON with each string value piped
-through `data.ToJSON`, not from template variables.
+**Grafana custom webhook payloads use Go text/template syntax.** Declarations
+(`:=`), assignment (`=`), and `range` are supported. Keep the JSON literal and
+pipe every string value through `data.ToJSON` for correct escaping; do not rely
+on unsupported or unverified helpers such as `sub`.
 
 **Setting `GF_SECURITY_ADMIN_PASSWORD` does not change an existing password.**
 Grafana consults it only when it *creates* the admin user, so on any host that

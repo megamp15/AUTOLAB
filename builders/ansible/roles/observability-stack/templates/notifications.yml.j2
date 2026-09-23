@@ -25,10 +25,10 @@
 # summary containing a quote would otherwise emit malformed JSON and the
 # notification would fail at the moment it mattered.
 #
-# No `:=` and no `range`: Grafana's payload engine rejects variable declarations
-# outright — `template: :2: unexpected ":=" in command` — and the failure is
-# unrecoverable, so the notifier drops the alert after one attempt. The rule
-# still fires and still looks correct in the UI; only the delivery is lost.
+# Grafana custom webhook payloads support Go text/template syntax, including
+# declarations (`:=`), assignment (`=`), and `range`. Keep JSON literal and
+# pipe every string value through data.ToJSON; do not assume unverified helpers
+# such as `sub` are available.
 #
 # Without a loop the body cannot list each instance, so it uses
 # CommonAnnotations.summary — which Grafana populates only when every alert in
