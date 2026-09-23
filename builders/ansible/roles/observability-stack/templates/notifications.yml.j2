@@ -66,10 +66,29 @@ contactPoints:
               grafana_url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_grafana_port }}/alerting/list"
             template: |
 {% raw %}
+              {{- /* CommonAnnotations holds only what every alert in the group
+                     agrees on, so the moment two instances differ the summary
+                     is empty — which is exactly when the notification needs to
+                     say the most. Fall back to listing the alerts themselves,
+                     capped so a fleet-wide rule does not send an essay. */ -}}
+              {{- $body := .CommonAnnotations.summary -}}
+              {{- if not $body -}}
+                {{- range $i, $a := .Alerts -}}
+                  {{- if lt $i 6 -}}
+                    {{- $body = printf "%s%s\n" $body (or $a.Annotations.summary $a.Labels.instance $a.Labels.alertname) -}}
+                  {{- end -}}
+                {{- end -}}
+                {{- /* No arithmetic: every function used here is a Go
+                       template builtin, because a template that fails to
+                       render is a notification that never arrives. */ -}}
+                {{- if gt (len .Alerts) 6 -}}
+                  {{- $body = printf "%s… and more, see Grafana" $body -}}
+                {{- end -}}
+              {{- end -}}
               {
               "topic": {{ .Vars.topic | data.ToJSON }},
               "title": {{ printf "[%s] %s" .Status .CommonLabels.alertname | data.ToJSON }},
-              "message": {{ or .CommonAnnotations.summary (printf "%d instances affected. Open Grafana for which ones." (len .Alerts)) | data.ToJSON }},
+              "message": {{ $body | data.ToJSON }},
               "click": {{ .Vars.grafana_url | data.ToJSON }},
               "priority": {% endraw %}{% raw %}{{ if eq .Status "resolved" }}2{{ else }}{% endraw %}{{ tier.priority }}{% raw %}{{ end }}{% endraw %},
               {% raw %}"tags": [{{ if eq .Status "resolved" }}"white_check_mark"{{ else }}"{% endraw %}{{ tier.tag }}{% raw %}"{{ end }}]{% endraw %}

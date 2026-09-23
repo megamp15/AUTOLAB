@@ -840,7 +840,11 @@ writes again.
 it only with annotations identical across every alert in the group, so a rule
 firing for one host carries its summary and the same rule firing for three
 carries nothing. A notification built on it degrades exactly when the situation
-is worst. Observed live: "Proxmox storage almost full" arrived as
+is worst. The template now falls back to listing the alerts' own summaries,
+capped at six, so "2 instances affected, open Grafana" became two lines saying
+which two. Nothing in that fallback uses a function outside Go's builtins —
+`sub` was in the first draft and was removed unshipped, because a notification
+template that fails to render is an alert that never arrives. Observed live: "Proxmox storage almost full" arrived as
 *"storage/xps-pve/local is 19% full"* while "Memory nearly exhausted", firing
 for two hosts, arrived as *"Memory nearly exhausted"* and nothing else.
 
