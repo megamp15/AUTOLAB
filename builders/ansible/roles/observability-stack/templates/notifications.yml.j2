@@ -25,18 +25,17 @@
 # summary containing a quote would otherwise emit malformed JSON and the
 # notification would fail at the moment it mattered.
 #
-# Grafana custom webhook payloads support Go text/template syntax, including
-# declarations (`:=`), assignment (`=`), and `range`. Keep JSON literal and
-# pipe every string value through data.ToJSON; do not assume unverified helpers
-# such as `sub` are available.
+# Grafana custom webhook payloads accept basic Go text/template control flow,
+# but this parser rejects variable declarations and assignment. Keep the
+# multi-alert fallback explicit, and pipe every string value through data.ToJSON;
+# do not assume unverified helpers such as `sub` are available.
 #
-# Without a loop the body cannot list each instance, so it uses
-# CommonAnnotations.summary — which Grafana populates only when every alert in
-# the group carries the *same* summary. A rule firing for one host gets its real
-# summary; a rule firing for several gets a count instead, because their
-# summaries differ. Falling back to the alert name, as this did, produced a
-# notification whose body repeated its own title and said nothing, precisely
-# when several machines were affected at once.
+# CommonAnnotations.summary is used when Grafana has one shared summary. When
+# summaries differ, the payload uses explicit indexed branches to list up to
+# six alert summaries without relying on declarations or assignment. Falling
+# back to the alert name, as this did, produced a notification whose body
+# repeated its own title and said nothing, precisely when several machines were
+# affected at once.
 apiVersion: 1
 
 {% set tiers = [
@@ -66,29 +65,10 @@ contactPoints:
               grafana_url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_grafana_port }}/alerting/list"
             template: |
 {% raw %}
-              {{- /* CommonAnnotations holds only what every alert in the group
-                     agrees on, so the moment two instances differ the summary
-                     is empty — which is exactly when the notification needs to
-                     say the most. Fall back to listing the alerts themselves,
-                     capped so a fleet-wide rule does not send an essay. */ -}}
-              {{- $body := .CommonAnnotations.summary -}}
-              {{- if not $body -}}
-                {{- range $i, $a := .Alerts -}}
-                  {{- if lt $i 6 -}}
-                    {{- $body = printf "%s%s\n" $body (or $a.Annotations.summary $a.Labels.instance $a.Labels.alertname) -}}
-                  {{- end -}}
-                {{- end -}}
-                {{- /* No arithmetic: every function used here is a Go
-                       template builtin, because a template that fails to
-                       render is a notification that never arrives. */ -}}
-                {{- if gt (len .Alerts) 6 -}}
-                  {{- $body = printf "%s… and more, see Grafana" $body -}}
-                {{- end -}}
-              {{- end -}}
               {
               "topic": {{ .Vars.topic | data.ToJSON }},
               "title": {{ printf "[%s] %s" .Status .CommonLabels.alertname | data.ToJSON }},
-              "message": {{ $body | data.ToJSON }},
+              "message": {{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary | data.ToJSON }}{{ else if gt (len .Alerts) 6 }}{{ printf "%s\n%s\n%s\n%s\n%s\n%s\n... and more, see Grafana" (or (index .Alerts 0).Annotations.summary (index .Alerts 0).Labels.instance (index .Alerts 0).Labels.alertname) (or (index .Alerts 1).Annotations.summary (index .Alerts 1).Labels.instance (index .Alerts 1).Labels.alertname) (or (index .Alerts 2).Annotations.summary (index .Alerts 2).Labels.instance (index .Alerts 2).Labels.alertname) (or (index .Alerts 3).Annotations.summary (index .Alerts 3).Labels.instance (index .Alerts 3).Labels.alertname) (or (index .Alerts 4).Annotations.summary (index .Alerts 4).Labels.instance (index .Alerts 4).Labels.alertname) (or (index .Alerts 5).Annotations.summary (index .Alerts 5).Labels.instance (index .Alerts 5).Labels.alertname) | data.ToJSON }}{{ else if eq (len .Alerts) 6 }}{{ printf "%s\n%s\n%s\n%s\n%s\n%s" (or (index .Alerts 0).Annotations.summary (index .Alerts 0).Labels.instance (index .Alerts 0).Labels.alertname) (or (index .Alerts 1).Annotations.summary (index .Alerts 1).Labels.instance (index .Alerts 1).Labels.alertname) (or (index .Alerts 2).Annotations.summary (index .Alerts 2).Labels.instance (index .Alerts 2).Labels.alertname) (or (index .Alerts 3).Annotations.summary (index .Alerts 3).Labels.instance (index .Alerts 3).Labels.alertname) (or (index .Alerts 4).Annotations.summary (index .Alerts 4).Labels.instance (index .Alerts 4).Labels.alertname) (or (index .Alerts 5).Annotations.summary (index .Alerts 5).Labels.instance (index .Alerts 5).Labels.alertname) | data.ToJSON }}{{ else if eq (len .Alerts) 5 }}{{ printf "%s\n%s\n%s\n%s\n%s" (or (index .Alerts 0).Annotations.summary (index .Alerts 0).Labels.instance (index .Alerts 0).Labels.alertname) (or (index .Alerts 1).Annotations.summary (index .Alerts 1).Labels.instance (index .Alerts 1).Labels.alertname) (or (index .Alerts 2).Annotations.summary (index .Alerts 2).Labels.instance (index .Alerts 2).Labels.alertname) (or (index .Alerts 3).Annotations.summary (index .Alerts 3).Labels.instance (index .Alerts 3).Labels.alertname) (or (index .Alerts 4).Annotations.summary (index .Alerts 4).Labels.instance (index .Alerts 4).Labels.alertname) | data.ToJSON }}{{ else if eq (len .Alerts) 4 }}{{ printf "%s\n%s\n%s\n%s" (or (index .Alerts 0).Annotations.summary (index .Alerts 0).Labels.instance (index .Alerts 0).Labels.alertname) (or (index .Alerts 1).Annotations.summary (index .Alerts 1).Labels.instance (index .Alerts 1).Labels.alertname) (or (index .Alerts 2).Annotations.summary (index .Alerts 2).Labels.instance (index .Alerts 2).Labels.alertname) (or (index .Alerts 3).Annotations.summary (index .Alerts 3).Labels.instance (index .Alerts 3).Labels.alertname) | data.ToJSON }}{{ else if eq (len .Alerts) 3 }}{{ printf "%s\n%s\n%s" (or (index .Alerts 0).Annotations.summary (index .Alerts 0).Labels.instance (index .Alerts 0).Labels.alertname) (or (index .Alerts 1).Annotations.summary (index .Alerts 1).Labels.instance (index .Alerts 1).Labels.alertname) (or (index .Alerts 2).Annotations.summary (index .Alerts 2).Labels.instance (index .Alerts 2).Labels.alertname) | data.ToJSON }}{{ else if eq (len .Alerts) 2 }}{{ printf "%s\n%s" (or (index .Alerts 0).Annotations.summary (index .Alerts 0).Labels.instance (index .Alerts 0).Labels.alertname) (or (index .Alerts 1).Annotations.summary (index .Alerts 1).Labels.instance (index .Alerts 1).Labels.alertname) | data.ToJSON }}{{ else if eq (len .Alerts) 1 }}{{ (or (index .Alerts 0).Annotations.summary (index .Alerts 0).Labels.instance (index .Alerts 0).Labels.alertname) | data.ToJSON }}{{ else }}""{{ end }},
               "click": {{ .Vars.grafana_url | data.ToJSON }},
               "priority": {% endraw %}{% raw %}{{ if eq .Status "resolved" }}2{{ else }}{% endraw %}{{ tier.priority }}{% raw %}{{ end }}{% endraw %},
               {% raw %}"tags": [{{ if eq .Status "resolved" }}"white_check_mark"{{ else }}"{% endraw %}{{ tier.tag }}{% raw %}"{{ end }}]{% endraw %}
