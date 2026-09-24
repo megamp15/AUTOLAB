@@ -769,10 +769,11 @@ no safety net either — with the wrong container name it prints
 `No such container` to stderr, and a grep for error patterns filters that away
 into a clean-looking result.
 
-**Grafana custom webhook payloads use Go text/template syntax.** Declarations
-(`:=`), assignment (`=`), and `range` are supported. Keep the JSON literal and
-pipe every string value through `data.ToJSON` for correct escaping; do not rely
-on unsupported or unverified helpers such as `sub`.
+**Grafana custom webhook payloads accept basic Go text/template control flow,**
+but the payload parser rejects variable declarations and assignment. Keep the
+multi-alert fallback explicit and pipe every string value through `data.ToJSON`
+for correct escaping; do not rely on unsupported or unverified helpers such as
+`sub`.
 
 **Setting `GF_SECURITY_ADMIN_PASSWORD` does not change an existing password.**
 Grafana consults it only when it *creates* the admin user, so on any host that
