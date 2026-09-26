@@ -93,16 +93,30 @@ services host publishes the port, and the ingress host routes to it.
 **code-server is intentionally different from Portainer.** It is reached at
 `code-server.lab.<zone>` through the tailnet-only Traefik listener and Pocket ID
 middleware; it binds only jwst's tailnet address on port 8443. Its workspace is
-`/opt/autolab/services/code-server/workspace`, owned by `megamp15`, and the
-sibling `config`, `data` and `cache` directories hold its settings, its
-extensions and the rest of its state. All four are mounted, because the image's
-own `/home/coder` belongs to uid 1000 and an unmounted path is both unwritable
-and lost on the next image bump. The container runs with megamp15's UID/GID so
+`/opt/autolab/services/code-server/workspace`, owned by `megamp15`. The
+sibling `home` directory is the container's whole `/home/coder`, where the
+CLIs keep their logins (`~/.claude.json`, `~/.codex`, `~/.gitconfig`), and
+`config`, `data` and `cache` are mounted over it for settings, extensions and
+the rest of the editor's state. Everything is mounted, because the image's own
+`/home/coder` belongs to uid 1000 and an unmounted path is both unwritable and
+lost on the next image bump. The container runs with megamp15's UID/GID so
 files remain normal operator files. It uses `--auth none` because Pocket ID and
 the tailnet are the authentication boundary; it does not expose a public
-hostname. It deliberately has no Docker socket and no broad `/home` mount:
-browser editing should not grant daemon control or expose the operator's home
-directory.
+hostname. It deliberately has no Docker socket and does not mount the host's
+`/home`: browser editing should not grant daemon control or expose the
+operator's real home directory.
+
+**The editor's image is built on jwst, not pulled.** The role writes
+`code-server/build/Dockerfile` from the stock image plus the tools that should
+survive a rebuild: `gh`, Node, the Claude Code, Codex, opencode and pi agent
+CLIs, Chromium with a virtual display for the ChromeX browser extension. The
+image's tag is a hash of that build context, so a version bump in
+`defaults/main.yml` is a new tag and Compose builds it on the next run.
+Installing from the terminal still works, but lasts only until the container is
+recreated; anything worth keeping belongs in the Dockerfile. Extensions follow
+the same rule through `autolab_services_code_server_extensions`, installed from
+Open VSX by pinned version. The container is capped at 2 GB, because jwst also
+runs the observability stack on 6 GB.
 
 ## Diun
 

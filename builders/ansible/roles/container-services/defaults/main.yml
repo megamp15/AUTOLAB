@@ -25,6 +25,8 @@ autolab_services_images:
   registry: "registry:3.1.1"
   registry_ui: "joxit/docker-registry-ui:2.6.0"
   diun: "crazymax/diun:4.33.0"
+  # The base only: the editor runs an image built on the host from this, with
+  # the tools below baked in. See templates/code-server/Dockerfile.j2.
   code_server: "codercom/code-server:4.138.0"
 
 # Host ports come from the shared catalog in playbooks/group_vars/all.yml,
@@ -43,9 +45,74 @@ autolab_services_ports:
 # template, so an editor set up by hand is not a thing only one host knows.
 # Installing in the browser is still the normal way to try one — promote the
 # ones worth keeping to this list, where a bump is a pull request.
+#
+# code-server installs from Open VSX, not Microsoft's marketplace, so an ID
+# here is one that exists there. Each is its latest stable release, except
+# openai.chatgpt and Graphite.gti-vscode, which publish only pre-releases to
+# Open VSX. JavaScript and TypeScript support is built in and needs no entry.
 autolab_services_code_server_extensions:
-  - redhat.vscode-yaml@1.24.0
+  # Languages
   - ms-python.python@2026.4.0
+  - ms-python.debugpy@2026.6.0
+  - meta.pyrefly@1.3.1
+  - redhat.vscode-yaml@1.24.0
+  - hashicorp.terraform@2.40.0
+  - bradlc.vscode-tailwindcss@0.16.0
+  - dsznajder.es7-react-js-snippets@4.4.3
+  - msjsdiag.vscode-react-native@1.13.0
+  - esbenp.prettier-vscode@12.4.0
+  # Agents
+  - Anthropic.claude-code@2.1.283
+  - openai.chatgpt@26.5908.31748
+  - sst-dev.opencode@0.0.13
+  - breaking-brake.cc-wf-studio@3.36.0
+  - agentlens.agentlens-dashboard@0.16.3
+  # Git, containers, CI
+  - mhutchie.git-graph@1.30.0
+  - git-brain.git-brain@0.0.48
+  - Graphite.gti-vscode@0.7.82
+  - github.vscode-github-actions@0.32.3
+  - ms-azuretools.vscode-containers@2.4.5
+  # Data, documents, previews
+  - dbcode.dbcode@1.38.7
+  - rangav.vscode-thunder-client@2.41.3
+  - mechatroner.rainbow-csv@3.24.1
+  - AykutSarac.jsoncrack-vscode@5.1.0
+  - cweijan.vscode-office@4.2.0
+  - shd101wyy.markdown-preview-enhanced@0.8.38
+  - LachyFS.kanban-markdown@1.14.1
+  - hediet.vscode-drawio@1.6.6
+  - midudev.better-svg@0.5.1
+  - zenclabs.previewjs@1.28.1
+  - lirobi.phone-preview@3.1.10
+  - codewithgod.chromex-browser@1.0.7
+  # Editing
+  - Gruntfuggly.todo-tree@0.0.215
+  - pokey.cursorless@1.1.1865
+  - magic5644.graph-it-live@1.15.1
+  - devsense-team.devsense@1.0.72
+  - cedricverlinden.cursor-dark@2.2.0
+  - marcosbuilds.minigames@0.0.5
+
+# The tools baked into the editor's image. A bump is a change here, which
+# changes the image's tag, which is what makes the next run build it. The
+# sums are the publishers' own, for linux amd64: jwst's architecture.
+autolab_services_code_server_gh:
+  version: "2.101.0"
+  sha256: 9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8
+autolab_services_code_server_node:
+  version: "24.21.0"
+  sha256: fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6
+autolab_services_code_server_npm:
+  - "@anthropic-ai/claude-code@2.1.283"
+  - "@openai/codex@0.157.1"
+  - "opencode-ai@1.18.32"
+  - "@mariozechner/pi-coding-agent@0.73.1"
+
+# jwst is also the observability host, on 6 GB. A browser, four agents and a
+# language server each are enough to push Prometheus into swap; capped, the
+# editor is what gets killed instead of the thing that says why.
+autolab_services_code_server_memory: 2g
 
 # Portainer creates its admin account from this at first start, so there is
 # no five-minute window to lose: leave it empty and Portainer opens its setup

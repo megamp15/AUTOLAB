@@ -1,18 +1,30 @@
   code-server:
-    image: {{ autolab_services_images.code_server }}
+    # Built here from build/Dockerfile rather than pulled: the stock image
+    # plus the operator's tools. Compose builds it when this tag is missing,
+    # which is exactly when its content changed.
+    image: {{ autolab_services_code_server_image }}
+    build:
+      context: ./code-server/build
     restart: unless-stopped
     user: "{{ ansible_facts.getent_passwd.megamp15[1] }}:{{ ansible_facts.getent_group.megamp15[1] }}"
+    # Workspace trust asks whether to trust a folder this machine exists to
+    # edit, and only one person reaches it, behind a passkey.
     command: >-
       --bind-addr 0.0.0.0:8080
       --auth none
+      --disable-workspace-trust
       /home/coder/workspace
+    mem_limit: {{ autolab_services_code_server_memory }}
+    # Diun compares a tag against its registry, and this one is in none.
+    labels:
+      diun.enable: "false"
     # The image's own /home/coder belongs to uid 1000, which the operator's
-    # account need not be. Every path code-server writes is mounted from a
-    # directory this role created for that account: config for its settings,
-    # .local/share for extensions and machine state, .cache for the rest.
-    # Without the last two, an extension survives only until the next image
-    # bump recreates the container.
+    # account need not be. The whole home is mounted, because that is where
+    # the tools keep their logins: ~/.claude.json, ~/.codex, ~/.pi and
+    # ~/.gitconfig sit at its top, not under .config. The four below it
+    # predate that and stay as their own directories rather than be migrated.
     volumes:
+      - {{ autolab_services_root }}/code-server/home:/home/coder
       - {{ autolab_services_root }}/code-server/config:/home/coder/.config
       - {{ autolab_services_root }}/code-server/data:/home/coder/.local/share
       - {{ autolab_services_root }}/code-server/cache:/home/coder/.cache
