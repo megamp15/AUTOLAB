@@ -1,0 +1,56 @@
+# Managed by Ansible — roles/container-services. Local edits are overwritten.
+#
+# The editor's tools, baked in. A package installed from the terminal lives in
+# the container's own filesystem and is gone on the next recreation; installed
+# here, it comes back with every rebuild of this host. Every version is pinned,
+# and every download is checked against a sum written down in the role.
+FROM {{ autolab_services_images.code_server }}
+
+USER root
+
+# chromium and xvfb are for the browser extension, which drives a real
+# Chromium with a window, and so needs a display to put it on.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      chromium \
+      fonts-liberation \
+      jq \
+      python3-pip \
+      python3-venv \
+      ripgrep \
+      xauth \
+      xvfb \
+      xz-utils \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSLo /tmp/gh.tar.gz \
+      https://github.com/cli/cli/releases/download/v{{ autolab_services_code_server_gh.version }}/gh_{{ autolab_services_code_server_gh.version }}_linux_amd64.tar.gz \
+ && echo "{{ autolab_services_code_server_gh.sha256 }}  /tmp/gh.tar.gz" | sha256sum -c - \
+ && tar -xzf /tmp/gh.tar.gz -C /usr/local --strip-components=1 \
+ && rm /tmp/gh.tar.gz
+
+# Node for the agent CLIs, and for JavaScript and TypeScript work. code-server
+# carries its own Node, but not on PATH and not for this.
+RUN curl -fsSLo /tmp/node.tar.xz \
+      https://nodejs.org/dist/v{{ autolab_services_code_server_node.version }}/node-v{{ autolab_services_code_server_node.version }}-linux-x64.tar.xz \
+ && echo "{{ autolab_services_code_server_node.sha256 }}  /tmp/node.tar.xz" | sha256sum -c - \
+ && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
+      --exclude=CHANGELOG.md --exclude=LICENSE --exclude=README.md \
+ && rm /tmp/node.tar.xz
+
+RUN npm install --global \
+{% for package in autolab_services_code_server_npm %}
+      {{ package }} \
+{% endfor %}
+ && npm cache clean --force
+
+# The image is the version. A CLI that updates itself inside a container is
+# overwritten on the next recreation anyway, and until then is a version no
+# pull request chose.
+ENV DISABLE_AUTOUPDATER=1
+
+COPY with-display.sh /usr/local/bin/with-display
+ENV DISPLAY=:99
+ENTRYPOINT ["/usr/local/bin/with-display", "/usr/bin/entrypoint.sh"]
+
+USER coder

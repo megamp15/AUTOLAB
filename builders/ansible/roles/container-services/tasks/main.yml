@@ -84,6 +84,48 @@
     - "{{ autolab_services_root }}/code-server/data"
     - "{{ autolab_services_root }}/code-server/cache"
     - "{{ autolab_services_root }}/code-server/workspace"
+    - "{{ autolab_services_root }}/code-server/home"
+  when: "'code-server' in autolab_services_enabled"
+
+# The build context, root-owned: the operator's account can write the mounts
+# above but not the recipe for the image they run in.
+- name: Create the editor's build context
+  ansible.builtin.file:
+    path: "{{ autolab_services_root }}/code-server/build"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: "'code-server' in autolab_services_enabled"
+
+- name: Write the editor's Dockerfile
+  ansible.builtin.template:
+    src: code-server/Dockerfile.j2
+    dest: "{{ autolab_services_root }}/code-server/build/Dockerfile"
+    owner: root
+    group: root
+    mode: "0644"
+  when: "'code-server' in autolab_services_enabled"
+
+- name: Install the editor's display wrapper
+  ansible.builtin.copy:
+    src: code-server/with-display.sh
+    dest: "{{ autolab_services_root }}/code-server/build/with-display.sh"
+    owner: root
+    group: root
+    mode: "0755"
+  when: "'code-server' in autolab_services_enabled"
+
+# The tag is the build's content, not a counter: any change to what goes in
+# is a tag this host has never seen, so Compose builds it rather than reusing
+# the old image under a name that no longer describes it.
+- name: Name the editor's image after what is in it
+  ansible.builtin.set_fact:
+    autolab_services_code_server_image: >-
+      autolab/code-server:{{ autolab_services_images.code_server.split(':') | last }}-{{
+      (lookup('ansible.builtin.template', 'code-server/Dockerfile.j2')
+       ~ lookup('ansible.builtin.file', 'code-server/with-display.sh'))
+      | hash('sha256') | truncate(12, true, '') }}
   when: "'code-server' in autolab_services_enabled"
 
 # Plaintext, 0600, mounted read-only: what Portainer's --admin-password-file
@@ -145,6 +187,26 @@
     pull: missing
     remove_orphans: true
   when: not ansible_check_mode
+
+# After the stack is up, because it runs inside the container. The CLI is
+# idempotent and says so — "already installed" is how a converged host is
+# told apart from one that just gained an extension, which is what keeps a
+# re-run reporting ok rather than changed. Pinned with @version, so it never
+# quietly pulls a newer build than the list asks for.
+- name: Install the editor's declared extensions
+  community.docker.docker_container_exec:
+    container: "{{ autolab_services_project }}-code-server-1"
+    argv:
+      - code-server
+      - --install-extension
+      - "{{ item }}"
+  register: autolab_services_extension_install
+  changed_when: "'already installed' not in autolab_services_extension_install.stdout"
+  loop: "{{ autolab_services_code_server_extensions }}"
+  when:
+    - "'code-server' in autolab_services_enabled"
+    - autolab_services_code_server_extensions | length > 0
+    - not ansible_check_mode
 
 - name: Say what is running and where
   ansible.builtin.debug:
