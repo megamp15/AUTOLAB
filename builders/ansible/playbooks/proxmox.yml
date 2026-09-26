@@ -81,3 +81,10 @@
     # issuer to trust. Nothing happens until the client exists.
     - role: proxmox-openid
       tags: [proxmox, openid]
+    # Tailscale is how CI and people reach a node at all, and nothing else
+    # upgraded it: the guests' tailscale-update playbook targets linux_servers,
+    # which a hypervisor deliberately is not. xps-pve sat two releases behind.
+    # Last, because the upgrade restarts tailscaled, which carries this very
+    # session; everything else has converged by then.
+    - role: tailscale-update
+      tags: [proxmox, tailscale]
