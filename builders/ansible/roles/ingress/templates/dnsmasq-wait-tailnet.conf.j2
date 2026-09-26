@@ -1,0 +1,14 @@
+# Managed by Ansible — roles/ingress. dnsmasq binds this host's tailnet
+# address, which does not exist until tailscaled has come up. Started before
+# it, dnsmasq fails with "Cannot assign requested address" and systemd never
+# tries again, so every *.{{ autolab_ingress_internal_label }} name stops resolving after a reboot while
+# everything behind it is running. Same wait as the ingress stack's own unit.
+[Unit]
+Wants=tailscaled.service
+After=tailscaled.service
+
+[Service]
+TimeoutStartSec=180
+ExecStartPre=/bin/sh -c 'until ip -4 addr show dev tailscale0 | grep -qF "{{ autolab_ingress_tailscale_ip }}/"; do sleep 2; done'
+Restart=on-failure
+RestartSec=10
