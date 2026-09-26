@@ -32,31 +32,49 @@
     # stacks run on.
     autolab_environment: hypervisor
 
-    # Where this node's backups go. ark's bridge address is a convention
-    # (.11, next to jwst's .10), declared in the lab machines map; the
-    # hypervisor inventory is static so it is restated here rather than read
-    # from an inventory this playbook never sees.
+    # Backups, per node. Every node backs up to ark, but not by the same
+    # road and not the same guests, and not every node's key is saved yet.
+    #
+    # pbs_server: ark's bridge address (.11, declared in the lab machines map)
+    # on the node that runs ark, because a bridge does not span hosts; any
+    # other node reaches it over the tailnet, by name.
+    #
+    # exclude: templates (rebuilt from Git; 9000 alone is 4 GB a night), and
+    # on xps-pve ark itself (104). Snapshot mode freezes the guest's
+    # filesystems, and a frozen PBS cannot accept the backup connection from
+    # the node — the first nightly deadlocked on exactly that. Nothing on ark
+    # needs backing up: the chunk store is on the NAS, the key is off the
+    # node, and the pbs role recreates its configuration. On pve, the stopped
+    # qcicd guests (502–505) and their templates (598, 599) are left alone:
+    # they are not AUTOLAB's, and 502 alone is a 500 GB disk.
+    #
+    # enabled: a job runs only once its node's /etc/pve/priv/storage/ark.enc
+    # is in the password manager and R2 — a backup nobody can decrypt is a
+    # file. xps-pve's was saved 2026-09-20; this line is the record of that.
+    # pve's key is generated on its first apply.
+    autolab_pve_backup_by_node:
+      xps-pve:
+        pbs_server: 10.42.0.11
+        exclude: [9000, 9001, 9002, 104]
+        enabled: true
+      pve:
+        pbs_server: "ark.{{ lookup('env', 'AUTOLAB_TAILNET_DOMAIN') }}"
+        exclude: [9002, 502, 503, 504, 505, 598, 599]
+        enabled: false
+    autolab_pve_backup: "{{ autolab_pve_backup_by_node[inventory_hostname] }}"
+
     autolab_pve_pbs_storages:
       - name: ark
-        server: 10.42.0.11
+        server: "{{ autolab_pve_backup.pbs_server }}"
         datastore: singularity
         username: pve@pbs
 
-    # Enabled 2026-09-20, once /etc/pve/priv/storage/ark.enc was in the
-    # password manager and R2 — this line is the record of that.
-    #
-    # Excluded: the templates (rebuilt from Git; 9000 alone is 4 GB a night)
-    # and ark itself (104). Snapshot mode freezes the guest's filesystems,
-    # and a frozen PBS cannot accept the backup connection from the node —
-    # the first nightly deadlocked on exactly that. Nothing on ark needs
-    # backing up: the chunk store is on the NAS, the key is off the node,
-    # and the pbs role recreates its configuration.
     autolab_pve_backup_jobs:
       - id: autolab-nightly
         storage: ark
         schedule: "02:00"
-        exclude: [9000, 9001, 9002, 104]
-        enabled: true
+        exclude: "{{ autolab_pve_backup.exclude }}"
+        enabled: "{{ autolab_pve_backup.enabled }}"
 
   roles:
     - role: proxmox-node
