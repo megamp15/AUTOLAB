@@ -31,9 +31,50 @@
 # updater races unattended-upgrades on the same dpkg lock (tailscale/tailscale
 # #10400) and can leave the package half-upgraded. One Ansible run per update
 # keeps upgrades serialized and observable.
+# A hold left by an interrupted updates run would make the upgrade below a
+# silent no-op.
+- name: Release any hold on Tailscale
+  ansible.builtin.dpkg_selections:
+    name: tailscale
+    selection: install
+
+- name: Install or upgrade Tailscale (check mode)
+  ansible.builtin.apt:
+    name: tailscale
+    state: "{{ tailscale_package_state }}"
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_check_mode
+
+# The upgrade restarts tailscaled, and the run arrives through it. Detached,
+# apt finishes whether or not this session survives; the tasks after it wait
+# for a connection and then collect the result.
 - name: Install or upgrade Tailscale
   ansible.builtin.apt:
     name: tailscale
     state: "{{ tailscale_package_state }}"
     update_cache: true
     cache_valid_time: 3600
+  async: 600
+  poll: 0
+  register: autolab_tailscale_upgrade_job
+  # Starting a job is not a change; whether apt changed anything is what the
+  # collect task below reports.
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Wait for the connection tailscaled carries to come back
+  ansible.builtin.wait_for_connection:
+    delay: 5
+    timeout: 300
+  when: not ansible_check_mode
+
+- name: Collect the upgrade's result
+  ansible.builtin.async_status:
+    jid: "{{ autolab_tailscale_upgrade_job.ansible_job_id }}"
+  register: autolab_tailscale_upgrade
+  until: autolab_tailscale_upgrade.finished
+  retries: 60
+  delay: 5
+  changed_when: autolab_tailscale_upgrade.changed | default(false)
+  when: not ansible_check_mode

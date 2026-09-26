@@ -9,3 +9,8 @@
 # metapackage depends on, which `apt-get upgrade` holds back forever.
 autolab_updates_upgrade: dist
 autolab_updates_autoremove: true
+
+# Held for the length of the upgrade and released after: packages whose
+# upgrade restarts the connection the run is using. tailscale-update upgrades
+# them on its own, in a way that survives the restart.
+autolab_updates_hold: [tailscale]

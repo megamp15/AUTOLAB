@@ -4,12 +4,33 @@
     update_cache: true
   changed_when: false
 
-- name: Apply every pending update
-  ansible.builtin.apt:
-    upgrade: "{{ autolab_updates_upgrade }}"
-  environment:
-    DEBIAN_FRONTEND: noninteractive
-  register: autolab_updates_result
+# The run arrives over Tailscale SSH, so a tailscale upgrade inside this
+# dist-upgrade restarts tailscaled and cuts the session mid-apt: Ansible
+# reports the host unreachable while dpkg carries on alone. It happened on
+# xps-pve with 140 packages in flight. Tailscale is held here and upgraded by
+# the tailscale-update role, which is built to lose its connection.
+- name: Apply every pending update, holding back what carries the session
+  block:
+    - name: Hold the packages the connection runs through
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop: "{{ autolab_updates_hold }}"
+
+    - name: Apply every pending update
+      ansible.builtin.apt:
+        upgrade: "{{ autolab_updates_upgrade }}"
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      register: autolab_updates_result
+  always:
+    # Released even when the upgrade fails: a hold left behind would stop
+    # every later upgrade of Tailscale, silently.
+    - name: Release the hold
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: install
+      loop: "{{ autolab_updates_hold }}"
 
 - name: Remove what nothing depends on any more
   ansible.builtin.apt:
