@@ -11,6 +11,11 @@
 autolab_services_catalog: "{{ autolab_service_catalog.keys() | list }}"
 
 autolab_services_root: /opt/autolab/services
+
+# Compose names containers <project>-<service>-<n>, and takes the project from
+# the directory it runs in. Derived rather than written out, so moving the root
+# does not leave a task addressing a container that no longer exists.
+autolab_services_project: "{{ autolab_services_root | basename }}"
 autolab_services_enabled: "{{ (autolab_builder | default({})).services | default([]) }}"
 
 # Pinned, like every other image in this lab: a management UI that upgrades
@@ -31,6 +36,16 @@ autolab_services_ports:
   registry: "{{ autolab_service_catalog.registry.port }}"
   registry_ui: "{{ autolab_service_catalog['registry-ui'].port }}"
   code_server: "{{ autolab_service_catalog['code-server'].port }}"
+
+# Extensions the editor is expected to have, pinned like every image above.
+# The mounted data directory keeps them across a container recreation; this
+# list is what brings them back when the machine itself is rebuilt from the
+# template, so an editor set up by hand is not a thing only one host knows.
+# Installing in the browser is still the normal way to try one — promote the
+# ones worth keeping to this list, where a bump is a pull request.
+autolab_services_code_server_extensions:
+  - redhat.vscode-yaml@1.24.0
+  - ms-python.python@2026.4.0
 
 # Portainer creates its admin account from this at first start, so there is
 # no five-minute window to lose: leave it empty and Portainer opens its setup

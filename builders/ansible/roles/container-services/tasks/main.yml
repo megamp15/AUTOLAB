@@ -146,6 +146,26 @@
     remove_orphans: true
   when: not ansible_check_mode
 
+# After the stack is up, because it runs inside the container. The CLI is
+# idempotent and says so — "already installed" is how a converged host is
+# told apart from one that just gained an extension, which is what keeps a
+# re-run reporting ok rather than changed. Pinned with @version, so it never
+# quietly pulls a newer build than the list asks for.
+- name: Install the editor's declared extensions
+  community.docker.docker_container_exec:
+    container: "{{ autolab_services_project }}-code-server-1"
+    argv:
+      - code-server
+      - --install-extension
+      - "{{ item }}"
+  register: autolab_services_extension_install
+  changed_when: "'already installed' not in autolab_services_extension_install.stdout"
+  loop: "{{ autolab_services_code_server_extensions }}"
+  when:
+    - "'code-server' in autolab_services_enabled"
+    - autolab_services_code_server_extensions | length > 0
+    - not ansible_check_mode
+
 - name: Say what is running and where
   ansible.builtin.debug:
     msg: >-
