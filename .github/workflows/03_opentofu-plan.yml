@@ -77,16 +77,24 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # The Stack names its node; the node's name picks its token and gives
+      # its host. Nothing about a node is stored per workflow.
+      - name: Resolve the Stack's Proxmox node
+        id: node
+        env:
+          STACK_DIR: ${{ needs.preflight.outputs.env_dir }}
+        run: bash scripts/resolve-proxmox-node.sh --stack "$STACK_DIR" >> "$GITHUB_OUTPUT"
+
       - uses: ./.github/actions/setup-opentofu-pipeline
         with:
           env_dir: ${{ needs.preflight.outputs.env_dir }}
           tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           tailscale_oauth_secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
-          proxmox_host: ${{ vars.PROXMOX_HOST }}
+          proxmox_host: ${{ format('{0}.{1}', steps.node.outputs.name, secrets.TAILNET_DOMAIN) }}
           proxmox_port: ${{ vars.PROXMOX_PORT || '8006' }}
-          proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
+          proxmox_api_token: ${{ secrets[format('PROXMOX_API_TOKEN_{0}', steps.node.outputs.key)] }}
           proxmox_insecure_tls: ${{ vars.PROXMOX_INSECURE_TLS || 'true' }}
-          proxmox_node_name: ${{ vars.PROXMOX_NODE_NAME }}
+          proxmox_node_name: ${{ steps.node.outputs.name }}
           pve_ssh_private_key: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
           # gitops, not root: the tailnet SSH policy grants CI exactly that account
           # on the hypervisor (root was dropped once playbooks/proxmox.yml created

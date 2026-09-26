@@ -2,6 +2,15 @@ name: 01 - Bootstrap private VM network
 
 on:
   workflow_dispatch:
+    inputs:
+      node:
+        description: "Proxmox node to give its private VM network"
+        required: true
+        default: xps-pve
+        type: choice
+        options:
+          - xps-pve
+          - pve
 
 permissions:
   contents: read
@@ -16,6 +25,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # The node's name picks its token and gives its host; nothing about a
+      # node is stored per workflow.
+      - name: Resolve the Proxmox node
+        id: node
+        env:
+          NODE: ${{ inputs.node }}
+        run: |
+          set -euo pipefail
+          bash scripts/resolve-proxmox-node.sh --node "$NODE" >> "$GITHUB_OUTPUT"
+          echo "host=${NODE}.${AUTOLAB_TAILNET_DOMAIN}" >> "$GITHUB_OUTPUT"
+
       - uses: ./.github/actions/connect-tailscale
         with:
           oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
@@ -23,7 +43,7 @@ jobs:
 
       - name: Configure SSH to Proxmox
         env:
-          PVE_HOST: ${{ vars.PROXMOX_HOST }}
+          PVE_HOST: ${{ steps.node.outputs.host }}
           PVE_SSH_PRIVATE_KEY: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
         run: |
           set -euo pipefail
@@ -37,7 +57,7 @@ jobs:
 
       - name: Install and apply private VM network
         env:
-          PVE_HOST: ${{ vars.PROXMOX_HOST }}
+          PVE_HOST: ${{ steps.node.outputs.host }}
         run: |
           set -euo pipefail
           ssh_opts=(-i "${HOME}/.ssh/pve_ci_key" -o BatchMode=yes)
@@ -55,6 +75,6 @@ jobs:
           {
             echo "## Bootstrap private VM network"
             echo
-            echo "- Proxmox host: \`${{ vars.PROXMOX_HOST }}\`"
+            echo "- Proxmox host: \`${{ steps.node.outputs.host }}\`"
             echo "- Result: \`${{ job.status }}\`"
           } >> "$GITHUB_STEP_SUMMARY"

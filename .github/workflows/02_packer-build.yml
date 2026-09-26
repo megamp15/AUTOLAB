@@ -1,6 +1,6 @@
 name: 02 - Packer Build
 
-run-name: Build ${{ inputs.template }} Packer template
+run-name: Build ${{ inputs.template }} Packer template on ${{ inputs.node }}
 
 on:
   workflow_dispatch:
@@ -14,6 +14,14 @@ on:
           - debian-13
           - ubuntu-24.04
           - ubuntu-26.04
+      node:
+        description: "Proxmox node to build the template on"
+        required: true
+        default: xps-pve
+        type: choice
+        options:
+          - xps-pve
+          - pve
       force_rebuild:
         description: "Replace the existing template or retained failed VM"
         required: true
@@ -29,7 +37,7 @@ concurrency:
 
 jobs:
   build-template:
-    name: Build ${{ inputs.template }} template
+    name: Build ${{ inputs.template }} template on ${{ inputs.node }}
     runs-on: ubuntu-latest
     env:
       # Referenced so the runner masks it from the job's first log line. A
@@ -38,20 +46,31 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # The node's name picks its token and gives its host; nothing about a
+      # node is stored per workflow.
+      - name: Resolve the Proxmox node
+        id: node
+        env:
+          NODE: ${{ inputs.node }}
+        run: |
+          set -euo pipefail
+          bash scripts/resolve-proxmox-node.sh --node "$NODE" >> "$GITHUB_OUTPUT"
+          echo "host=${NODE}.${AUTOLAB_TAILNET_DOMAIN}" >> "$GITHUB_OUTPUT"
+
       - uses: ./.github/actions/setup-packer-pipeline
         with:
           template: ${{ inputs.template }}
           tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           tailscale_oauth_secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
-          proxmox_host: ${{ vars.PROXMOX_HOST }}
+          proxmox_host: ${{ steps.node.outputs.host }}
           # gitops, not root: the tailnet SSH policy grants CI exactly that account
           # on the hypervisor (root was dropped once playbooks/proxmox.yml created
           # it). Packer only forwards TCP through the bastion, and the ad-hoc
           # steps below sudo where they touch qm or the journal. Same fix as #65.
           pve_ssh_username: gitops
           proxmox_port: ${{ vars.PROXMOX_PORT || '8006' }}
-          proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
-          proxmox_node_name: ${{ vars.PROXMOX_NODE_NAME }}
+          proxmox_api_token: ${{ secrets[format('PROXMOX_API_TOKEN_{0}', steps.node.outputs.key)] }}
+          proxmox_node_name: ${{ steps.node.outputs.name }}
           proxmox_insecure_tls: ${{ vars.PROXMOX_INSECURE_TLS || 'true' }}
           ssh_password: ${{ secrets.PACKER_SSH_PASSWORD }}
           pve_ssh_private_key: ${{ secrets.PVE_SSH_PRIVATE_KEY }}
@@ -64,7 +83,7 @@ jobs:
         env:
           AUTOLAB_PRESEED_PASSWORD: ${{ secrets.PACKER_SSH_PASSWORD }}
           AUTOLAB_PRESEED_KEYS: ${{ vars.SSH_PUBLIC_KEYS }}
-          AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
+          AUTOLAB_PVE_HOST: ${{ steps.node.outputs.host }}
         run: |
           set -euo pipefail
           bash scripts/render-debian-preseed.sh > "${RUNNER_TEMP}/debian-preseed.cfg"
@@ -88,7 +107,7 @@ jobs:
           sleep 5
           tailscale status
           echo "Checking connectivity to PVE..."
-          tailscale ping ${{ vars.PROXMOX_HOST }} || true
+          tailscale ping ${{ steps.node.outputs.host }} || true
 
       - name: Initialize Packer
         working-directory: ${{ env.AUTOLAB_PACKER_TEMPLATE_DIR }}
@@ -101,7 +120,7 @@ jobs:
       - name: Remove retained failed build VM
         if: inputs.force_rebuild
         env:
-          AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
+          AUTOLAB_PVE_HOST: ${{ steps.node.outputs.host }}
         run: |
           set -euo pipefail
           vmid="${AUTOLAB_PACKER_TEMPLATE_VM_ID}"
@@ -150,7 +169,7 @@ jobs:
       - name: Diagnose retained build VM
         if: failure() && (inputs.template == 'debian-13' || inputs.template == 'ubuntu-24.04')
         env:
-          AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
+          AUTOLAB_PVE_HOST: ${{ steps.node.outputs.host }}
         run: |
           set -euo pipefail
           vmid="${AUTOLAB_PACKER_TEMPLATE_VM_ID}"
@@ -188,7 +207,7 @@ jobs:
       - name: Cleanup Debian preseed server
         if: always() && inputs.template == 'debian-13'
         env:
-          AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
+          AUTOLAB_PVE_HOST: ${{ steps.node.outputs.host }}
         run: |
           set +e
           if [[ -n "${AUTOLAB_PVE_PRESEED_PID:-}" ]]; then
