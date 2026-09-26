@@ -109,7 +109,10 @@
             "action": "accept",
             "src":    ["tag:ci-runner"],
             "dst":    ["tag:autolab-pve"],
-            "users":  ["gitops"],
+            // TEMPORARY, 2026-09-26: root for node 2's (pve) first runs of
+            // workflows 01 and 07, before gitops exists there. Revert once
+            // 07 has run as gitops on pve.
+            "users":  ["gitops", "root"],
         },
         {
             // Humans to the hypervisor. Required because tagging the node took
