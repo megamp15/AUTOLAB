@@ -53,6 +53,15 @@ variable "cpu_cores" {
   type        = number
 }
 
+variable "cpu_type" {
+  description = "Proxmox CPU model for a VM. Ignored for LXC, which shares the host's CPU."
+  type        = string
+  # host passes the node's own CPU through. The price is live migration to a
+  # node with a different CPU, and these nodes are deliberately not clustered,
+  # so there is nothing to migrate to.
+  default = "host"
+}
+
 variable "memory_mb" {
   description = "Dedicated memory in MB."
   type        = number

@@ -15,3 +15,60 @@
   ansible.builtin.apt:
     upgrade: safe
   when: autolab_upgrade_packages | bool
+
+# Growing disk_size_gb grows the virtual disk and nothing inside it: the
+# partition and the filesystem keep the size the template was built with.
+# cloud-init grows them only at boot, so a resize applied to a running VM
+# sits unused until a reboot nobody schedules. Both steps are online-safe.
+- name: Find the root filesystem's partition
+  ansible.builtin.set_fact:
+    autolab_root_source: "{{ (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | first).device }}"
+    autolab_root_fstype: "{{ (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | first).fstype }}"
+
+# /dev/sda1 → /dev/sda and 1; /dev/nvme0n1p1 → /dev/nvme0n1 and 1.
+- name: Split it into disk and partition number
+  ansible.builtin.set_fact:
+    autolab_root_disk: "{{ autolab_root_source | regex_replace('p?[0-9]+$', '') }}"
+    autolab_root_partition: "{{ autolab_root_source | regex_search('[0-9]+$') }}"
+
+# growpart says CHANGE or NOCHANGE, and exits 1 for the second: a dry run is
+# how a converged host is told apart without touching anything.
+- name: See whether the root partition can grow
+  ansible.builtin.command: growpart --dry-run {{ autolab_root_disk }} {{ autolab_root_partition }}
+  register: autolab_root_growable
+  changed_when: false
+  failed_when: autolab_root_growable.rc not in [0, 1]
+  check_mode: false
+  # A filesystem made on the whole disk has no partition to grow.
+  when: autolab_root_partition | length > 0
+
+- name: Grow the root partition to fill its disk
+  ansible.builtin.command: growpart {{ autolab_root_disk }} {{ autolab_root_partition }}
+  register: autolab_root_grown
+  changed_when: true
+  when:
+    - autolab_root_growable is not skipped
+    - autolab_root_growable.stdout is match('CHANGE')
+
+# Check mode skips commands, so without this a pending grow reads as ok.
+- name: Say the root partition would grow
+  ansible.builtin.debug:
+    msg: "{{ autolab_root_growable.stdout }}"
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - autolab_root_growable is not skipped
+    - autolab_root_growable.stdout is match('CHANGE')
+
+# Only after growpart, not by comparing sizes: a partition is rarely a whole
+# number of filesystem blocks, so the filesystem module would find a few
+# unusable bytes and report changed on every run. If this step is ever missed,
+# cloud-init's resizefs catches it at the next boot.
+- name: Grow the root filesystem to fill its partition
+  community.general.filesystem:
+    dev: "{{ autolab_root_source }}"
+    fstype: "{{ autolab_root_fstype }}"
+    resizefs: true
+  when:
+    - autolab_root_grown is changed
+    - autolab_root_fstype in ['ext4', 'xfs']

@@ -63,6 +63,9 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   cpu {
     cores = var.cpu_cores
+    # Left unset, the provider asks for qemu64: a CPU with no SSE4.2 or AVX,
+    # on which Bun-built binaries (opencode among them) refuse to run at all.
+    type = var.cpu_type
   }
 
   memory {
