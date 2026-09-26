@@ -50,8 +50,8 @@
     #
     # enabled: a job runs only once its node's /etc/pve/priv/storage/ark.enc
     # is in the password manager and R2 — a backup nobody can decrypt is a
-    # file. xps-pve's was saved 2026-09-20; this line is the record of that.
-    # pve's key is generated on its first apply.
+    # file. xps-pve's was saved 2026-09-20, pve's on 2026-09-26 (R2
+    # autolab-keys and the password manager); these lines are the record.
     autolab_pve_backup_by_node:
       xps-pve:
         pbs_server: 10.42.0.11
@@ -60,7 +60,7 @@
       pve:
         pbs_server: "ark.{{ lookup('env', 'AUTOLAB_TAILNET_DOMAIN') }}"
         exclude: [9002, 502, 503, 504, 505, 598, 599]
-        enabled: false
+        enabled: true
     autolab_pve_backup: "{{ autolab_pve_backup_by_node[inventory_hostname] }}"
 
     autolab_pve_pbs_storages:
