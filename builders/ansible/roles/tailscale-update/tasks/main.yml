@@ -58,6 +58,9 @@
   async: 600
   poll: 0
   register: autolab_tailscale_upgrade_job
+  # Starting a job is not a change; whether apt changed anything is what the
+  # collect task below reports.
+  changed_when: false
   when: not ansible_check_mode
 
 - name: Wait for the connection tailscaled carries to come back
