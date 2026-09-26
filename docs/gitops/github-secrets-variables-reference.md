@@ -17,8 +17,8 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 
 | Workflow | Variables (`vars.*`) | Secrets (`secrets.*`) |
 |----------|----------------------|------------------------|
-| **Packer Build** | `PROXMOX_HOST`, `PROXMOX_LAN_IP`, `PROXMOX_PACKER_NETWORK_BRIDGE`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN`, `PACKER_SSH_PASSWORD`, `PVE_SSH_PRIVATE_KEY` |
-| **OpenTofu Plan** | `CLOUDFLARE_ACCOUNT_ID`, `PROXMOX_HOST`, `PROXMOX_PORT` (optional), `PROXMOX_NODE_NAME`, `PROXMOX_INSECURE_TLS`, `TAILSCALE_VM_TAG` (optional), `BUILDER_SSH_PUBLIC_KEY` (tenant stacks) | `PROXMOX_API_TOKEN`, `PVE_SSH_PRIVATE_KEY`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` |
+| **Packer Build** | `PROXMOX_LAN_IP`, `PROXMOX_PACKER_NETWORK_BRIDGE`, `PROXMOX_PORT` (optional), `PROXMOX_INSECURE_TLS`, `SSH_PUBLIC_KEYS` | `PROXMOX_API_TOKEN_<NODE>`, `TAILNET_DOMAIN`, `PACKER_SSH_PASSWORD`, `PVE_SSH_PRIVATE_KEY` |
+| **OpenTofu Plan** | `CLOUDFLARE_ACCOUNT_ID`, `PROXMOX_PORT` (optional), `PROXMOX_INSECURE_TLS`, `TAILSCALE_VM_TAG` (optional), `BUILDER_SSH_PUBLIC_KEY` (tenant stacks) | `PROXMOX_API_TOKEN_<NODE>`, `TAILNET_DOMAIN`, `PVE_SSH_PRIVATE_KEY`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` |
 | **OpenTofu Apply/Destroy** | same as Plan | same as Plan |
 | **Cloudflare** | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID` | `CLOUDFLARE_API_TOKEN`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
 | **Ansible Builder** | `CLOUDFLARE_ACCOUNT_ID`, `INGRESS_ACME_EMAIL`, `POCKET_ID_ADMIN_USER`, `BUILDER_SSH_PUBLIC_KEY` (optional) | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `BUILDER_SSH_PRIVATE_KEY` (tenant stacks) |
@@ -57,11 +57,10 @@ Set at **Settings → Secrets and variables → Actions → Variables**.
 
 | Variable | Example | Used by | Where to get it |
 |----------|---------|---------|-----------------|
-| `PROXMOX_HOST` | `<proxmox-host>` | Packer Build | Tailscale MagicDNS name. `hostname` on Proxmox host. |
+| `PROXMOX_HOST` | `<proxmox-host>` | Ansible Builder (`observability`) | xps-pve's MagicDNS name, read only by the hypervisor exporter until monitoring covers every node. Nothing else reads it: a node's host is `<node>.<TAILNET_DOMAIN>`. |
 | `PROXMOX_LAN_IP` | `192.168.1.10` | Packer Build | Required PVE LAN IP reachable by the temporary Debian installer VM. |
 | `PROXMOX_PACKER_NETWORK_BRIDGE` | `vmbr1` | Packer Build | Required Proxmox bridge for the temporary Packer VM; there is no workflow fallback. |
 | `PROXMOX_PORT` | `8006` | Packer, OpenTofu | Optional API HTTPS port override. |
-| `PROXMOX_NODE_NAME` | `<proxmox-host>` | Packer, OpenTofu | Proxmox UI left sidebar (not always `pve`). |
 | `PROXMOX_INSECURE_TLS` | `true` | Packer, OpenTofu | Keep `true` for Proxmox default self-signed cert. |
 | `SSH_PUBLIC_KEYS` | `ssh-ed25519 AAAA...` | Packer Build | `cat ~/.ssh/id_ed25519.pub` on your laptop. |
 | `PVE_EXPORTER_TOKEN_ID` | `pve-exporter@pve!monitoring` | Ansible Builder | Proxmox read-only token ID for the hypervisor exporter. An identifier, not a credential — a variable so it stays readable in run logs. See [observability](./observability.md). |
@@ -78,7 +77,7 @@ secrets work for a personal lab; environment secrets are optional hardening).
 
 | Secret | Example | Used by | Where to get it |
 |--------|---------|---------|-----------------|
-| `PROXMOX_API_TOKEN` | `gitops@pve!opentofu=SECRET` | Packer, OpenTofu | Proxmox → Permissions → API Tokens. Shown once. |
+| `PROXMOX_API_TOKEN_<NODE>` | `root@pam!autolab=SECRET` | Packer, OpenTofu | One per node, named after it: upper-case, dashes as underscores (`PROXMOX_API_TOKEN_XPS_PVE`, `PROXMOX_API_TOKEN_PVE`). A Stack's `node.auto.tfvars` says which node it uses; Packer and the network bootstrap take the node as an input. Proxmox → Permissions → API Tokens. Shown once. |
 | `TAILSCALE_OAUTH_CLIENT_ID` | `tskey-client-...` | Packer, OpenTofu, Ansible Builder, Tailscale Policy | CI-runner OAuth client ID. Paired with `TAILSCALE_OAUTH_SECRET` — **not** OIDC/WIF. Scopes: `auth_keys` owning `tag:ci-runner` (runner joins the tailnet) **and** `policy_file` (workflow 06 syncs the policy). |
 | `TAILSCALE_OAUTH_SECRET` | `tskey-client-secret-...` | Packer, OpenTofu, Ansible Builder, Tailscale Policy | Secret for the CI-runner client. **Required** — it is how the runner authenticates; every tailnet-touching workflow passes it. Distinct from `TAILSCALE_VM_OAUTH_SECRET`. |
 | `TAILSCALE_VM_OAUTH_CLIENT_ID` | `tskey-client-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client ID; exported as `TAILSCALE_OAUTH_CLIENT_ID` into tofu steps and consumed by the destroy-time device cleanup script. |
@@ -163,10 +162,9 @@ same workflow enrols VMs on a different tailnet. Typed confirmations and the
 
 **Variables**
 
-- [ ] `PROXMOX_HOST`
+- [ ] `PROXMOX_HOST` (observability only)
 - [ ] `PROXMOX_LAN_IP` (required for Debian 13 Packer Build)
 - [ ] `PROXMOX_PORT` (optional; defaults to `8006`)
-- [ ] `PROXMOX_NODE_NAME`
 - [ ] `PROXMOX_INSECURE_TLS` = `true`
 - [ ] `PROXMOX_PACKER_NETWORK_BRIDGE`
 - [ ] `BUILDER_SSH_PUBLIC_KEY` (once a tenant stack exists)
@@ -177,7 +175,7 @@ same workflow enrols VMs on a different tailnet. Typed confirmations and the
 
 **Secrets**
 
-- [ ] `PROXMOX_API_TOKEN`
+- [ ] `PROXMOX_API_TOKEN_<NODE>` for every node
 - [ ] `PACKER_SSH_PASSWORD` (Packer)
 - [ ] `PVE_SSH_PRIVATE_KEY` (Packer)
 - [ ] `TAILSCALE_OAUTH_CLIENT_ID` + `TAILSCALE_OAUTH_SECRET` — OAuth client scoped `auth_keys` (owning `tag:ci-runner`) **and** `policy_file`

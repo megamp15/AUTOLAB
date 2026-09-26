@@ -1,6 +1,16 @@
 output "normalized_machines" {
   description = "Machine declarations with Stack defaults merged in."
   value       = local.normalized_machines
+
+  # One stack talks to one node's API. The nodes are not clustered, so a
+  # machine placed on another node is one this stack's provider cannot reach:
+  # it fails halfway through an apply rather than here.
+  precondition {
+    condition = alltrue([
+      for _, machine in local.normalized_machines : machine.node_name == var.default_node_name
+    ])
+    error_message = "Every Machine in a Stack must live on the Stack's node (node.auto.tfvars). The nodes are not clustered; a Machine for another node belongs in that node's Stack."
+  }
 }
 
 output "builder_target_machines" {

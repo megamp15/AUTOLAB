@@ -36,21 +36,21 @@ See [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.
 
 | Variable | Meaning |
 |----------|---------|
-| `PROXMOX_HOST` | Proxmox host name/IP used by OpenTofu and the Packer bastion |
 | `PROXMOX_PORT` | Optional API HTTPS port; defaults to `8006` |
-| `PROXMOX_NODE_NAME` | Node name from Proxmox UI |
 | `PROXMOX_INSECURE_TLS` | `true` for default self-signed cert |
 
 ### Secrets
 
 | Secret | Meaning |
 |--------|---------|
-| `PROXMOX_API_TOKEN` | Full API token string |
+| `PROXMOX_API_TOKEN_<NODE>` | Full API token string, one per node: `PROXMOX_API_TOKEN_XPS_PVE`, `PROXMOX_API_TOKEN_PVE` |
 
 SSH public keys for cloned VMs are set in `infra/stacks/lab/machines.auto.tfvars`
 (`identity_defaults.ssh_public_keys`), not in a GitHub secret. Packer template
 builds use the `SSH_PUBLIC_KEYS` repository variable. Consumers derive the
-internal HTTPS endpoint from `PROXMOX_HOST` and `PROXMOX_PORT`.
+internal HTTPS endpoint from the node's host, `<node>.<TAILNET_DOMAIN>`, and
+`PROXMOX_PORT`. The node comes from the Stack's `node.auto.tfvars`, or from the
+workflow's `node` input for Packer and the network bootstrap.
 
 Source:
 

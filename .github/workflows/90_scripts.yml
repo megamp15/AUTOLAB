@@ -108,6 +108,9 @@ jobs:
       - name: Run Tailscale device cleanup self-check
         run: bash scripts/test_tailscale-device-delete.sh
 
+      - name: Run Proxmox node resolver self-check
+        run: bash scripts/test_resolve-proxmox-node.sh
+
       - name: Bootstrap dry-run in a clean Debian container
         run: bash scripts/bootstrap-dry-run.sh
 

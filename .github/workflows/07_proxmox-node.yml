@@ -44,7 +44,6 @@ jobs:
       # public log then shows `xps-pve.***`. Not a secret, just not published.
       AUTOLAB_TAILNET_DOMAIN: ${{ secrets.TAILNET_DOMAIN }}
       PVE_LIMIT: ${{ inputs.limit || 'proxmox_nodes' }}
-      AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
       PVE_TAGS: ${{ inputs.tags || '' }}
       PVE_BOOTSTRAP: ${{ inputs.bootstrap }}
       PVE_CONFIRM: ${{ inputs.confirm || 'check' }}
