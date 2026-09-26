@@ -85,6 +85,10 @@
     - "{{ autolab_services_root }}/code-server/cache"
     - "{{ autolab_services_root }}/code-server/workspace"
     - "{{ autolab_services_root }}/code-server/home"
+    # The parent of the .local/share mount. Left to Docker, it is created as
+    # root when the mount is set up, and nothing else under ~/.local can be
+    # made: opencode's first mkdir of ~/.local/state fails with EACCES.
+    - "{{ autolab_services_root }}/code-server/home/.local"
   when: "'code-server' in autolab_services_enabled"
 
 # The build context, root-owned: the operator's account can write the mounts
