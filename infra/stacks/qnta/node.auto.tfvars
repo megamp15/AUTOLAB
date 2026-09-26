@@ -4,4 +4,4 @@
 # Workflows read this file to pick the node's credentials: the host is
 # <node>.<TAILNET_DOMAIN>, and the token is the repository secret
 # PROXMOX_API_TOKEN_<NODE>, upper-cased with dashes as underscores.
-proxmox_node_name = "xps-pve"
+proxmox_node_name = "pve"
