@@ -81,6 +81,17 @@
     # issuer to trust. Nothing happens until the client exists.
     - role: proxmox-openid
       tags: [proxmox, openid]
+    # Proxmox point releases and everything else apt has pending, but only
+    # when asked: `never` keeps a routine run of this playbook from upgrading
+    # the hypervisor under its guests. Run it with tags=updates. dist-upgrade,
+    # as Proxmox requires; no autoremove, because Proxmox manages its own
+    # kernels. Nothing reboots: the role says whether one is due, and a node
+    # reboot takes every guest with it, so that is its own decision.
+    # A new major version is not this; see docs/proxmox/06-proxmox-version-upgrade.md.
+    - role: updates
+      tags: [never, updates]
+      vars:
+        autolab_updates_autoremove: false
     # Tailscale is how CI and people reach a node at all, and nothing else
     # upgraded it: the guests' tailscale-update playbook targets linux_servers,
     # which a hypervisor deliberately is not. xps-pve sat two releases behind.
