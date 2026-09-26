@@ -117,6 +117,9 @@ machines = {
   # and a metrics backend that starts swapping stops being able to tell you
   # why anything is slow. Was 8 until the tenant VMs needed the room on a
   # 15 GB node; the working set never approached it.
+  #
+  # 120 GB, was 40: Prometheus and Loki keep their own data here, the registry
+  # stores every image CI pushes, and code-server adds a workspace on top.
   jwst = {
     type                    = "vm"
     provisioning_class      = "builder_target"
@@ -128,7 +131,7 @@ machines = {
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 4
     memory_mb               = 6144
-    disk_size_gb            = 40
+    disk_size_gb            = 120
     # Declared, not leased: tenant guests ship telemetry to this address over
     # the bridge, and a lease is unknowable to a stack that cannot see this
     # one. Provider services take .2–.99, below dnsmasq's .100–.200 lease
@@ -142,9 +145,10 @@ machines = {
       }
       # The lab's own container tooling, here because this is the machine
       # with room: Portainer to operate containers, a registry for images
-      # built in CI, its UI, and Diun to say when a pinned image has a newer
-      # tag. Moving them is a line in another machine's map.
-      services = ["portainer", "registry", "registry-ui", "diun"]
+      # built in CI, its UI, Diun to say when a pinned image has a newer tag,
+      # and code-server for the operator workspace. Moving them is a line in
+      # another machine's map.
+      services = ["portainer", "registry", "registry-ui", "diun", "code-server"]
       # Grafana is reached over the tailnet, which the baseline already allows
       # on tailscale0. Nothing is opened to the LAN.
       #

@@ -289,6 +289,15 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.registry.port }}/v2/"
+  - name: Code
+    group: services
+    meta: editor
+    url: "{{ autolab_obs_lab_url.format(name='code-server', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog['code-server'].port) }}"
+    icon: repo
+    enabled: "{{ 'code-server' in ((autolab_builder | default({})).services | default([])) }}"
+    check:
+      type: http
+      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog['code-server'].port }}/healthz"
   - name: GitHub
     group: services
     meta: megamp15/AUTOLAB

@@ -28,3 +28,6 @@ autolab_service_catalog:
     login: plugin
   diun:
     login: none
+  code-server:
+    port: 8443
+    login: plugin

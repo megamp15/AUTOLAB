@@ -40,6 +40,29 @@
     autolab_services_fqdn: >-
       {{ (autolab_services_status.stdout | from_json).Self.DNSName | regex_replace('\.$', '') }}
 
+# fail_key: false so a missing account reaches the assert below, which says
+# what is wrong. Left at its default the lookup aborts the play first and the
+# fail_msg never prints.
+- name: Look up the interactive operator account
+  ansible.builtin.getent:
+    database: "{{ item }}"
+    key: megamp15
+    fail_key: false
+  loop: [passwd, group]
+  when: "'code-server' in autolab_services_enabled"
+
+# A missing key comes back as null rather than absent, so `is defined` would
+# pass and the compose template would index null. Test the value.
+- name: Require the interactive operator account
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.getent_passwd.megamp15 is not none
+      - ansible_facts.getent_group.megamp15 is not none
+    fail_msg: >-
+      code-server requires the interactive operator account megamp15 on this
+      host. Run the harden playbook first, which creates it.
+  when: "'code-server' in autolab_services_enabled"
+
 - name: Create the services directory
   ansible.builtin.file:
     path: "{{ autolab_services_root }}"
@@ -47,6 +70,21 @@
     owner: root
     group: root
     mode: "0755"
+
+- name: Create code-server persistent state and workspace
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: megamp15
+    group: megamp15
+    mode: "0750"
+  loop:
+    - "{{ autolab_services_root }}/code-server"
+    - "{{ autolab_services_root }}/code-server/config"
+    - "{{ autolab_services_root }}/code-server/data"
+    - "{{ autolab_services_root }}/code-server/cache"
+    - "{{ autolab_services_root }}/code-server/workspace"
+  when: "'code-server' in autolab_services_enabled"
 
 # Plaintext, 0600, mounted read-only: what Portainer's --admin-password-file
 # expects. Written before the compose file so the container finds it on its
@@ -115,3 +153,4 @@
       {{- ' — portainer :' ~ autolab_services_ports.portainer if 'portainer' in autolab_services_enabled else '' }}
       {{- ', registry :' ~ autolab_services_ports.registry if 'registry' in autolab_services_enabled else '' }}
       {{- ', registry-ui :' ~ autolab_services_ports.registry_ui if 'registry-ui' in autolab_services_enabled else '' }}
+      {{- ', code-server :' ~ autolab_services_ports.code_server if 'code-server' in autolab_services_enabled else '' }}
