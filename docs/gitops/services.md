@@ -1,5 +1,5 @@
 ---
-tags: [gitops, docker, portainer, registry, diun, services]
+tags: [gitops, docker, portainer, registry, diun, code-server, services]
 status: draft
 audience: operator
 ---
@@ -18,11 +18,11 @@ One list in the machines map decides it:
 ```hcl
 builder = {
   docker_enabled = true
-  services       = ["portainer", "registry", "registry-ui", "diun"]
+  services       = ["portainer", "registry", "registry-ui", "diun", "code-server"]
 }
 ```
 
-The role knows four services today and refuses a name it does not know,
+The role knows five services today and refuses a name it does not know,
 by name, rather than failing halfway through rendering. Each is its own
 template in `roles/container-services/templates/services.d/`, assembled into
 one Compose project on the host. Removing a name removes its container on
@@ -38,6 +38,7 @@ bump is a pull request.
 | `registry` | images built in CI, pushed and pulled inside the lab | 5000 |
 | `registry-ui` | seeing what is in the registry without curl | 8082 |
 | `diun` | a notification when a pinned image has a newer tag. Never updates anything | — |
+| `code-server` | browser-based VS Code for the operator workspace | 8443 |
 
 ## Where they are reachable
 
@@ -49,7 +50,8 @@ binds this way.
 The tailnet is the boundary, exactly as it is for Prometheus and Loki:
 reaching these ports at all means being on the tailnet and passing its ACL.
 Tenants are on another tailnet and cannot see them. Names under
-`*.lab.<zone>` with the passkey login in front follow in their own change.
+`*.lab.<zone>` with the passkey login in front are routed automatically;
+code-server is available at `code-server.lab.<zone>` when its service is enabled.
 
 **Portainer holds the Docker socket**, which is the whole point and the whole
 risk: it can do anything the daemon can. It is for operating what these roles
@@ -87,6 +89,20 @@ Two exceptions, both honest:
 The port and the login mode live once, in `playbooks/group_vars/all.yml`,
 because two roles on two different machines have to agree on them: the
 services host publishes the port, and the ingress host routes to it.
+
+**code-server is intentionally different from Portainer.** It is reached at
+`code-server.lab.<zone>` through the tailnet-only Traefik listener and Pocket ID
+middleware; it binds only jwst's tailnet address on port 8443. Its workspace is
+`/opt/autolab/services/code-server/workspace`, owned by `megamp15`, and the
+sibling `config`, `data` and `cache` directories hold its settings, its
+extensions and the rest of its state. All four are mounted, because the image's
+own `/home/coder` belongs to uid 1000 and an unmounted path is both unwritable
+and lost on the next image bump. The container runs with megamp15's UID/GID so
+files remain normal operator files. It uses `--auth none` because Pocket ID and
+the tailnet are the authentication boundary; it does not expose a public
+hostname. It deliberately has no Docker socket and no broad `/home` mount:
+browser editing should not grant daemon control or expose the operator's home
+directory.
 
 ## Diun
 

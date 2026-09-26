@@ -1,0 +1,21 @@
+  code-server:
+    image: {{ autolab_services_images.code_server }}
+    restart: unless-stopped
+    user: "{{ ansible_facts.getent_passwd.megamp15[1] }}:{{ ansible_facts.getent_group.megamp15[1] }}"
+    command: >-
+      --bind-addr 0.0.0.0:8080
+      --auth none
+      /home/coder/workspace
+    # The image's own /home/coder belongs to uid 1000, which the operator's
+    # account need not be. Every path code-server writes is mounted from a
+    # directory this role created for that account: config for its settings,
+    # .local/share for extensions and machine state, .cache for the rest.
+    # Without the last two, an extension survives only until the next image
+    # bump recreates the container.
+    volumes:
+      - {{ autolab_services_root }}/code-server/config:/home/coder/.config
+      - {{ autolab_services_root }}/code-server/data:/home/coder/.local/share
+      - {{ autolab_services_root }}/code-server/cache:/home/coder/.cache
+      - {{ autolab_services_root }}/code-server/workspace:/home/coder/workspace
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.code_server }}:8080"

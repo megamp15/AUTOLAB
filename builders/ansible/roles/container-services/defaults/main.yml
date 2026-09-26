@@ -20,6 +20,7 @@ autolab_services_images:
   registry: "registry:3.1.1"
   registry_ui: "joxit/docker-registry-ui:2.6.0"
   diun: "crazymax/diun:4.33.0"
+  code_server: "codercom/code-server:4.138.0"
 
 # Host ports come from the shared catalog in playbooks/group_vars/all.yml,
 # because the ingress role on another machine routes to the same numbers.
@@ -29,6 +30,7 @@ autolab_services_ports:
   portainer: "{{ autolab_service_catalog.portainer.port }}"
   registry: "{{ autolab_service_catalog.registry.port }}"
   registry_ui: "{{ autolab_service_catalog['registry-ui'].port }}"
+  code_server: "{{ autolab_service_catalog['code-server'].port }}"
 
 # Portainer creates its admin account from this at first start, so there is
 # no five-minute window to lose: leave it empty and Portainer opens its setup
