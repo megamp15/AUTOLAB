@@ -58,8 +58,6 @@ autolab_services_code_server_extensions:
   - redhat.vscode-yaml@1.24.0
   - hashicorp.terraform@2.40.0
   - bradlc.vscode-tailwindcss@0.16.0
-  - dsznajder.es7-react-js-snippets@4.4.3
-  - msjsdiag.vscode-react-native@1.13.0
   - esbenp.prettier-vscode@12.4.0
   # Agents
   - Anthropic.claude-code@2.1.283
@@ -88,7 +86,6 @@ autolab_services_code_server_extensions:
   - codewithgod.chromex-browser@1.0.7
   # Editing
   - Gruntfuggly.todo-tree@0.0.215
-  - pokey.cursorless@1.1.1865
   - magic5644.graph-it-live@1.15.1
   - devsense-team.devsense@1.0.72
   - cedricverlinden.cursor-dark@2.2.0
