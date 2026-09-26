@@ -230,11 +230,31 @@
   when: autolab_ingress_tailnet_side | bool
   notify: Restart the tailnet-side resolver
 
+- name: Create the resolver's drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/dnsmasq.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: autolab_ingress_tailnet_side | bool
+
+- name: Make the resolver wait for the tailnet address
+  ansible.builtin.template:
+    src: dnsmasq-wait-tailnet.conf.j2
+    dest: /etc/systemd/system/dnsmasq.service.d/autolab-wait-tailnet.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: autolab_ingress_tailnet_side | bool
+  notify: Restart the tailnet-side resolver
+
 - name: Run the tailnet-side resolver
   ansible.builtin.systemd_service:
     name: dnsmasq
     enabled: true
     state: started
+    daemon_reload: true
   when: autolab_ingress_tailnet_side | bool and not ansible_check_mode
 
 # The DNS-only token for the certificate's DNS challenge. Traefik reads it
