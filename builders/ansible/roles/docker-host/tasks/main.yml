@@ -3,14 +3,20 @@
   ansible.builtin.apt:
     name: "{{ autolab_docker_packages }}"
     state: present
+  register: autolab_docker_install
   when: autolab_docker_enabled | bool
 
+# In check mode on a host that never had Docker, the install above only says
+# it would happen, and there is no unit yet for systemd to find. The six new
+# qnta guests failed their first check here while the apply went through.
 - name: Enable Docker when enabled for this machine
   ansible.builtin.service:
     name: docker
     state: started
     enabled: true
-  when: autolab_docker_enabled | bool
+  when:
+    - autolab_docker_enabled | bool
+    - not (ansible_check_mode and autolab_docker_install is changed)
 
 - name: Bound the container logs
   ansible.builtin.template:
