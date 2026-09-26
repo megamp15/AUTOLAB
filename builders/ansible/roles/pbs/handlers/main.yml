@@ -1,0 +1,6 @@
+---
+
+# The ordering applies from the next start; nothing is restarted for it.
+- name: Reload systemd for the PBS ordering
+  ansible.builtin.systemd_service:
+    daemon_reload: true

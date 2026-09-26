@@ -1,0 +1,6 @@
+---
+# The wait unit and the fstab entries that require it are read at boot; the
+# reload is so a daemon that looks before then sees the same thing.
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true

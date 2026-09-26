@@ -79,6 +79,18 @@
     label: "{{ item.server }}"
   when: item.state | default('mounted') != 'absent'
 
+# The unit every mount below requires, so a reboot waits for the tailnet
+# before mounting instead of failing once and never retrying.
+- name: Install the wait for the NFS servers' names
+  ansible.builtin.template:
+    src: autolab-nfs-servers-resolvable.service.j2
+    dest: /etc/systemd/system/autolab-nfs-servers-resolvable.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: autolab_nfs_mounts | length > 0
+  notify: Reload systemd
+
 # Manages /etc/fstab and the live mount together, so a reboot reproduces what
 # this run created.
 - name: Mount NFS shares and persist them in fstab
@@ -86,11 +98,12 @@
     src: "{{ item.server }}:{{ item.export }}"
     path: "{{ item.path }}"
     fstype: nfs
-    opts: "{{ item.options | default(autolab_nfs_mount_options) }}"
+    opts: "{{ item.options | default(autolab_nfs_mount_options) }},x-systemd.requires=autolab-nfs-servers-resolvable.service"
     state: "{{ item.state | default('mounted') }}"
   loop: "{{ autolab_nfs_mounts }}"
   loop_control:
     label: "{{ item.server }}:{{ item.export }} -> {{ item.path }}"
+  notify: Reload systemd
 
 # A share can mount cleanly and still be unusable — exported read-only, or
 # squashing this host's UID to one without write access. Catch that here rather

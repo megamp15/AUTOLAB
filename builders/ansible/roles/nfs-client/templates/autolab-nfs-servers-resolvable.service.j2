@@ -1,0 +1,16 @@
+# Managed by Ansible — roles/nfs-client. Local edits are overwritten.
+#
+# Every NFS mount here requires this unit (x-systemd.requires in fstab).
+# The servers are tailnet names, and _netdev only waits for the ordinary
+# network: at boot ark's mount ran one second before tailscaled started,
+# failed with "Failed to resolve server", and systemd never tried again.
+[Unit]
+Description=Autolab — wait until the NFS servers' names resolve
+Wants=tailscaled.service network-online.target
+After=tailscaled.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=300
+ExecStart=/bin/sh -c 'until {% for server in autolab_nfs_mounts | map(attribute='server') | unique %}getent hosts {{ server }} >/dev/null{{ ' && ' if not loop.last else '' }}{% endfor %}; do sleep 2; done'
