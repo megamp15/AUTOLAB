@@ -198,14 +198,20 @@ the token can see nothing.
 | Name | Kind | Value |
 |---|---|---|
 | `PVE_EXPORTER_TOKEN_ID` | **variable** | `pve-exporter@pve!monitoring` |
-| `PVE_EXPORTER_TOKEN_SECRET` | **secret** | the UUID from step 2 |
+| `PVE_EXPORTER_TOKEN_SECRET_<NODE>` | **secret**, one per node | the UUID from step 2 on that node: `_XPS_PVE`, `_PVE` |
 
 The ID is a **variable**, not a secret: it is an identifier, and knowing it
 grants nothing without the secret. Secrets are also masked in run logs, so
 storing an identifier as one means a failed authentication shows `***` exactly
 where you need to see which token was used.
 
-`PROXMOX_HOST` is reused as the scrape target; no new variable is needed.
+Every node in `builders/ansible/inventories/hypervisors/hosts.yml` whose secret
+is set is scraped at `<node>.<TAILNET_DOMAIN>`, with its own credentials (a
+module per node in `pve.yml`). The nodes are not clustered, so the token is
+created on each node separately; its id is the same everywhere. The alert rules
+join guests on `instance` as well as VMID, so two nodes that reuse a VMID never
+cross. A new node needs its secret line in workflow 05's env: a workflow cannot
+list secrets.
 
 Leaving these unset is supported — the exporter container is omitted rather
 than shipped broken, and everything else works.

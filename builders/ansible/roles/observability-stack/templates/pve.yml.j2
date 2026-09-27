@@ -1,6 +1,11 @@
-# Managed by Ansible — roles/observability-stack. Mode 0600; contains a token.
-default:
+# Managed by Ansible — roles/observability-stack. Mode 0600; contains tokens.
+#
+# One module per node: the nodes are not clustered, so each has its own token
+# secret. Prometheus picks the module per target (prometheus.yml).
+{% for node in autolab_obs_pve_nodes %}
+{{ node.name }}:
   user: "{{ autolab_obs_pve_token_id.split('!')[0] }}"
   token_name: "{{ autolab_obs_pve_token_id.split('!')[1] | default('') }}"
-  token_value: "{{ autolab_obs_pve_token_secret }}"
+  token_value: "{{ node.token_secret }}"
   verify_ssl: {{ autolab_obs_pve_verify_ssl | bool | lower }}
+{% endfor %}

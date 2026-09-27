@@ -363,7 +363,7 @@ run everywhere. Full detail in [observability](./observability.md).
 - [ ] Grant the permission to both the user and the token. Privilege separation
       makes a token's rights the intersection of the two, so granting only the
       token yields an empty set that still authenticates
-- [ ] Set `PVE_EXPORTER_TOKEN_ID` (variable) and `PVE_EXPORTER_TOKEN_SECRET` (secret)
+- [ ] Set `PVE_EXPORTER_TOKEN_ID` (variable) and `PVE_EXPORTER_TOKEN_SECRET_<NODE>` (secret, one per node)
 - [ ] Set `GF_SECURITY_ADMIN_PASSWORD`; Grafana ships as `admin`/`admin`, and the
       admin account can change where alerts are delivered
 - [ ] Generate an ntfy topic with real entropy. The topic string is the entire

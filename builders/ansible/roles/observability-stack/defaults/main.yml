@@ -128,9 +128,11 @@ autolab_obs_pve_exporter_port: 9221
 # dedicated read-only token exists: the OpenTofu token can create and destroy
 # VMs, and an exporter has no business holding that. Empty disables the
 # exporter rather than shipping it broken.
-autolab_obs_pve_host: ""
+# One entry per Proxmox node: {name, host, token_secret}. The nodes are not
+# clustered, so each is its own API with its own token; the token id is the
+# same on every node. Supplied by the workflow from the hypervisor inventory.
+autolab_obs_pve_nodes: []
 autolab_obs_pve_token_id: ""
-autolab_obs_pve_token_secret: ""
 autolab_obs_pve_verify_ssl: false
 
 # The exporter image runs as uid 101 (prometheus), not root, so a root-owned
@@ -201,15 +203,23 @@ autolab_obs_grafana_public_url: >-
 autolab_obs_lab_url: >-
   {%- if autolab_obs_internal_label | length > 0 -%}https://{name}.{{ autolab_obs_internal_label }}.{{ autolab_obs_public_zone }}{%- else -%}{raw}{%- endif -%}
 
+# A row per node, ahead of the declared links: a node is named after itself
+# (xps-pve.lab, pve.lab), so the rows come from the node list rather than
+# being written out.
+autolab_obs_homepage_node_links: >-
+  {%- set rows = [] -%}
+  {%- for node in autolab_obs_pve_nodes -%}
+  {%-   set _ = rows.append({
+          'name': 'Proxmox VE',
+          'group': 'infrastructure',
+          'meta': node.name,
+          'url': autolab_obs_lab_url.format(name=node.name, raw='https://' ~ node.host ~ ':8006'),
+          'icon': 'hypervisor',
+          'check': {'type': 'http', 'target': 'https://' ~ node.host ~ ':8006'}}) -%}
+  {%- endfor -%}
+  {{ rows }}
+
 autolab_obs_homepage_links:
-  - name: Proxmox VE
-    group: infrastructure
-    meta: "{{ autolab_obs_pve_host.split('.')[0] }}"
-    url: "{{ autolab_obs_lab_url.format(name=autolab_obs_pve_host.split('.')[0], raw='https://' ~ autolab_obs_pve_host ~ ':8006') }}"
-    icon: hypervisor
-    check:
-      type: http
-      target: "https://{{ autolab_obs_pve_host }}:8006"
   - name: Backup Server
     group: infrastructure
     meta: ark

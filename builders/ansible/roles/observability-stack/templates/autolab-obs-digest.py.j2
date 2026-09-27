@@ -18,9 +18,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-PVE = os.environ["PVE_HOST"]
-PVE_UI = os.environ["PVE_UI_URL"]
-PVE_AUTH = f"PVEAPIToken={os.environ['PVE_TOKEN_ID']}={os.environ['PVE_TOKEN_SECRET']}"
+# Every Proxmox node: {name, host, secret, ui}. The nodes are not clustered,
+# so each answers only for its own guests and has its own token secret.
+NODES = json.loads(os.environ["PVE_NODES"])
+PVE_TOKEN_ID = os.environ["PVE_TOKEN_ID"]
 PVE_CTX = ssl.create_default_context()
 if os.environ.get("PVE_VERIFY_SSL", "false").lower() != "true":
     PVE_CTX.check_hostname = False
@@ -47,8 +48,29 @@ def get(url, headers=None, ctx=None, timeout=20):
         return json.load(r)
 
 
-def pve(path):
-    return get(f"https://{PVE}:8006/api2/json{path}", {"Authorization": PVE_AUTH}, PVE_CTX)["data"]
+def pve(node, path):
+    auth = f"PVEAPIToken={PVE_TOKEN_ID}={node['secret']}"
+    return get(f"https://{node['host']}:8006/api2/json{path}", {"Authorization": auth}, PVE_CTX)["data"]
+
+
+def guests_everywhere():
+    # (node, guest) for every non-template VM on every node.
+    return [(n, g) for n in NODES for g in pve(n, "/cluster/resources?type=vm")
+            if g.get("type") == "qemu" and not g.get("template")]
+
+
+def excluded_everywhere():
+    # VMIDs any node's vzdump job skips on purpose. Keyed by VMID alone because
+    # PBS is: every node backs up into the same datastore.
+    out = set()
+    for n in NODES:
+        for job in pve(n, "/cluster/backup"):
+            out.update(int(v) for v in str(job.get("exclude", "")).split(",") if v.strip())
+    return out
+
+
+def vzdump_tasks(node, limit):
+    return [t for t in pve(node, f"/nodes/{node['name']}/tasks?typefilter=vzdump&limit={limit}&source=all") if t.get("endtime")]
 
 
 def pbs(path):
@@ -90,11 +112,8 @@ def write_metrics():
     # --metrics: one textfile for Alloy's unix exporter, so Prometheus knows
     # each guest's newest backup and which guests the job skips on purpose.
     # The alert rules read these; the digest reads the same sources directly.
-    node = pve("/cluster/resources?type=node")[0]["node"]
-    guests = [g for g in pve("/cluster/resources?type=vm") if g.get("type") == "qemu" and not g.get("template")]
-    excluded = set()
-    for job in pve("/cluster/backup"):
-        excluded.update(int(v) for v in str(job.get("exclude", "")).split(",") if v.strip())
+    guests = [g for _, g in guests_everywhere()]
+    excluded = excluded_everywhere()
     newest = {}
     for store in PBS_DATASTORES or [BACKUP_STORAGE]:
         for snap in pbs(f"/admin/datastore/{store}/snapshots?backup-type=vm"):
@@ -165,29 +184,40 @@ def write_status(path):
         rows.append({"name": link["name"], "meta": link.get("meta", ""), "url": link.get("url", "#"),
                      "icon": link.get("icon", "guest"), "group": link.get("group", ""), "up": up})
     feed = []
-    try:
-        node = pve("/cluster/resources?type=node")[0]["node"]
-        guests = [g for g in pve("/cluster/resources?type=vm") if g.get("type") == "qemu" and not g.get("template")]
-        newest = {}
-        if PBS_URL:
+    # Backup ages come from PBS, the guests from Proxmox. Separate tries, so a
+    # failure says which of the two it was instead of blaming Proxmox for both.
+    newest = {}
+    if PBS_URL:
+        try:
             for store in PBS_DATASTORES or [BACKUP_STORAGE]:
                 for snap in pbs(f"/admin/datastore/{store}/snapshots?backup-type=vm"):
                     vmid = int(snap["backup-id"]); newest[vmid] = max(newest.get(vmid, 0), snap["backup-time"])
-        for g in sorted(guests, key=lambda g: g["vmid"]):
+        except Exception as e:  # noqa: BLE001
+            feed.append({"time": "--:--", "text": f"backup server: {type(e).__name__}"})
+    try:
+        # A tenant's guests carry a tenant-<name> tag (the stack's common_tags)
+        # and get their own section, so the lab's machines are not buried.
+        def is_tenant(g):
+            return any(t.startswith("tenant-") for t in str(g.get("tags", "")).split(";"))
+        for node, g in sorted(guests_everywhere(), key=lambda ng: (is_tenant(ng[1]), ng[0]["name"], ng[1]["vmid"])):
             running = g.get("status") == "running"
             meta = "running" if running else g.get("status", "?")
             if g["vmid"] in newest:
                 meta += " · backup " + age(newest[g["vmid"]])[0]
-            rows.append({"name": g["name"], "meta": meta, "icon": "tenant" if g["name"].startswith("qnta") else "guest",
-                         "group": "machines",
-                         "url": f"{PVE_UI}/#v1:0:=qemu%2F{g['vmid']}", "up": running})
-        tasks = [t for t in pve(f"/nodes/{node}/tasks?typefilter=vzdump&limit=5&source=all") if t.get("endtime")]
-        if tasks:
-            last = max(tasks, key=lambda t: t["endtime"])
-            ok = last.get("status") == "OK"
-            feed.append({"ts": last["endtime"],
-                         "time": dt.datetime.fromtimestamp(last["endtime"]).strftime("%H:%M"),
-                         "text": ("backup OK" if ok else "backup FAILED: " + str(last.get("status"))) + f" · {(last['endtime'] - last['starttime']) / 60:.0f} min"})
+            rows.append({"name": g["name"], "meta": meta, "icon": "tenant" if is_tenant(g) else "guest",
+                         "group": "tenant machines" if is_tenant(g) else "machines",
+                         "url": f"{node['ui']}/#v1:0:=qemu%2F{g['vmid']}", "up": running})
+        # A line per node once there is more than one, named, since each node
+        # runs its own job.
+        for node in NODES:
+            tasks = vzdump_tasks(node, 5)
+            if tasks:
+                last = max(tasks, key=lambda t: t["endtime"])
+                ok = last.get("status") == "OK"
+                who = f"{node['name']} " if len(NODES) > 1 else ""
+                feed.append({"ts": last["endtime"],
+                             "time": dt.datetime.fromtimestamp(last["endtime"]).strftime("%H:%M"),
+                             "text": who + ("backup OK" if ok else "backup FAILED: " + str(last.get("status"))) + f" · {(last['endtime'] - last['starttime']) / 60:.0f} min"})
     except Exception as e:  # noqa: BLE001
         feed.append({"time": "--:--", "text": f"proxmox: {type(e).__name__}"})
     try:
@@ -232,28 +262,29 @@ def section(fn):
 
 
 def backups():
-    node = pve("/cluster/resources?type=node")[0]["node"]
-    guests = [g for g in pve("/cluster/resources?type=vm") if g.get("type") == "qemu" and not g.get("template")]
-    tasks = [t for t in pve(f"/nodes/{node}/tasks?typefilter=vzdump&limit=10&source=all") if t.get("endtime")]
-    if tasks:
+    guests = [g for _, g in guests_everywhere()]
+    for node in NODES:
+        tasks = vzdump_tasks(node, 10)
+        who = f"{node['name']} " if len(NODES) > 1 else ""
+        if not tasks:
+            lines.append(f"Backup · {who}no vzdump task found")
+            problems.append(f"no vzdump task {who}".strip())
+            continue
         last = max(tasks, key=lambda t: t["endtime"])
         started = dt.datetime.fromtimestamp(last["starttime"]).strftime("%a %H:%M")
         mins = (last["endtime"] - last["starttime"]) / 60
         ok = last.get("status") == "OK"
-        lines.append(f"Backup · last vzdump {started} {'OK' if ok else 'FAILED: ' + str(last.get('status'))} ({mins:.0f} min)")
+        lines.append(f"Backup · {who}last vzdump {started} {'OK' if ok else 'FAILED: ' + str(last.get('status'))} ({mins:.0f} min)")
         if not ok:
-            problems.append("vzdump failed")
+            problems.append(f"vzdump failed {who}".strip())
             # vzdump's log carries one line per failed guest; quote them
             # rather than making anyone open the task viewer to find out.
-            log = pve(f"/nodes/{node}/tasks/{urllib.parse.quote(last['upid'])}/log?limit=2000")
+            log = pve(node, f"/nodes/{node['name']}/tasks/{urllib.parse.quote(last['upid'])}/log?limit=2000")
             errors = [e["t"] for e in log if "ERROR: Backup of VM" in e.get("t", "")]
             for line in errors[:6]:
                 lines.append("  ✗ " + line.replace("ERROR: Backup of ", "")[:160])
         if (NOW - dt.datetime.fromtimestamp(last["endtime"], dt.timezone.utc)).total_seconds() > STALE_HOURS * 3600:
-            problems.append("no vzdump in a day")
-    else:
-        lines.append("Backup · no vzdump task found")
-        problems.append("no vzdump task")
+            problems.append(f"no vzdump in a day {who}".strip())
     newest, unverified, failed_verify = {}, [], []
     if PBS_URL:
         for store in PBS_DATASTORES or [BACKUP_STORAGE]:
@@ -266,7 +297,7 @@ def backups():
             if state == "failed":
                 failed_verify.append(vmid)
     else:
-        content = pve(f"/nodes/{node}/storage/{BACKUP_STORAGE}/content?content=backup")
+        content = pve(NODES[0], f"/nodes/{NODES[0]['name']}/storage/{BACKUP_STORAGE}/content?content=backup")
         for item in content:
             m = re.search(r"backup/vm/(\d+)/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)$", item.get("volid", ""))
             if not m:
@@ -280,9 +311,7 @@ def backups():
             problems.append("backup listing unavailable")
     # Guests a vzdump job excludes on purpose are neither stale nor never;
     # they are listed so the omission is visible, not alarming.
-    excluded = set()
-    for job in pve("/cluster/backup"):
-        excluded.update(int(v) for v in str(job.get("exclude", "")).split(",") if v.strip())
+    excluded = excluded_everywhere()
     parts, stale, never, skipped = [], [], [], []
     for g in sorted(guests, key=lambda g: g["vmid"]):
         if g["vmid"] in excluded and g["vmid"] not in newest:
@@ -314,14 +343,16 @@ def backups():
             if state and state != "OK":
                 lines.append(f"  ✗ verify job {job['id']}: {state}")
                 problems.append("verify job failed")
-    usage = []
-    for st in pve(f"/nodes/{node}/storage"):
-        if st.get("total") and st.get("type") in ("pbs", "lvmthin", "dir", "zfspool"):
-            pct = 100 * st["used"] / st["total"]
-            usage.append(f"{st['storage']} {pct:.0f}% of {human(st['total'])}")
-            if pct > 85:
-                problems.append(f"{st['storage']} {pct:.0f}% full")
-    lines.append("Storage · " + " · ".join(usage))
+    for node in NODES:
+        usage = []
+        for st in pve(node, f"/nodes/{node['name']}/storage"):
+            if st.get("total") and st.get("type") in ("pbs", "lvmthin", "dir", "zfspool"):
+                pct = 100 * st["used"] / st["total"]
+                usage.append(f"{st['storage']} {pct:.0f}% of {human(st['total'])}")
+                if pct > 85:
+                    problems.append(f"{node['name']} {st['storage']} {pct:.0f}% full")
+        who = f"{node['name']} " if len(NODES) > 1 else ""
+        lines.append(f"Storage · {who}" + " · ".join(usage))
 
 
 def hosts():
