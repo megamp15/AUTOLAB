@@ -24,8 +24,8 @@ Schema source: `infra/connection-schema.yaml` (connection) and
 | **Ansible Builder** | `CLOUDFLARE_ACCOUNT_ID`, `INGRESS_ACME_EMAIL`, `POCKET_ID_ADMIN_USER`, `BUILDER_SSH_PUBLIC_KEY` (optional) | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `BUILDER_SSH_PRIVATE_KEY` (tenant stacks) |
 | **Tailscale Policy** | — | `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_SECRET` |
 
-The Ansible Builder additionally reads `PROXMOX_HOST`, `PVE_EXPORTER_TOKEN_ID`,
-`PVE_EXPORTER_TOKEN_SECRET`, `NTFY_TOPIC` and `GF_SECURITY_ADMIN_PASSWORD`
+The Ansible Builder additionally reads `PVE_EXPORTER_TOKEN_ID`,
+`PVE_EXPORTER_TOKEN_SECRET_<NODE>`, `NTFY_TOPIC` and `GF_SECURITY_ADMIN_PASSWORD`
 when running the `observability`
 playbook. They are rendered into a `0600` file and passed as
 `--extra-vars @file` rather than inline, so no secret enters the runner's
@@ -57,7 +57,6 @@ Set at **Settings → Secrets and variables → Actions → Variables**.
 
 | Variable | Example | Used by | Where to get it |
 |----------|---------|---------|-----------------|
-| `PROXMOX_HOST` | `<proxmox-host>` | Ansible Builder (`observability`) | xps-pve's MagicDNS name, read only by the hypervisor exporter until monitoring covers every node. Nothing else reads it: a node's host is `<node>.<TAILNET_DOMAIN>`. |
 | `PROXMOX_LAN_IP` | `192.168.1.10` | Packer Build | Required PVE LAN IP reachable by the temporary Debian installer VM. |
 | `PROXMOX_PACKER_NETWORK_BRIDGE` | `vmbr1` | Packer Build | Required Proxmox bridge for the temporary Packer VM; there is no workflow fallback. |
 | `PROXMOX_PORT` | `8006` | Packer, OpenTofu | Optional API HTTPS port override. |
@@ -84,7 +83,7 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `TAILSCALE_VM_OAUTH_SECRET` | `tskey-client-secret-...` | OpenTofu Plan/Apply/Destroy | VM enrollment client secret; the OAuth client needs **both** `auth_keys` (Write, with `tag:autolab-vm` selected) for key minting and `devices:core` (Write) for destroy-time cleanup (see `docs/gitops/tailscale-device-lifecycle.md`). Not used by Builder. |
 | `BUILDER_SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH PRIVATE KEY-----...` | Ansible Builder | Private half of the Builder keypair, written `0600` to the runner's default identity path. Only needed once a tenant stack exists: tenant VMs sit on a tailnet the runner is not on, so the Builder hops through the hypervisor to plain `sshd`, which needs a key to trust. `gh secret set BUILDER_SSH_PRIVATE_KEY < ~/.ssh/autolab-builder`. |
 | `NAS_SMB_PASSWORD` | random | Ansible Builder (`storage`) | **Environment-level.** Password for `NAS_SMB_USERNAME`. Rendered into a `0600` credentials file on each host that mounts over SMB; never in fstab, the process list, or a log. `gh secret set NAS_SMB_PASSWORD --env qnta`. |
-| `PVE_EXPORTER_TOKEN_SECRET` | `xxxxxxxx-xxxx-...` | Ansible Builder | Secret for the Proxmox read-only token. Separate from `PROXMOX_API_TOKEN`, which can create and destroy VMs; this one holds `PVEAuditor` only. Unset disables the exporter rather than shipping it broken. |
+| `PVE_EXPORTER_TOKEN_SECRET_<NODE>` | `xxxxxxxx-xxxx-...` | Ansible Builder | One per node (`_XPS_PVE`, `_PVE`), the secret of that node's `pve-exporter@pve!monitoring` token. Separate from `PROXMOX_API_TOKEN_<NODE>`, which can create and destroy VMs; this one holds `PVEAuditor` only. A node without its secret is left out of monitoring, with a line in the run log saying so. A new node also needs its line in workflow 05's env, because a workflow cannot list secrets. |
 | `PBS_PVE_PASSWORD` | `<long random string>` | Ansible Builder (`backup`), Proxmox Node | Password of the `pve@pbs` account the hypervisor backs up with. Set on the PBS host when the account is created; the node authenticates with it. See [backups](./backups.md). |
 | `NTFY_TOPIC` | `autolab-pulsar-xxxxxxxxxx` | Ansible Builder | ntfy topic that alerts publish to. It is the **entire** credential — holding it lets anyone read these alerts and publish to them — so it is a secret, not a variable, and carries random entropy rather than a guessable name. Unset means alerts stay in Grafana and are pushed nowhere. |
 | `GF_SECURITY_ADMIN_PASSWORD` | a generated password | Ansible Builder | Grafana admin login. Anonymous *viewing* is deliberate, but the admin account can rewrite dashboards, add datasources and change where alerts go — on the default `admin`/`admin` that is handed to anyone on the tailnet. Unset leaves the existing password alone. |
@@ -162,7 +161,6 @@ same workflow enrols VMs on a different tailnet. Typed confirmations and the
 
 **Variables**
 
-- [ ] `PROXMOX_HOST` (observability only)
 - [ ] `PROXMOX_LAN_IP` (required for Debian 13 Packer Build)
 - [ ] `PROXMOX_PORT` (optional; defaults to `8006`)
 - [ ] `PROXMOX_INSECURE_TLS` = `true`

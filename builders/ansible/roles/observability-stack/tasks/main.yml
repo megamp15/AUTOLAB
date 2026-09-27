@@ -169,7 +169,7 @@
     owner: "{{ autolab_obs_pve_container_uid }}"
     group: "{{ autolab_obs_pve_container_uid }}"
     mode: "0600"
-  when: autolab_obs_pve_token_id | length > 0
+  when: autolab_obs_pve_nodes | length > 0
   notify: Restart observability stack
 
 - name: Install the compose file
@@ -428,7 +428,7 @@
     autolab_obs_digest_active: >-
       {{ autolab_obs_digest_enabled | bool
          and autolab_obs_ntfy_topic | length > 0
-         and autolab_obs_pve_token_secret | length > 0 }}
+         and autolab_obs_pve_nodes | length > 0 }}
 
 - name: Own the directory the digest reads its settings from
   ansible.builtin.file:

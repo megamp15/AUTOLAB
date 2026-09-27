@@ -339,9 +339,13 @@ jobs:
       - name: Render Builder extra variables
         id: extra_vars
         env:
-          AUTOLAB_PVE_HOST: ${{ vars.PROXMOX_HOST }}
+          # The exporter's token secret, one per node, named like the API
+          # tokens (PVE_EXPORTER_TOKEN_SECRET_<NODE>). A workflow cannot list
+          # secrets, so a new node adds its line here; the node list itself
+          # comes from the hypervisor inventory below.
           AUTOLAB_PVE_TOKEN_ID: ${{ vars.PVE_EXPORTER_TOKEN_ID }}
-          AUTOLAB_PVE_TOKEN_SECRET: ${{ secrets.PVE_EXPORTER_TOKEN_SECRET }}
+          AUTOLAB_PVE_TOKEN_SECRET_XPS_PVE: ${{ secrets.PVE_EXPORTER_TOKEN_SECRET_XPS_PVE }}
+          AUTOLAB_PVE_TOKEN_SECRET_PVE: ${{ secrets.PVE_EXPORTER_TOKEN_SECRET_PVE }}
           # The ntfy topic is the whole credential — anyone holding it can read
           # these alerts and publish to them — so it is a secret, not a variable.
           AUTOLAB_NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
@@ -374,7 +378,20 @@ jobs:
           umask 077
           python3 - "$out" <<'PY'
           import json, os, sys
+          import yaml
           builder_key = os.environ.get("AUTOLAB_BUILDER_SSH_PUBLIC_KEY", "").strip()
+          # Every node the hypervisor inventory names and whose exporter secret
+          # is set. Host = <node>.<tailnet>, as for the API tokens.
+          with open("builders/ansible/inventories/hypervisors/hosts.yml") as f:
+              node_names = list(yaml.safe_load(f)["all"]["children"]["proxmox_nodes"]["hosts"])
+          tailnet = os.environ.get("AUTOLAB_TAILNET_DOMAIN", "")
+          pve_nodes = []
+          for name in node_names:
+              secret = os.environ.get("AUTOLAB_PVE_TOKEN_SECRET_" + name.upper().replace("-", "_"), "")
+              if secret and tailnet:
+                  pve_nodes.append({"name": name, "host": f"{name}.{tailnet}", "token_secret": secret})
+              else:
+                  print(f"No exporter secret for node {name}; it is left out of monitoring.", file=sys.stderr)
           json.dump({
               # The public half of the identity installed above, so the gitops
               # account accepts the next run over the management plane. An empty
@@ -385,9 +402,8 @@ jobs:
                            "password": os.environ["AUTOLAB_NAS_SMB_PASSWORD"]}}
                   if os.environ.get("AUTOLAB_NAS_SMB_PASSWORD") else {}
               ),
-              "autolab_obs_pve_host": os.environ.get("AUTOLAB_PVE_HOST", ""),
+              "autolab_obs_pve_nodes": pve_nodes,
               "autolab_obs_pve_token_id": os.environ.get("AUTOLAB_PVE_TOKEN_ID", ""),
-              "autolab_obs_pve_token_secret": os.environ.get("AUTOLAB_PVE_TOKEN_SECRET", ""),
               "autolab_obs_ntfy_topic": os.environ.get("AUTOLAB_NTFY_TOPIC", ""),
               "autolab_obs_grafana_admin_password": os.environ.get("AUTOLAB_GF_ADMIN_PASSWORD", ""),
               "autolab_obs_stack_management_address": os.environ.get("AUTOLAB_OBS_STACK_ADDRESS", ""),
@@ -408,7 +424,7 @@ jobs:
             echo "No NAS SMB credential; SMB storage entries would fail to mount."
           fi
           if [ -n "${AUTOLAB_PVE_TOKEN_ID}" ]; then
-            echo "Proxmox exporter credentials supplied."
+            echo "Proxmox exporter token id supplied; per-node secrets are listed above."
           else
             echo "No Proxmox exporter credentials; the hypervisor exporter stays disabled."
           fi

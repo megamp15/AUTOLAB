@@ -98,7 +98,7 @@ services:
     ports:
       - "{{ autolab_tailscale_ip }}:{{ autolab_obs_homepage_port }}:80"
 {% endif %}
-{% if autolab_obs_pve_token_id | length > 0 %}
+{% if autolab_obs_pve_nodes | length > 0 %}
 
   # Scrapes the Proxmox API, so it needs no agent on the hypervisor. Not
   # published: only Prometheus in this compose network talks to it.

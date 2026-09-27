@@ -88,7 +88,7 @@ autolab_ingress_acme_email: ""
 # tailnet, and the browser sees the real certificate Traefik holds.
 # Hosts are bare MagicDNS labels; the role appends the domain and builds
 # the machine routes from them at run time.
-autolab_ingress_pve_host: "{{ autolab_obs_pve_host | default('') }}"
+autolab_ingress_pve_hosts: "{{ autolab_obs_pve_nodes | default([]) | map(attribute='host') | list }}"
 autolab_ingress_pbs_host: ""
 autolab_ingress_nas_host: "singularity"
 # The services host, and which of the catalog's services it runs. Supplied by

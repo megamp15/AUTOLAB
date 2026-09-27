@@ -56,7 +56,7 @@ groups:
               # The join is for the annotation, not the logic: without it the only
               # identifier on these series is `id`, so the notification read
               # "qemu/102 is stopped" and left you to work out which VM that is.
-              expr: '(pve_onboot_status{id=~"qemu/.*"} == 1 unless on(id) pve_up == 1) * on(id) group_left(name) max by (id, name) (pve_guest_info{name!~"{{ autolab_obs_transient_guest_names | join('|') }}"})'
+              expr: '(pve_onboot_status{id=~"qemu/.*"} == 1 unless on(instance, id) pve_up == 1) * on(instance, id) group_left(name) max by (instance, id, name) (pve_guest_info{name!~"{{ autolab_obs_transient_guest_names | join('|') }}"})'
           - refId: THRESHOLD
             datasourceUid: __expr__
             model:
@@ -91,8 +91,8 @@ groups:
               editorMode: code
               # name!~ transient: see autolab_obs_transient_guest_names — a
               # restore test renames its guest, and a rename is a second series
-              # with a different name that max by (id, name) cannot fold.
-              # max by (id, name): pve_guest_info carries a `tags` label, and a
+              # with a different name that max by (instance, id, name) cannot fold.
+              # max by (instance, id, name): pve_guest_info carries a `tags` label, and a
               # freshly cloned VM briefly reports the template's tags before
               # OpenTofu sets its own. Both series then sit in the lookback
               # window, group_left sees two right-hand matches for one id, and
@@ -114,7 +114,7 @@ groups:
               # The one gap: a tenant that sets agent = false in its own map is
               # invisible to this inventory, so the rule fires for it — opting
               # a tenant guest out means telling the provider, not the file.
-              expr: '(pve_up{id=~"qemu/.*"} == 1) * on(id) group_left(name) max by (id, name) (pve_guest_info{template="0", name!~"{{ (autolab_obs_transient_guest_names + autolab_obs_unmonitored_guests) | join('|') }}"}) unless on(name) label_replace(node_uname_info, "name", "$1", "instance", "(.+)")'
+              expr: '(pve_up{id=~"qemu/.*"} == 1) * on(instance, id) group_left(name) max by (instance, id, name) (pve_guest_info{template="0", name!~"{{ (autolab_obs_transient_guest_names + autolab_obs_unmonitored_guests) | join('|') }}"}) unless on(name) label_replace(node_uname_info, "name", "$1", "instance", "(.+)")'
           - refId: THRESHOLD
             datasourceUid: __expr__
             model:
@@ -264,7 +264,7 @@ groups:
               # has not happened. horizon paged three times on its first
               # evening for exactly that. The subquery finds the oldest sample
               # in a week; a guest older than the window passes trivially.
-              expr: '(((pve_up{id=~"qemu/.*"} == 1) * on(id) group_left(name) max by (id, name) (pve_guest_info{template="0", name!~"{{ autolab_obs_transient_guest_names | join('|') }}"})) unless on(name) (max by (name) (last_over_time(autolab_backup_excluded[7d])) == 1) unless on(name) ((time() - max by (name) (last_over_time(autolab_backup_last_seconds[7d]))) < {{ autolab_obs_alert_backup_max_age_hours }} * 3600)) and on(id) ((time() - min_over_time(timestamp(pve_up{id=~"qemu/.*"})[7d:5m])) > {{ autolab_obs_alert_backup_max_age_hours }} * 3600)'
+              expr: '(((pve_up{id=~"qemu/.*"} == 1) * on(instance, id) group_left(name) max by (instance, id, name) (pve_guest_info{template="0", name!~"{{ autolab_obs_transient_guest_names | join('|') }}"})) unless on(name) (max by (name) (last_over_time(autolab_backup_excluded[7d])) == 1) unless on(name) ((time() - max by (name) (last_over_time(autolab_backup_last_seconds[7d]))) < {{ autolab_obs_alert_backup_max_age_hours }} * 3600)) and on(instance, id) ((time() - min_over_time(timestamp(pve_up{id=~"qemu/.*"})[7d:5m])) > {{ autolab_obs_alert_backup_max_age_hours }} * 3600)'
           - refId: THRESHOLD
             datasourceUid: __expr__
             model:
