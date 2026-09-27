@@ -1,12 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- AUTOLAB: the homepage's singularity — an event horizon with its disc
-       passing in front. Rounded tile for tabs and pinned sites. -->
-  <rect width="64" height="64" rx="14" fill="#0A0A0A"/>
-  <g transform="rotate(-20 32 32)">
-    <ellipse cx="32" cy="32" rx="25" ry="7.5" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-opacity="0.55"/>
+  <!-- AUTOLAB: the homepage's singularity. A bare mark that fills its frame,
+       like the other pinned sites' icons: white on a dark browser, black on
+       a light one. The far half of the disc is masked where the horizon
+       hides it, so no background colour is assumed. -->
+  <style>
+    .m { stroke: #FFFFFF; }
+    @media (prefers-color-scheme: light) { .m { stroke: #0A0A0A; } }
+  </style>
+  <defs>
+    <mask id="behind">
+      <rect width="64" height="64" fill="#fff"/>
+      <circle cx="32" cy="32" r="16.5" fill="#000"/>
+    </mask>
+  </defs>
+  <g transform="rotate(-20 32 32)" fill="none" stroke-linecap="round">
+    <path class="m" d="M2 32 A30 9 0 0 1 62 32" stroke-width="3.6" stroke-opacity="0.55" mask="url(#behind)"/>
   </g>
-  <circle cx="32" cy="32" r="11.5" fill="#0A0A0A" stroke="#FFFFFF" stroke-width="3"/>
-  <g transform="rotate(-20 32 32)">
-    <path d="M7 32 A25 7.5 0 0 0 57 32" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+  <circle class="m" cx="32" cy="32" r="14" fill="none" stroke-width="4.2"/>
+  <g transform="rotate(-20 32 32)" fill="none" stroke-linecap="round">
+    <path class="m" d="M2 32 A30 9 0 0 0 62 32" stroke-width="3.6"/>
   </g>
 </svg>
