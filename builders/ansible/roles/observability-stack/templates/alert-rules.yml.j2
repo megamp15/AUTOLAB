@@ -108,13 +108,12 @@ groups:
               # The list comes from the same machines map that skipped the
               # install, so the two cannot drift: one declaration, both effects.
               #
-              # Tenant guests are held to the same rule. They ship over the
-              # bridge to this host's ingest ports, and a tenant VM that has
-              # gone quiet is exactly what the provider needs to hear about.
-              # The one gap: a tenant that sets agent = false in its own map is
-              # invisible to this inventory, so the rule fires for it — opting
-              # a tenant guest out means telling the provider, not the file.
-              expr: '(pve_up{id=~"qemu/.*"} == 1) * on(instance, id) group_left(name) max by (instance, id, name) (pve_guest_info{template="0", name!~"{{ (autolab_obs_transient_guest_names + autolab_obs_unmonitored_guests) | join('|') }}"}) unless on(name) label_replace(node_uname_info, "name", "$1", "instance", "(.+)")'
+              # Tenant guests (tag tenant-*) are not held to it: a tenant runs
+              # its own observability over its own tailnet, so its agents never
+              # report here, and the rule would fire for every one of them.
+              # The provider still sees a tenant guest that is down, through
+              # pve_up and the guest-down rule, which need no agent.
+              expr: '(pve_up{id=~"qemu/.*"} == 1) * on(instance, id) group_left(name) max by (instance, id, name) (pve_guest_info{template="0", tags!~".*tenant-.*", name!~"{{ (autolab_obs_transient_guest_names + autolab_obs_unmonitored_guests) | join('|') }}"}) unless on(name) label_replace(node_uname_info, "name", "$1", "instance", "(.+)")'
           - refId: THRESHOLD
             datasourceUid: __expr__
             model:
