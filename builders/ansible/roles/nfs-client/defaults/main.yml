@@ -33,8 +33,9 @@ autolab_nfs_mounts: []
 #
 #   hard      — retry indefinitely rather than failing I/O on a blip. The right
 #               choice for data mounts; soft risks silent corruption.
-#   _netdev   — wait for the network at boot, so the mount does not fail before
-#               the tailnet is up.
+#   _netdev   — wait for the ordinary network at boot. Not the tailnet: that is
+#               what autolab-nfs-servers-resolvable.service is for, which the
+#               role adds to every mount as x-systemd.requires.
 #   nosuid    — a setuid binary on the NAS cannot escalate on this host.
 #   nodev     — device nodes on the share are not honoured.
 #   noatime   — no write per read.
