@@ -54,9 +54,12 @@ def pve(node, path):
 
 
 def guests_everywhere():
-    # (node, guest) for every non-template VM on every node.
+    # (node, guest) for every non-template VM AUTOLAB made (tag autolab) on
+    # every node. A node can hold guests that are not AUTOLAB's — pve keeps
+    # the stopped qcicd VMs — and those are neither listed nor counted.
     return [(n, g) for n in NODES for g in pve(n, "/cluster/resources?type=vm")
-            if g.get("type") == "qemu" and not g.get("template")]
+            if g.get("type") == "qemu" and not g.get("template")
+            and "autolab" in str(g.get("tags", "")).split(";")]
 
 
 def excluded_everywhere():
