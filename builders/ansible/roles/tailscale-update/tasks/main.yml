@@ -12,11 +12,24 @@
     state: directory
     mode: '0755'
 
+# get_url downloads only when the file is missing (force defaults to false),
+# but in check mode it compares against an empty file and reports changed
+# every time. Knowing whether the file exists lets check mode say what a real
+# run would do.
+- name: See which Tailscale apt files are already in place
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /usr/share/keyrings/tailscale-archive-keyring.gpg
+    - /etc/apt/sources.list.d/tailscale.list
+  register: autolab_tailscale_apt_files
+
 - name: Install the Tailscale repository signing key
   ansible.builtin.get_url:
     url: "https://pkgs.tailscale.com/{{ tailscale_track }}/{{ ansible_facts['distribution'] | lower }}/{{ ansible_facts['distribution_release'] }}.noarmor.gpg"
     dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
     mode: '0644'
+  when: not (ansible_check_mode and autolab_tailscale_apt_files.results[0].stat.exists)
 
 - name: Install the Tailscale apt repository definition
   ansible.builtin.get_url:
@@ -26,6 +39,7 @@
       ansible_facts['distribution_release'] }}.tailscale-keyring.list
     dest: /etc/apt/sources.list.d/tailscale.list
     mode: '0644'
+  when: not (ansible_check_mode and autolab_tailscale_apt_files.results[1].stat.exists)
 
 # CI-driven upgrades instead of `tailscale set --auto-update`: the built-in
 # updater races unattended-upgrades on the same dpkg lock (tailscale/tailscale

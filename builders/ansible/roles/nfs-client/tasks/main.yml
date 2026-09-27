@@ -37,10 +37,14 @@
 # Which paths already have something mounted on them. Needed by the next task:
 # once a share is mounted, the mount point is no longer a local directory, and
 # managing its mode would reach through and change permissions on the NAS.
+# Read-only, so it runs in check mode too. Skipped there, the list came back
+# empty and every mounted share looked like a mount point still to create:
+# ark and jwst reported "Create NFS mount points" changed on every check.
 - name: List currently mounted paths
   ansible.builtin.command: findmnt --raw --noheadings --output TARGET
   changed_when: false
   failed_when: false
+  check_mode: false
   register: autolab_nfs_mounted_paths
 
 # Only for paths that are not yet mount points. A mount point's own permissions
