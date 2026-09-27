@@ -195,13 +195,17 @@ def write_status(path):
         except Exception as e:  # noqa: BLE001
             feed.append({"time": "--:--", "text": f"backup server: {type(e).__name__}"})
     try:
-        for node, g in sorted(guests_everywhere(), key=lambda ng: (ng[0]["name"], ng[1]["vmid"])):
+        # A tenant's guests carry a tenant-<name> tag (the stack's common_tags)
+        # and get their own section, so the lab's machines are not buried.
+        def is_tenant(g):
+            return any(t.startswith("tenant-") for t in str(g.get("tags", "")).split(";"))
+        for node, g in sorted(guests_everywhere(), key=lambda ng: (is_tenant(ng[1]), ng[0]["name"], ng[1]["vmid"])):
             running = g.get("status") == "running"
             meta = "running" if running else g.get("status", "?")
             if g["vmid"] in newest:
                 meta += " · backup " + age(newest[g["vmid"]])[0]
-            rows.append({"name": g["name"], "meta": meta, "icon": "tenant" if g["name"].startswith("qnta") else "guest",
-                         "group": "machines",
+            rows.append({"name": g["name"], "meta": meta, "icon": "tenant" if is_tenant(g) else "guest",
+                         "group": "tenant machines" if is_tenant(g) else "machines",
                          "url": f"{node['ui']}/#v1:0:=qemu%2F{g['vmid']}", "up": running})
         # A line per node once there is more than one, named, since each node
         # runs its own job.
