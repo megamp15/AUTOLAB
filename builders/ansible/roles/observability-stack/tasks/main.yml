@@ -517,6 +517,22 @@
     mode: "0644"
   when: autolab_obs_homepage_enabled | bool
 
+# What a browser shows when the page is in a tab, pinned, or on a home screen.
+- name: Install the homepage's icons
+  ansible.builtin.copy:
+    src: "homepage/{{ item }}"
+    dest: "{{ autolab_obs_root }}/homepage/site/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - favicon.svg
+    - apple-touch-icon.png
+    - icon-192.png
+    - icon-512.png
+    - site.webmanifest
+  when: autolab_obs_homepage_enabled | bool
+
 - name: Declare the homepage's links
   ansible.builtin.template:
     src: homepage.json.j2
