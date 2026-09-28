@@ -10,14 +10,7 @@ scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
-{% if autolab_obs_pve_nodes | length > 0 %}
 
-  # Proxmox hypervisor metrics. The exporter scrapes the Proxmox API, so it runs
-  # here rather than on the PVE host — per-VM usage, storage pools and cluster
-  # state need no agent installed on Proxmox itself.
-  #
-  # The relabel dance is the exporter's documented calling convention: the
-  # target being scraped is passed as a query parameter, not as the address.
   # The backends, scraped over the compose network by service name. Without
   # these the stack is blind to itself: Loki can stop accepting writes and the
   # only symptom is logs quietly not arriving.
@@ -28,7 +21,14 @@ scrape_configs:
   - job_name: grafana
     static_configs:
       - targets: ["grafana:3000"]
+{% if autolab_obs_pve_nodes | length > 0 %}
 
+  # Proxmox hypervisor metrics. The exporter scrapes the Proxmox API, so it runs
+  # here rather than on the PVE host — per-VM usage, storage pools and cluster
+  # state need no agent installed on Proxmox itself.
+  #
+  # The relabel dance is the exporter's documented calling convention: the
+  # target being scraped is passed as a query parameter, not as the address.
   - job_name: pve
     metrics_path: /pve
     params:
