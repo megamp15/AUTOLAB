@@ -52,6 +52,25 @@
     signed_by: /usr/share/keyrings/grafana.asc
     state: present
 
+# On a host that never had Alloy, check mode only reports the repository
+# above as added, so apt cannot find the package, and nothing Alloy's package
+# would create (its user, /etc/alloy, the unit) exists yet. The first check of
+# the qnta guests failed on "No package matching 'alloy'". Until Alloy is
+# installed, check mode says so and skips what depends on it.
+- name: See whether Alloy is installed
+  ansible.builtin.stat:
+    path: /usr/bin/alloy
+  register: autolab_alloy_binary
+
+- name: Decide whether check mode can inspect Alloy
+  ansible.builtin.set_fact:
+    autolab_alloy_inspectable: "{{ not ansible_check_mode or autolab_alloy_binary.stat.exists }}"
+
+- name: Note what check mode cannot inspect
+  ansible.builtin.debug:
+    msg: "First run: Alloy would be installed, configured and started."
+  when: not autolab_alloy_inspectable | bool
+
 # No cache_valid_time here, deliberately. It means "skip the refresh if the
 # cache is younger than this", and harden.yml refreshes the cache minutes
 # earlier in a normal run — so the repository added just above would never be
@@ -62,6 +81,7 @@
     name: alloy
     state: "{{ autolab_alloy_package_state }}"
     update_cache: true
+  when: autolab_alloy_inspectable | bool
 
 # Alloy reads the whole directory, so a stale file left by a previous config
 # would still be loaded. One managed file keeps what runs equal to what is in
@@ -82,6 +102,7 @@
     group: root
     mode: "0644"
   notify: Restart alloy
+  when: autolab_alloy_inspectable | bool
 
 # Alloy reads journald through systemd-journal-gatewayd's socket group. Without
 # this it starts cleanly and silently ships no logs, which is worse than
@@ -92,6 +113,7 @@
     groups: systemd-journal
     append: true
   notify: Restart alloy
+  when: autolab_alloy_inspectable | bool
 
 # Per-container metrics. Privileged and mounting the host's cgroup tree,
 # because that is what reading every container's usage requires; in exchange
@@ -134,7 +156,9 @@
     name: alloy
     groups: docker
     append: true
-  when: autolab_builder.docker_enabled | default(false) | bool
+  when:
+    - autolab_builder.docker_enabled | default(false) | bool
+    - autolab_alloy_inspectable | bool
   notify: Restart alloy
 
 - name: Enable and start Alloy
@@ -142,3 +166,4 @@
     name: alloy
     state: started
     enabled: true
+  when: autolab_alloy_inspectable | bool

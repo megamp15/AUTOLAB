@@ -3,3 +3,4 @@
   ansible.builtin.service:
     name: alloy
     state: restarted
+  when: autolab_alloy_inspectable | default(true) | bool
