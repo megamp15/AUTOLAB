@@ -82,14 +82,21 @@
       {%-   set _ = out.update({host.split('.')[0]: own | combine({'upstream': 'https://' ~ host ~ ':8006'})}) -%}
       {%- endfor -%}
       {{ out }}
+    # A machine route exists only where its machine does. A deployment with
+    # no backup server or NAS (a tenant's ingress, say) gets neither, rather
+    # than a route to https://:8007.
+    machine_routes: >-
+      {%- set out = {} -%}
+      {%- if autolab_ingress_pbs_fqdn | length > 0 -%}
+      {%-   set _ = out.update({'pbs': own | combine({'upstream': 'https://' ~ autolab_ingress_pbs_fqdn ~ ':8007'})}) -%}
+      {%- endif -%}
+      {%- if autolab_ingress_nas_host | length > 0 -%}
+      {%-   set _ = out.update({'nas': own | combine({'upstream': 'https://' ~ autolab_ingress_nas_host ~ '.' ~ autolab_ingress_tailnet_domain ~ ':9443'})}) -%}
+      {%- endif -%}
+      {{ out }}
   ansible.builtin.set_fact:
     autolab_ingress_internal_routes: >-
-      {{ autolab_ingress_service_routes | combine(node_routes) | combine({
-           'pbs':
-             own | combine({'upstream': 'https://' ~ autolab_ingress_pbs_fqdn ~ ':8007'}),
-           'nas':
-             own | combine({'upstream': 'https://' ~ autolab_ingress_nas_host ~ '.' ~ autolab_ingress_tailnet_domain ~ ':9443'}),
-         }) }}
+      {{ autolab_ingress_service_routes | combine(node_routes) | combine(machine_routes) }}
 
 - name: Decide whether the tailnet side is on
   ansible.builtin.set_fact:
