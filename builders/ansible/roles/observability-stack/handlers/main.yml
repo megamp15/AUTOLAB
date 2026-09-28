@@ -3,6 +3,7 @@
   community.docker.docker_compose_v2:
     project_src: "{{ autolab_obs_root }}"
     state: restarted
+  when: not ansible_check_mode or autolab_obs_compose_file.stat.exists | default(true)
 
 # A new digest announces itself, so the first install and every change is
 # proven by a message rather than by waiting for 06:00. The run's output is

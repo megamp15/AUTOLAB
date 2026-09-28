@@ -181,11 +181,30 @@
     mode: "0644"
   notify: Restart observability stack
 
+# On a fresh host in check mode nothing above was written — not the
+# directory, not the compose file, not the unit — so compose and systemd
+# have nothing to look at, and the first check of a new stack (qnta's) failed
+# with "/opt/autolab/observability is not a directory". Once the host is
+# provisioned the files exist and check mode inspects them for real, the
+# same rule the ingress role follows.
+- name: See whether the stack was ever installed
+  ansible.builtin.stat:
+    path: "{{ autolab_obs_root }}/docker-compose.yml"
+  register: autolab_obs_compose_file
+
+- name: Note what check mode cannot inspect
+  ansible.builtin.debug:
+    msg: >-
+      First run: the stack would be installed and started; check mode cannot
+      show what a stack that does not exist yet would do.
+  when: ansible_check_mode and not autolab_obs_compose_file.stat.exists
+
 - name: Bring the observability stack up
   community.docker.docker_compose_v2:
     project_src: "{{ autolab_obs_root }}"
     state: present
     pull: missing
+  when: not ansible_check_mode or autolab_obs_compose_file.stat.exists
 
 # Boot ordering, not runtime supervision. dockerd starts restart-policy
 # containers at daemon start, before tailscaled has configured the tailnet
@@ -207,6 +226,7 @@
     name: autolab-observability
     enabled: true
     daemon_reload: true
+  when: not ansible_check_mode or autolab_obs_compose_file.stat.exists
 
 # The agent play that follows starts shipping immediately, and loki.write does
 # not recover from a refused connection. Waiting here rather than racing it.
