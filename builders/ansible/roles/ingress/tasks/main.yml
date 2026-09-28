@@ -268,6 +268,37 @@
     daemon_reload: true
   when: autolab_ingress_tailnet_side | bool and not ansible_check_mode
 
+# A restart owed from an earlier run is not remembered. On qnta-network the
+# first apply notified the resolver's restart, then an earlier handler failed
+# and ended the play; the next run found every file already in place, and
+# dnsmasq kept serving the package's defaults (REFUSED for the zone). So the
+# running process is compared with its files: a file changed after systemd
+# started it was never read. (Not /proc/<pid>'s own time, which the kernel
+# may set on first lookup rather than at start.)
+- name: See whether the running resolver predates its configuration
+  ansible.builtin.shell: |
+    started="$(systemctl show -p ExecMainStartTimestamp --value dnsmasq)"
+    [ -n "$started" ] || exit 0
+    started="$(date -d "$started" +%s)"
+    for f in /etc/default/dnsmasq \
+             /etc/dnsmasq.d/autolab-lab.conf \
+             /etc/systemd/system/dnsmasq.service.d/autolab-wait-tailnet.conf; do
+      if [ -e "$f" ] && [ "$(stat -c %Y "$f")" -gt "$started" ]; then echo "$f"; fi
+    done
+  register: autolab_ingress_resolver_stale
+  changed_when: false
+  check_mode: false
+  when: autolab_ingress_tailnet_side | bool
+
+- name: Restart the resolver onto its current configuration
+  ansible.builtin.systemd_service:
+    name: dnsmasq
+    state: restarted
+    daemon_reload: true
+  when:
+    - autolab_ingress_tailnet_side | bool
+    - autolab_ingress_resolver_stale.stdout | default('') | length > 0
+
 # The DNS-only token for the certificate's DNS challenge. Traefik reads it
 # from its environment; an absent token leaves the tailnet side off.
 - name: Install Traefik's environment
