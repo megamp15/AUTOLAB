@@ -6,6 +6,16 @@
   register: autolab_docker_install
   when: autolab_docker_enabled | bool
 
+# Ubuntu guests built before the line above got Compose v1 instead; nothing
+# of ours runs it, and a second `docker-compose` on the PATH only misleads.
+- name: Remove Compose v1 where v2 is its own package
+  ansible.builtin.apt:
+    name: docker-compose
+    state: absent
+  when:
+    - autolab_docker_enabled | bool
+    - autolab_docker_compose_package != 'docker-compose'
+
 # In check mode on a host that never had Docker, the install above only says
 # it would happen, and there is no unit yet for systemd to find. The six new
 # qnta guests failed their first check here while the apply went through.
