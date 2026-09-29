@@ -1,0 +1,11 @@
+# Managed by Ansible — roles/proxmox-node. Tells Healthchecks.io this node is
+# up and online; see autolab_pve_heartbeat_urls.
+[Unit]
+Description=Heartbeat to Healthchecks.io
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/default/autolab-heartbeat
+ExecStart=/usr/bin/curl -fsS -m 10 --retry 3 -o /dev/null ${HEARTBEAT_URL}

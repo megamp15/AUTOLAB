@@ -1,0 +1,38 @@
+---
+# The URL is the check's credential: anyone with it can mark the node alive.
+# It lives in a root-only file the service reads, never on a command line.
+- name: Install the heartbeat's URL
+  ansible.builtin.copy:
+    content: "HEARTBEAT_URL={{ autolab_pve_heartbeat_url }}\n"
+    dest: /etc/default/autolab-heartbeat
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Install the heartbeat service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - autolab-heartbeat.service
+    - autolab-heartbeat.timer
+
+- name: Run the heartbeat on its timer
+  ansible.builtin.systemd_service:
+    name: autolab-heartbeat.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode
+
+# One ping now, so the check turns green on the run that installs it rather
+# than five minutes later, and a wrong URL fails here instead of silently.
+- name: Send a heartbeat now
+  ansible.builtin.systemd_service:
+    name: autolab-heartbeat.service
+    state: started
+  when: not ansible_check_mode

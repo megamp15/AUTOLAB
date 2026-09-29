@@ -1,0 +1,11 @@
+# Managed by Ansible — roles/proxmox-node.
+[Unit]
+Description=Heartbeat to Healthchecks.io every {{ autolab_pve_heartbeat_interval }}
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec={{ autolab_pve_heartbeat_interval }}
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
