@@ -63,6 +63,11 @@
         enabled: true
     autolab_pve_backup: "{{ autolab_pve_backup_by_node[inventory_hostname] }}"
 
+    # xps-pve's only uplink is Wi-Fi; pve is wired.
+    autolab_pve_wifi_by_node:
+      xps-pve: wlp2s0
+    autolab_pve_wifi_interface: "{{ autolab_pve_wifi_by_node[inventory_hostname] | default('') }}"
+
     autolab_pve_pbs_storages:
       - name: ark
         server: "{{ autolab_pve_backup.pbs_server }}"

@@ -19,3 +19,10 @@ autolab_pve_pbs_password: ""
 # somewhere other than this node — a backup nobody can decrypt is a file.
 # `exclude` is for templates, which vzdump would otherwise archive nightly.
 autolab_pve_backup_jobs: []
+
+# A node whose uplink is Wi-Fi names the interface here; empty means wired
+# and nothing below applies. Power saving on the radio lets the card sleep
+# between beacons, and a server's card should never sleep: on xps-pve's
+# Qualcomm ath10k it was on by default, and the node went through spells of
+# staying associated while passing no traffic. `iw` turns it off at boot.
+autolab_pve_wifi_interface: ""

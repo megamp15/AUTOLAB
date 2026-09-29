@@ -1,0 +1,33 @@
+---
+- name: Install iw
+  ansible.builtin.apt:
+    name: iw
+    state: present
+
+- name: Install the unit that keeps Wi-Fi power saving off
+  ansible.builtin.template:
+    src: autolab-wifi-power-save-off.service.j2
+    dest: /etc/systemd/system/autolab-wifi-power-save-off.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply the Wi-Fi power setting
+
+- name: Enable it at boot
+  ansible.builtin.systemd_service:
+    name: autolab-wifi-power-save-off.service
+    enabled: true
+    daemon_reload: true
+  when: not ansible_check_mode
+
+# Read back, so a run that says nothing changed also says the radio is awake.
+- name: Read the radio's power-save state
+  ansible.builtin.command: iw dev {{ autolab_pve_wifi_interface }} get power_save
+  register: autolab_pve_wifi_power_save
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Say what the radio is doing
+  ansible.builtin.debug:
+    msg: "{{ autolab_pve_wifi_interface }}: {{ autolab_pve_wifi_power_save.stdout | default('iw not installed yet') }}"

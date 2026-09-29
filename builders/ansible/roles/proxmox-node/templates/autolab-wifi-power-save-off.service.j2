@@ -1,0 +1,14 @@
+# Managed by Ansible — roles/proxmox-node. A server's Wi-Fi card must not
+# sleep between beacons; see autolab_pve_wifi_interface.
+[Unit]
+Description=Keep {{ autolab_pve_wifi_interface }} power saving off
+After=sys-subsystem-net-devices-{{ autolab_pve_wifi_interface }}.device network.target
+Wants=sys-subsystem-net-devices-{{ autolab_pve_wifi_interface }}.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/iw dev {{ autolab_pve_wifi_interface }} set power_save off
+
+[Install]
+WantedBy=multi-user.target
