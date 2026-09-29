@@ -65,3 +65,7 @@ autolab_pbs_openid_username_claim: preferred_username
 # The Pocket ID username that gets Admin on everything. Others who log in
 # exist and can do nothing until someone grants them a role.
 autolab_pbs_openid_admin_user: ""
+
+# How often ark checks that UGOS has not locked PBS out of its datastore
+# (see templates/autolab-pbs-access.sh.j2).
+autolab_pbs_access_interval: 15min

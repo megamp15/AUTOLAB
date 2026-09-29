@@ -1,0 +1,8 @@
+# Managed by Ansible — roles/pbs.
+[Unit]
+Description=Keep PBS's datastores reachable by the backup user
+RequiresMountsFor={% for ds in autolab_pbs_datastores %}{{ ds.path }} {% endfor %}
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/autolab-pbs-access
