@@ -11,12 +11,15 @@
     owner: root
     group: root
     mode: "0644"
-  notify: Apply the Wi-Fi power setting
+  register: autolab_pve_wifi_unit
 
-- name: Enable it at boot
+# Started here rather than by a handler, so the read-back below sees the
+# setting this run applied (a handler ran after it and printed "on").
+- name: Enable it at boot and apply it now
   ansible.builtin.systemd_service:
     name: autolab-wifi-power-save-off.service
     enabled: true
+    state: "{{ 'restarted' if autolab_pve_wifi_unit is changed else 'started' }}"
     daemon_reload: true
   when: not ansible_check_mode
 

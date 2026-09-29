@@ -31,3 +31,7 @@
 - name: Keep a Wi-Fi uplink's radio awake
   ansible.builtin.import_tasks: wifi.yml
   when: autolab_pve_wifi_interface | length > 0
+
+- name: Tell Healthchecks.io this node is alive
+  ansible.builtin.import_tasks: heartbeat.yml
+  when: autolab_pve_heartbeat_url | length > 0

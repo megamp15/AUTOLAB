@@ -26,3 +26,12 @@ autolab_pve_backup_jobs: []
 # Qualcomm ath10k it was on by default, and the node went through spells of
 # staying associated while passing no traffic. `iw` turns it off at boot.
 autolab_pve_wifi_interface: ""
+
+# An outside heartbeat. When a node loses its network, the lab's own alerts go
+# quiet with it (jwst is on xps-pve), so the node pings a Healthchecks.io check
+# every few minutes and Healthchecks.io raises the alarm when the pings stop.
+# One URL per node, from GitHub secrets HEALTHCHECKS_PING_URL_<NODE>; a node
+# without one gets no timer.
+autolab_pve_heartbeat_urls: {}
+autolab_pve_heartbeat_url: "{{ autolab_pve_heartbeat_urls[inventory_hostname] | default('') }}"
+autolab_pve_heartbeat_interval: 5min
