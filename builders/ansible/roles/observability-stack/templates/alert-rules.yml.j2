@@ -308,6 +308,77 @@ groups:
                     type: gt
                     params: [60]
 
+      # UGOS rebuilds a shared folder's permissions whenever they are saved in
+      # its UI and leaves PBS's uid 34 out. ark's autolab-pbs-access timer puts
+      # them back every 15 minutes and reports here: locked out means its
+      # repair did not work (every backup fails until it does); a repair means
+      # someone changed permissions on the NAS, worth knowing even when healed.
+      - uid: autolab-pbs-locked-out
+        title: PBS is locked out of its datastore
+        condition: THRESHOLD
+        for: 20m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "The backup user cannot reach its datastore on the NAS"
+          description: "ark could not put back the permissions PBS needs on its chunk store (UGOS reset them). Every backup fails until it can: run the backup playbook on ark and read its output."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: 'min(autolab_pbs_datastore_accessible)'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+
+      - uid: autolab-nas-permissions-reset
+        title: NAS permissions were reset
+        condition: THRESHOLD
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "UGOS reset the datastore permissions; ark put them back"
+          description: "A permissions save in UGOS rebuilt the autolab share and locked PBS out; ark repaired it. Backups that ran in between failed and will be retried by the nightly job."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: 'increase(autolab_pbs_access_repairs_total[1h])'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+
       # The front door. cloudflared reports how many connections it holds to
       # Cloudflare's edge; zero means every public hostname is Cloudflare's
       # error page. The rule is 1 when bad, 0 when fine, so the comparison

@@ -93,6 +93,57 @@
       loop_control:
         label: "{{ item.name }} {{ item.path }}"
 
+    # UGOS rebuilds a shared folder's permissions whenever they are saved in
+    # its UI and leaves uid 34 out, which locks PBS out of the chunk store.
+    # The script puts back what PBS needs, from root, only when it is missing;
+    # the timer does the same between runs and the metric feeds an alert.
+    - name: Install the datastore access repair
+      ansible.builtin.template:
+        src: autolab-pbs-access.sh.j2
+        dest: /usr/local/sbin/autolab-pbs-access
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install its service and timer
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "/etc/systemd/system/{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - autolab-pbs-access.service
+        - autolab-pbs-access.timer
+
+    - name: Run it on its timer
+      ansible.builtin.systemd_service:
+        name: autolab-pbs-access.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+      when: not ansible_check_mode
+
+    # Check mode on a host without the script yet has nothing to run.
+    - name: See whether the repair is installed
+      ansible.builtin.stat:
+        path: /usr/local/sbin/autolab-pbs-access
+      register: autolab_pbs_access_script
+
+    - name: Make sure the backup user can reach its datastores
+      ansible.builtin.command:
+        argv: "{{ ['/usr/local/sbin/autolab-pbs-access'] + (['--check'] if ansible_check_mode else []) }}"
+      register: autolab_pbs_access
+      changed_when: "'REPAIRED' in autolab_pbs_access.stdout or autolab_pbs_access.rc == 3"
+      failed_when: autolab_pbs_access.rc not in [0, 3]
+      check_mode: false
+      when: not ansible_check_mode or autolab_pbs_access_script.stat.exists
+
+    - name: Say what it found
+      ansible.builtin.debug:
+        msg: "{{ autolab_pbs_access.stdout_lines | default([]) or ['backup can reach every datastore'] }}"
+      when: autolab_pbs_access is not skipped
+
     - name: Prove the service user can write there
       ansible.builtin.command:
         argv: [sh, -c, "f={{ item.path }}/.autolab-write-probe && touch \"$f\" && rm -f \"$f\""]

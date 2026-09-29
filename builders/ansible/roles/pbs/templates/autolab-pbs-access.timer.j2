@@ -1,0 +1,10 @@
+# Managed by Ansible — roles/pbs.
+[Unit]
+Description=Check PBS's datastore access every {{ autolab_pbs_access_interval }}
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec={{ autolab_pbs_access_interval }}
+
+[Install]
+WantedBy=timers.target

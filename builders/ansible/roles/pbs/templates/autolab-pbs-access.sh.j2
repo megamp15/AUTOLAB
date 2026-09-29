@@ -1,0 +1,58 @@
+#!/bin/bash
+# Managed by Ansible — roles/pbs. Keeps PBS's `backup` user able to reach its
+# datastores on the NAS.
+#
+# UGOS stores its own permissions on each shared folder and rebuilds them
+# whenever permissions are saved in its UI; uid 34 is not a UGOS user, so a
+# save anywhere can lock PBS out of its chunk store (09-27, 09-28). Root is
+# not affected (the export does not squash it), so root puts back the three
+# things PBS needs: traverse on the share, and 0750 backup:backup on the
+# datastore and its .chunks.
+#
+#   autolab-pbs-access           repair if needed; exit 0 when PBS can get in
+#   autolab-pbs-access --check   report only; exit 3 when a repair is needed
+#
+# Prints REPAIRED when it changed something, so Ansible reports a change only
+# then. Writes textfile metrics for the lockout alert.
+set -u
+mode="${1:-repair}"
+metrics=/var/lib/autolab/textfile/autolab_pbs_access.prom
+state=/var/lib/autolab/pbs-access-repairs
+datastores=({% for ds in autolab_pbs_datastores %}"{{ ds.path }}" {% endfor %})
+
+can_reach() {
+  runuser -u backup -- sh -c 'test -w "$1" && ls "$1/.chunks/0000" >/dev/null' _ "$1" 2>/dev/null
+}
+
+repairs=$(cat "$state" 2>/dev/null || echo 0)
+status=0; out=""
+for ds in "${datastores[@]}"; do
+  if can_reach "$ds"; then accessible=1
+  elif [ "$mode" = --check ]; then
+    echo "$ds: backup cannot reach it; a run would repair it"; accessible=0; status=3
+  else
+    chmod o+x "$(dirname "$ds")"
+    chown backup:backup "$ds" "$ds/.chunks"
+    chmod 0750 "$ds" "$ds/.chunks"
+    if can_reach "$ds"; then
+      echo "REPAIRED $ds: backup can reach it again"; accessible=1; repairs=$((repairs + 1))
+    else
+      echo "$ds: still locked out after repair" >&2; accessible=0; status=1
+    fi
+  fi
+  out+="autolab_pbs_datastore_accessible{path=\"$ds\"} $accessible"$'\n'
+done
+
+if [ "$mode" != --check ]; then
+  mkdir -p "$(dirname "$metrics")"
+  echo "$repairs" > "$state"
+  {
+    echo "# HELP autolab_pbs_datastore_accessible 1 when the backup user can reach the datastore."
+    echo "# TYPE autolab_pbs_datastore_accessible gauge"
+    printf '%s' "$out"
+    echo "# HELP autolab_pbs_access_repairs_total Times the datastore permissions had to be put back."
+    echo "# TYPE autolab_pbs_access_repairs_total counter"
+    echo "autolab_pbs_access_repairs_total $repairs"
+  } > "$metrics.tmp" && mv "$metrics.tmp" "$metrics"
+fi
+exit $status
