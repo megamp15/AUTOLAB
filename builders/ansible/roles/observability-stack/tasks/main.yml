@@ -292,8 +292,12 @@
     path: /etc/autolab/obs-digest-grafana.env
   register: autolab_obs_grafana_token_file
 
+# Only where a digest runs: a stack with no Proxmox nodes (a tenant's) has
+# none, and its first OIDC run asked a missing autolab-obs-digest.service to
+# start.
 - name: Give the digest a Grafana login
   when:
+    - autolab_obs_pve_nodes | length > 0
     - autolab_obs_grafana_oidc_client_id | length > 0
     - autolab_obs_grafana_admin_password | length > 0
     - not autolab_obs_grafana_token_file.stat.exists
