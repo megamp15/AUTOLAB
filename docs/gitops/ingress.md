@@ -240,6 +240,14 @@ machine, so it can do nothing else.
 | `xps-pve.lab.<zone>` | the node's :8006 | Proxmox's own, until it joins the SSO |
 | `pbs.lab.<zone>` | PBS on :8007 (ark) | PBS's own, until it joins the SSO |
 | `nas.lab.<zone>` | UGOS on :9443 (singularity) | UGOS's own |
+| `immich.lab.<zone>` | Immich on :2283, in the NAS's own Docker | Immich's own, through Pocket ID (client `immich`) |
+
+Apps the NAS runs itself are listed in `autolab_ingress_nas_apps`, name to
+port; each gets a route and nothing else. Their compose files live on the
+NAS, not here. Immich's Pocket ID client has three callbacks:
+`/auth/login`, `/user-settings` and `app.immich:///oauth-callback` for the
+phone app; the plugin stays off its route because the app cannot answer a
+passkey prompt.
 
 Hypervisor nodes are named after themselves, since there can be several and
 each is its own place: a second node is `<its-name>.lab.<zone>` with nothing

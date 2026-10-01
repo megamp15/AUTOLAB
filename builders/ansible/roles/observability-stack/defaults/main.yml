@@ -308,6 +308,16 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog['code-server'].port }}/healthz"
+  # Immich runs in the NAS's own Docker and signs people in through Pocket
+  # ID itself; the ingress role's NAS apps give it its name.
+  - name: Immich
+    group: services
+    meta: photos
+    url: "{{ autolab_obs_lab_url.format(name='immich', raw='http://singularity.' ~ autolab_tailscale_fqdn.split('.', 1)[1] ~ ':2283') }}"
+    icon: photos
+    check:
+      type: http
+      target: "http://singularity.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:2283/api/server/ping"
   - name: GitHub
     group: services
     meta: megamp15/AUTOLAB

@@ -91,6 +91,12 @@ autolab_ingress_acme_email: ""
 autolab_ingress_pve_hosts: "{{ autolab_obs_pve_nodes | default([]) | map(attribute='host') | list }}"
 autolab_ingress_pbs_host: ""
 autolab_ingress_nas_host: "singularity"
+# Apps the NAS runs in its own Docker (UGOS), by name and plain-HTTP port.
+# Each becomes <name>.<label>.<zone> and logs people in itself: Immich's
+# phone app talks to its API with a token and cannot answer a passkey
+# prompt, so the plugin stays off. No NAS host, no app routes.
+autolab_ingress_nas_apps:
+  immich: 2283
 # The services host, and which of the catalog's services it runs. Supplied by
 # the playbook from the machines map; empty means no service routes.
 autolab_ingress_services_host: ""

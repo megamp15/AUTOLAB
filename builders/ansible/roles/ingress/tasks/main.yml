@@ -92,6 +92,10 @@
       {%- endif -%}
       {%- if autolab_ingress_nas_host | length > 0 -%}
       {%-   set _ = out.update({'nas': own | combine({'upstream': 'https://' ~ autolab_ingress_nas_host ~ '.' ~ autolab_ingress_tailnet_domain ~ ':9443'})}) -%}
+      {%-   set nas = autolab_ingress_nas_host ~ '.' ~ autolab_ingress_tailnet_domain -%}
+      {%-   for app, port in autolab_ingress_nas_apps.items() -%}
+      {%-     set _ = out.update({app: {'login': 'own', 'upstream': 'http://' ~ nas ~ ':' ~ port}}) -%}
+      {%-   endfor -%}
       {%- endif -%}
       {{ out }}
   ansible.builtin.set_fact:
