@@ -90,6 +90,7 @@
       delay: "{{ autolab_node_guest_wait_delay_s }}"
       changed_when: false
       when:
+        - not ansible_check_mode
         - autolab_reboot_result is not skipped
         - autolab_reboot_result.rebooted | default(false)
 
