@@ -43,3 +43,35 @@
     validate: dockerd --validate --config-file %s
   when: autolab_docker_enabled | bool
   notify: Reload the Docker daemon
+
+# A published container port is reached through FORWARD, not INPUT, so UFW's
+# default-deny never sees it: Docker's own rules accept it first. Compose
+# stacks here dodge that by binding to the tailnet address, but a Swarm
+# service cannot bind to an address at all, and its published port answers
+# on every interface. DOCKER-USER is the chain Docker leaves for this and
+# never rewrites; UFW loads it at boot, before Docker starts. New connections
+# that arrive on the host's own uplink are dropped; replies to what the
+# containers started, the tailnet, and traffic between containers pass.
+- name: Look for UFW's rules file
+  ansible.builtin.stat:
+    path: /etc/ufw/after.rules
+  register: autolab_docker_ufw_rules
+  when: autolab_docker_enabled | bool
+
+- name: Make published container ports follow the host firewall
+  ansible.builtin.blockinfile:
+    path: /etc/ufw/after.rules
+    marker: "# {mark} AUTOLAB docker-host: published ports follow UFW"
+    block: |
+      *filter
+      :DOCKER-USER - [0:0]
+      -A DOCKER-USER -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
+      -A DOCKER-USER -i {{ autolab_docker_uplink }} -m conntrack --ctstate NEW -j DROP
+      -A DOCKER-USER -j RETURN
+      COMMIT
+  when:
+    - autolab_docker_enabled | bool
+    - autolab_docker_uplink | length > 0
+    # The firewall role installs UFW; a host without it has no file to add to.
+    - autolab_docker_ufw_rules.stat.exists | default(false)
+  notify: Reload UFW
