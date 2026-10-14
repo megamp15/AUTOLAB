@@ -23,7 +23,7 @@ autolab_services_enabled: "{{ (autolab_builder | default({})).services | default
 autolab_services_images:
   portainer: "portainer/portainer-ce:2.45.1"
   registry: "registry:3.1.1"
-  registry_ui: "joxit/docker-registry-ui:2.6.0"
+  registry_ui: "ghcr.io/eznix86/docker-registry-ui:1.6.0"
   diun: "crazymax/diun:4.33.0"
   # The base only: the editor runs an image built on the host from this, with
   # the tools below baked in. See templates/code-server/Dockerfile.j2.

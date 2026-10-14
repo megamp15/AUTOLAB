@@ -16,6 +16,9 @@ volumes:
 {% if 'registry' in autolab_services_enabled %}
   registry-data:
 {% endif %}
+{% if 'registry-ui' in autolab_services_enabled %}
+  registry-ui-data:
+{% endif %}
 {% if 'diun' in autolab_services_enabled %}
   diun-data:
 {% endif %}

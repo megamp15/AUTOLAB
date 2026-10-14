@@ -2,13 +2,17 @@
     image: {{ autolab_services_images.registry_ui }}
     restart: unless-stopped
     depends_on: [registry]
+    # eznix86/docker-registry-ui (AGPL-3.0, run unmodified) reads the registry
+    # itself, server-side, and keeps what it found in /app/data. So it uses the
+    # compose network's name for the registry, and the browser only ever talks
+    # to the UI. Its image pins a one-hour sync in its command; new tags show
+    # within fifteen minutes instead.
+    command: ["start", "-v", "--sync-interval=15m"]
     environment:
-      # The browser talks to the registry directly, so this is the address a
-      # browser can reach, not the compose network's.
-      REGISTRY_URL: "http://{{ autolab_services_fqdn }}:{{ autolab_services_ports.registry }}"
-      REGISTRY_TITLE: "Autolab registry"
-      DELETE_IMAGES: "{{ autolab_services_registry_delete_enabled | string | lower }}"
-      SINGLE_REGISTRY: "true"
-      SHOW_CONTENT_DIGEST: "true"
+      REGISTRY_URL: "http://registry:5000"
+      DISABLE_TAG_DELETION: "{{ (not (autolab_services_registry_delete_enabled | bool)) | string | lower }}"
+      SHOW_USAGE_BAR: "true"
+    volumes:
+      - registry-ui-data:/app/data
     ports:
-      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.registry_ui }}:80"
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.registry_ui }}:3000"
