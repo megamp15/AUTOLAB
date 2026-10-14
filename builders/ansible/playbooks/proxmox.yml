@@ -32,6 +32,11 @@
     # stacks run on.
     autolab_environment: hypervisor
 
+    # The nodes report to the lab's stack like the guests do. The guests find
+    # it from the machines map, which this inventory does not load, so it is
+    # named here, by its full tailnet name: a node keeps its own DNS.
+    autolab_obs_stack_host: "jwst.{{ lookup('env', 'AUTOLAB_TAILNET_DOMAIN') }}"
+
     # Backups, per node. Every node backs up to ark, but not by the same
     # road and not the same guests, and not every node's key is saved yet.
     #
@@ -115,6 +120,15 @@
       tags: [never, updates]
       vars:
         autolab_updates_autoremove: false
+    # The guests' telemetry agent, here too: the node's own disks, memory and
+    # kernel, and the updates report below, which would otherwise have no way
+    # to reach Grafana. Read-only; it ships outward to jwst and opens nothing.
+    - role: observability-agent
+      tags: [proxmox, obs]
+    # What a dist-upgrade would bring here, for Grafana and its alerts. Reads
+    # only; applying stays the deliberate tags=updates run above.
+    - role: updates-report
+      tags: [proxmox, obs]
     # Tailscale is how CI and people reach a node at all, and nothing else
     # upgraded it: the guests' tailscale-update playbook targets linux_servers,
     # which a hypervisor deliberately is not. xps-pve sat two releases behind.

@@ -1,0 +1,64 @@
+#!/bin/bash
+# Managed by Ansible — roles/updates-report. Local edits are overwritten.
+#
+# What a dist-upgrade would bring here, as Prometheus metrics for Alloy's
+# textfile collector. Reads only: the package lists are refreshed and the
+# upgrade is simulated (apt-get -s), so nothing is installed or held.
+set -uo pipefail
+
+out="{{ autolab_updates_report_file }}"
+tmp="$(mktemp "${out}.XXXXXX")"
+trap 'rm -f "$tmp"' EXIT
+
+# Lists that could not be refreshed still give an answer, an older one; the
+# metric below says so, rather than the report going quiet.
+apt_update_ok=1
+apt-get update -qq -o DPkg::Lock::Timeout=600 >/dev/null 2>&1 || apt_update_ok=0
+
+# dist-upgrade, not upgrade: a Debian kernel arrives as a new package the
+# metapackage depends on, and Proxmox requires dist-upgrade outright.
+sim="$(apt-get -s -o Debug::NoLocking=1 dist-upgrade 2>/dev/null | grep '^Inst ' || true)"
+count() { [ -n "$sim" ] && printf '%s\n' "$sim" | grep -c -E "$1" || echo 0; }
+
+pending=$(count '^Inst ')
+security=$(count '^Inst .*-security')
+kernel=$(count '^Inst (linux-image|linux-signed|proxmox-kernel|pve-kernel)')
+proxmox=$(count '^Inst (pve-|proxmox-|qemu-server|libpve)')
+
+# Due a reboot: the flag Debian packages leave, or a newer kernel installed
+# than the one running (Proxmox kernels set no flag).
+reboot=0
+[ -e /var/run/reboot-required ] && reboot=1
+newest="$(ls -1 /boot/vmlinuz-* 2>/dev/null | sed 's#^/boot/vmlinuz-##' | sort -V | tail -n 1)"
+[ -n "$newest" ] && [ "$newest" != "$(uname -r)" ] && reboot=1
+
+platform=vm
+command -v pveversion >/dev/null 2>&1 && platform=proxmox
+
+{
+  echo '# HELP autolab_updates_pending Packages a dist-upgrade would install or upgrade.'
+  echo '# TYPE autolab_updates_pending gauge'
+  echo "autolab_updates_pending{platform=\"$platform\"} $pending"
+  echo '# HELP autolab_updates_security_pending Of those, packages from a security archive.'
+  echo '# TYPE autolab_updates_security_pending gauge'
+  echo "autolab_updates_security_pending{platform=\"$platform\"} $security"
+  echo '# HELP autolab_updates_kernel_pending Of those, kernel packages (a reboot follows).'
+  echo '# TYPE autolab_updates_kernel_pending gauge'
+  echo "autolab_updates_kernel_pending{platform=\"$platform\"} $kernel"
+  echo '# HELP autolab_updates_proxmox_pending Of those, Proxmox VE packages.'
+  echo '# TYPE autolab_updates_proxmox_pending gauge'
+  echo "autolab_updates_proxmox_pending{platform=\"$platform\"} $proxmox"
+  echo '# HELP autolab_reboot_required 1 when the reboot-required flag is set or a newer kernel is installed than running.'
+  echo '# TYPE autolab_reboot_required gauge'
+  echo "autolab_reboot_required{platform=\"$platform\"} $reboot"
+  echo '# HELP autolab_updates_apt_update_ok 0 when the package lists could not be refreshed (the counts are then from older lists).'
+  echo '# TYPE autolab_updates_apt_update_ok gauge'
+  echo "autolab_updates_apt_update_ok{platform=\"$platform\"} $apt_update_ok"
+  echo '# HELP autolab_updates_report_timestamp_seconds When this report was written.'
+  echo '# TYPE autolab_updates_report_timestamp_seconds gauge'
+  echo "autolab_updates_report_timestamp_seconds{platform=\"$platform\"} $(date +%s)"
+} > "$tmp"
+
+chmod 0644 "$tmp"
+mv -f "$tmp" "$out"
+trap - EXIT

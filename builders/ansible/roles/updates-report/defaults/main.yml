@@ -1,0 +1,12 @@
+---
+# What a dist-upgrade would bring, written for Alloy's textfile collector so
+# Grafana can show it and alert on it. Reads only: apt-get update refreshes
+# the package lists, and the upgrade itself is simulated. Applying is still a
+# deliberate run of the updates role (05 for guests, 07 tags=updates for the
+# nodes); this only says when one is due.
+autolab_updates_report_textfile_dir: /var/lib/autolab/textfile
+autolab_updates_report_file: "{{ autolab_updates_report_textfile_dir }}/autolab_updates.prom"
+# Every six hours, spread so the machines do not all hit the mirrors at once,
+# and once shortly after boot, so a reboot clears "reboot required" quickly.
+autolab_updates_report_on_calendar: "*-*-* 00/6:17:00"
+autolab_updates_report_randomized_delay: 30min

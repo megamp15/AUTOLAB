@@ -59,3 +59,7 @@
     - role: observability-agent
       when: ((autolab_builder | default({})).observability | default({})).agent | default(true) | bool
       tags: [obs, agent]
+    # What a dist-upgrade would bring, for the agent to ship to Grafana.
+    # Every machine, agent or not: the report itself costs nothing.
+    - role: updates-report
+      tags: [obs, agent, updates-report]
