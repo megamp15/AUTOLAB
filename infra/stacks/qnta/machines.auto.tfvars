@@ -28,7 +28,8 @@ common_tags = ["autolab", "tenant-qnta"]
 # through the hypervisor, so a leased one would be unknowable at plan time.
 #
 # All of it on pve, the gaming PC: 15.5 GB, 4 cores / 8 threads, 1.6 TB thin.
-# 13.5 GB is allocated here, which leaves the host its ~2 GB only while the
+# 13.5 GB is allocated here (mgmt 3, test 3, prod 3, network 1,
+# observability 3.5), which leaves the host its ~2 GB only while the
 # old qcicd guests (502–505) stay stopped. Disk is sized ahead because the
 # pool is thin: a volume costs what is written, and it grows online but
 # never shrinks.
@@ -73,20 +74,20 @@ machines = {
     }
   }
 
-  # Swarm worker: the dev environment.
-  qnta-dev = {
+  # Swarm worker: test, where development deploys (the dev branch).
+  qnta-test = {
     type                    = "vm"
     provisioning_class      = "builder_target"
-    name                    = "qnta-dev"
-    vm_id                   = 202
+    name                    = "qnta-test"
+    vm_id                   = 207
     node_name               = "pve"
     template_vm_id          = 9002
     datastore_id            = "local-lvm"
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 2
-    memory_mb               = 2048
+    memory_mb               = 3072
     disk_size_gb            = 64
-    ipv4_address            = "10.42.0.202/24"
+    ipv4_address            = "10.42.0.207/24"
     ipv4_gateway            = "10.42.0.1"
     builder = {
       docker_enabled = true
@@ -96,53 +97,25 @@ machines = {
         { port = 4789, protocol = "udp", source = "10.42.0.0/24" },
       ]
       storage = [
-        { protocol = "smb", share = "qnta", path = "/mnt/qnta", credential = "nas", directories = ["qnta-dev"] },
+        { protocol = "smb", share = "qnta", path = "/mnt/qnta", credential = "nas", directories = ["qnta-test"] },
       ]
     }
   }
 
-  # Swarm worker: staging, rarely used, so the smallest.
-  qnta-stg = {
+  # Swarm worker: prod, what the owner uses and the demo, until AWS takes over (the main branch).
+  qnta-prod = {
     type                    = "vm"
     provisioning_class      = "builder_target"
-    name                    = "qnta-stg"
-    vm_id                   = 203
-    node_name               = "pve"
-    template_vm_id          = 9002
-    datastore_id            = "local-lvm"
-    cloud_init_datastore_id = "local-lvm"
-    cpu_cores               = 1
-    memory_mb               = 1536
-    disk_size_gb            = 64
-    ipv4_address            = "10.42.0.203/24"
-    ipv4_gateway            = "10.42.0.1"
-    builder = {
-      docker_enabled = true
-      firewall_rules = [
-        { port = 7946, protocol = "tcp", source = "10.42.0.0/24" },
-        { port = 7946, protocol = "udp", source = "10.42.0.0/24" },
-        { port = 4789, protocol = "udp", source = "10.42.0.0/24" },
-      ]
-      storage = [
-        { protocol = "smb", share = "qnta", path = "/mnt/qnta", credential = "nas", directories = ["qnta-stg"] },
-      ]
-    }
-  }
-
-  # Swarm worker: production.
-  qnta-prd = {
-    type                    = "vm"
-    provisioning_class      = "builder_target"
-    name                    = "qnta-prd"
-    vm_id                   = 204
+    name                    = "qnta-prod"
+    vm_id                   = 208
     node_name               = "pve"
     template_vm_id          = 9002
     datastore_id            = "local-lvm"
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 2
-    memory_mb               = 2048
+    memory_mb               = 3072
     disk_size_gb            = 128
-    ipv4_address            = "10.42.0.204/24"
+    ipv4_address            = "10.42.0.208/24"
     ipv4_gateway            = "10.42.0.1"
     builder = {
       docker_enabled = true
@@ -152,7 +125,7 @@ machines = {
         { port = 4789, protocol = "udp", source = "10.42.0.0/24" },
       ]
       storage = [
-        { protocol = "smb", share = "qnta", path = "/mnt/qnta", credential = "nas", directories = ["qnta-prd"] },
+        { protocol = "smb", share = "qnta", path = "/mnt/qnta", credential = "nas", directories = ["qnta-prod"] },
       ]
     }
   }
@@ -188,7 +161,7 @@ machines = {
     datastore_id            = "local-lvm"
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 2
-    memory_mb               = 4096
+    memory_mb               = 3584
     disk_size_gb            = 128
     ipv4_address            = "10.42.0.206/24"
     ipv4_gateway            = "10.42.0.1"
