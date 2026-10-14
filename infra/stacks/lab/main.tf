@@ -90,6 +90,7 @@ module "machine" {
   ipv4_gateway    = each.value.ipv4_gateway
   tags            = each.value.tags
   started         = each.value.started
+  startup         = each.value.startup
 }
 
 # Tailscale device cleanup — revoke the VM's device record when the VM dies.

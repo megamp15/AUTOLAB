@@ -114,6 +114,16 @@ variable "started" {
   default     = true
 }
 
+variable "startup" {
+  description = "Boot order on the node (lower first) and the seconds to wait after this one starts or before it stops. Null leaves Proxmox's default: after every ordered guest."
+  type = object({
+    order      = number
+    up_delay   = optional(number, 0)
+    down_delay = optional(number, 0)
+  })
+  default = null
+}
+
 # ---- VM-specific fields ----
 
 variable "template_vm_id" {
