@@ -35,5 +35,11 @@
     owner: root
     group: root
     mode: "0644"
+    # dockerd refuses to start on any key it does not know, and a reload
+    # with a bad file only logs and keeps the old config, so the mistake
+    # surfaces at the next reboot with every container down. Check the
+    # file before it lands instead. JSON has no comments, so the "managed
+    # by" note lives here and not in the file.
+    validate: dockerd --validate --config-file %s
   when: autolab_docker_enabled | bool
   notify: Reload the Docker daemon
