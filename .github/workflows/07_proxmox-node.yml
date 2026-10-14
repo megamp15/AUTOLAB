@@ -10,6 +10,20 @@ name: 07 - Proxmox Node
 on:
   workflow_dispatch:
     inputs:
+      playbook:
+        description: >-
+          proxmox configures the nodes (tags=updates applies pending updates);
+          reboot reboots one node and waits for its guests (limit must name the
+          node, confirm must be reboot)
+        required: true
+        default: proxmox
+        type: choice
+        options: [proxmox, reboot]
+      force_reboot:
+        description: playbook=reboot only — reboot even when no update asks for it
+        required: false
+        default: false
+        type: boolean
       limit:
         description: Optional Ansible host limit
         required: false
@@ -47,6 +61,8 @@ jobs:
       PVE_TAGS: ${{ inputs.tags || '' }}
       PVE_BOOTSTRAP: ${{ inputs.bootstrap }}
       PVE_CONFIRM: ${{ inputs.confirm || 'check' }}
+      PVE_PLAYBOOK: ${{ inputs.playbook || 'proxmox' }}
+      PVE_FORCE_REBOOT: ${{ inputs.force_reboot }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -150,11 +166,24 @@ jobs:
           set -o pipefail
           user=gitops
           if [[ "$PVE_BOOTSTRAP" == "true" ]]; then user=root; fi
-          args=(-i inventories/hypervisors/hosts.yml playbooks/proxmox.yml --limit "$PVE_LIMIT")
+          playbook=playbooks/proxmox.yml
+          apply=apply
+          if [[ "$PVE_PLAYBOOK" == "reboot" ]]; then
+            # Every guest on the node stops while it reboots: one node, named,
+            # and a confirmation that says so. Anything less checks only.
+            if [[ "$PVE_LIMIT" == "proxmox_nodes" || "$PVE_LIMIT" == *","* || "$PVE_LIMIT" == *"*"* ]]; then
+              echo "playbook=reboot needs limit to name exactly one node (xps-pve or pve)." >&2
+              exit 1
+            fi
+            playbook=playbooks/proxmox-reboot.yml
+            apply=reboot
+          fi
+          args=(-i inventories/hypervisors/hosts.yml "$playbook" --limit "$PVE_LIMIT")
           args+=(-e "autolab_proxmox_user=$user")
           args+=(--extra-vars "@$RUNNER_TEMP/extra-vars.json")
+          if [[ "$PVE_PLAYBOOK" == "reboot" && "$PVE_FORCE_REBOOT" == "true" ]]; then args+=(-e autolab_reboot_force=true); fi
           if [ -n "$PVE_TAGS" ]; then args+=(--tags "$PVE_TAGS"); fi
-          if [ "$PVE_CONFIRM" != "apply" ]; then args+=(--check --diff); fi
+          if [ "$PVE_CONFIRM" != "$apply" ]; then args+=(--check --diff); fi
           ansible-playbook "${args[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/proxmox-output.log"
         env:
           ANSIBLE_HOST_KEY_CHECKING: 'true'
@@ -176,6 +205,7 @@ jobs:
           {
             echo "## Proxmox node"
             echo ""
+            echo "- playbook: \`$PVE_PLAYBOOK\`$([ "$PVE_FORCE_REBOOT" = "true" ] && echo ' (forced)')"
             echo "- mode: \`$PVE_CONFIRM\`"
             echo "- limit: \`$PVE_LIMIT\`"
             echo "- connected as: \`$([ "$PVE_BOOTSTRAP" = "true" ] && echo root || echo gitops)\`"

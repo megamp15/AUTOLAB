@@ -121,7 +121,7 @@ autolab_obs_ntfy_repeat_updates: "4d"
 autolab_obs_updates_waiting_for: 4d
 autolab_obs_updates_node_hint: "07 · Proxmox Node, tags=updates, limit={% raw %}{{ $labels.instance }}{% endraw %}."
 autolab_obs_updates_guest_hint: "05 · Ansible Builder, environment=lab, playbook=updates, limit={% raw %}{{ $labels.instance }}{% endraw %}."
-autolab_obs_reboot_node_hint: "Reboot it in a quiet window: every guest on it stops while it does."
+autolab_obs_reboot_node_hint: "07 · Proxmox Node, playbook=reboot, limit={% raw %}{{ $labels.instance }}{% endraw %}, confirm=reboot, in a quiet window: every guest on it stops while it does."
 autolab_obs_reboot_guest_hint: "05 · Ansible Builder, environment=lab, playbook=reboot, limit={% raw %}{{ $labels.instance }}{% endraw %}."
 
 # Where snapshots are copied. Empty disables the backup timer, which is the

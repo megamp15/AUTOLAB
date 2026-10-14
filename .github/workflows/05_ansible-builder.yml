@@ -42,6 +42,11 @@ on:
         required: true
         default: false
         type: boolean
+      force_reboot:
+        description: playbook=reboot only — reboot even when no update asks for it
+        required: false
+        default: false
+        type: boolean
       confirm:
         description: Type apply to make changes; any other value runs check mode
         required: false
@@ -71,6 +76,7 @@ jobs:
       # into one place keeps the rest of the job identical for either trigger.
       BUILDER_ENVIRONMENT: ${{ inputs.environment || 'lab' }}
       BUILDER_PLAYBOOK: ${{ inputs.playbook || 'observability' }}
+      BUILDER_FORCE_REBOOT: ${{ inputs.force_reboot }}
       BUILDER_BOOTSTRAP: ${{ inputs.bootstrap || false }}
       BUILDER_LIMIT: ${{ inputs.limit || 'all' }}
       BUILDER_TAGS: ${{ inputs.tags || '' }}
@@ -450,6 +456,7 @@ jobs:
           set -o pipefail
           args=(-i "$RUNNER_TEMP/inventory.json" "playbooks/${BUILDER_PLAYBOOK}.yml" --limit "$BUILDER_LIMIT")
           args+=(--extra-vars "@$RUNNER_TEMP/extra-vars.json")
+          if [[ "$BUILDER_PLAYBOOK" == "reboot" && "$BUILDER_FORCE_REBOOT" == "true" ]]; then args+=(-e autolab_reboot_force=true); fi
           if [ -f "$RUNNER_TEMP/ingress-vars.json" ]; then args+=(--extra-vars "@$RUNNER_TEMP/ingress-vars.json"); fi
           if [ -n "$BUILDER_TAGS" ]; then args+=(--tags "$BUILDER_TAGS"); fi
           if [ "$BUILDER_CONFIRM" != "apply" ]; then args+=(--check); fi
