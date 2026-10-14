@@ -28,8 +28,8 @@ common_tags = ["autolab", "tenant-qnta"]
 # through the hypervisor, so a leased one would be unknowable at plan time.
 #
 # All of it on pve, the gaming PC: 15.5 GB, 4 cores / 8 threads, 1.6 TB thin.
-# 13.5 GB is allocated here (mgmt 2, test 3.5, prod 3, network 1,
-# observability 4), which leaves the host its ~2 GB only while the
+# 13.5 GB is allocated here (mgmt 3, test 3, prod 3, network 1,
+# observability 3.5), which leaves the host its ~2 GB only while the
 # old qcicd guests (502–505) stay stopped. Disk is sized ahead because the
 # pool is thin: a volume costs what is written, and it grows online but
 # never shrinks.
@@ -49,7 +49,7 @@ machines = {
     datastore_id            = "local-lvm"
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 2
-    memory_mb               = 2048
+    memory_mb               = 3072
     disk_size_gb            = 128
     ipv4_address            = "10.42.0.201/24"
     ipv4_gateway            = "10.42.0.1"
@@ -85,7 +85,7 @@ machines = {
     datastore_id            = "local-lvm"
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 2
-    memory_mb               = 3584
+    memory_mb               = 3072
     disk_size_gb            = 64
     ipv4_address            = "10.42.0.207/24"
     ipv4_gateway            = "10.42.0.1"
@@ -161,7 +161,7 @@ machines = {
     datastore_id            = "local-lvm"
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 2
-    memory_mb               = 4096
+    memory_mb               = 3584
     disk_size_gb            = 128
     ipv4_address            = "10.42.0.206/24"
     ipv4_gateway            = "10.42.0.1"
