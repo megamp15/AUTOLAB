@@ -25,3 +25,8 @@ autolab_docker_packages:
 autolab_docker_log_driver: json-file
 autolab_docker_log_max_size: 10m
 autolab_docker_log_max_file: "3"
+
+# The interface a published container port must not answer on: the host's
+# own uplink (the LAN, or the Proxmox bridge for a guest). Taken from the
+# default route; empty leaves Docker's rules as they are.
+autolab_docker_uplink: "{{ ansible_facts['default_ipv4']['interface'] | default('') }}"
