@@ -531,7 +531,7 @@ on a systemd timer.
 ```text
 AUTOLAB · Sun 21 Sep                        ← "· N to look at" when anything is ✗
 Backup · last vzdump Sun 02:00 OK (41 min)
-  sputnik 4h · jwst 4h · ark 4h · qnta-mgmt 4h · qnta-dev 4h
+  sputnik 4h · jwst 4h · ark 4h · qnta-mgmt 4h · qnta-test 4h
   ✗ stale (>26h): …        ✗ never backed up: …
 Storage · ark 12% of 1.8T · local-lvm 61% of 200G
 Hosts · 5 reporting · jwst /16% m22% · ark /9% m31% · …
