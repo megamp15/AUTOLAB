@@ -23,6 +23,12 @@ entryPoints:
           permanent: true
   tailnet-https:
     address: ":8443"
+    # Traefik v3 gives up on a request whose body takes longer than 60s to
+    # read. A browser never notices; a container registry behind this door
+    # does, the first time a layer bigger than a minute's upload is pushed.
+    transport:
+      respondingTimeouts:
+        readTimeout: "{{ autolab_ingress_tailnet_read_timeout }}"
 {% endif %}
 
 providers:
