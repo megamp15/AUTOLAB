@@ -35,6 +35,15 @@ variable "machines" {
     ipv4_gateway = optional(string, null)
     tags         = optional(list(string), [])
     started      = optional(bool, true)
+    # Boot order on the node: lower first, and up_delay seconds before the
+    # next one starts. Unset machines start after every ordered one, in
+    # whatever order Proxmox picks. See docs: a node reboot brings guests
+    # back by this.
+    startup = optional(object({
+      order      = number
+      up_delay   = optional(number, 0)
+      down_delay = optional(number, 0)
+    }), null)
     builder = optional(object({
       enabled = optional(bool, true)
       firewall_rules = optional(list(object({

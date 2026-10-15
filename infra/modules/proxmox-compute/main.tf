@@ -38,6 +38,15 @@ resource "proxmox_virtual_environment_vm" "vm" {
   tags        = var.tags
   started     = var.started
 
+  dynamic "startup" {
+    for_each = var.startup == null ? [] : [var.startup]
+    content {
+      order      = startup.value.order
+      up_delay   = startup.value.up_delay
+      down_delay = startup.value.down_delay
+    }
+  }
+
   lifecycle {
     precondition {
       condition     = var.template_vm_id != null
@@ -134,6 +143,15 @@ resource "proxmox_virtual_environment_container" "lxc" {
   unprivileged  = true
   started       = var.started
   start_on_boot = true
+
+  dynamic "startup" {
+    for_each = var.startup == null ? [] : [var.startup]
+    content {
+      order      = startup.value.order
+      up_delay   = startup.value.up_delay
+      down_delay = startup.value.down_delay
+    }
+  }
 
   lifecycle {
     precondition {

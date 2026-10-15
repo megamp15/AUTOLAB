@@ -53,6 +53,8 @@ machines = {
     disk_size_gb            = 128
     ipv4_address            = "10.42.0.201/24"
     ipv4_gateway            = "10.42.0.1"
+    # Boot order on pve: then the Swarm's manager and the registry.
+    startup = { order = 3, up_delay = 15 }
     builder = {
       docker_enabled = true
       # Swarm control plane and overlay, from the bridge only. The management
@@ -89,6 +91,8 @@ machines = {
     disk_size_gb            = 64
     ipv4_address            = "10.42.0.207/24"
     ipv4_gateway            = "10.42.0.1"
+    # Boot order on pve: the environments last, once everything they lean on is up.
+    startup = { order = 4, up_delay = 0 }
     builder = {
       docker_enabled = true
       firewall_rules = [
@@ -117,6 +121,7 @@ machines = {
     disk_size_gb            = 128
     ipv4_address            = "10.42.0.208/24"
     ipv4_gateway            = "10.42.0.1"
+    startup                 = { order = 4, up_delay = 0 }
     builder = {
       docker_enabled = true
       firewall_rules = [
@@ -145,6 +150,8 @@ machines = {
     disk_size_gb            = 32
     ipv4_address            = "10.42.0.205/24"
     ipv4_gateway            = "10.42.0.1"
+    # Boot order on pve: the way in comes up first: tunnel, Traefik, Pocket ID, the internal names.
+    startup = { order = 1, up_delay = 30 }
     builder = {
       docker_enabled = true
     }
@@ -165,6 +172,8 @@ machines = {
     disk_size_gb            = 128
     ipv4_address            = "10.42.0.206/24"
     ipv4_gateway            = "10.42.0.1"
+    # Boot order on pve: then the place the others report to.
+    startup = { order = 2, up_delay = 15 }
     builder = {
       docker_enabled = true
     }
