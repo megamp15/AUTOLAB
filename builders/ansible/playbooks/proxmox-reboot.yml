@@ -1,0 +1,103 @@
+---
+# Reboot a Proxmox node and bring its guests back — after 07 tags=updates
+# left a new kernel waiting, typically. Every guest on the node stops while
+# it reboots, so this is its own deliberate run: 07 with playbook=reboot, one
+# node named in limit, confirm=reboot. One node at a time.
+#
+# Proxmox shuts its guests down cleanly on the way down and starts the ones
+# marked start-on-boot on the way up. A running guest that is NOT marked
+# would simply stay off afterwards, so the run refuses to start while any
+# exists, and names them. After the node is back it waits for every guest
+# that was running to be running again, and says how long that took.
+- name: Reboot a Proxmox node and bring its guests back
+  hosts: proxmox_nodes
+  become: true
+  gather_facts: true
+  serial: 1
+
+  vars:
+    autolab_reboot_force: false
+    # A node with a dozen guests takes longer than a VM to come back:
+    # firmware, ZFS/LVM import, then the guests' own boot.
+    autolab_reboot_timeout_s: 1200
+    autolab_node_guest_wait_retries: 60
+    autolab_node_guest_wait_delay_s: 10
+
+  pre_tasks:
+    - name: List the running guests and whether they start on boot
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - |
+            import json, socket, subprocess
+            node = socket.gethostname().split(".")[0]
+            def pvesh(path):
+                return json.loads(subprocess.check_output(["pvesh", "get", path, "--output-format", "json"]))
+            out = []
+            for kind in ("qemu", "lxc"):
+                for guest in pvesh(f"/nodes/{node}/{kind}"):
+                    if guest.get("status") != "running":
+                        continue
+                    vmid = guest["vmid"]
+                    config = pvesh(f"/nodes/{node}/{kind}/{vmid}/config")
+                    out.append({"kind": kind, "vmid": int(vmid), "name": guest.get("name", str(vmid)),
+                                "onboot": int(config.get("onboot", 0)) == 1})
+            print(json.dumps(out))
+      register: autolab_node_guests_raw
+      changed_when: false
+      check_mode: false
+
+    - name: Keep the list
+      ansible.builtin.set_fact:
+        autolab_node_guests: "{{ autolab_node_guests_raw.stdout | from_json }}"
+
+    - name: Refuse while a running guest would not come back
+      ansible.builtin.assert:
+        that: autolab_node_guests | rejectattr('onboot') | list | length == 0
+        fail_msg: >-
+          These guests are running but not set to start on boot, so they would
+          stay off after the reboot:
+          {{ autolab_node_guests | rejectattr('onboot') | map(attribute='name') | join(', ') }}.
+          Set them to start on boot (OpenTofu start_on_boot) or stop them first.
+        success_msg: "{{ autolab_node_guests | length }} running guest(s), all set to start on boot."
+
+  roles:
+    - role: reboot
+      tags: [reboot]
+
+  post_tasks:
+    - name: Wait for every guest that was running to run again
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - |
+            import json, socket, subprocess, sys
+            node = socket.gethostname().split(".")[0]
+            want = {int(v) for v in sys.argv[1].split(",") if v}
+            running = set()
+            for kind in ("qemu", "lxc"):
+                guests = json.loads(subprocess.check_output(["pvesh", "get", f"/nodes/{node}/{kind}", "--output-format", "json"]))
+                running |= {int(g["vmid"]) for g in guests if g.get("status") == "running"}
+            missing = sorted(want - running)
+            print("still down: " + ",".join(map(str, missing)) if missing else "all back")
+            sys.exit(1 if missing else 0)
+          - "{{ autolab_node_guests | map(attribute='vmid') | join(',') }}"
+      register: autolab_node_guests_back
+      until: autolab_node_guests_back.rc == 0
+      retries: "{{ autolab_node_guest_wait_retries }}"
+      delay: "{{ autolab_node_guest_wait_delay_s }}"
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - autolab_reboot_result is not skipped
+        - autolab_reboot_result.rebooted | default(false)
+
+    - name: Report the guests
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }}:
+          {{ (autolab_node_guests | length) ~ ' guest(s) running again: ' ~ (autolab_node_guests | map(attribute='name') | join(', '))
+             if autolab_node_guests_back is not skipped
+             else 'not rebooted, guests untouched' }}

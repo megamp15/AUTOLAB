@@ -13,6 +13,10 @@
   ansible.builtin.file:
     path: "{{ autolab_updates_report_textfile_dir }}"
     state: directory
+    # As the agent role sets it, so the two never disagree.
+    owner: root
+    group: root
+    mode: "0755"
 
 - name: Install the report's service and timer
   ansible.builtin.template:
@@ -39,6 +43,9 @@
 # A first report now rather than up to six hours from now. Not waited for:
 # the apt-get update inside can take a while on a slow mirror.
 - name: Write a first report
-  ansible.builtin.command: systemctl start --no-block autolab-updates-report.service
+  ansible.builtin.systemd_service:
+    name: autolab-updates-report.service
+    state: started
+    no_block: true
   changed_when: false
   when: not ansible_check_mode
