@@ -18,7 +18,12 @@ apt-get update -qq -o DPkg::Lock::Timeout=600 >/dev/null 2>&1 || apt_update_ok=0
 # dist-upgrade, not upgrade: a Debian kernel arrives as a new package the
 # metapackage depends on, and Proxmox requires dist-upgrade outright.
 sim="$(apt-get -s -o Debug::NoLocking=1 dist-upgrade 2>/dev/null | grep '^Inst ' || true)"
-count() { [ -n "$sim" ] && printf '%s\n' "$sim" | grep -c -E "$1" || echo 0; }
+# grep -c prints 0 and exits 1 when nothing matches; take its number either way.
+count() {
+  local n
+  n="$(printf '%s\n' "$sim" | grep -c -E "$1")"
+  echo "${n:-0}"
+}
 
 pending=$(count '^Inst ')
 security=$(count '^Inst .*-security')
