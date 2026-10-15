@@ -88,6 +88,15 @@ policies:
     group_interval: 5m
     repeat_interval: {{ autolab_obs_ntfy_repeat_warning }}
     routes:
+      # Update chores first, so they never fall through to the hourly-ish
+      # warning repeat. Same warning contact point; only the cadence differs.
+      - receiver: autolab-ntfy-warning
+        object_matchers:
+          - ['notify', '=', 'updates']
+        group_by: ['alertname']
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: {{ autolab_obs_ntfy_repeat_updates }}
       - receiver: autolab-ntfy-critical
         object_matchers:
           - ['severity', '=', 'critical']

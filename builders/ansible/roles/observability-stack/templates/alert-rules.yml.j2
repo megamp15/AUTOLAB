@@ -509,3 +509,148 @@ groups:
                 - evaluator:
                     type: gt
                     params: [0.5]
+
+      # Updates. The facts come from roles/updates-report on every machine
+      # (a simulated dist-upgrade every six hours, through the agent's textfile
+      # collector). notify: updates routes these on their own policy, which
+      # repeats every few days rather than every few hours: a pending update is
+      # a chore with a deadline, not an outage, and a channel that nags hourly
+      # about chores gets muted. Each message says which workflow applies it.
+      - uid: autolab-updates-security
+        title: Security updates are waiting
+        condition: THRESHOLD
+        for: 1h
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          notify: updates
+        annotations:
+          summary: "{% raw %}{{ $labels.instance }}: {{ printf \{% endraw %}"%.0f\" $value }} security update(s) waiting"
+          description: "Apply: {% raw %}{{ if eq $labels.platform \"proxmox\" }}{% endraw %}{{ autolab_obs_updates_node_hint }}{% raw %}{{ else }}{% endraw %}{{ autolab_obs_updates_guest_hint }}{% raw %}{{ end }}{% endraw %} Nothing reboots on its own; a kernel among them shows as reboot required afterwards."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: 'max by (instance, platform) (autolab_updates_security_pending)'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+
+      - uid: autolab-updates-waiting
+        title: Updates have waited for days
+        condition: THRESHOLD
+        for: {{ autolab_obs_updates_waiting_for }}
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          notify: updates
+        annotations:
+          summary: "{% raw %}{{ $labels.instance }}: {{ printf \{% endraw %}"%.0f\" $value }} update(s) waiting for {{ autolab_obs_updates_waiting_for }}"
+          description: "Apply: {% raw %}{{ if eq $labels.platform \"proxmox\" }}{% endraw %}{{ autolab_obs_updates_node_hint }}{% raw %}{{ else }}{% endraw %}{{ autolab_obs_updates_guest_hint }}{% raw %}{{ end }}{% endraw %}"
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              # `for` is the reminder: pending without a break this long. A machine
+              # updated in between starts the clock again.
+              expr: 'max by (instance, platform) (autolab_updates_pending)'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+
+      - uid: autolab-reboot-waiting
+        title: Reboot is waiting
+        condition: THRESHOLD
+        for: 24h
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          notify: updates
+        annotations:
+          summary: "{% raw %}{{ $labels.instance }} needs a reboot for its updates to take effect{% endraw %}"
+          description: "A newer kernel is installed than running, or a package set the reboot flag. {% raw %}{{ if eq $labels.platform \"proxmox\" }}{% endraw %}{{ autolab_obs_reboot_node_hint }}{% raw %}{{ else }}{% endraw %}{{ autolab_obs_reboot_guest_hint }}{% raw %}{{ end }}{% endraw %}"
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: 'max by (instance, platform) (autolab_reboot_required)'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.5]
+
+      - uid: autolab-updates-report-stale
+        title: Updates report is stale
+        condition: THRESHOLD
+        for: 1h
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "{% raw %}{{ $labels.instance }} last reported its updates {{ printf \{% endraw %}"%.0f\" $value }}h ago"
+          description: "The report runs every six hours. While it is stale, the update alerts judge old facts: check the autolab-updates-report timer and its journal."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              # last_over_time keeps a machine whose report stopped in view, so the
+              # silence itself is what fires, rather than the update alerts going quiet.
+              expr: '(time() - max by (instance) (last_over_time(autolab_updates_report_timestamp_seconds[7d]))) / 3600'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [26]

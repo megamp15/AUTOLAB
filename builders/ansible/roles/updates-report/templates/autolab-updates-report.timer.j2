@@ -1,0 +1,12 @@
+# Managed by Ansible — roles/updates-report. Local edits are overwritten.
+[Unit]
+Description=Report pending package updates every six hours
+
+[Timer]
+OnCalendar={{ autolab_updates_report_on_calendar }}
+RandomizedDelaySec={{ autolab_updates_report_randomized_delay }}
+OnBootSec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

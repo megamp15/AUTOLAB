@@ -111,6 +111,18 @@ autolab_obs_ntfy_priority_warning: 3
 # permanently.
 autolab_obs_ntfy_repeat_critical: "1h"
 autolab_obs_ntfy_repeat_warning: "6h"
+# Update alerts (label notify: updates) repeat on their own, far slower:
+# a pending update is a chore with a deadline, not an outage.
+autolab_obs_ntfy_repeat_updates: "4d"
+
+# How long updates may sit before "Updates have waited for days" reminds you,
+# and what each update alert tells you to run. A tenant's stack overrides the
+# guest hints with its own environment name.
+autolab_obs_updates_waiting_for: 4d
+autolab_obs_updates_node_hint: "07 · Proxmox Node, tags=updates, limit={% raw %}{{ $labels.instance }}{% endraw %}."
+autolab_obs_updates_guest_hint: "05 · Ansible Builder, environment=lab, playbook=updates, limit={% raw %}{{ $labels.instance }}{% endraw %}."
+autolab_obs_reboot_node_hint: "Reboot it in a quiet window: every guest on it stops while it does."
+autolab_obs_reboot_guest_hint: "05 · Ansible Builder, environment=lab, playbook=reboot, limit={% raw %}{{ $labels.instance }}{% endraw %}."
 
 # Where snapshots are copied. Empty disables the backup timer, which is the
 # right default until the NAS export for this host exists.

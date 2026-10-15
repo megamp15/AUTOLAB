@@ -1,0 +1,44 @@
+---
+- name: Install the updates report
+  ansible.builtin.template:
+    src: autolab-updates-report.sh.j2
+    dest: /usr/local/bin/autolab-updates-report
+    owner: root
+    group: root
+    mode: "0755"
+
+# The observability agent owns this directory where it runs; a machine that
+# opted out of the agent still gets a place to write, which nothing reads.
+- name: Have a textfile directory to write to
+  ansible.builtin.file:
+    path: "{{ autolab_updates_report_textfile_dir }}"
+    state: directory
+
+- name: Install the report's service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - autolab-updates-report.service
+    - autolab-updates-report.timer
+  notify: Reload systemd for the updates report
+
+- name: Flush handlers so systemd knows the timer
+  ansible.builtin.meta: flush_handlers
+
+- name: Run the report on its timer
+  ansible.builtin.systemd_service:
+    name: autolab-updates-report.timer
+    state: started
+    enabled: true
+  when: not ansible_check_mode
+
+# A first report now rather than up to six hours from now. Not waited for:
+# the apt-get update inside can take a while on a slow mirror.
+- name: Write a first report
+  ansible.builtin.command: systemctl start --no-block autolab-updates-report.service
+  changed_when: false
+  when: not ansible_check_mode
