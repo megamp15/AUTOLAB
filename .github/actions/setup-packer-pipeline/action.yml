@@ -56,6 +56,7 @@ inputs:
   packer_version:
     description: Packer version to install
     required: false
+    # renovate: datasource=github-releases depName=hashicorp/packer extractVersion=^v(?<version>.+)$
     default: "1.12.0"
 
 runs:
