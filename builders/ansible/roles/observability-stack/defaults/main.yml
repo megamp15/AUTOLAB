@@ -17,6 +17,7 @@ autolab_obs_images:
   grafana: "grafana/grafana:13.2.2"
   pve_exporter: "prompve/prometheus-pve-exporter:3.10.0"
   homepage: "nginx:1.31.6-alpine"
+  tempo: "grafana/tempo:2.10.8"
 
 # Metrics live on local disk. A TSDB does heavy random I/O with mmap and file
 # locking, which NFS handles poorly — Prometheus documents non-POSIX
@@ -136,6 +137,16 @@ autolab_obs_backup_on_calendar: "daily"
 autolab_obs_grafana_port: 3000
 autolab_obs_prometheus_port: 9090
 autolab_obs_loki_port: 3100
+
+# Traces. Off by default; on, Tempo joins the stack and Grafana gets a Tempo
+# datasource. OTLP/HTTP is published on the tailnet address like Loki's push
+# port, so anything on the tailnet that the ACL lets reach it can send spans:
+# http://<this host>:4318/v1/traces. Retention is short because traces are
+# for the last few days' questions; the span metrics Tempo derives live in
+# Prometheus for as long as everything else.
+autolab_obs_tempo_enabled: false
+autolab_obs_tempo_otlp_http_port: 4318
+autolab_obs_tempo_retention: 72h
 autolab_obs_pve_exporter_port: 9221
 
 # Proxmox API credentials for the hypervisor exporter. Left empty until a

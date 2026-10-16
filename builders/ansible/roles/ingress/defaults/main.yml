@@ -21,6 +21,16 @@ autolab_ingress_images:
   pocket_id: "pocketid/pocket-id:v2.16.0"
 autolab_ingress_oidc_plugin_version: "v0.21.0"
 
+# Telemetry, all off by default. A metrics port publishes Traefik's
+# Prometheus endpoint on loopback for the agent to scrape (list it in
+# autolab_obs_extra_scrapes); an OTLP/HTTP endpoint turns on tracing, e.g.
+# http://<stack host>:4318/v1/traces when the stack runs Tempo; json makes
+# the access log structured.
+autolab_ingress_metrics_port: 0
+autolab_ingress_otlp_traces_endpoint: ""
+autolab_ingress_trace_sample_rate: 1.0
+autolab_ingress_access_log_format: common
+
 # The zone and the labels under it. The Cloudflare stack owns the records;
 # these must agree with infra/stacks/cloudflare/ingress.auto.tfvars, which
 # is why the workflow passes them in from that stack's outputs.

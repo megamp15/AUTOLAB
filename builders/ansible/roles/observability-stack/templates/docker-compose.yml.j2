@@ -33,10 +33,26 @@ services:
     ports:
       - "{{ autolab_tailscale_ip }}:{{ autolab_obs_loki_port }}:{{ autolab_obs_loki_port }}"
 
+{% if autolab_obs_tempo_enabled | bool %}
+  # OTLP/HTTP in on the tailnet address; Grafana queries it on the compose
+  # network (3200), which is not published. A named volume, so Docker gives
+  # it the image's own user (10001) on first use.
+  tempo:
+    image: {{ autolab_obs_images.tempo }}
+    restart: unless-stopped
+    command: -config.file=/etc/tempo/tempo.yml
+    depends_on: [prometheus]
+    volumes:
+      - ./tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "{{ autolab_tailscale_ip }}:{{ autolab_obs_tempo_otlp_http_port }}:4318"
+
+{% endif %}
   grafana:
     image: {{ autolab_obs_images.grafana }}
     restart: unless-stopped
-    depends_on: [prometheus, loki]
+    depends_on: [prometheus, loki{{ ', tempo' if autolab_obs_tempo_enabled | bool else '' }}]
     environment:
 {% if autolab_obs_grafana_oidc_client_id | length > 0 %}
       # Public, behind Pocket ID. Anonymous viewing is off: this Grafana is
@@ -114,3 +130,6 @@ services:
 volumes:
   prometheus-data:
   loki-data:
+{% if autolab_obs_tempo_enabled | bool %}
+  tempo-data:
+{% endif %}

@@ -18,3 +18,31 @@ datasources:
     type: loki
     access: proxy
     url: http://loki:{{ autolab_obs_loki_port }}
+{% if autolab_obs_tempo_enabled | bool %}
+
+  # Traces. A span links to the logs around it (same service, a few minutes
+  # either side) and to the span metrics Tempo writes into Prometheus.
+  - name: Tempo
+    uid: autolab-tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      streamingEnabled:
+        search: true
+        metrics: true
+      nodeGraph:
+        enabled: true
+      serviceMap:
+        datasourceUid: autolab-prometheus
+      tracesToLogsV2:
+        datasourceUid: autolab-loki
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
+        filterByTraceID: false
+        filterBySpanID: false
+        customQuery: true
+        query: '{service=~".*${__span.tags["service.name"]}.*"}'
+      tracesToMetrics:
+        datasourceUid: autolab-prometheus
+{% endif %}

@@ -27,12 +27,18 @@ services:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - ./traefik/acme:/letsencrypt
-{% if autolab_ingress_tailnet_side | bool %}
-    # The tailnet's doors, on the tailnet address only. Docker's iptables
-    # rules run ahead of ufw's, so binding 0.0.0.0 would reach the LAN.
+{% if autolab_ingress_tailnet_side | bool or autolab_ingress_metrics_port | int > 0 %}
     ports:
+{% endif %}
+{% if autolab_ingress_tailnet_side | bool %}
+      # The tailnet's doors, on the tailnet address only. Docker's iptables
+      # rules run ahead of ufw's, so binding 0.0.0.0 would reach the LAN.
       - "{{ autolab_ingress_tailscale_ip }}:80:8080"
       - "{{ autolab_ingress_tailscale_ip }}:443:8443"
+{% endif %}
+{% if autolab_ingress_metrics_port | int > 0 %}
+      # Metrics for the local agent, on loopback like cloudflared's.
+      - "127.0.0.1:{{ autolab_ingress_metrics_port }}:{{ autolab_ingress_metrics_port }}"
 {% endif %}
     # Tailscale's resolver, so `jwst.<tailnet>` resolves inside the container
     # the way it does on the host. Docker's embedded DNS would otherwise fall
