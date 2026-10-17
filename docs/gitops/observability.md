@@ -198,7 +198,7 @@ the token can see nothing.
 | Name | Kind | Value |
 |---|---|---|
 | `PVE_EXPORTER_TOKEN_ID` | **variable** | `pve-exporter@pve!monitoring` |
-| `PVE_EXPORTER_TOKEN_SECRET_<NODE>` | **secret**, one per node | the UUID from step 2 on that node: `_XPS_PVE`, `_PVE` |
+| `PVE_EXPORTER_TOKEN_SECRET_<NODE>` | **secret**, one per node | the UUID from step 2 on that node: `_XPS_PVE`, `_PVE`, `_ZIMA_PVE`. To create the token and set the secret in one go without the UUID ever being printed, see [adding a node](../proxmox/07-add-a-node.md#4-tokens-straight-into-github) |
 
 The ID is a **variable**, not a secret: it is an identifier, and knowing it
 grants nothing without the secret. Secrets are also masked in run logs, so

@@ -26,6 +26,13 @@ Alternative: install from Tailscale’s package repo per [their Linux docs](http
 tailscale up
 ```
 
+For a lab node, request the tag at login so the node's key never expires (a
+device tagged afterwards keeps its expiry) — see [07-add-a-node.md](./07-add-a-node.md):
+
+```bash
+tailscale up --hostname=YOUR_NODE_NAME --ssh --advertise-tags=tag:autolab-pve
+```
+
 Or with an auth key:
 
 ```bash

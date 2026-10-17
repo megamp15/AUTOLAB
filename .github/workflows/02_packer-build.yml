@@ -22,6 +22,7 @@ on:
         options:
           - xps-pve
           - pve
+          - zima-pve
       force_rebuild:
         description: "Replace the existing template or retained failed VM"
         required: true

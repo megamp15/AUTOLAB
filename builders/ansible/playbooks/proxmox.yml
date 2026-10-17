@@ -66,9 +66,14 @@
         pbs_server: "ark.{{ lookup('env', 'AUTOLAB_TAILNET_DOMAIN') }}"
         exclude: [9002, 502, 503, 504, 505, 598, 599]
         enabled: true
+      # Off until its ark.enc is saved (password manager + R2), like the others.
+      zima-pve:
+        pbs_server: "ark.{{ lookup('env', 'AUTOLAB_TAILNET_DOMAIN') }}"
+        exclude: []
+        enabled: false
     autolab_pve_backup: "{{ autolab_pve_backup_by_node[inventory_hostname] }}"
 
-    # xps-pve's only uplink is Wi-Fi; pve is wired.
+    # xps-pve's only uplink is Wi-Fi; pve and zima-pve are wired.
     autolab_pve_wifi_by_node:
       xps-pve: wlp2s0
     autolab_pve_wifi_interface: "{{ autolab_pve_wifi_by_node[inventory_hostname] | default('') }}"
