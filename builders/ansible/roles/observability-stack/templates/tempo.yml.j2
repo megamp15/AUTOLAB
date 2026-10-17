@@ -38,6 +38,14 @@ metrics_generator:
         send_exemplars: true
   traces_storage:
     path: /var/tempo/generator/traces
+{% if autolab_obs_tempo_span_dimensions | length > 0 %}
+  # Span attributes promoted to labels on the span metrics, e.g. the HTTP
+  # status code, so "requests that returned 401" is a series. Each one
+  # multiplies the series count: keep them low-cardinality.
+  processor:
+    span_metrics:
+      dimensions: {{ autolab_obs_tempo_span_dimensions | to_json }}
+{% endif %}
 
 storage:
   trace:
