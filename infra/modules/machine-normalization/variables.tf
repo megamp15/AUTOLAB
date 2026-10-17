@@ -75,6 +75,9 @@ variable "machines" {
         # the "Agent is not reporting" rule, which would otherwise fire forever
         # for a machine behaving exactly as designed.
         agent = optional(bool, true)
+        # Where this machine's agent ships when its Stack has no stack host of its
+        # own (edge on zima-pve): the stack's tailnet name, e.g. "jwst".
+        ship_to = optional(string, null)
       }), {})
       # The machine that runs Proxmox Backup Server. Marks it the way
       # observability.stack marks the metrics host: the backup playbook finds
@@ -92,6 +95,9 @@ variable "machines" {
       # rest. A list rather than a flag per service: the set is expected to
       # grow, and one machine runs all of them in one Compose project.
       services = optional(list(string), [])
+      # Pi-hole: DNS with ad blocking for the home network, answered on this
+      # machine's LAN address. The dns playbook finds it by this flag.
+      pihole = optional(bool, false)
     }), {})
   }))
   default = {}

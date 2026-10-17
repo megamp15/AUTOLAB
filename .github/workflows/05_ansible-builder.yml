@@ -19,13 +19,13 @@ on:
         required: true
         default: lab
         type: choice
-        options: [lab, qnta]
+        options: [lab, qnta, edge]
       playbook:
         description: Builder playbook to run
         required: true
         default: harden
         type: choice
-        options: [harden, docker, tailscale-update, nfs, storage, observability, backup, ingress, services, updates, reboot]
+        options: [harden, docker, tailscale-update, nfs, storage, observability, backup, ingress, services, dns, updates, reboot]
       limit:
         description: Optional Ansible host limit
         required: false
@@ -380,6 +380,9 @@ jobs:
           # Portainer's own admin account, created at first start so its
           # setup page never opens — that page expires five minutes in.
           AUTOLAB_PORTAINER_ADMIN_PASSWORD: ${{ secrets.PORTAINER_ADMIN_PASSWORD }}
+          # Pi-hole's admin page password. Unset: the page asks for none, which
+          # the tailnet alone then guards.
+          AUTOLAB_PIHOLE_WEB_PASSWORD: ${{ secrets.PIHOLE_WEB_PASSWORD }}
         run: |
           out="$RUNNER_TEMP/extra-vars.json"
           umask 077
@@ -418,6 +421,7 @@ jobs:
               "autolab_git_sha": os.environ.get("AUTOLAB_GIT_SHA", ""),
               "autolab_pbs_pve_password": os.environ.get("AUTOLAB_PBS_PVE_PASSWORD", ""),
               "autolab_services_portainer_admin_password": os.environ.get("AUTOLAB_PORTAINER_ADMIN_PASSWORD", ""),
+              "autolab_pihole_web_password": os.environ.get("AUTOLAB_PIHOLE_WEB_PASSWORD", ""),
           }, open(sys.argv[1], "w"))
           PY
           if [ -n "${AUTOLAB_BUILDER_SSH_PUBLIC_KEY}" ]; then

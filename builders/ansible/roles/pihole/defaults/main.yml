@@ -1,0 +1,20 @@
+---
+# Pinned, bumped deliberately (Diun reports newer ones).
+autolab_pihole_image: "pihole/pihole:2026.09.0"
+
+autolab_pihole_root: /opt/autolab/pihole
+
+# The admin page, on the tailnet address only. Not 80: the host network is
+# shared, and 80 is the port everything else reaches for first.
+autolab_pihole_web_port: 8053
+
+# Empty: the admin page asks for no password and the tailnet alone guards it.
+autolab_pihole_web_password: ""
+
+# Where Pi-hole forwards what it does not block. Two operators, so one outage
+# is not the household's. Becomes OPNsense's resolver once that exists.
+autolab_pihole_upstreams:
+  - 9.9.9.9
+  - 1.1.1.1
+
+autolab_pihole_timezone: America/Chicago

@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        stack: [lab, qnta, cloudflare]
+        stack: [lab, qnta, edge, cloudflare]
     defaults:
       run:
         working-directory: infra/stacks/${{ matrix.stack }}

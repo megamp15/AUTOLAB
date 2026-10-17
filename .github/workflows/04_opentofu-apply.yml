@@ -11,6 +11,7 @@ on:
         options:
           - lab
           - qnta
+          - edge
       parallelism:
         description: "OpenTofu parallelism (1 = sequential, safe for Proxmox; 10 = default parallel)"
         type: choice

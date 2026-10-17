@@ -15,7 +15,8 @@ autolab_obs_stack_host: >-
       | selectattr('value.autolab_builder.observability', 'defined')
       | selectattr('value.autolab_builder.observability.stack', 'defined')
       | selectattr('value.autolab_builder.observability.stack')
-      | map(attribute='key') | list | first) | default('') }}
+      | map(attribute='key') | list | first)
+     | default(((autolab_builder | default({})).observability | default({})).ship_to | default('', true), true) }}
 
 # A host the Builder reaches through the hypervisor is on the management plane:
 # it is on a tailnet the stack is not, so the name above means nothing to it.
