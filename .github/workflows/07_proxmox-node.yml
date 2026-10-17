@@ -141,6 +141,7 @@ jobs:
           # Healthchecks.io ping URL per node; a node without one gets no heartbeat.
           AUTOLAB_HEARTBEAT_XPS_PVE: ${{ secrets.HEALTHCHECKS_PING_URL_XPS_PVE }}
           AUTOLAB_HEARTBEAT_PVE: ${{ secrets.HEALTHCHECKS_PING_URL_PVE }}
+          AUTOLAB_HEARTBEAT_ZIMA_PVE: ${{ secrets.HEALTHCHECKS_PING_URL_ZIMA_PVE }}
         run: |
           umask 077
           python3 - "$RUNNER_TEMP/extra-vars.json" <<'PY'
@@ -155,6 +156,7 @@ jobs:
                   node: url for node, url in (
                       ("xps-pve", os.environ.get("AUTOLAB_HEARTBEAT_XPS_PVE", "")),
                       ("pve", os.environ.get("AUTOLAB_HEARTBEAT_PVE", "")),
+                      ("zima-pve", os.environ.get("AUTOLAB_HEARTBEAT_ZIMA_PVE", "")),
                   ) if url
               },
           }, open(sys.argv[1], "w"))
@@ -172,7 +174,7 @@ jobs:
             # Every guest on the node stops while it reboots: one node, named,
             # and a confirmation that says so. Anything less checks only.
             if [[ "$PVE_LIMIT" == "proxmox_nodes" || "$PVE_LIMIT" == *","* || "$PVE_LIMIT" == *"*"* ]]; then
-              echo "playbook=reboot needs limit to name exactly one node (xps-pve or pve)." >&2
+              echo "playbook=reboot needs limit to name exactly one node (xps-pve, pve or zima-pve)." >&2
               exit 1
             fi
             playbook=playbooks/proxmox-reboot.yml
