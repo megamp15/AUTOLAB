@@ -43,7 +43,12 @@ See [GitHub Secrets & Variables Reference](./github-secrets-variables-reference.
 
 | Secret | Meaning |
 |--------|---------|
-| `PROXMOX_API_TOKEN_<NODE>` | Full API token string, one per node: `PROXMOX_API_TOKEN_XPS_PVE`, `PROXMOX_API_TOKEN_PVE` |
+| `PROXMOX_API_TOKEN_<NODE>` | Full API token string, one per node: `PROXMOX_API_TOKEN_XPS_PVE`, `PROXMOX_API_TOKEN_PVE`, `PROXMOX_API_TOKEN_ZIMA_PVE` |
+
+In practice each node's token is `root@pam!autolab` with privilege separation
+off, created on the node and piped straight into the GitHub secret so it is
+never printed — the command is in [adding a node](../proxmox/07-add-a-node.md#4-tokens-straight-into-github).
+A dedicated, narrower automation user is still the better shape and not done yet.
 
 SSH public keys for cloned VMs are set in `infra/stacks/lab/machines.auto.tfvars`
 (`identity_defaults.ssh_public_keys`), not in a GitHub secret. Packer template

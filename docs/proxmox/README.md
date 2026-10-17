@@ -10,7 +10,7 @@ audience: beginner
 
 # Proxmox homelab — documentation
 
-Guides for a **single Proxmox node** with **USB Ethernet** (primary), **Wi‑Fi backup**, and **automatic failover**. Same steps on every machine; **your** SSIDs, passwords, and IPs stay in **`/etc/default/proxmox-network.env`** on the host—not in git.
+Guides for the lab's **Proxmox nodes**: `xps-pve`, `pve` and `zima-pve`, each standalone (not clustered). The network scripts below were written for `xps-pve`, a laptop with **USB Ethernet** (primary), **Wi‑Fi backup**, and **automatic failover**; wired nodes need only steps 1, 3, 4 and [adding a node](./07-add-a-node.md). Same steps on every machine; **your** SSIDs, passwords, and IPs stay in **`/etc/default/proxmox-network.env`** on the host—not in git.
 
 ## Why this layout exists
 
@@ -48,6 +48,7 @@ flowchart TB
 | **2** | SSH as root, copy scripts, run wizard + installer | **[00-fresh-install-network.md](./00-fresh-install-network.md)** |
 | **3** | `apt` updates (repeat over time) | [04-apt-maintenance.md](./04-apt-maintenance.md) |
 | **4** | Tailscale (optional) | [05-tailscale.md](./05-tailscale.md) |
+| **5** | Bring the node into AUTOLAB: tailnet tag, tokens, repo entries, onboarding runs | **[07-add-a-node.md](./07-add-a-node.md)** |
 | — | Major version upgrade (rare) | [06-proxmox-version-upgrade.md](./06-proxmox-version-upgrade.md) |
 
 **Reference:** [02 Wi‑Fi concepts](./02-host-networking-wifi.md) · [03 Troubleshooting](./03-post-install-network-runbook.md) · [scripts/README.md](./scripts/README.md)
