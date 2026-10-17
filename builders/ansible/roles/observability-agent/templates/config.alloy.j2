@@ -77,6 +77,20 @@ prometheus.scrape "cloudflared" {
 }
 
 {% endif %}
+{% for scrape in autolab_obs_extra_scrapes %}
+// {{ scrape.job }}: declared in autolab_obs_extra_scrapes for this host.
+prometheus.scrape "extra_{{ scrape.job | regex_replace('[^A-Za-z0-9_]', '_') }}" {
+  targets         = [{
+    "__address__"      = "{{ scrape.address }}",
+    "__metrics_path__" = "{{ scrape.path | default('/metrics') }}",
+    "job"              = "{{ scrape.job }}",
+    "instance"         = "{{ inventory_hostname }}",
+  }]
+  forward_to      = [prometheus.remote_write.stack.receiver]
+  scrape_interval = "{{ scrape.interval | default(autolab_obs_scrape_interval) }}"
+}
+
+{% endfor %}
 prometheus.remote_write "stack" {
   endpoint {
     url = "{{ autolab_obs_metrics_endpoint }}"
@@ -149,7 +163,10 @@ discovery.docker "local" {
 
 // The name arrives as "/name"; Compose's project and service are the labels
 // worth keeping, because they survive a container being recreated while the
-// container id does not.
+// container id does not. A Swarm task carries its stack and service instead
+// (apps-test, apps-test_qnta) and its container name changes with every
+// deploy, so those fill the same two labels. `(.+)` leaves a label alone when
+// the container has no such Docker label, so neither kind blanks the other.
 discovery.relabel "containers" {
   targets = discovery.docker.local.targets
 
@@ -161,11 +178,25 @@ discovery.relabel "containers" {
 
   rule {
     source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = "(.+)"
     target_label  = "project"
   }
 
   rule {
     source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "(.+)"
+    target_label  = "service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_stack_namespace"]
+    regex         = "(.+)"
+    target_label  = "project"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_swarm_service_name"]
+    regex         = "(.+)"
     target_label  = "service"
   }
 }

@@ -45,6 +45,14 @@ autolab_obs_logs_endpoint: >-
 # hosts; raising it is the first lever if storage becomes a concern.
 autolab_obs_scrape_interval: "15s"
 
+# Exporters a host runs that the agent should scrape, each on this host's
+# loopback (or any address the agent can reach): a database exporter beside
+# the database, an app's /metrics. One prometheus.scrape per entry, labelled
+# with the job given and this host as the instance.
+#   - {job: postgres, address: "127.0.0.1:9187"}
+#   - {job: app, address: "127.0.0.1:8000", path: /internal/metrics, interval: 30s}
+autolab_obs_extra_scrapes: []
+
 # Alloy's apt repository. Pinned to the stable channel for the same reason
 # Tailscale is: unattended agents on hosts CI depends on should not track a
 # fast-moving channel.

@@ -30,6 +30,12 @@ entryPoints:
       respondingTimeouts:
         readTimeout: "{{ autolab_ingress_tailnet_read_timeout }}"
 {% endif %}
+{% if autolab_ingress_metrics_port | int > 0 %}
+  # Prometheus metrics, published on the host's loopback only for the local
+  # agent (autolab_obs_extra_scrapes). Not routed, not on the tailnet.
+  metrics:
+    address: ":{{ autolab_ingress_metrics_port }}"
+{% endif %}
 
 providers:
   file:
@@ -63,4 +69,33 @@ api:
 
 log:
   level: INFO
+{% if autolab_ingress_access_log_format == 'json' %}
+# JSON so the log pipeline can filter on status, router and duration without
+# parsing the common log format back apart.
+accessLog:
+  format: json
+{% else %}
 accessLog: {}
+{% endif %}
+{% if autolab_ingress_metrics_port | int > 0 %}
+
+# Request counts and latency per entrypoint, router and service.
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+{% endif %}
+{% if autolab_ingress_otlp_traces_endpoint | length > 0 %}
+
+# A span for every request, sent to the trace backend over OTLP/HTTP. Traefik
+# starts the trace (or joins the caller's), and the upstream app continues it
+# from the traceparent header Traefik forwards.
+tracing:
+  serviceName: traefik
+  sampleRate: {{ autolab_ingress_trace_sample_rate }}
+  otlp:
+    http:
+      endpoint: "{{ autolab_ingress_otlp_traces_endpoint }}"
+{% endif %}

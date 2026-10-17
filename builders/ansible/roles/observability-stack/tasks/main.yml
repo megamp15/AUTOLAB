@@ -80,6 +80,25 @@
     mode: "0644"
   notify: Restart observability stack
 
+- name: Create the Tempo configuration directory
+  ansible.builtin.file:
+    path: "{{ autolab_obs_root }}/tempo"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: autolab_obs_tempo_enabled | bool
+
+- name: Install Tempo configuration
+  ansible.builtin.template:
+    src: tempo.yml.j2
+    dest: "{{ autolab_obs_root }}/tempo/tempo.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  when: autolab_obs_tempo_enabled | bool
+  notify: Restart observability stack
+
 - name: Install Loki configuration
   ansible.builtin.template:
     src: loki.yml.j2
@@ -239,6 +258,22 @@
   retries: 30
   delay: 5
   changed_when: false
+
+# Tempo for the same reason as Loki: Traefik and the apps start sending as
+# soon as they are told where to, and a refused span is a lost one.
+- name: Wait for Tempo to be ready
+  ansible.builtin.uri:
+    url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_tempo_otlp_http_port }}/v1/traces"
+    method: POST
+    body_format: json
+    body: {}
+    status_code: [200]
+  register: autolab_obs_tempo_ready
+  until: autolab_obs_tempo_ready.status == 200
+  retries: 30
+  delay: 5
+  changed_when: false
+  when: autolab_obs_tempo_enabled | bool and not ansible_check_mode
 
 # Grafana is gated too, and not merely for symmetry. `docker_compose_v2` with
 # state: present reports success once containers are *created*, so a Grafana
