@@ -164,11 +164,29 @@ from the inventory with no further change.
 
 ## 6. Onboard
 
+CI reaches nodes only as `gitops`: the tailnet policy does not let `tag:ci`
+SSH as root (a `bootstrap: true` run fails at once with *tailnet policy does
+not permit you to SSH as user "root"*). So the first `gitops` account is made by
+hand, exactly as the `gitops-user` role makes it, from your Mac as root over
+Tailscale SSH (your admin account may); the role owns it from the first run on.
+Proxmox ships without `sudo`:
+
+```bash
+ssh -n -T root@<node>.<tailnet> 'set -e
+command -v sudo >/dev/null || apt-get install -y sudo
+id gitops >/dev/null 2>&1 || useradd -m -s /bin/bash -G sudo gitops
+printf "gitops ALL=(ALL) NOPASSWD:ALL\n" > /tmp/90-gitops
+visudo -cf /tmp/90-gitops && install -m 0440 /tmp/90-gitops /etc/sudoers.d/90-gitops
+rm /tmp/90-gitops'
+```
+
+(`pve` was onboarded instead with a temporary policy rule letting CI in as
+root, #174, reverted in #178. The account by hand needs no policy change.)
+
 After the PR is merged:
 
-1. **07 - Proxmox Node**, limit `<node>`, `bootstrap: true` (root, the first
-   time), `confirm: check`; read the diff; then again with `confirm: apply`.
-   Later runs: `bootstrap: false`, as `gitops`.
+1. **07 - Proxmox Node**, limit `<node>`, `bootstrap: false`, `confirm: check`;
+   read the diff; then again with `confirm: apply`.
 2. **01 - Bootstrap private VM network**, node `<node>`: the `vmbr1`
    `10.42.0.1/24` bridge with NAT that guests use.
 3. **05 observability** picks up the exporter target on its next run.
