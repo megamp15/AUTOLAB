@@ -11,6 +11,7 @@ on:
         options:
           - lab
           - qnta
+          - edge
       upload_plan_text:
         description: Upload text plan artifact
         required: true

@@ -1,0 +1,6 @@
+---
+- name: Restart Pi-hole
+  community.docker.docker_compose_v2:
+    project_src: "{{ autolab_pihole_root }}"
+    state: restarted
+  when: not ansible_check_mode
