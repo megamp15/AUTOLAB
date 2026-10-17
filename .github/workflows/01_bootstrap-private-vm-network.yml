@@ -61,13 +61,17 @@ jobs:
           PVE_HOST: ${{ steps.node.outputs.host }}
         run: |
           set -euo pipefail
+          # As gitops with sudo: the tailnet policy lets CI reach a node only as
+          # gitops, never root, so a root login fails before anything runs.
+          # 07 creates gitops; on a brand-new node it is made by hand first
+          # (docs/proxmox/07-add-a-node.md).
           ssh_opts=(-i "${HOME}/.ssh/pve_ci_key" -o BatchMode=yes)
-          ssh "${ssh_opts[@]}" "root@${PVE_HOST}" 'mkdir -p /root/proxmox-setup/scripts'
+          ssh "${ssh_opts[@]}" "gitops@${PVE_HOST}" 'mkdir -p ~/proxmox-setup/scripts'
           scp "${ssh_opts[@]}" docs/proxmox/scripts/setup-private-vm-network.sh \
-            "root@${PVE_HOST}:/root/proxmox-setup/scripts/"
-          ssh "${ssh_opts[@]}" "root@${PVE_HOST}" \
-            'bash /root/proxmox-setup/scripts/setup-private-vm-network.sh --apply'
-          ssh "${ssh_opts[@]}" "root@${PVE_HOST}" \
+            "gitops@${PVE_HOST}:proxmox-setup/scripts/"
+          ssh "${ssh_opts[@]}" "gitops@${PVE_HOST}" \
+            'sudo -n bash ~/proxmox-setup/scripts/setup-private-vm-network.sh --apply'
+          ssh "${ssh_opts[@]}" "gitops@${PVE_HOST}" \
             'ip -br -4 addr show vmbr1; systemctl is-active dnsmasq autolab-private-vm-network.service'
 
       - name: Job summary

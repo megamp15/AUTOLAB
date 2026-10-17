@@ -188,7 +188,8 @@ After the PR is merged:
 1. **07 - Proxmox Node**, limit `<node>`, `bootstrap: false`, `confirm: check`;
    read the diff; then again with `confirm: apply`.
 2. **01 - Bootstrap private VM network**, node `<node>`: the `vmbr1`
-   `10.42.0.1/24` bridge with NAT that guests use.
+   `10.42.0.1/24` bridge with NAT that guests use. It runs as `gitops` with
+   sudo, so `gitops` must exist first (07 above).
 3. **05 observability** picks up the exporter target on its next run.
 4. **Pocket ID** → client `proxmox` → add the callback URLs
    `https://<node>.lab.<zone>` with and without the trailing slash.
