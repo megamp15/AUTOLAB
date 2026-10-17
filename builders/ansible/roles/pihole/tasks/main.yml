@@ -6,6 +6,11 @@
       builder.pihole needs builder.docker_enabled = true for this machine in
       machines.auto.tfvars, and the docker playbook run first.
 
+- name: Install dig, for the answer check below
+  ansible.builtin.apt:
+    name: bind9-dnsutils
+    state: present
+
 - name: Discover this host's tailnet address
   ansible.builtin.command: tailscale ip -4
   register: autolab_pihole_ip_raw

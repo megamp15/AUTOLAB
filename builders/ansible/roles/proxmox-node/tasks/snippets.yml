@@ -1,0 +1,48 @@
+---
+- name: Read the local storage configuration
+  ansible.builtin.command:
+    argv: [pvesh, get, /storage/local, --output-format, json]
+  register: autolab_pve_local_storage
+  changed_when: false
+  check_mode: false
+
+- name: Require the expected local directory storage
+  ansible.builtin.assert:
+    that:
+      - (autolab_pve_local_storage.stdout | from_json | selectattr('storage', 'equalto', 'local') | list | length) == 1
+      - (autolab_pve_local_storage.stdout | from_json | selectattr('storage', 'equalto', 'local') | first).type == 'dir'
+      - (autolab_pve_local_storage.stdout | from_json | selectattr('storage', 'equalto', 'local') | first).path == '/var/lib/vz'
+      - (autolab_pve_local_storage.stdout | from_json | selectattr('storage', 'equalto', 'local') | first).path is match('^/')
+      - "'..' not in (autolab_pve_local_storage.stdout | from_json | selectattr('storage', 'equalto', 'local') | first).path.split('/')"
+    fail_msg: >-
+      Proxmox storage 'local' must be a directory storage rooted at /var/lib/vz;
+      refusing to guess a snippets path or rewrite an unexpected storage.
+
+- name: Preserve local storage content and include snippets
+  ansible.builtin.set_fact:
+    autolab_pve_local_content: >-
+      {{ ((autolab_pve_local_storage.stdout | from_json
+           | selectattr('storage', 'equalto', 'local') | first).content | default('')
+          | split(',') | map('trim') | reject('equalto', '') | list + ['snippets']) | unique | join(',') }}
+
+- name: Create the local snippets directory
+  ansible.builtin.file:
+    path: /var/lib/vz/snippets
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Enable snippets content on local storage
+  ansible.builtin.command:
+    argv:
+      - pvesm
+      - set
+      - local
+      - --content
+      - "{{ autolab_pve_local_content }}"
+  when: >-
+    'snippets' not in ((autolab_pve_local_storage.stdout | from_json
+    | selectattr('storage', 'equalto', 'local') | first).content | default('')
+    | split(',') | map('trim') | list)
+  changed_when: true
