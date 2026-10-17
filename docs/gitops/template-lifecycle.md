@@ -71,7 +71,7 @@ template.
    rollback without recording that decision.
 2. Confirm the catalog pin in `infra/packer/template-catalog.yaml` is
    Debian `13.6.0`, with URL
-   `https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso`
+   `https://cdimage.debian.org/cdimage/archive/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso`
    and checksum
    `sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7`.
    These are catalog fields, not GitHub repository variables.

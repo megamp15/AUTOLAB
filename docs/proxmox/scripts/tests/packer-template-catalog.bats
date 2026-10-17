@@ -16,9 +16,9 @@ load test_helper
   [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_PROXMOX_NAME=autolab-debian-13-template"* ]]
   [[ "$output" == *"PKR_VAR_vm_id=9000"* ]]
   [[ "$output" == *"PKR_VAR_vm_template_name=autolab-debian-13-template"* ]]
-  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_ISO_URL=https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso"* ]]
+  [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_ISO_URL=https://cdimage.debian.org/cdimage/archive/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso"* ]]
   [[ "$output" == *"AUTOLAB_PACKER_TEMPLATE_ISO_CHECKSUM=sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7"* ]]
-  [[ "$output" == *"PKR_VAR_iso_url=https://cdimage.debian.org/debian-cd/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso"* ]]
+  [[ "$output" == *"PKR_VAR_iso_url=https://cdimage.debian.org/cdimage/archive/13.6.0/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso"* ]]
   [[ "$output" == *"PKR_VAR_iso_checksum=sha256:65273beed27b2df543b68b65630ba525cfbad8df2b12035732b2dff87d6664e7"* ]]
 }
 
