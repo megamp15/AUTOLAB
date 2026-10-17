@@ -147,6 +147,15 @@ autolab_obs_loki_port: 3100
 autolab_obs_tempo_enabled: false
 autolab_obs_tempo_otlp_http_port: 4318
 autolab_obs_tempo_retention: 72h
+# Extra labels on Tempo's span metrics, from span or resource attributes.
+autolab_obs_tempo_span_dimensions: []
+# Where a span's "Logs for this span" goes: a LogQL query Grafana fills from
+# the span. The default matches a log `service` label containing the
+# service.name. Override it when log labels name services differently.
+autolab_obs_tempo_logs_query: '{service=~".*${__span.tags["service.name"]}.*"}'
+# A trace ID in a log line, captured as group 1, links to Tempo. The default
+# matches trace_id=, traceID= and "trace_id":"…" forms of a 32-hex ID.
+autolab_obs_loki_trace_id_regex: '(?:trace_id|traceId|traceID)\W+([0-9a-f]{32})'
 autolab_obs_pve_exporter_port: 9221
 
 # Proxmox API credentials for the hypervisor exporter. Left empty until a

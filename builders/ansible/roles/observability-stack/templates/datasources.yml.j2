@@ -19,9 +19,20 @@ datasources:
     access: proxy
     url: http://loki:{{ autolab_obs_loki_port }}
 {% if autolab_obs_tempo_enabled | bool %}
+    # A trace ID written into a log line becomes a link to that trace.
+    jsonData:
+      derivedFields:
+        - name: TraceID
+          matcherRegex: '{{ autolab_obs_loki_trace_id_regex }}'
+          datasourceUid: autolab-tempo
+          url: '${__value.raw}'
+          urlDisplayLabel: View trace
+{% endif %}
+{% if autolab_obs_tempo_enabled | bool %}
 
-  # Traces. A span links to the logs around it (same service, a few minutes
-  # either side) and to the span metrics Tempo writes into Prometheus.
+  # Traces. A span links to the logs around it (autolab_obs_tempo_logs_query,
+  # a few minutes either side) and to the span metrics Tempo writes into
+  # Prometheus.
   - name: Tempo
     uid: autolab-tempo
     type: tempo
@@ -42,7 +53,7 @@ datasources:
         filterByTraceID: false
         filterBySpanID: false
         customQuery: true
-        query: '{service=~".*${__span.tags["service.name"]}.*"}'
+        query: '{{ autolab_obs_tempo_logs_query }}'
       tracesToMetrics:
         datasourceUid: autolab-prometheus
 {% endif %}
