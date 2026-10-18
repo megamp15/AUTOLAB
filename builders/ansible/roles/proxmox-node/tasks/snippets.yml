@@ -1,4 +1,10 @@
 ---
+# VMs get their first-boot cloud-init as a snippet file on the node's `local`
+# storage, which a fresh install does not allow (zima-pve, 2026-10-17). Adds
+# `snippets` to local's content types and keeps every type already there.
+
+# `pvesh get /storage/<id>` answers with that one storage, an object, not the
+# list `pvesh get /storage` gives.
 - name: Read the local storage configuration
   ansible.builtin.command:
     argv: [pvesh, get, /storage/local, --output-format, json]
@@ -6,24 +12,24 @@
   changed_when: false
   check_mode: false
 
+- name: Parse it
+  ansible.builtin.set_fact:
+    autolab_pve_local: "{{ autolab_pve_local_storage.stdout | from_json }}"
+
 - name: Require the expected local directory storage
   ansible.builtin.assert:
     that:
-      - (autolab_pve_local_storage.stdout | from_json | selectattr('storage', 'equalto', 'local') | list | length) == 1
-      - (autolab_pve_local_storage.stdout | from_json | selectattr('storage', 'equalto', 'local') | first).type == 'dir'
-      - (autolab_pve_local_storage.stdout | from_json | selectattr('storage', 'equalto', 'local') | first).path == '/var/lib/vz'
-      - (autolab_pve_local_storage.stdout | from_json | selectattr('storage', 'equalto', 'local') | first).path is match('^/')
-      - "'..' not in (autolab_pve_local_storage.stdout | from_json | selectattr('storage', 'equalto', 'local') | first).path.split('/')"
+      - autolab_pve_local.storage | default('') == 'local'
+      - autolab_pve_local.type | default('') == 'dir'
+      - autolab_pve_local.path | default('') == '/var/lib/vz'
     fail_msg: >-
       Proxmox storage 'local' must be a directory storage rooted at /var/lib/vz;
       refusing to guess a snippets path or rewrite an unexpected storage.
 
-- name: Preserve local storage content and include snippets
+- name: Work out local's content types with snippets added
   ansible.builtin.set_fact:
-    autolab_pve_local_content: >-
-      {{ ((autolab_pve_local_storage.stdout | from_json
-           | selectattr('storage', 'equalto', 'local') | first).content | default('')
-          | split(',') | map('trim') | reject('equalto', '') | list + ['snippets']) | unique | join(',') }}
+    autolab_pve_local_types: >-
+      {{ autolab_pve_local.content | default('') | split(',') | map('trim') | reject('equalto', '') | list }}
 
 - name: Create the local snippets directory
   ansible.builtin.file:
@@ -40,9 +46,6 @@
       - set
       - local
       - --content
-      - "{{ autolab_pve_local_content }}"
-  when: >-
-    'snippets' not in ((autolab_pve_local_storage.stdout | from_json
-    | selectattr('storage', 'equalto', 'local') | first).content | default('')
-    | split(',') | map('trim') | list)
+      - "{{ (autolab_pve_local_types + ['snippets']) | unique | join(',') }}"
+  when: "'snippets' not in autolab_pve_local_types"
   changed_when: true
