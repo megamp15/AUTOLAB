@@ -1,0 +1,23 @@
+# Managed by Ansible (role pihole). Edit the role, not this file.
+name: pihole
+
+services:
+  pihole:
+    image: {{ autolab_pihole_image }}
+    container_name: pihole
+    # Host networking, not published ports: through Docker's port mapping every
+    # query would arrive from the bridge gateway and Pi-hole could not tell one
+    # device from another, which is half of why it is here.
+    network_mode: host
+    environment:
+      TZ: "{{ autolab_pihole_timezone }}"
+      FTLCONF_webserver_port: "{{ autolab_pihole_tailscale_ip }}:{{ autolab_pihole_web_port }}"
+      FTLCONF_webserver_api_password: "{{ autolab_pihole_web_password }}"
+      FTLCONF_dns_upstreams: "{{ autolab_pihole_upstreams | join(';') }}"
+      # Answer anything that reaches it; the host firewall decides who can.
+      FTLCONF_dns_listeningMode: "all"
+    volumes:
+      - {{ autolab_pihole_root }}/etc-pihole:/etc/pihole
+    cap_add:
+      - SYS_NICE
+    restart: unless-stopped

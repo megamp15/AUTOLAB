@@ -1,0 +1,87 @@
+---
+- name: Require Docker on the DNS machine
+  ansible.builtin.assert:
+    that: (autolab_builder | default({})).docker_enabled | default(false) | bool
+    fail_msg: >-
+      builder.pihole needs builder.docker_enabled = true for this machine in
+      machines.auto.tfvars, and the docker playbook run first.
+
+- name: Install dig, for the answer check below
+  ansible.builtin.apt:
+    name: bind9-dnsutils
+    state: present
+
+- name: Discover this host's tailnet address
+  ansible.builtin.command: tailscale ip -4
+  register: autolab_pihole_ip_raw
+  changed_when: false
+  check_mode: false
+
+- name: Set the tailnet address
+  ansible.builtin.set_fact:
+    autolab_pihole_tailscale_ip: "{{ autolab_pihole_ip_raw.stdout_lines[0] }}"
+
+# Debian's systemd-resolved stub listens on 127.0.0.53:53 when it runs, and
+# Pi-hole on the host network needs port 53 on every address. Say so plainly
+# rather than letting the container crash-loop on "address in use".
+- name: Look for anything else answering on port 53
+  ansible.builtin.command: ss -Hlnup 'sport = :53'
+  register: autolab_pihole_port53
+  changed_when: false
+  check_mode: false
+
+- name: Refuse to start next to another DNS server
+  ansible.builtin.assert:
+    that: >-
+      autolab_pihole_port53.stdout_lines
+      | reject('search', 'pihole-FTL') | list | length == 0
+    fail_msg: "Something else holds port 53: {{ autolab_pihole_port53.stdout }}"
+
+- name: Create the Pi-hole directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - "{{ autolab_pihole_root }}"
+    - "{{ autolab_pihole_root }}/etc-pihole"
+
+- name: Install the compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ autolab_pihole_root }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart Pi-hole
+
+- name: Check whether the compose file exists yet
+  ansible.builtin.stat:
+    path: "{{ autolab_pihole_root }}/docker-compose.yml"
+  register: autolab_pihole_compose_file
+
+- name: Start Pi-hole
+  community.docker.docker_compose_v2:
+    project_src: "{{ autolab_pihole_root }}"
+    state: present
+    pull: missing
+  when: not ansible_check_mode or autolab_pihole_compose_file.stat.exists
+
+- name: Wait for Pi-hole to answer DNS
+  ansible.builtin.command: >-
+    dig +short +time=2 +tries=1 @127.0.0.1 {{ item }}
+  register: autolab_pihole_dig
+  until: autolab_pihole_dig.rc == 0 and autolab_pihole_dig.stdout | length > 0
+  retries: 15
+  delay: 4
+  changed_when: false
+  loop: [debian.org]
+  when: not ansible_check_mode
+
+- name: Say where it is
+  ansible.builtin.debug:
+    msg: >-
+      Pi-hole answers DNS on {{ ansible_default_ipv4.address | default('?') }}:53;
+      admin page http://{{ autolab_pihole_tailscale_ip }}:{{ autolab_pihole_web_port }}/admin

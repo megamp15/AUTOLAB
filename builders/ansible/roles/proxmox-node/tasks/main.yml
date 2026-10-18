@@ -35,3 +35,7 @@
 - name: Tell Healthchecks.io this node is alive
   ansible.builtin.import_tasks: heartbeat.yml
   when: autolab_pve_heartbeat_url | length > 0
+
+- name: Ensure local storage can hold cloud-init snippets
+  ansible.builtin.import_tasks: snippets.yml
+  tags: [snippets]
