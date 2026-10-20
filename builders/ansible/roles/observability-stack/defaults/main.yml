@@ -83,6 +83,9 @@ autolab_obs_transient_guest_names:
 # that they become background noise people learn to ignore.
 autolab_obs_alert_disk_pct: 85
 autolab_obs_alert_memory_pct: 90
+# A node's hottest core, sustained for ten minutes. These Intel CPUs throttle
+# near 100°C; a laptop node peaks around 90 during a build, which is normal.
+autolab_obs_alert_cpu_temp_c: 95
 autolab_obs_alert_pve_storage_pct: 85
 
 # Where alerts are delivered. Empty means they stay visible in Grafana's
@@ -249,6 +252,7 @@ autolab_obs_homepage_node_links: >-
           'meta': node.name,
           'url': autolab_obs_lab_url.format(name=node.name, raw='https://' ~ node.host ~ ':8006'),
           'icon': 'hypervisor',
+          'temp_of': node.name,
           'check': {'type': 'http', 'target': 'https://' ~ node.host ~ ':8006'}}) -%}
   {%- endfor -%}
   {{ rows }}

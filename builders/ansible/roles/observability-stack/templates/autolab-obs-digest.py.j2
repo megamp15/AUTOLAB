@@ -182,9 +182,20 @@ def write_status(path):
     with open("/etc/autolab/homepage.json") as f:
         conf = json.load(f)
     rows = []
+    # A row with temp_of shows that node's hottest CPU core next to its name,
+    # one query for all of them. A failed query leaves the rows as they were.
+    temps = {}
+    try:
+        for r in prom('max by (instance) (node_hwmon_temp_celsius{chip="platform_coretemp_0"})'):
+            temps[r["metric"].get("instance")] = float(r["value"][1])
+    except Exception as e:
+        print(f"node temperatures unavailable: {e}", file=sys.stderr)
     for link in conf.get("links", []):
         up = probe(link.get("check", {})) if link.get("check") else True
-        rows.append({"name": link["name"], "meta": link.get("meta", ""), "url": link.get("url", "#"),
+        meta = link.get("meta", "")
+        if link.get("temp_of") in temps:
+            meta = f"{meta} · {temps[link['temp_of']]:.0f}°C"
+        rows.append({"name": link["name"], "meta": meta, "url": link.get("url", "#"),
                      "icon": link.get("icon", "guest"), "group": link.get("group", ""), "up": up})
     feed = []
     # Backup ages come from PBS, the guests from Proxmox. Separate tries, so a

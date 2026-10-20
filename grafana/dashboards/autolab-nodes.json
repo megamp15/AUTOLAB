@@ -1,0 +1,1341 @@
+{
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "autolab-nodes"
+  },
+  "spec": {
+    "annotations": [
+      {
+        "kind": "AnnotationQuery",
+        "spec": {
+          "builtIn": true,
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "query": {
+            "datasource": {
+              "name": "-- Grafana --"
+            },
+            "group": "grafana",
+            "kind": "DataQuery",
+            "spec": {},
+            "version": "v0"
+          }
+        }
+      }
+    ],
+    "cursorSync": "Off",
+    "editable": true,
+    "elements": {
+      "panel-1": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "${DS}"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (instance) (node_hwmon_temp_celsius{chip=\"platform_coretemp_0\",instance=~\"$node\"})",
+                        "legendFormat": "{{ instance }}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Hottest core per node. These Intel CPUs throttle near 100°C; a laptop node peaks around 90 in a build.",
+          "id": 1,
+          "links": [],
+          "title": "CPU temperature now",
+          "vizConfig": {
+            "group": "stat",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "unit": "celsius",
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 80
+                      },
+                      {
+                        "color": "red",
+                        "value": 95
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "colorMode": "background",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "vertical",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value_and_name",
+                "wideLayout": true,
+                "showPercentChange": false
+              }
+            },
+            "version": ""
+          }
+        }
+      },
+      "panel-2": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "${DS}"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "100 * (1 - node_memory_MemAvailable_bytes{instance=~\"$node\"} / node_memory_MemTotal_bytes{instance=~\"$node\"})",
+                        "legendFormat": "{{ instance }}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Used memory, page cache excluded (it is handed back when anything asks).",
+          "id": 2,
+          "links": [],
+          "title": "RAM used",
+          "vizConfig": {
+            "group": "stat",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "unit": "percent",
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 80
+                      },
+                      {
+                        "color": "red",
+                        "value": 90
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "colorMode": "background",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "vertical",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value_and_name",
+                "wideLayout": true,
+                "showPercentChange": false
+              }
+            },
+            "version": ""
+          }
+        }
+      },
+      "panel-3": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "${DS}"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\",instance=~\"$node\"}[5m])) * 100)",
+                        "legendFormat": "{{ instance }}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Across all cores, 5-minute average.",
+          "id": 3,
+          "links": [],
+          "title": "CPU used",
+          "vizConfig": {
+            "group": "stat",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "unit": "percent",
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 70
+                      },
+                      {
+                        "color": "red",
+                        "value": 90
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "colorMode": "background",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "vertical",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value_and_name",
+                "wideLayout": true,
+                "showPercentChange": false
+              }
+            },
+            "version": ""
+          }
+        }
+      },
+      "panel-4": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "${DS}"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (instance) (node_hwmon_temp_celsius{chip=\"platform_coretemp_0\",instance=~\"$node\"})",
+                        "legendFormat": "{{ instance }}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Per node. Dashed lines at 80°C and 95°C (the alert, sustained 10 min).",
+          "id": 4,
+          "links": [],
+          "title": "CPU temperature (hottest core)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic",
+                    "seriesBy": "max"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.9,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineStyle": {
+                      "fill": "solid"
+                    },
+                    "lineWidth": 2,
+                    "pointSize": 1,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "line"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 80
+                      },
+                      {
+                        "color": "red",
+                        "value": 95
+                      }
+                    ]
+                  },
+                  "unit": "celsius",
+                  "min": 20
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.2"
+          }
+        }
+      },
+      "panel-5": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "${DS}"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "avg by (instance) (node_cpu_scaling_frequency_hertz{instance=~\"$node\"})",
+                        "legendFormat": "{{ instance }}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Average across cores. A drop under load with high temperature is throttling; a drop at idle is power saving.",
+          "id": 5,
+          "links": [],
+          "title": "CPU clock",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic",
+                    "seriesBy": "max"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.9,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineStyle": {
+                      "fill": "solid"
+                    },
+                    "lineWidth": 2,
+                    "pointSize": 1,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "hertz"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.2"
+          }
+        }
+      },
+      "panel-6": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "${DS}"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (instance) (increase(node_cpu_package_throttles_total{instance=~\"$node\"}[15m])) + sum by (instance) (increase(node_cpu_core_throttles_total{instance=~\"$node\"}[15m]))",
+                        "legendFormat": "{{ instance }}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "How often the CPU slowed itself for heat, per 15 minutes. Should be 0; anything above is what the alert pages on.",
+          "id": 6,
+          "links": [],
+          "title": "Heat throttling",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic",
+                    "seriesBy": "max"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.9,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineStyle": {
+                      "fill": "solid"
+                    },
+                    "lineWidth": 2,
+                    "pointSize": 1,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short",
+                  "min": 0
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.2"
+          }
+        }
+      },
+      "panel-7": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "${DS}"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "100 * (1 - node_memory_MemAvailable_bytes{instance=~\"$node\"} / node_memory_MemTotal_bytes{instance=~\"$node\"})",
+                        "legendFormat": "{{ instance }}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Per node, over time.",
+          "id": 7,
+          "links": [],
+          "title": "RAM used",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic",
+                    "seriesBy": "max"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.9,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineStyle": {
+                      "fill": "solid"
+                    },
+                    "lineWidth": 2,
+                    "pointSize": 1,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "line"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 80
+                      },
+                      {
+                        "color": "red",
+                        "value": 90
+                      }
+                    ]
+                  },
+                  "unit": "percent",
+                  "min": 0
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.2"
+          }
+        }
+      },
+      "panel-8": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "${DS}"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (instance) (node_hwmon_temp_celsius{chip=~\"nvme.*\",instance=~\"$node\"})",
+                        "legendFormat": "{{ instance }}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "NVMe drives that report one (xps-pve). SATA disks need SMART, which is not collected yet.",
+          "id": 8,
+          "links": [],
+          "title": "Disk temperature",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic",
+                    "seriesBy": "max"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.9,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineStyle": {
+                      "fill": "solid"
+                    },
+                    "lineWidth": 2,
+                    "pointSize": 1,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "line"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 60
+                      },
+                      {
+                        "color": "red",
+                        "value": 70
+                      }
+                    ]
+                  },
+                  "unit": "celsius"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.2"
+          }
+        }
+      },
+      "panel-9": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "${DS}"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "node_hwmon_fan_rpm{instance=~\"$node\"}",
+                        "legendFormat": "{{ instance }} {{ sensor }}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Nodes that report fan speed (xps-pve, through the Dell sensor driver).",
+          "id": 9,
+          "links": [],
+          "title": "Fans",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic",
+                    "seriesBy": "max"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.9,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineStyle": {
+                      "fill": "solid"
+                    },
+                    "lineWidth": 2,
+                    "pointSize": 1,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "rotrpm",
+                  "min": 0
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.2"
+          }
+        }
+      },
+      "panel-10": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "${DS}"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "100 * pve_disk_usage_bytes{id=~\"storage/.*\"} / pve_disk_size_bytes{id=~\"storage/.*\"}",
+                        "legendFormat": "{{ id }}"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Each storage on each node, from the Proxmox API.",
+          "id": 10,
+          "links": [],
+          "title": "Proxmox storage used",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic",
+                    "seriesBy": "max"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.9,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineStyle": {
+                      "fill": "solid"
+                    },
+                    "lineWidth": 2,
+                    "pointSize": 1,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "line"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 80
+                      },
+                      {
+                        "color": "red",
+                        "value": 90
+                      }
+                    ]
+                  },
+                  "unit": "percent",
+                  "min": 0
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.2"
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "GridLayout",
+      "spec": {
+        "items": [
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-1"
+              },
+              "height": 5,
+              "width": 8,
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-2"
+              },
+              "height": 5,
+              "width": 8,
+              "x": 8,
+              "y": 0
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-3"
+              },
+              "height": 5,
+              "width": 8,
+              "x": 16,
+              "y": 0
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-4"
+              },
+              "height": 8,
+              "width": 12,
+              "x": 0,
+              "y": 5
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-5"
+              },
+              "height": 8,
+              "width": 12,
+              "x": 12,
+              "y": 5
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-6"
+              },
+              "height": 8,
+              "width": 12,
+              "x": 0,
+              "y": 13
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-7"
+              },
+              "height": 8,
+              "width": 12,
+              "x": 12,
+              "y": 13
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-8"
+              },
+              "height": 8,
+              "width": 12,
+              "x": 0,
+              "y": 21
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-9"
+              },
+              "height": 8,
+              "width": 12,
+              "x": 12,
+              "y": 21
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-10"
+              },
+              "height": 8,
+              "width": 24,
+              "x": 0,
+              "y": 29
+            }
+          }
+        ]
+      }
+    },
+    "links": [],
+    "liveNow": false,
+    "preload": false,
+    "tags": [
+      "autolab",
+      "nodes",
+      "hardware"
+    ],
+    "timeSettings": {
+      "autoRefresh": "30s",
+      "autoRefreshIntervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
+      "fiscalYearStartMonth": 0,
+      "from": "now-6h",
+      "hideTimepicker": false,
+      "timezone": "browser",
+      "to": "now"
+    },
+    "title": "Autolab — Nodes",
+    "variables": [
+      {
+        "kind": "DatasourceVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "",
+            "value": ""
+          },
+          "hide": "dontHide",
+          "includeAll": false,
+          "multi": false,
+          "name": "DS",
+          "options": [],
+          "pluginId": "prometheus",
+          "refresh": "onDashboardLoad",
+          "regex": "",
+          "skipUrlSync": false
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "hide": "dontHide",
+          "includeAll": true,
+          "multi": true,
+          "name": "node",
+          "label": "Node",
+          "options": [],
+          "query": {
+            "datasource": {
+              "name": "${DS}"
+            },
+            "group": "prometheus",
+            "kind": "DataQuery",
+            "spec": {
+              "__legacyStringValue": "label_values(node_hwmon_chip_names{chip_name=\"coretemp\"}, instance)"
+            },
+            "version": "v0"
+          },
+          "refresh": "onDashboardLoad",
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": "alphabeticalAsc"
+        }
+      }
+    ]
+  }
+}
