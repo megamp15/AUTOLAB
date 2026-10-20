@@ -191,6 +191,76 @@ groups:
                     type: gt
                     params: [{{ autolab_obs_alert_memory_pct }}]
 
+      # The hypervisors' own hardware. Warnings: heat slows a node rather than
+      # stopping it. The CPU counts every time it slows itself for heat, so the
+      # throttle rule needs no temperature threshold to be right; the heat rule
+      # catches a fan that has stopped before throttling turns constant.
+      - uid: autolab-node-throttling
+        title: Node CPU is throttling from heat
+        condition: THRESHOLD
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "{% raw %}{{ $labels.instance }} slowed its CPU for heat {{ printf \{% endraw %}"%.0f\" $value }} times in 15 minutes"
+          description: "The CPU is cutting its own clock to cool down, so everything on the node runs slower. Check the Nodes dashboard for temperature and fans; on a laptop node, the vents and what it is lying on."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: 'sum by (instance) (increase(node_cpu_package_throttles_total[15m])) + sum by (instance) (increase(node_cpu_core_throttles_total[15m]))'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+
+      - uid: autolab-node-cpu-hot
+        title: Node CPU is running hot
+        condition: THRESHOLD
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "{% raw %}{{ $labels.instance }} CPU at {{ printf \{% endraw %}"%.0f\" $value }}°C for 10 minutes"
+          description: "Its hottest core has stayed near the point where the CPU throttles (about 100°C on these Intel chips). Short peaks under a build are normal; ten minutes is not."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: 'max by (instance) (node_hwmon_temp_celsius{chip="platform_coretemp_0"})'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [{{ autolab_obs_alert_cpu_temp_c }}]
+
       - uid: autolab-pve-storage-full
         title: Proxmox storage almost full
         condition: THRESHOLD
