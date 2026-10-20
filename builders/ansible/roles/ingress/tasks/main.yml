@@ -100,7 +100,7 @@
       {{ out }}
   ansible.builtin.set_fact:
     autolab_ingress_internal_routes: >-
-      {{ autolab_ingress_service_routes | combine(node_routes) | combine(machine_routes) }}
+      {{ autolab_ingress_service_routes | combine(node_routes) | combine(machine_routes) | combine(autolab_ingress_extra_routes) }}
 
 - name: Decide whether the tailnet side is on
   ansible.builtin.set_fact:

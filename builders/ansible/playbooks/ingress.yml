@@ -18,6 +18,14 @@
       lock_timeout: 900
 
   vars:
+    # Machines in other Stacks, reached over the tailnet by name. Pi-hole's
+    # admin page (magnetosphere, edge Stack) behind the passkey: it has no
+    # OpenID login of its own, so the plugin is its login, as for Prometheus.
+    autolab_ingress_extra_routes:
+      pihole:
+        upstream: "http://magnetosphere.{{ autolab_ingress_tailnet_domain }}:8053"
+        login: plugin
+
     # The observability host by MagicDNS name: Traefik routes the homepage and
     # Grafana there. Found in the inventory the same way the backup playbook
     # finds the stack host, so nothing here names a machine.

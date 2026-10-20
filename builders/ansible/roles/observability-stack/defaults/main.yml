@@ -352,6 +352,16 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://singularity.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:2283/api/server/ping"
+  # Pi-hole on magnetosphere (edge Stack): DNS with ad blocking for the
+  # home network. Its admin page is behind the passkey via the ingress route.
+  - name: Pi-hole
+    group: services
+    meta: DNS
+    url: "{{ autolab_obs_lab_url.format(name='pihole', raw='http://magnetosphere.' ~ autolab_tailscale_fqdn.split('.', 1)[1] ~ ':8053') }}/admin/"
+    icon: tailnet
+    check:
+      type: tcp
+      target: "magnetosphere.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:53"
   - name: GitHub
     group: services
     meta: megamp15/AUTOLAB
