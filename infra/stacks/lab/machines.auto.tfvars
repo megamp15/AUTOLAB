@@ -113,10 +113,12 @@ machines = {
   # the observability stack, and growing CPU or memory later means a reboot
   # while growing the disk is worse. Cheaper to size it once.
   #
-  # 6 GB: Alloy plus Prometheus, Loki and Grafana lands around 3 GB at rest,
+  # 7.5 GB: Alloy plus Prometheus, Loki and Grafana lands around 3 GB at rest,
   # and a metrics backend that starts swapping stops being able to tell you
   # why anything is slow. Was 8 until the tenant VMs needed the room on a
-  # 15 GB node; the working set never approached it.
+  # 15 GB node, then 6; raised to 7.5 on 2026-10-19 because code-server's
+  # builds took jwst past 95%. xps-pve had 3.1 GB available and keeps ~1.6.
+  # More than this belongs on zima-pve (code-server could move there).
   #
   # 120 GB, was 40: Prometheus and Loki keep their own data here, the registry
   # stores every image CI pushes, and code-server adds a workspace on top.
@@ -130,7 +132,7 @@ machines = {
     datastore_id            = "local-lvm"
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 4
-    memory_mb               = 6144
+    memory_mb               = 7680
     disk_size_gb            = 120
     # Declared, not leased: tenant guests ship telemetry to this address over
     # the bridge, and a lease is unknowable to a stack that cannot see this
