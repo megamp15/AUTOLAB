@@ -150,7 +150,7 @@ machines = {
       # built in CI, its UI, Diun to say when a pinned image has a newer tag,
       # and code-server for the operator workspace. Moving them is a line in
       # another machine's map.
-      services = ["portainer", "registry", "registry-ui", "diun", "code-server"]
+      services = ["portainer", "registry", "registry-ui", "diun", "code-server", "immich-share"]
       # Grafana is reached over the tailnet, which the baseline already allows
       # on tailscale0. Nothing is opened to the LAN.
       #

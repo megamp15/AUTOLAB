@@ -28,6 +28,12 @@ http:
       entryPoints: [web]
       service: grafana
 {% endif %}
+{% for name, route in autolab_ingress_public_routes.items() %}
+    public-{{ name }}:
+      rule: "Host(`{{ name }}.{{ zone }}`)"
+      entryPoints: [web]
+      service: public-{{ name }}
+{% endfor %}
 {% if tailnet_on %}
     # --- tailnet only, HTTPS with the wildcard certificate ------------------
 {%   for name, route in autolab_ingress_internal_routes.items() %}
@@ -66,6 +72,12 @@ http:
 {% endif %}
 
   services:
+{% for name, route in autolab_ingress_public_routes.items() %}
+    public-{{ name }}:
+      loadBalancer:
+        servers:
+          - url: "{{ route.upstream }}"
+{% endfor %}
     pocket-id:
       loadBalancer:
         servers:
