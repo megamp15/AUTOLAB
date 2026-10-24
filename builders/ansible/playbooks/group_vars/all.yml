@@ -31,3 +31,11 @@ autolab_service_catalog:
   code-server:
     port: 8443
     login: plugin
+  # Immich Public Proxy: the one public face of Immich. It serves shared links
+  # (share.<zone>/share/<key>) and nothing else — no login, library or API —
+  # so Immich itself stays on the tailnet. No plugin: a shared link is meant to
+  # open for someone without an account. The public route is in the ingress
+  # playbook; this port is also reachable on the tailnet.
+  immich-share:
+    port: 8095
+    login: none

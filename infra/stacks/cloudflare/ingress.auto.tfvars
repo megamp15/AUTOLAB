@@ -7,4 +7,5 @@ public_hostnames = {
   home    = { comment = "the homepage, behind the login" }
   grafana = { comment = "Grafana, logs in via Pocket ID" }
   auth    = { comment = "Pocket ID, the login page itself" }
+  share   = { comment = "Immich shared links only, through Immich Public Proxy" }
 }

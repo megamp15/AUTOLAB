@@ -28,6 +28,7 @@ autolab_services_images:
   # The base only: the editor runs an image built on the host from this, with
   # the tools below baked in. See templates/code-server/Dockerfile.j2.
   code_server: "codercom/code-server:4.138.0"
+  immich_share: "alangrainger/immich-public-proxy:4.1.2"
 
 # Host ports come from the shared catalog in playbooks/group_vars/all.yml,
 # because the ingress role on another machine routes to the same numbers.
@@ -38,6 +39,14 @@ autolab_services_ports:
   registry: "{{ autolab_service_catalog.registry.port }}"
   registry_ui: "{{ autolab_service_catalog['registry-ui'].port }}"
   code_server: "{{ autolab_service_catalog['code-server'].port }}"
+  immich_share: "{{ autolab_service_catalog['immich-share'].port }}"
+
+# Immich Public Proxy. The address shared links are opened at (Immich's own
+# External Domain must say the same), and where Immich answers on the tailnet:
+# the NAS runs it in its own Docker.
+autolab_services_immich_share_public_url: "https://share.pmahir.space"
+autolab_services_immich_host: "singularity"
+autolab_services_immich_port: 2283
 
 # Extensions the editor is expected to have, pinned like every image above.
 # The mounted data directory keeps them across a container recreation; this

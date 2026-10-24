@@ -1,0 +1,19 @@
+  immich-share:
+    image: {{ autolab_services_images.immich_share }}
+    restart: unless-stopped
+    # Asks Immich, over the tailnet, for one shared link at a time and renders
+    # it; it has no route to Immich's login, library or API. Read-only and with
+    # no privileges, as its own compose file recommends.
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges
+    environment:
+      PUBLIC_BASE_URL: "{{ autolab_services_immich_share_public_url }}"
+      IMMICH_URL: "http://{{ autolab_services_immich_host }}.{{ autolab_services_fqdn.split('.', 1)[1] }}:{{ autolab_services_immich_port }}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -m 4 http://localhost:3000/share/healthcheck -o /dev/null || exit 1"]
+      start_period: 10s
+      timeout: 5s
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.immich_share }}:3000"

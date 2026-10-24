@@ -21,6 +21,12 @@
     # Machines in other Stacks, reached over the tailnet by name. Pi-hole's
     # admin page (magnetosphere, edge Stack) behind the passkey: it has no
     # OpenID login of its own, so the plugin is its login, as for Prometheus.
+    # Public, no login: Immich's shared links through the public proxy on the
+    # services host. Immich itself stays on the tailnet.
+    autolab_ingress_public_routes:
+      share:
+        upstream: "http://{{ autolab_ingress_services_fqdn }}:{{ autolab_service_catalog['immich-share'].port }}"
+
     autolab_ingress_extra_routes:
       pihole:
         upstream: "http://magnetosphere.{{ autolab_ingress_tailnet_domain }}:8053"
