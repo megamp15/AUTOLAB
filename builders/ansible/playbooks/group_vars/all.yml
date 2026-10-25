@@ -39,3 +39,8 @@ autolab_service_catalog:
   immich-share:
     port: 8095
     login: none
+  # gethomepage: a compact grid of every lab app and console, at
+  # dash.<label>.<zone>, next to the custom homepage rather than instead of it.
+  dash:
+    port: 8096
+    login: plugin

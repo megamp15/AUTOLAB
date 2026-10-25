@@ -1,0 +1,75 @@
+# Managed by Ansible — roles/container-services (templates/dash). https://gethomepage.dev/configs/services/
+# Links are what a browser opens; the dot is a check made from jwst.
+{% set lab = autolab_services_dash_label ~ '.' ~ autolab_services_dash_zone %}
+{% set zone = autolab_services_dash_zone %}
+{% set tn = autolab_services_fqdn.split('.', 1)[1] %}
+- Applications:
+    - Immich:
+        icon: immich.png
+        href: https://immich.{{ lab }}
+        description: Photo gallery
+        siteMonitor: http://singularity.{{ tn }}:2283/api/server/ping
+    - Pi-hole:
+        icon: pi-hole.png
+        href: https://pihole.{{ lab }}/admin/
+        description: DNS and ad blocking
+        siteMonitor: http://magnetosphere.{{ tn }}:8053/admin/
+    - Grafana:
+        icon: grafana.png
+        href: https://grafana.{{ zone }}
+        description: Dashboards and alerts
+        siteMonitor: http://jwst.{{ tn }}:3000/api/health
+    - Prometheus:
+        icon: prometheus.png
+        href: https://prometheus.{{ lab }}
+        description: Metrics
+        siteMonitor: http://jwst.{{ tn }}:9090/-/ready
+    - Code:
+        icon: code-server.png
+        href: https://code-server.{{ lab }}
+        description: Editor in the browser
+    - Portainer:
+        icon: portainer.png
+        href: https://portainer.{{ lab }}
+        description: Containers
+    - Registry:
+        icon: docker.png
+        href: https://registry-ui.{{ lab }}
+        description: Container images
+    - Homepage:
+        icon: mdi-orbit
+        href: https://home.{{ zone }}
+        description: The Singularity page
+- Server Config:
+{% for node in ['xps-pve', 'pve', 'zima-pve'] %}
+    - Proxmox · {{ node }}:
+        icon: proxmox.png
+        href: https://{{ node }}.{{ lab }}
+        description: Proxmox VE node
+        siteMonitor: https://{{ node }}.{{ tn }}:8006
+{% endfor %}
+    - Backup Server:
+        icon: proxmox.png
+        href: https://pbs.{{ lab }}
+        description: PBS on ark
+    - NAS:
+        icon: mdi-nas
+        href: https://nas.{{ lab }}
+        description: UGOS on singularity
+    - Pocket ID:
+        icon: sh-pocket-id
+        href: https://auth.{{ zone }}
+        description: Users, groups, passkeys
+        siteMonitor: https://auth.{{ zone }}/.well-known/openid-configuration
+    - Tailscale:
+        icon: tailscale.png
+        href: https://login.tailscale.com/admin/machines
+        description: Tailnet console
+    - Cloudflare:
+        icon: cloudflare.png
+        href: https://dash.cloudflare.com
+        description: DNS and the tunnel
+    - GitHub:
+        icon: github.png
+        href: https://github.com/megamp15/AUTOLAB
+        description: AUTOLAB, all of this as code

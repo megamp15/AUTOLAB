@@ -1,0 +1,11 @@
+  dash:
+    image: {{ autolab_services_images.dash }}
+    restart: unless-stopped
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: "dash.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+    # Its config is written by Ansible (templates/dash/); homepage reloads it on
+    # change and keeps its own logs beside it.
+    volumes:
+      - {{ autolab_services_root }}/dash/config:/app/config
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.dash }}:3000"
