@@ -71,6 +71,25 @@
     group: root
     mode: "0755"
 
+- name: Create the dashboard's config directory
+  ansible.builtin.file:
+    path: "{{ autolab_services_root }}/dash/config"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: "'dash' in autolab_services_enabled"
+
+- name: Write the dashboard's config
+  ansible.builtin.template:
+    src: "dash/{{ item }}.j2"
+    dest: "{{ autolab_services_root }}/dash/config/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [settings.yaml, services.yaml, widgets.yaml]
+  when: "'dash' in autolab_services_enabled"
+
 - name: Create code-server persistent state and workspace
   ansible.builtin.file:
     path: "{{ item }}"
