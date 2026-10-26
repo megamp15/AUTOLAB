@@ -88,7 +88,7 @@ machines = {
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 2
     memory_mb               = 3072
-    disk_size_gb            = 64
+    disk_size_gb            = 128
     ipv4_address            = "10.42.0.207/24"
     ipv4_gateway            = "10.42.0.1"
     # Boot order on pve: the environments last, once everything they lean on is up.
