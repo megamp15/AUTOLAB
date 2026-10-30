@@ -337,6 +337,19 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.registry.port }}/v2/"
+  # The gethomepage grid (container-services `dash`), the same lab as a
+  # compact list of tiles, next to this page.
+  - name: Dashboard
+    group: services
+    meta: grid view
+    url: "{{ autolab_obs_lab_url.format(name='dash', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog.dash.port) }}"
+    icon: hypervisor
+    enabled: "{{ 'dash' in ((autolab_builder | default({})).services | default([])) }}"
+    # A port check, not HTTP: gethomepage answers only to its own name
+    # (HOMEPAGE_ALLOWED_HOSTS), and this probe dials jwst by its tailnet one.
+    check:
+      type: tcp
+      target: "{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.dash.port }}"
   - name: Code
     group: services
     meta: editor
