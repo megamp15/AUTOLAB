@@ -19,9 +19,13 @@
           print('UTC:', datetime.datetime.now(datetime.timezone.utc).isoformat())
           print('Local:', subprocess.check_output(['date', '-Is'], text=True).strip())
           print('Jobs:', json.dumps(api('/cluster/backup')))
-          for task in api('/nodes/localhost/tasks', '--typefilter', 'vzdump', '--limit', '3'):
+          for task in api('/nodes/localhost/tasks', '--source', 'all', '--typefilter', 'vzdump', '--limit', '3'):
               print('Task:', json.dumps(task))
-              for line in api('/nodes/localhost/tasks/' + task['upid'] + '/log', '--limit', '2000'):
+              log = api('/nodes/localhost/tasks/' + task['upid'] + '/log', '--limit', '2000')
+              progress = [line.get('t', '') for line in log if '%' in line.get('t', '')]
+              if progress:
+                  print('Latest progress:', progress[-1])
+              for line in log:
                   text = line.get('t', '')
                   if any(word in text.lower() for word in ('error', 'failed', 'permission', 'timeout', 'finished', 'starting backup')):
                       print(text)

@@ -540,6 +540,13 @@
     daemon_reload: true
   when: autolab_obs_digest_active | bool
 
+- name: Refresh backup freshness metrics during deployment
+  ansible.builtin.systemd_service:
+    name: autolab-obs-backup-metrics.service
+    state: started
+  changed_when: false
+  when: autolab_obs_digest_active | bool and not ansible_check_mode
+
 - name: Enable the digest timer
   ansible.builtin.systemd_service:
     name: autolab-obs-digest.timer
