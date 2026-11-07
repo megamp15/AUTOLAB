@@ -4,6 +4,9 @@ import ast
 import datetime as dt
 import json
 import subprocess
+import ssl
+import urllib.request
+import urllib.error
 import unittest
 import urllib.parse
 from pathlib import Path
@@ -12,13 +15,13 @@ from unittest.mock import patch
 
 SOURCE = Path(__file__).resolve().parents[1] / 'builders/ansible/roles/observability-stack/templates/autolab-obs-digest.py.j2'
 TREE = ast.parse(SOURCE.read_text())
-FUNCTIONS = ast.Module(body=[n for n in TREE.body if isinstance(n, ast.FunctionDef) and n.name in ('operations', 'link_access')], type_ignores=[])
+FUNCTIONS = ast.Module(body=[n for n in TREE.body if isinstance(n, ast.FunctionDef) and n.name in ('operations', 'link_access', 'probe')], type_ignores=[])
 
 
 class HomepageOperationsTest(unittest.TestCase):
     def setUp(self):
         self.scope = {'dt': dt, 'json': json, 'subprocess': subprocess, 'urllib': urllib, 'os': __import__('os'),
-                      'NODES': [{'name': 'healthy'}, {'name': 'offline'}], 'PBS_URL': ''}
+                      'NODES': [{'name': 'healthy'}, {'name': 'offline'}], 'PBS_URL': '', 'ssl': ssl}
         exec(compile(FUNCTIONS, str(SOURCE), 'exec'), self.scope)
 
     def test_one_unreachable_node_does_not_erase_other_jobs_or_guests(self):
@@ -39,6 +42,11 @@ class HomepageOperationsTest(unittest.TestCase):
         self.assertFalse(result['nodes'][1]['available'])
         self.assertIn('offline: OSError', result['errors'])
         self.assertNotIn('secret', json.dumps(result))
+
+    def test_auth_proxy_response_does_not_hide_an_unhealthy_backend(self):
+        check = {'type': 'docker', 'target': 'services-dockhand-1', 'url': 'http://jwst:9000/'}
+        with patch.object(subprocess, 'check_output', return_value='[{"State":{"Health":{"Status":"unhealthy"}}}]'):
+            self.assertFalse(self.scope['probe'](check))
 
     def test_access_labels_distinguish_public_internal_and_direct_endpoints(self):
         conf = {'public_zone': 'example.com', 'internal_label': 'lab'}

@@ -166,6 +166,13 @@ def probe(check):
                     return r.status < 500
             except urllib.error.HTTPError as e:
                 return e.code < 500
+        if kind == "docker":
+            # The proxy intentionally returns 403 even when its backend is
+            # dead. Require Docker's app health as well as proxy reachability.
+            container = json.loads(subprocess.check_output(
+                ["docker", "inspect", target], text=True, timeout=6))[0]
+            healthy = container.get("State", {}).get("Health", {}).get("Status") == "healthy"
+            return healthy and probe({"type": "http", "target": check["url"]})
         if kind == "tcp":
             import socket
             host, port = target.rsplit(":", 1)

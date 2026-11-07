@@ -326,8 +326,9 @@ autolab_obs_homepage_links:
     icon: hypervisor
     enabled: "{{ 'dockhand' in ((autolab_builder | default({})).services | default([])) }}"
     check:
-      type: http
-      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.dockhand.port }}/"
+      type: docker
+      target: "{{ autolab_services_project | default('services') }}-dockhand-1"
+      url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.dockhand.port }}/"
   - name: Registry
     group: services
     meta: images
