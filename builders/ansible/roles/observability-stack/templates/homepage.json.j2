@@ -10,7 +10,7 @@
 {% for group in rules.groups %}
 {%   for rule in group.rules %}
 {%     set repeat = autolab_obs_ntfy_repeat_updates if rule.labels.notify | default('') == 'updates' else (autolab_obs_ntfy_repeat_critical if rule.labels.severity == 'critical' else autolab_obs_ntfy_repeat_warning) %}
-{%     set alerts.rows = alerts.rows + [{'name': rule.title, 'pending': rule.for, 'severity': rule.labels.severity, 'repeat': repeat, 'description': rule.annotations.description, 'summary': rule.annotations.summary, 'query': rule.data[0].model.expr}] %}
+{%     set alerts.rows = alerts.rows + [{'name': rule.title, 'pending': rule.for, 'severity': rule.labels.severity, 'repeat': repeat, 'description': rule.annotations.description, 'summary': rule.annotations.summary, 'query': rule.data[0].model.expr, 'evaluator': rule.data[-1].model.conditions[0].evaluator}] %}
 {%   endfor %}
 {% endfor %}
 {% set pbs_defaults = lookup('ansible.builtin.file', role_path ~ '/../pbs/defaults/main.yml') | from_yaml %}

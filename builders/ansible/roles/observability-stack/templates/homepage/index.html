@@ -272,6 +272,10 @@
         ? 'For VMs, use workflow 05 with the updates or reboot playbook. For nodes, use workflow 07. Package updates and reboots are separate actions.'
         : friendly(rule.description);
       details.append(el('p', friendly(rule.summary)), el('p', description));
+      if (rule.evaluator) {
+        const operators = {gt:'>', lt:'<', within_range:'within range', outside_range:'outside range'};
+        details.append(el('p', 'Trigger: query result ' + (operators[rule.evaluator.type] || rule.evaluator.type) + ' ' + rule.evaluator.params.join(', ') + ' for ' + rule.pending + '.'));
+      }
       const query = el('p'); query.append(el('code', rule.query)); details.append(query);
       box.append(details);
     });
