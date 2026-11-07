@@ -216,7 +216,13 @@ def operations(conf):
             entry["available"] = False
             result["errors"].append(node["name"] + ": " + type(e).__name__)
         result["nodes"].append(entry)
-    local_zone = os.environ.get("TZ") or dt.datetime.now().astimezone().tzname()
+    localtime_path = os.path.realpath('/etc/localtime')
+    local_zone = os.environ.get("TZ") or (localtime_path.split('/zoneinfo/', 1)[1]
+        if '/zoneinfo/' in localtime_path else dt.datetime.now().astimezone().tzname())
+    pbs_timezone = os.environ.get("PBS_TIMEZONE", "ark local time")
+    for schedule in result["schedules"]:
+        if schedule.get("host") == "ark":
+            schedule["timezone"] = pbs_timezone
     for name, schedule, details in (
         ("Morning digest", conf.get("digest_schedule"), "One ntfy summary of backups, capacity and firing alerts."),
         ("Observability snapshot", conf.get("snapshot_schedule") if conf.get("snapshot_enabled") else None, "Prometheus snapshot, Grafana data and configuration copied to the NAS; randomized delay up to 30 minutes."),
@@ -245,7 +251,7 @@ def operations(conf):
             try:
                 for job in pbs(endpoint):
                     result["schedules"].append({"name": name, "host": "ark", "schedule": job.get("schedule", "manual"),
-                        "timezone": "ark local time", "next": job.get("next-run"), "enabled": not job.get("disable", False),
+                        "timezone": pbs_timezone, "next": job.get("next-run"), "enabled": not job.get("disable", False),
                         "details": "Datastore " + job.get("store", "?") + "; last run: " + str(job.get("last-run-state", "unknown"))})
             except Exception as e:
                 result["errors"].append(name + ": " + type(e).__name__)

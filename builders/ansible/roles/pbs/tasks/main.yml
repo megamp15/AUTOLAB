@@ -428,3 +428,13 @@
   delay: 5
   no_log: true
   when: not ansible_check_mode
+
+- name: Read the backup server's timezone for its schedule labels
+  ansible.builtin.command: timedatectl show --property=Timezone --value
+  register: autolab_pbs_timezone_result
+  changed_when: false
+  check_mode: false
+
+- name: Remember the backup server's timezone
+  ansible.builtin.set_fact:
+    autolab_pbs_timezone: "{{ autolab_pbs_timezone_result.stdout }}"
