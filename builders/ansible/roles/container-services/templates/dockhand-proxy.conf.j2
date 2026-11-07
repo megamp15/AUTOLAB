@@ -1,4 +1,6 @@
 # Managed by Ansible. The token is not an end-user credential.
+# A 64-character credential needs a larger hash bucket than nginx defaults.
+map_hash_bucket_size 128;
 map $http_x_autolab_dockhand_token $autolab_allowed {
     default 0;
     "{{ autolab_dockhand_proxy_token.content | b64decode | trim }}" 1;

@@ -112,6 +112,9 @@ jobs:
       - name: Run Proxmox node resolver self-check
         run: bash scripts/test_resolve-proxmox-node.sh
 
+      - name: Dockhand proxy configuration regression
+        run: bash scripts/test_dockhand_proxy.sh
+
       - name: PBS access guard regression
         run: bash scripts/test_pbs_access.sh
 
