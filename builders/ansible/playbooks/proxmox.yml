@@ -68,7 +68,7 @@
         enabled: true
       zima-pve:
         pbs_server: "ark.{{ lookup('env', 'AUTOLAB_TAILNET_DOMAIN') }}"
-        exclude: []
+        exclude: [9000]
         enabled: true
     autolab_pve_backup: "{{ autolab_pve_backup_by_node[inventory_hostname] }}"
 

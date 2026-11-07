@@ -257,7 +257,11 @@
     (op.alerts || []).forEach(rule => {
       const details = el('details');
       details.append(el('summary', `${rule.name} · ${rule.severity} · pending ${rule.pending} · repeats ${rule.repeat}`));
-      details.append(el('p', rule.summary), el('p', rule.description));
+      const friendly = text => String(text || '').replace(/\{\{[^}]*\}\}/g, token => token.includes('$labels.name') ? 'guest' : token.includes('$labels.instance') ? 'host' : token.includes('$value') ? 'measured value' : '');
+      const description = rule.description.includes('$labels.platform')
+        ? 'For VMs, use workflow 05 with the updates or reboot playbook. For nodes, use workflow 07. Package updates and reboots are separate actions.'
+        : friendly(rule.description);
+      details.append(el('p', friendly(rule.summary)), el('p', description));
       const query = el('p'); query.append(el('code', rule.query)); details.append(query);
       box.append(details);
     });
