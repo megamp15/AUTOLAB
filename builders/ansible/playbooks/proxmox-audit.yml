@@ -83,7 +83,10 @@
           ):
               r = subprocess.run(cmd, capture_output=True, text=True)
               print(cmd[0], 'rc=', r.returncode, r.stdout, r.stderr)
-          result = subprocess.run(['runuser', '-u', 'backup', '--', 'find', '/mnt/autolab/ark/vm', '-type', 'f', '!', '-readable', '-print', '-quit'], capture_output=True, text=True)
+          result = subprocess.run(
+              ['runuser', '-u', 'backup', '--', 'sh', '-c',
+               'cd / && find /mnt/autolab/ark/vm -type f ! -readable -print -quit'],
+              capture_output=True, text=True)
           print('First inaccessible index:', result.stdout, result.stderr, 'rc=', result.returncode)
           if result.stdout.strip():
               target = result.stdout.splitlines()[0]
