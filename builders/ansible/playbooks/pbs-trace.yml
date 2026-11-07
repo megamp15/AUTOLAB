@@ -1,0 +1,49 @@
+---
+# Targeted filesystem trace of one read-only local API request.
+- name: Trace a PBS datastore lookup failure
+  hosts: linux_servers
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Install the filesystem tracer
+      ansible.builtin.apt:
+        name: strace
+        state: present
+        lock_timeout: 900
+
+    - name: Trace one datastore lookup without logging credentials
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: |
+          python3 - <<'PY'
+          import os, pathlib, signal, ssl, subprocess, time, urllib.request, urllib.error
+          pid = subprocess.check_output(['systemctl', 'show', 'proxmox-backup-proxy', '-p', 'MainPID', '--value'], text=True).strip()
+          path = '/run/autolab-pbs-files.trace'
+          os.umask(0o077)
+          process = subprocess.Popen(['strace', '-f', '-e', 'trace=%file', '-p', pid, '-o', path], stderr=subprocess.DEVNULL)
+          try:
+              time.sleep(1)
+              token = pathlib.Path('/etc/autolab/pbs-digest-token').read_text().strip()
+              request = urllib.request.Request('https://localhost:8007/api2/json/admin/datastore/singularity/status',
+                  headers={'Authorization': 'PBSAPIToken=digest@pbs!obs:' + token})
+              try:
+                  with urllib.request.urlopen(request, context=ssl._create_unverified_context(), timeout=10) as response:
+                      print('PBS datastore API:', response.status)
+              except urllib.error.HTTPError as error:
+                  print('PBS datastore API:', error.code, error.read().decode())
+              time.sleep(1)
+          finally:
+              process.send_signal(signal.SIGINT)
+              process.wait(timeout=10)
+          for line in pathlib.Path(path).read_text(errors='replace').splitlines():
+              if 'EACCES' in line or 'EPERM' in line:
+                  print(line)
+          pathlib.Path(path).unlink()
+          PY
+      changed_when: false
+      register: autolab_pbs_trace
+      no_log: true
+
+    - name: Show the failed file accesses
+      ansible.builtin.debug:
+        var: autolab_pbs_trace.stdout_lines
