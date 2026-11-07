@@ -237,6 +237,29 @@
     remove_orphans: true
   when: not ansible_check_mode
 
+- name: Verify direct Dockhand access is denied
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.dockhand }}/"
+    status_code: [403]
+  register: autolab_dockhand_denied
+  until: autolab_dockhand_denied.status == 403
+  retries: 20
+  delay: 3
+  when: "'dockhand' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Verify authenticated proxy traffic reaches Dockhand
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.dockhand }}/"
+    headers:
+      X-Autolab-Dockhand-Token: "{{ autolab_dockhand_proxy_token.content | b64decode | trim }}"
+    status_code: [200]
+  register: autolab_dockhand_ready
+  until: autolab_dockhand_ready.status == 200
+  retries: 30
+  delay: 3
+  no_log: true
+  when: "'dockhand' in autolab_services_enabled and not ansible_check_mode"
+
 # After the stack is up, because it runs inside the container. The CLI is
 # idempotent and says so — "already installed" is how a converged host is
 # told apart from one that just gained an extension, which is what keeps a
