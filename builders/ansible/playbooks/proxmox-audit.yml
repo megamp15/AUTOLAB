@@ -81,6 +81,8 @@
               ['namei', '-l', '/mnt/autolab/ark'],
               ['ls', '-lan', '/mnt/autolab/ark'],
               ['ps', '-C', 'proxmox-backup-proxy', '-o', 'pid,euid,egid,comm'],
+              ['ls', '-lan', '/etc/proxmox-backup'],
+              ['find', '/run/proxmox-backup', '-maxdepth', '3', '-printf', '%m %u %g %p\\n'],
               ['runuser', '-u', 'backup', '--', 'test', '-w', '/mnt/autolab/ark/.lock'],
               ['sudo', '-u', 'backup', 'test', '-r', '/mnt/autolab/ark'],
           ):

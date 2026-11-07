@@ -328,6 +328,25 @@
 
 # Dynamic config is watched: routers, services and the middleware reload
 # without a restart. Holds the client secret, hence 0600.
+- name: Collect the services host's SSH identity over the tailnet
+  ansible.builtin.command:
+    argv: [ssh-keyscan, -H, -t, ed25519, -T, '10', "{{ autolab_ingress_services_fqdn }}"]
+  delegate_to: localhost
+  become: false
+  register: autolab_ingress_services_key
+  changed_when: false
+  check_mode: false
+  when: "'dockhand' in autolab_ingress_services"
+
+- name: Trust the services host for the credential handoff
+  ansible.builtin.known_hosts:
+    name: "{{ autolab_ingress_services_fqdn }}"
+    key: "{{ autolab_ingress_services_key.stdout }}"
+  delegate_to: localhost
+  become: false
+  check_mode: false
+  when: "'dockhand' in autolab_ingress_services"
+
 - name: Read the services host's Dockhand proxy credential
   ansible.builtin.slurp:
     src: /etc/autolab/dockhand-proxy-token
