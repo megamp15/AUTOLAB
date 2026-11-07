@@ -355,6 +355,13 @@
   no_log: true
   when: "'dockhand' in autolab_ingress_services"
 
+- name: Require a valid Dockhand credential before adding its route
+  ansible.builtin.assert:
+    that: (autolab_ingress_dockhand_token.content | b64decode | trim) is match('^[0-9a-f]{64}$')
+    fail_msg: Dockhand proxy credential is invalid; refusing to route to it.
+  no_log: true
+  when: "'dockhand' in autolab_ingress_services"
+
 - name: Install Traefik's routes
   ansible.builtin.template:
     src: traefik-dynamic.yml.j2

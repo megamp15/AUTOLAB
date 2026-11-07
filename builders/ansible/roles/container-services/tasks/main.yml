@@ -164,7 +164,13 @@
 
 - name: Create Dockhand's proxy credential once
   ansible.builtin.shell:
-    cmd: umask 077; openssl rand -hex 32 > /etc/autolab/dockhand-proxy-token
+    cmd: |
+      set -e
+      umask 077
+      token_file=$(mktemp /etc/autolab/.dockhand-token.XXXXXX)
+      trap 'rm -f "$token_file"' EXIT
+      openssl rand -hex 32 > "$token_file"
+      mv "$token_file" /etc/autolab/dockhand-proxy-token
     creates: /etc/autolab/dockhand-proxy-token
   no_log: true
   when: "'dockhand' in autolab_services_enabled"
@@ -173,6 +179,13 @@
   ansible.builtin.slurp:
     src: /etc/autolab/dockhand-proxy-token
   register: autolab_dockhand_proxy_token
+  no_log: true
+  when: "'dockhand' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Require a valid 64-character Dockhand proxy credential
+  ansible.builtin.assert:
+    that: (autolab_dockhand_proxy_token.content | b64decode | trim) is match('^[0-9a-f]{64}$')
+    fail_msg: Dockhand proxy credential is invalid; refusing to render an access rule.
   no_log: true
   when: "'dockhand' in autolab_services_enabled and not ansible_check_mode"
 
