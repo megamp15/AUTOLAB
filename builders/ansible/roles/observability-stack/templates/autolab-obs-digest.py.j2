@@ -73,8 +73,9 @@ def excluded_everywhere():
     return out
 
 
-def vzdump_tasks(node, limit):
-    return [t for t in pve(node, f"/nodes/{node['name']}/tasks?typefilter=vzdump&limit={limit}&source=all") if t.get("endtime")]
+def vzdump_tasks(node, limit, completed=True):
+    tasks = pve(node, f"/nodes/{node['name']}/tasks?typefilter=vzdump&limit={limit}&source=all")
+    return [task for task in tasks if task.get("endtime")] if completed else tasks
 
 
 def pbs(path):
@@ -311,8 +312,13 @@ def write_status(path):
         # A line per node once there is more than one, named, since each node
         # runs its own job.
         for node in NODES:
-            tasks = vzdump_tasks(node, 5)
-            if tasks:
+            tasks = vzdump_tasks(node, 5, completed=False)
+            active = [task for task in tasks if not task.get("endtime")]
+            if active:
+                started = min(task["starttime"] for task in active)
+                minutes = (NOW.timestamp() - started) / 60
+                feed.append({"ts": NOW.timestamp(), "text": f"{node['name']} backup running · {minutes:.0f} min"})
+            elif tasks:
                 last = max(tasks, key=lambda t: t["endtime"])
                 ok = last.get("status") == "OK"
                 who = f"{node['name']} " if len(NODES) > 1 else ""

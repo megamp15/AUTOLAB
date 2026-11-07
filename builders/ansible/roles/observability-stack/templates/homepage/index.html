@@ -297,7 +297,7 @@
       const guests = nodes.map(n => (n.guests || []).filter(g => show.checked || (!g.template && String(g.tags || '').split(';').includes('autolab'))));
       const height = 260 + Math.max(1, ...guests.map(g => g.length)) * 58;
       svg.setAttribute('viewBox', `0 0 ${nodes.length * 240} ${height}`);
-      svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Proxmox hosts and their current guests, with ingress and backup paths');
+      svg.setAttribute('role', 'group'); svg.setAttribute('aria-label', 'Proxmox hosts and their current guests, with ingress and backup paths');
       function shape(tag, attrs, parent = svg) { const e = document.createElementNS(ns, tag); Object.entries(attrs).forEach(([k,v]) => e.setAttribute(k,v)); parent.append(e); return e; }
       function text(x,y,value,size=12,parent=svg) { const t=shape('text',{x,y,'font-size':size},parent); t.textContent=value; return t; }
       function line(d) { shape('path',{d,fill:'none',stroke:'currentColor','stroke-width':1,opacity:.75}); }
