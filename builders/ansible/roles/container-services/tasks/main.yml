@@ -191,7 +191,7 @@
     mode: "0600"
   no_log: true
   when: "'dockhand' in autolab_services_enabled and not ansible_check_mode"
-  notify: Restart the services stack
+  notify: Restart the Dockhand proxy
 
 - name: Assemble the services compose file
   ansible.builtin.template:
@@ -236,6 +236,11 @@
     pull: missing
     remove_orphans: true
   when: not ansible_check_mode
+
+# A template write replaces its inode. Existing bind mounts retain the old
+# config until the proxy restarts, so flush before checking its responses.
+- name: Apply service configuration before checking readiness
+  ansible.builtin.meta: flush_handlers
 
 - name: Verify direct Dockhand access is denied
   ansible.builtin.uri:
