@@ -1,0 +1,141 @@
+---
+# Read-only evidence for backup failures; runnable while the operator is on a
+# different tailnet. Never print storage.cfg or private storage credentials.
+- name: Inspect backup jobs on each Proxmox node
+  hosts: proxmox_nodes
+  vars:
+    ansible_user: "{{ autolab_proxmox_user | default('gitops') }}"
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read recent backup results and their error lines
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: |
+          python3 - <<'PY'
+          import datetime, json, subprocess
+          def api(path, *args):
+              return json.loads(subprocess.check_output(['pvesh', 'get', path, *args, '--output-format', 'json']))
+          print('UTC:', datetime.datetime.now(datetime.timezone.utc).isoformat())
+          print('Local:', subprocess.check_output(['date', '-Is'], text=True).strip())
+          print('Jobs:', json.dumps(api('/cluster/backup')))
+          for task in api('/nodes/localhost/tasks', '--source', 'all', '--typefilter', 'vzdump', '--limit', '3'):
+              print('Task:', json.dumps(task))
+              log = api('/nodes/localhost/tasks/' + task['upid'] + '/log', '--limit', '2000')
+              progress = [line.get('t', '') for line in log if '%' in line.get('t', '')]
+              if progress:
+                  print('Latest progress:', progress[-1])
+              for line in log:
+                  text = line.get('t', '')
+                  if any(word in text.lower() for word in ('error', 'failed', 'permission', 'timeout', 'finished', 'starting backup')):
+                      print(text)
+          print('Guests:', json.dumps(api('/cluster/resources', '--type', 'vm')))
+          PY
+      register: autolab_backup_audit
+      changed_when: false
+      check_mode: false
+
+    - name: Show backup evidence
+      ansible.builtin.debug:
+        var: autolab_backup_audit.stdout_lines
+
+    - name: Collect the backup server's SSH host key over the tailnet
+      ansible.builtin.command:
+        argv: [ssh-keyscan, -H, -t, ed25519, -T, '10', "ark.{{ lookup('env', 'AUTOLAB_TAILNET_DOMAIN') }}"]
+      delegate_to: localhost
+      become: false
+      run_once: true
+      register: autolab_pbs_host_key
+      changed_when: false
+      check_mode: false
+
+    - name: Trust that key for the audit runner
+      ansible.builtin.known_hosts:
+        name: "ark.{{ lookup('env', 'AUTOLAB_TAILNET_DOMAIN') }}"
+        key: "{{ autolab_pbs_host_key.stdout }}"
+      delegate_to: localhost
+      become: false
+      run_once: true
+      check_mode: false
+
+    - name: Add the backup server for its side of the failure
+      ansible.builtin.add_host:
+        name: ark
+        groups: backup_audit
+        ansible_host: "ark.{{ lookup('env', 'AUTOLAB_TAILNET_DOMAIN') }}"
+        ansible_user: gitops
+      run_once: true
+
+- name: Inspect PBS evidence without changing the datastore
+  hosts: backup_audit
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read PBS errors and datastore access
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: |
+          python3 - <<'PY'
+          import pathlib, subprocess, time, ssl, urllib.request, urllib.error
+          for cmd in (
+              ['date', '-Is'],
+              ['systemctl', 'is-active', 'proxmox-backup-proxy', 'proxmox-backup', 'autolab-pbs-access.timer'],
+              ['findmnt', '/mnt/autolab'],
+              ['df', '-h', '/mnt/autolab/ark'],
+              ['namei', '-l', '/mnt/autolab/ark'],
+              ['ls', '-lan', '/mnt/autolab/ark'],
+              ['ps', '-C', 'proxmox-backup-proxy', '-o', 'pid,euid,egid,comm'],
+              ['ls', '-lan', '/etc/proxmox-backup'],
+              ['find', '/run/proxmox-backup', '-maxdepth', '3', '-printf', '%m %u %g %p\\n'],
+              ['runuser', '-u', 'backup', '--', 'test', '-w', '/mnt/autolab/ark/.lock'],
+              ['sudo', '-u', 'backup', 'test', '-r', '/mnt/autolab/ark'],
+          ):
+              r = subprocess.run(cmd, capture_output=True, text=True)
+              print(cmd[0], 'rc=', r.returncode, r.stdout, r.stderr)
+          result = subprocess.run(
+              ['runuser', '-u', 'backup', '--', 'sh', '-c',
+               'cd / && find /mnt/autolab/ark/vm -type f ! -readable -print -quit'],
+              capture_output=True, text=True)
+          print('First inaccessible index:', result.stdout, result.stderr, 'rc=', result.returncode)
+          if result.stdout.strip():
+              target = result.stdout.splitlines()[0]
+              for cmd in (['stat', target], ['namei', '-l', target]):
+                  r = subprocess.run(cmd, capture_output=True, text=True)
+                  print(r.stdout, r.stderr)
+          print('Snapshot index access:')
+          for tree in ('vm', 'ct'):
+              base = pathlib.Path('/mnt/autolab/ark') / tree
+              for p in sorted(base.glob('*/*/*.fidx'))[:5] + sorted(base.glob('*/*/*.didx'))[:5]:
+                  st = p.stat()
+                  r = subprocess.run(['runuser', '-u', 'backup', '--', 'test', '-r', str(p)])
+                  print(str(p), 'uid=', st.st_uid, 'gid=', st.st_gid, 'mode=', oct(st.st_mode & 0o777), 'backup-readable=', r.returncode == 0)
+          journal = subprocess.run(['journalctl', '-u', 'proxmox-backup-proxy', '--since', '-20min', '--no-pager'], capture_output=True, text=True)
+          print('Recent PBS service errors:')
+          for line in journal.stdout.splitlines()[-100:]:
+              if any(word in line.lower() for word in ('permission', 'denied', 'error', 'failed')):
+                  print(line)
+          token = pathlib.Path('/etc/autolab/pbs-digest-token').read_text().strip()
+          request = urllib.request.Request('https://localhost:8007/api2/json/admin/datastore/singularity/status',
+              headers={'Authorization': 'PBSAPIToken=digest@pbs!obs:' + token})
+          try:
+              with urllib.request.urlopen(request, context=ssl._create_unverified_context(), timeout=10) as response:
+                  print('PBS datastore API:', response.status)
+          except urllib.error.HTTPError as error:
+              print('PBS datastore API:', error.code, error.read().decode())
+          print('Recent PBS task error details:')
+          paths = pathlib.Path('/var/log/proxmox-backup/tasks').glob('*/*')
+          recent = sorted((p for p in paths if p.is_file() and p.stat().st_mtime > time.time()-172800), key=lambda p: p.stat().st_mtime, reverse=True)
+          for p in recent[:30]:
+              lines = p.read_text(errors='replace').splitlines()
+              errors = [s for s in lines if any(w in s.lower() for w in ('task error', 'failed', 'permission denied', '/previous:'))]
+              if errors:
+                  print(p.name)
+                  print('\n'.join(errors[-8:]))
+          PY
+      register: autolab_pbs_audit
+      changed_when: false
+      check_mode: false
+
+    - name: Show PBS evidence
+      ansible.builtin.debug:
+        var: autolab_pbs_audit.stdout_lines

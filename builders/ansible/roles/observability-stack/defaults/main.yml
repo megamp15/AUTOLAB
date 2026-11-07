@@ -319,15 +319,16 @@ autolab_obs_homepage_links:
       target: "https://{{ autolab_obs_public_hosts.auth }}.{{ autolab_obs_public_zone }}/"
   # The container tooling, when this machine runs it. `enabled` drops a row
   # whose service is not in the machines map, so the page shows what exists.
-  - name: Portainer
+  - name: Dockhand
     group: services
     meta: containers
-    url: "{{ autolab_obs_lab_url.format(name='portainer', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog.portainer.port) }}"
+    url: "{{ autolab_obs_lab_url.format(name='dockhand', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog.dockhand.port) }}"
     icon: hypervisor
-    enabled: "{{ 'portainer' in ((autolab_builder | default({})).services | default([])) }}"
+    enabled: "{{ 'dockhand' in ((autolab_builder | default({})).services | default([])) }}"
     check:
-      type: http
-      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.portainer.port }}/"
+      type: docker
+      target: "{{ autolab_services_project | default('services') }}-dockhand-1"
+      url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.dockhand.port }}/"
   - name: Registry
     group: services
     meta: images

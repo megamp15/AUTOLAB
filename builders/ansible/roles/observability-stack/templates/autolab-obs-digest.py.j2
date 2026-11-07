@@ -13,6 +13,7 @@ import json
 import os
 import re
 import ssl
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -72,8 +73,9 @@ def excluded_everywhere():
     return out
 
 
-def vzdump_tasks(node, limit):
-    return [t for t in pve(node, f"/nodes/{node['name']}/tasks?typefilter=vzdump&limit={limit}&source=all") if t.get("endtime")]
+def vzdump_tasks(node, limit, completed=True):
+    tasks = pve(node, f"/nodes/{node['name']}/tasks?typefilter=vzdump&limit={limit}&source=all")
+    return [task for task in tasks if task.get("endtime")] if completed else tasks
 
 
 def pbs(path):
@@ -164,6 +166,13 @@ def probe(check):
                     return r.status < 500
             except urllib.error.HTTPError as e:
                 return e.code < 500
+        if kind == "docker":
+            # The proxy intentionally returns 403 even when its backend is
+            # dead. Require Docker's app health as well as proxy reachability.
+            container = json.loads(subprocess.check_output(
+                ["docker", "inspect", target], text=True, timeout=6))[0]
+            healthy = container.get("State", {}).get("Health", {}).get("Status") == "healthy"
+            return healthy and probe({"type": "http", "target": check["url"]})
         if kind == "tcp":
             import socket
             host, port = target.rsplit(":", 1)
@@ -172,6 +181,90 @@ def probe(check):
     except Exception:  # noqa: BLE001
         return False
     return True
+
+
+def link_access(url, conf):
+    host = urllib.parse.urlparse(url).hostname or ""
+    zone, label = conf.get("public_zone", ""), conf.get("internal_label", "")
+    if zone and label and host.endswith("." + label + "." + zone):
+        return "Tailscale · app login" if host.startswith("immich.") else "Tailscale + Pocket ID"
+    if zone and host.endswith("." + zone):
+        if host.startswith("auth."):
+            return "Public · sign-in"
+        if host.startswith("share."):
+            return "Public · shared links"
+        return "Public + Pocket ID"
+    if host.endswith(".ts.net") or host in ("jwst", "ark", "singularity"):
+        return "Tailscale · direct"
+    return "External · account"
+
+
+def operations(conf):
+    # Each source fails independently. A missing node must remain visible.
+    result = {"schedules": list(conf.get("declared_schedules", [])), "nodes": [], "errors": [], "alerts": conf.get("alerts", []),
+              "backup_max_age_hours": conf.get("backup_max_age_hours", 26)}
+    for node in NODES:
+        entry = {"name": node["name"], "guests": [], "available": True}
+        try:
+            resources = pve(node, "/cluster/resources?type=vm")
+            for guest in resources:
+                entry["guests"].append({k: guest.get(k) for k in
+                    ("name", "vmid", "type", "status", "template", "tags", "maxmem", "maxcpu")})
+            timezone = "node local time"
+            try:
+                timezone = pve(node, f"/nodes/{node['name']}/time").get("timezone", timezone)
+            except Exception:
+                pass
+            for job in pve(node, "/cluster/backup"):
+                result["schedules"].append({"name": "Guest backups", "host": node["name"],
+                    "schedule": job.get("schedule", "unknown"), "timezone": timezone,
+                    "next": job.get("next-run"), "enabled": bool(job.get("enabled", 1)),
+                    "details": "PBS storage " + job.get("storage", "?") + "; excluded IDs: " + str(job.get("exclude", "none"))})
+        except Exception as e:
+            entry["available"] = False
+            result["errors"].append(node["name"] + ": " + type(e).__name__)
+        result["nodes"].append(entry)
+    localtime_path = os.path.realpath('/etc/localtime')
+    local_zone = os.environ.get("TZ") or (localtime_path.split('/zoneinfo/', 1)[1]
+        if '/zoneinfo/' in localtime_path else dt.datetime.now().astimezone().tzname())
+    pbs_timezone = os.environ.get("PBS_TIMEZONE", "ark local time")
+    for schedule in result["schedules"]:
+        if schedule.get("host") == "ark":
+            schedule["timezone"] = pbs_timezone
+    for name, schedule, details in (
+        ("Morning digest", conf.get("digest_schedule"), "One ntfy summary of backups, capacity and firing alerts."),
+        ("Observability snapshot", conf.get("snapshot_schedule") if conf.get("snapshot_enabled") else None, "Prometheus snapshot, Grafana data and configuration copied to the NAS; randomized delay up to 30 minutes."),
+        ("Container image checks", conf.get("diun_schedule") if "diun" in conf.get("services", []) else None, "Diun notifies; it does not upgrade containers. Cron expression."),
+        ("Backup freshness collector", "every " + conf.get("backup_metrics_interval", "15min"), "Reads PBS snapshots. Grafana evaluates the age every minute."),
+        ("Homepage refresh", "every minute", "Collects service health, jobs and topology; this browser refreshes every 30 seconds."),
+    ):
+        if schedule:
+            result["schedules"].append({"name": name, "host": "jwst", "schedule": schedule,
+                "timezone": conf.get("diun_timezone", "UTC") if name == "Container image checks" else local_zone, "enabled": True, "details": details})
+    try:
+        timers = json.loads(subprocess.check_output(
+            ["systemctl", "list-timers", "--all", "--output=json"], text=True, timeout=5))
+        for timer in timers:
+            unit = timer.get("unit", "")
+            if unit.startswith(("autolab-", "apt-daily")):
+                next_time = timer.get("next")
+                result["schedules"].append({"name": unit, "host": "jwst", "schedule": "systemd timer · live",
+                    "timezone": local_zone, "next": next_time / 1000000 if isinstance(next_time, (int, float)) and next_time < 2**63 else None,
+                    "enabled": bool(next_time), "details": "Live timer state. See the named job above for its calendar and jitter."})
+    except (OSError, ValueError, subprocess.SubprocessError) as e:
+        result["errors"].append("jwst timers: " + type(e).__name__)
+    # PBS exposes the actual job schedules, rather than copying its defaults.
+    if PBS_URL:
+        for endpoint, name in (("/admin/prune", "PBS prune"), ("/admin/verify", "PBS verify")):
+            try:
+                for job in pbs(endpoint):
+                    result["schedules"].append({"name": name, "host": "ark", "schedule": job.get("schedule", "manual"),
+                        "timezone": pbs_timezone, "next": job.get("next-run"), "enabled": not job.get("disable", False),
+                        "details": "Datastore " + job.get("store", "?") + "; last run: " + str(job.get("last-run-state", "unknown"))})
+            except Exception as e:
+                result["errors"].append(name + ": " + type(e).__name__)
+    result["services"] = conf.get("services", [])
+    return result
 
 
 def write_status(path):
@@ -196,7 +289,8 @@ def write_status(path):
         if link.get("temp_of") in temps:
             meta = f"{meta} · {temps[link['temp_of']]:.0f}°C"
         rows.append({"name": link["name"], "meta": meta, "url": link.get("url", "#"),
-                     "icon": link.get("icon", "guest"), "group": link.get("group", ""), "up": up})
+                     "icon": link.get("icon", "guest"), "group": link.get("group", ""), "up": up,
+                     "access": link_access(link.get("url", ""), conf)})
     feed = []
     # Backup ages come from PBS, the guests from Proxmox. Separate tries, so a
     # failure says which of the two it was instead of blaming Proxmox for both.
@@ -220,12 +314,18 @@ def write_status(path):
                 meta += " · backup " + age(newest[g["vmid"]])[0]
             rows.append({"name": g["name"], "meta": meta, "icon": "tenant" if is_tenant(g) else "guest",
                          "group": "tenant machines" if is_tenant(g) else "machines",
-                         "url": f"{node['ui']}/#v1:0:=qemu%2F{g['vmid']}", "up": running})
+                         "url": f"{node['ui']}/#v1:0:=qemu%2F{g['vmid']}", "up": running,
+                         "access": link_access(node["ui"], conf)})
         # A line per node once there is more than one, named, since each node
         # runs its own job.
         for node in NODES:
-            tasks = vzdump_tasks(node, 5)
-            if tasks:
+            tasks = vzdump_tasks(node, 5, completed=False)
+            active = [task for task in tasks if not task.get("endtime")]
+            if active:
+                started = min(task["starttime"] for task in active)
+                minutes = (NOW.timestamp() - started) / 60
+                feed.append({"ts": NOW.timestamp(), "text": f"{node['name']} backup running · {minutes:.0f} min"})
+            elif tasks:
                 last = max(tasks, key=lambda t: t["endtime"])
                 ok = last.get("status") == "OK"
                 who = f"{node['name']} " if len(NODES) > 1 else ""
@@ -251,7 +351,7 @@ def write_status(path):
         feed.append({"time": "--:--", "text": f"prometheus: {type(e).__name__}"})
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
-        json.dump({"generated": int(NOW.timestamp()), "rows": rows, "feed": feed[:3]}, f)
+        json.dump({"generated": int(NOW.timestamp()), "rows": rows, "feed": feed, "operations": operations(conf)}, f)
     os.replace(tmp, path)
     print(f"wrote {path}: {len(rows)} rows, {len(feed)} feed lines")
 

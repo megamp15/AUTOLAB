@@ -68,7 +68,7 @@
         enabled: true
       zima-pve:
         pbs_server: "ark.{{ lookup('env', 'AUTOLAB_TAILNET_DOMAIN') }}"
-        exclude: []
+        exclude: [9000]
         enabled: true
     autolab_pve_backup: "{{ autolab_pve_backup_by_node[inventory_hostname] }}"
 
@@ -132,7 +132,7 @@
     # What a dist-upgrade would bring here, for Grafana and its alerts. Reads
     # only; applying stays the deliberate tags=updates run above.
     - role: updates-report
-      tags: [proxmox, obs]
+      tags: [proxmox, obs, updates-report]
     # Tailscale is how CI and people reach a node at all, and nothing else
     # upgraded it: the guests' tailscale-update playbook targets linux_servers,
     # which a hypervisor deliberately is not. xps-pve sat two releases behind.

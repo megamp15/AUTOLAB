@@ -103,6 +103,8 @@ Autolab is **alpha**. The bootstrap path is used on real hardware; the GitOps la
 | VPS track | Cloud-provider stacks that reuse the configure layer | Planned |
 | Service tutorials | Guides for running things on the lab | Planned |
 
+The homepage has Services, Schedules, and Architecture views. [Lab operations](docs/gitops/operations.md) explains job times, notification rules, and access labels.
+
 Design decisions are recorded as ADRs in [`docs/adr/`](docs/adr/). Quality gates are in [production-readiness.md](docs/production-readiness.md).
 
 ## Design principles

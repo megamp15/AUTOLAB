@@ -151,21 +151,47 @@
       | hash('sha256') | truncate(12, true, '') }}
   when: "'code-server' in autolab_services_enabled"
 
-# Plaintext, 0600, mounted read-only: what Portainer's --admin-password-file
-# expects. Written before the compose file so the container finds it on its
-# first start, which is the only time it is read.
-- name: Give Portainer its admin password
-  ansible.builtin.copy:
-    content: "{{ autolab_services_portainer_admin_password }}"
-    dest: "{{ autolab_services_root }}/portainer-admin"
+# The backend has no published port. Only the proxy accepts connections,
+# and it requires a host-generated token added by horizon after Pocket ID.
+- name: Create protected service state directory
+  ansible.builtin.file:
+    path: /etc/autolab
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: "'dockhand' in autolab_services_enabled"
+
+- name: Create Dockhand's proxy credential once
+  ansible.builtin.shell:
+    cmd: umask 077; openssl rand -hex 32 > /etc/autolab/dockhand-proxy-token
+    creates: /etc/autolab/dockhand-proxy-token
+  no_log: true
+  when: "'dockhand' in autolab_services_enabled"
+
+- name: Read Dockhand's proxy credential
+  ansible.builtin.slurp:
+    src: /etc/autolab/dockhand-proxy-token
+  register: autolab_dockhand_proxy_token
+  no_log: true
+  when: "'dockhand' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Read the Docker socket's group
+  ansible.builtin.stat:
+    path: /var/run/docker.sock
+  register: autolab_dockhand_socket
+  when: "'dockhand' in autolab_services_enabled"
+
+- name: Write Dockhand's authenticated proxy
+  ansible.builtin.template:
+    src: dockhand-proxy.conf.j2
+    dest: "{{ autolab_services_root }}/dockhand-proxy.conf"
     owner: root
     group: root
     mode: "0600"
   no_log: true
-  when:
-    - "'portainer' in autolab_services_enabled"
-    - autolab_services_portainer_admin_password | length > 0
-  notify: Restart the services stack
+  when: "'dockhand' in autolab_services_enabled and not ansible_check_mode"
+  notify: Restart the Dockhand proxy
 
 - name: Assemble the services compose file
   ansible.builtin.template:
@@ -211,6 +237,34 @@
     remove_orphans: true
   when: not ansible_check_mode
 
+# A template write replaces its inode. Existing bind mounts retain the old
+# config until the proxy restarts, so flush before checking its responses.
+- name: Apply service configuration before checking readiness
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify direct Dockhand access is denied
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.dockhand }}/"
+    status_code: [403]
+  register: autolab_dockhand_denied
+  until: autolab_dockhand_denied.status == 403
+  retries: 20
+  delay: 3
+  when: "'dockhand' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Verify authenticated proxy traffic reaches Dockhand
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.dockhand }}/"
+    headers:
+      X-Autolab-Dockhand-Token: "{{ autolab_dockhand_proxy_token.content | b64decode | trim }}"
+    status_code: [200]
+  register: autolab_dockhand_ready
+  until: autolab_dockhand_ready.status == 200
+  retries: 30
+  delay: 3
+  no_log: true
+  when: "'dockhand' in autolab_services_enabled and not ansible_check_mode"
+
 # After the stack is up, because it runs inside the container. The CLI is
 # idempotent and says so — "already installed" is how a converged host is
 # told apart from one that just gained an extension, which is what keeps a
@@ -235,7 +289,7 @@
   ansible.builtin.debug:
     msg: >-
       {{ autolab_services_enabled | join(', ') }} on {{ autolab_services_fqdn }}
-      {{- ' — portainer :' ~ autolab_services_ports.portainer if 'portainer' in autolab_services_enabled else '' }}
+      {{- ' — dockhand :' ~ autolab_services_ports.dockhand if 'dockhand' in autolab_services_enabled else '' }}
       {{- ', registry :' ~ autolab_services_ports.registry if 'registry' in autolab_services_enabled else '' }}
       {{- ', registry-ui :' ~ autolab_services_ports.registry_ui if 'registry-ui' in autolab_services_enabled else '' }}
       {{- ', code-server :' ~ autolab_services_ports.code_server if 'code-server' in autolab_services_enabled else '' }}

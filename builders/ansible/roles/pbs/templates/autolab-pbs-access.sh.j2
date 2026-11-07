@@ -21,7 +21,34 @@ state=/var/lib/autolab/pbs-access-repairs
 datastores=({% for ds in autolab_pbs_datastores %}"{{ ds.path }}" {% endfor %})
 
 can_reach() {
-  runuser -u backup -- sh -c 'test -w "$1" && ls "$1/.chunks/0000" >/dev/null' _ "$1" 2>/dev/null
+  local tree unreadable
+  runuser -u backup -- sh -c 'test -w "$1" && ls "$1/.chunks/0000" >/dev/null' _ "$1" 2>/dev/null || return 1
+  # An accessible root says nothing about last night's fixed indexes. UGOS
+  # can reset individual snapshot files, which breaks incremental backup and
+  # GC while the old root-only guard still reports healthy. Scan metadata
+  # only: walking millions of chunk files every 15 minutes would be costly.
+  for tree in "$1/vm" "$1/ct" "$1/host"; do
+    [ -d "$tree" ] || continue
+    unreadable=$(runuser -u backup -- sh -c 'cd / && exec find "$@"' _ "$tree" -xdev       \( -type d \( ! -executable -o ! -writable \) -o -type f ! -readable \) -print -quit 2>/dev/null) || return 1
+    if [ -n "$unreadable" ]; then
+      echo "$unreadable: snapshot entry is inaccessible to backup" >&2
+      return 1
+    fi
+  done
+}
+
+repair_snapshots() {
+  local tree
+  for tree in "$1/vm" "$1/ct" "$1/host"; do
+    [ -d "$tree" ] || continue
+    # Reapply explicit modes even when cached NFS mode bits look correct.
+    # UGOS ACL resets can deny ACCESS while stat still shows the old mode.
+    # Preserve backup bytes. Only PBS-owned snapshot
+    # metadata is touched; chunk contents and unrelated NAS shares are not.
+    find "$tree" -xdev \( ! -user backup -o ! -group backup \) -exec chown -h backup:backup {} + || return 1
+    find "$tree" -xdev -type d -exec chmod 0750 {} + || return 1
+    find "$tree" -xdev -type f -exec chmod 0640 {} + || return 1
+  done
 }
 
 repairs=$(cat "$state" 2>/dev/null || echo 0)
@@ -34,6 +61,7 @@ for ds in "${datastores[@]}"; do
     chmod o+x "$(dirname "$ds")"
     chown backup:backup "$ds" "$ds/.chunks"
     chmod 0750 "$ds" "$ds/.chunks"
+    repair_snapshots "$ds" || echo "$ds: snapshot repair failed" >&2
     if can_reach "$ds"; then
       echo "REPAIRED $ds: backup can reach it again"; accessible=1; repairs=$((repairs + 1))
     else

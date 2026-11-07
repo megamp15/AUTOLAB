@@ -12,9 +12,9 @@
 #   own    — the service does its own login behind the plugin's absence
 #   none   — no UI to reach
 autolab_service_catalog:
-  portainer:
+  dockhand:
     port: 9000
-    login: plugin
+    login: admin
   registry:
     # No plugin, and not for want of trying: `docker login` and `docker push`
     # are not browsers and cannot answer a passkey challenge. The name exists

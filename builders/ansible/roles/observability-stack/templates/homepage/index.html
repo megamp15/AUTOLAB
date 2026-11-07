@@ -29,17 +29,17 @@
   .row:hover { padding-left:10px; }
   .row svg { flex:none; }
   .row .name { font-size:13.5px; letter-spacing:.02em; flex:1 1 auto; min-width:0; }
-  .row .meta { font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.14em; opacity:.55; white-space:nowrap; }
+  .row .meta { font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; opacity:.75; white-space:nowrap; }
   .row .dot { width:5px; height:5px; border-radius:50%; flex:none; border:1px solid currentColor; }
   .row .line { position:absolute; left:0; right:0; bottom:0; height:1px; background:currentColor; opacity:.35; }
   .feed { display:flex; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; line-height:1.6; }
   /* Seventeen rows is past the point where a flat list can be scanned. The
      heading borrows the wordmark's voice rather than introducing a new one. */
-  .head { margin:20px 0 4px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.3em; text-transform:uppercase; }
+  .head { margin:20px 0 4px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.3em; text-transform:uppercase; }
   .head:first-child { margin-top:0; }
-  .head span { opacity:.45; }
-  .feed .t { opacity:.5; font-variant-numeric:tabular-nums; }
-  .hint { position:fixed; left:0; right:0; bottom:18px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.3em; opacity:.35; pointer-events:none; }
+  .head span { opacity:.75; }
+  .feed .t { opacity:.75; font-variant-numeric:tabular-nums; }
+  .hint { position:fixed; left:0; right:0; bottom:18px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.3em; opacity:.75; pointer-events:none; }
 
   /* Static mode: the page stops being a scroll-driven scene and becomes a
      document. Used on phones and when someone asks for less motion. A list
@@ -60,6 +60,38 @@
   #rows { overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-width:none; }
   #rows::-webkit-scrollbar { display:none; }
   [data-sg-root].static #rows { overflow:visible; }
+  .tabs { display:flex; gap:24px; border-bottom:1px solid currentColor; }
+  .tabs button { color:inherit; background:none; border:0; border-bottom:2px solid transparent; padding:12px 0; font:inherit; font-size:13px; cursor:pointer; }
+  .tabs button[aria-selected="true"] { border-bottom-color:currentColor; }
+  :focus-visible { outline:2px solid currentColor; outline-offset:4px; }
+  .access { font-size:11px; white-space:nowrap; opacity:.8; }
+  .ops { font-size:13px; line-height:1.6; }
+  .ops h2 { margin:0 0 8px; font-size:20px; font-weight:500; }
+  .ops h3 { margin:28px 0 8px; font-size:15px; font-weight:500; }
+  .ops p { margin:0 0 16px; max-width:70ch; }
+  .ops .muted { opacity:.75; }
+  .ops table { width:100%; border-collapse:collapse; font-size:12px; text-align:left; }
+  .ops th, .ops td { padding:10px 8px 10px 0; border-bottom:1px solid color-mix(in srgb,currentColor 25%,transparent); vertical-align:top; }
+  .ops th { font-weight:500; }
+  .ops td small { display:block; opacity:.75; }
+  .ops details { padding:12px 0; border-bottom:1px solid color-mix(in srgb,currentColor 25%,transparent); }
+  .ops summary { cursor:pointer; }
+  .ops details p { margin:10px 0 0; }
+  .ops code { font:11px 'IBM Plex Mono',monospace; overflow-wrap:anywhere; }
+  .ops .table-scroll, .topology { overflow-x:auto; }
+  .topology svg { width:100%; min-width:650px; display:block; }
+  .topology svg text { fill:currentColor; font-family:'Space Grotesk',system-ui,sans-serif; }
+  .topology svg .vm { cursor:pointer; }
+  .topology svg .vm:hover rect, .topology svg .vm:focus-visible rect { fill:currentColor; fill-opacity:.1; }
+  #architecture-detail { margin:14px 0; min-height:48px; }
+  [hidden] { display:none !important; }
+  @media (max-width:600px) {
+    .row { flex-wrap:wrap; gap:8px 12px; }
+    .row .name { flex-basis:45%; }
+    .row .meta { font-size:11px; letter-spacing:0; }
+    .row .access { margin-left:27px; order:5; width:100%; }
+    .tabs { gap:20px; }
+  }
 </style>
 </head>
 <body>
@@ -77,7 +109,12 @@
             </div>
           </div>
           <div style="height:1px; background:var(--sg-fg); transform:scaleX(min(1, calc(var(--sg-flood) * 1.6))); opacity:calc(var(--sg-flood) * 4);"></div>
-          <div id="rows" style="display:flex; flex-direction:column;"></div>
+          <nav class="tabs" role="tablist" aria-label="Lab views">
+            <button type="button" id="tab-services" role="tab" aria-controls="rows" aria-selected="true" data-tab="services">Services</button>
+            <button type="button" id="tab-schedules" role="tab" aria-controls="rows" aria-selected="false" tabindex="-1" data-tab="schedules">Schedules</button>
+            <button type="button" id="tab-architecture" role="tab" aria-controls="rows" aria-selected="false" tabindex="-1" data-tab="architecture">Architecture</button>
+          </nav>
+          <div id="rows" role="tabpanel" aria-labelledby="tab-services" tabindex="0" style="display:flex; flex-direction:column;"></div>
           <div id="feed" style="display:flex; flex-direction:column; gap:8px; opacity:calc((var(--sg-flood) - 0.66) * 8);"></div>
         </div>
       </div>
@@ -102,7 +139,7 @@
     photos: 'M3 7h4l2-2.5h6L17 7h4v12H3zM12 10a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7'
   };
 
-  const state = { dark: false, rows: [], feed: [], stale: false };
+  const state = { dark: false, rows: [], feed: [], stale: false, tab: location.hash.slice(1) || "services", operations: {} };
   const root = document.querySelector('[data-sg-root]');
   const sky = document.querySelector('[data-sg-sky]');
   const stage = document.getElementById('stage');
@@ -120,7 +157,17 @@
 
   // ---- data --------------------------------------------------------------
   function render() {
+    rowsEl.setAttribute('aria-labelledby', 'tab-' + state.tab);
+    document.querySelectorAll('[data-tab]').forEach(b => {
+      const selected = b.dataset.tab === state.tab;
+      b.setAttribute('aria-selected', String(selected));
+      b.tabIndex = selected ? 0 : -1;
+    });
+    if (state.tab === 'schedules') { renderSchedules(); renderFeed(); return; }
+    if (state.tab === 'architecture') { renderArchitecture(); renderFeed(); return; }
     const out = [];
+    const legend = el('p', 'Public links work outside Tailscale. Internal links require Tailscale; their login protection is shown on each row.', 'ops muted');
+    out.push(legend);
     let group = null;
     state.rows.forEach((r, i) => {
       if (r.group && r.group !== group) {
@@ -142,7 +189,7 @@
       const a = document.createElement('a');
       a.className = 'row';
       a.href = r.url || '#';
-      if (r.url && /^https?:/.test(r.url)) a.target = '_blank';
+      if (r.url && /^https?:/.test(r.url)) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
       // The reveal is staggered per row, so the stagger has to fit the list.
       // At a flat 0.05 the last row of a seventeen-row list starts at 0.84,
       // which leaves its underline at (1 - 0.84) * 3 = 48% of the width for
@@ -154,20 +201,156 @@
       // The entry offset alternates left and right and grows with the row, to
       // a point: unbounded, a long list would start its last rows off-screen.
       const x = (i % 2 ? -1 : 1) * (26 + Math.min(i, 10) * 5);
-      const op = r.up ? 1 : .42;
+      const op = r.up ? 1 : .75;
       a.style.opacity = `calc((var(--sg-flood) - ${d}) * 9)`;
       a.style.transform = `translateX(calc((1 - var(--sg-flood)) * ${x}px))`;
       a.innerHTML =
         `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="90" style="opacity:${op}; stroke-dashoffset:calc((1 - var(--sg-flood)) * 90);"><path d="${ICONS[r.icon] || ICONS.guest}"></path></svg>` +
         `<span class="name" data-final="" style="opacity:${op};"></span>` +
-        `<span class="meta"></span>` +
+        `<span class="meta"></span><span class="access"></span>` +
         `<span class="dot" style="background:${r.up ? 'currentColor' : 'transparent'};"></span>` +
         `<span class="line" style="transform:scaleX(min(1, calc((var(--sg-flood) - ${d}) * 3)));"></span>`;
       a.querySelector('.name').setAttribute('data-final', r.name);
       a.querySelector('.name').textContent = r.name;
       a.querySelector('.meta').textContent = r.meta || '';
+      a.querySelector('.access').textContent = r.access || 'Access not reported';
+      a.querySelector('.dot').title = r.up ? 'Reachable' : 'Not reachable';
       return a;
   }
+
+  function el(tag, text, cls) {
+    const node = document.createElement(tag);
+    if (text !== undefined) node.textContent = text;
+    if (cls) node.className = cls;
+    return node;
+  }
+  function section(title, copy) {
+    const box = el('section', undefined, 'ops');
+    box.append(el('h2', title), el('p', copy, 'muted'));
+    return box;
+  }
+  function scheduleLabel(value) {
+    const schedule = String(value || 'Unknown');
+    if (/^\d{2}:\d{2}$/.test(schedule)) return 'Daily at ' + schedule;
+    if (schedule === 'daily') return 'Daily at 00:00';
+    if (schedule === '*-*-* 06:00:00') return 'Daily at 06:00';
+    if (schedule === '*-*-* 00/6:17:00') return '00:17, 06:17, 12:17, 18:17';
+    if (schedule === '0 8 * * *') return 'Daily at 08:00';
+    if (schedule === 'sat 04:00') return 'Saturday at 04:00';
+    return schedule;
+  }
+  function renderSchedules() {
+    const op = state.operations;
+    const box = section('Schedules & notifications', 'Backup schedules come from each node. PBS jobs come from the server. Times below name the host timezone; the next backup is also shown in your browser timezone.');
+    if (!(op.schedules || []).length) {
+      box.append(el('p', 'Schedule data is unavailable. The collector refreshes every minute.'));
+    } else {
+      const scroll = el('div', undefined, 'table-scroll');
+      const table = el('table');
+      const head = el('tr');
+      ['Job / host', 'Schedule / timezone', 'Next / status'].forEach(v => head.append(el('th', v)));
+      const thead = el('thead'); thead.append(head); table.append(thead);
+      const tbody = el('tbody');
+      op.schedules.forEach(job => {
+        const tr = el('tr');
+        const name = el('td', job.name); name.append(el('small', job.host));
+        const schedule = el('td', scheduleLabel(job.schedule)); schedule.append(el('small', job.timezone));
+        const status = el('td', !job.enabled ? 'Disabled' : job.next ? new Date(job.next * 1000).toLocaleString([], {dateStyle:'short', timeStyle:'short'}) : 'Enabled');
+        status.append(el('small', job.details));
+        tr.append(name, schedule, status); tbody.append(tr);
+      });
+      table.append(tbody); scroll.append(table); box.append(scroll);
+    }
+    box.append(el('h3', 'When a notification arrives'));
+    box.append(el('p', `Backup age is measured from the snapshot timestamp, not when the job finishes. The limit is ${op.backup_max_age_hours || 26} hours, followed by a 30-minute pending period. A failed nightly can therefore leave the alert firing until a new backup succeeds.`, 'muted'));
+    box.append(el('p', 'Grafana evaluates rules every minute. New groups wait 30 seconds; changed groups wait 5 minutes. Critical alerts repeat hourly, warnings every 6 hours, and update reminders every 4 days. Recovery messages use the same grouping policy.', 'muted'));
+    (op.alerts || []).forEach(rule => {
+      const details = el('details');
+      details.append(el('summary', `${rule.name} · ${rule.severity} · pending ${rule.pending} · repeats ${rule.repeat}`));
+      const friendly = text => String(text || '').replace(/\{\{[^}]*\}\}/g, token => token.includes('$labels.name') ? 'guest' : token.includes('$labels.instance') ? 'host' : token.includes('$value') ? 'measured value' : '');
+      const description = rule.description.includes('$labels.platform')
+        ? 'For VMs, use workflow 05 with the updates or reboot playbook. For nodes, use workflow 07. Package updates and reboots are separate actions.'
+        : friendly(rule.description);
+      details.append(el('p', friendly(rule.summary)), el('p', description));
+      if (rule.evaluator) {
+        const operators = {gt:'>', lt:'<', within_range:'within range', outside_range:'outside range'};
+        details.append(el('p', 'Trigger: query result ' + (operators[rule.evaluator.type] || rule.evaluator.type) + ' ' + rule.evaluator.params.join(', ') + ' for ' + rule.pending + '.'));
+      }
+      const query = el('p'); query.append(el('code', rule.query)); details.append(query);
+      box.append(details);
+    });
+    if ((op.errors || []).length) box.append(el('p', 'Some live sources could not be read: ' + op.errors.join('; ')));
+    rowsEl.replaceChildren(box);
+  }
+  function renderArchitecture() {
+    const op = state.operations;
+    const box = section('Current architecture', 'Guest placement and power state come from Proxmox. Select a machine for its resources. The paths below describe the configured lab; application health is shown in Services.');
+    if (!(op.nodes || []).length) {
+      box.append(el('p', 'Topology data is unavailable. The collector refreshes every minute.'));
+      rowsEl.replaceChildren(box); return;
+    }
+    const controls = el('label'); const show = el('input'); show.type = 'checkbox';
+    controls.append(show, document.createTextNode(' Include templates and unmanaged guests'));
+    box.append(controls);
+    const diagram = el('div', undefined, 'topology');
+    const detail = el('div', 'Select a VM in the diagram.', 'muted'); detail.id = 'architecture-detail'; detail.setAttribute('aria-live', 'polite');
+    function draw() {
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      const nodes = op.nodes;
+      const guests = nodes.map(n => (n.guests || []).filter(g => show.checked || (!g.template && String(g.tags || '').split(';').includes('autolab'))));
+      const height = 260 + Math.max(1, ...guests.map(g => g.length)) * 58;
+      svg.setAttribute('viewBox', `0 0 ${nodes.length * 240} ${height}`);
+      svg.setAttribute('role', 'group'); svg.setAttribute('aria-label', 'Proxmox hosts and their current guests, with ingress and backup paths');
+      function shape(tag, attrs, parent = svg) { const e = document.createElementNS(ns, tag); Object.entries(attrs).forEach(([k,v]) => e.setAttribute(k,v)); parent.append(e); return e; }
+      function text(x,y,value,size=12,parent=svg) { const t=shape('text',{x,y,'font-size':size},parent); t.textContent=value; return t; }
+      function line(d) { shape('path',{d,fill:'none',stroke:'currentColor','stroke-width':1,opacity:.75}); }
+      const width = nodes.length * 240;
+      text(12,24,'Internet → Cloudflare Tunnel → horizon / Traefik → Pocket ID',13);
+      text(12,48,'Tailscale → horizon / HTTPS → Pocket ID → internal browser routes',12);
+      line(`M12 64 H${width - 12}`);
+      nodes.forEach((node,i) => {
+        const x=i*240+8;
+        shape('rect',{x,y:90,width:224,height:height-190,rx:5,fill:'none',stroke:'currentColor','stroke-opacity':.35});
+        text(x+12,114,node.name,16);
+        text(x+12,134,node.available ? `${guests[i].length} guests shown` : 'Node unavailable',11);
+        line(`M${x+112} 64 V90`);
+        guests[i].forEach((g,j) => {
+          const y=152+j*58;
+          const group=shape('g',{class:'vm',tabindex:0,role:'button','aria-label':`${g.name}, ${g.status}, on ${node.name}`});
+          shape('rect',{x:x+10,y,width:204,height:48,rx:3,fill:'none',stroke:'currentColor','stroke-opacity':.25},group);
+          shape('circle',{cx:x+22,cy:y+16,r:3,fill:g.status==='running'?'currentColor':'none',stroke:'currentColor'},group);
+          text(x+32,y+20,g.name,12,group);
+          text(x+20,y+37,`${g.type} ${g.vmid} · ${g.status}${g.template ? ' · template' : ''}`,10,group);
+          const select=() => { detail.replaceChildren(el('strong',g.name),document.createTextNode(` on ${node.name}: ${g.maxcpu || '?'} vCPU, ${((g.maxmem || 0)/1073741824).toFixed(1)} GiB RAM. ${g.status}.`));
+            if (g.name==='jwst') detail.append(el('p','Declared services: '+(op.services || []).join(', ')));
+          };
+          group.addEventListener('click',select); group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select();}});
+        });
+        line(`M${x+112} ${height-100} V${height-78} H${width/2}`);
+      });
+      text(12,height-48,'All nodes → ark / PBS → singularity / NAS · encrypted nightly backups',12);
+      text(12,height-24,'Hosts → Alloy → jwst / Prometheus + Loki + Grafana → ntfy alerts',12);
+      diagram.replaceChildren(svg);
+    }
+    show.addEventListener('change',draw); draw();
+    box.append(diagram,detail);
+    box.append(el('h3','Access boundaries'));
+    box.append(el('p','Public: home and Grafana require Pocket ID; auth is the sign-in service. Immich shared links are intentionally public. Internal: *.lab names require Tailscale, with Pocket ID on browser admin routes. Immich authenticates in the app so its mobile API keeps working. Raw service and API ports are separate access paths, governed by tailnet policy and application authentication.'));
+    if ((op.errors || []).length) box.append(el('p','Some live sources could not be read: '+op.errors.join('; ')));
+    rowsEl.replaceChildren(box);
+  }
+  document.querySelector('.tabs').addEventListener('click', event => {
+    const tab = event.target.closest('[data-tab]'); if (!tab) return;
+    state.tab = tab.dataset.tab; history.replaceState(null, '', '#' + state.tab); render(); rowsEl.scrollTop=0;
+  });
+  document.querySelector('.tabs').addEventListener('keydown', event => {
+    const keys=['ArrowLeft','ArrowRight','Home','End']; if (!keys.includes(event.key)) return;
+    const tabs=[...document.querySelectorAll('[data-tab]')]; const index=tabs.indexOf(document.activeElement);
+    const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+    event.preventDefault(); tabs[next].click(); tabs[next].focus();
+  });
+  if (!['services','schedules','architecture'].includes(state.tab)) state.tab='services';
 
   function renderFeed() {
     feedEl.replaceChildren(...state.feed.map(f => {
@@ -190,12 +373,14 @@
       const r = await fetch('status.json?t=' + Date.now(), { cache: 'no-store' });
       const j = await r.json();
       state.rows = j.rows || [];
+      state.operations = j.operations || {};
       state.feed = j.feed || [];
       const age = (Date.now() / 1000) - (j.generated || 0);
       state.stale = age > 300;
       if (state.stale) state.feed = [{ time: '--:--', text: `status.json is ${Math.round(age / 60)} min old — the collector on jwst has stopped` }, ...state.feed];
     } catch (e) {
       state.rows = [];
+      state.operations = {};
       state.feed = [{ time: '--:--', text: 'status.json unavailable: ' + e }];
     }
     render();
@@ -427,7 +612,7 @@
   root.style.cursor = 'grab';
   root.addEventListener('contextmenu', (e) => e.preventDefault());
   root.addEventListener('pointerdown', (e) => {
-    if (e.target.closest && e.target.closest('a,button')) return;
+    if (e.target.closest && e.target.closest('a,button,input,label,summary,.ops')) return;
     e.preventDefault(); S.drag = { x: e.clientX, y: e.clientY }; root.style.cursor = 'grabbing';
     try { root.setPointerCapture(e.pointerId); } catch (err) {}
   });

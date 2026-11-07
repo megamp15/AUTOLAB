@@ -5,4 +5,28 @@
 {%     set ns.rows = ns.rows + [link | dict2items | rejectattr('key', 'equalto', 'enabled') | list | items2dict] %}
 {%   endif %}
 {% endfor %}
-{{ {'links': ns.rows} | to_nice_json }}
+{% set alerts = namespace(rows=[]) %}
+{% set rules = lookup('ansible.builtin.template', 'alert-rules.yml.j2') | from_yaml %}
+{% for group in rules.groups %}
+{%   for rule in group.rules %}
+{%     set repeat = autolab_obs_ntfy_repeat_updates if rule.labels.notify | default('') == 'updates' else (autolab_obs_ntfy_repeat_critical if rule.labels.severity == 'critical' else autolab_obs_ntfy_repeat_warning) %}
+{%     set alerts.rows = alerts.rows + [{'name': rule.title, 'pending': rule.for, 'severity': rule.labels.severity, 'repeat': repeat, 'description': rule.annotations.description, 'summary': rule.annotations.summary, 'query': rule.data[0].model.expr, 'evaluator': rule.data[-1].model.conditions[0].evaluator}] %}
+{%   endfor %}
+{% endfor %}
+{% set pbs_defaults = lookup('ansible.builtin.file', role_path ~ '/../pbs/defaults/main.yml') | from_yaml %}
+{% set update_defaults = lookup('ansible.builtin.file', role_path ~ '/../updates-report/defaults/main.yml') | from_yaml %}
+{% set declared = namespace(rows=[]) %}
+{% for ds in pbs_defaults.autolab_pbs_datastores %}
+{% set declared.rows = declared.rows + [{'name': 'PBS garbage collection', 'host': 'ark', 'schedule': ds.gc_schedule, 'timezone': 'ark local time', 'enabled': true, 'details': 'Configured in pbs role defaults; datastore ' ~ ds.name}] %}
+{% endfor %}
+{% set declared.rows = declared.rows + [{'name': 'Pending updates report', 'host': 'all managed VMs and nodes', 'schedule': update_defaults.autolab_updates_report_on_calendar, 'timezone': 'each host local time', 'enabled': true, 'details': 'Configured baseline; randomized delay ' ~ update_defaults.autolab_updates_report_randomized_delay ~ '. Reports only; upgrades are separate.'}, {'name': 'PBS access check', 'host': 'ark', 'schedule': 'every ' ~ pbs_defaults.autolab_pbs_access_interval, 'timezone': 'elapsed time', 'enabled': true, 'details': 'Configured baseline; checks and repairs NAS datastore access.'}] %}
+{{ {'links': ns.rows, 'alerts': alerts.rows, 'services': ((autolab_builder | default({})).services | default([])),
+    'backup_max_age_hours': autolab_obs_alert_backup_max_age_hours,
+    'digest_schedule': autolab_obs_digest_on_calendar,
+    'snapshot_schedule': autolab_obs_backup_on_calendar,
+    'snapshot_enabled': autolab_obs_backup_dir | length > 0,
+    'diun_schedule': autolab_services_diun_schedule | default('0 8 * * *'),
+    'declared_schedules': declared.rows, 'diun_timezone': autolab_services_timezone | default('UTC'),
+    'backup_metrics_interval': autolab_obs_backup_metrics_interval,
+    'public_zone': autolab_obs_public_zone, 'internal_label': autolab_obs_internal_label,
+    'internal_protected': autolab_obs_internal_label | length > 0} | to_nice_json }}

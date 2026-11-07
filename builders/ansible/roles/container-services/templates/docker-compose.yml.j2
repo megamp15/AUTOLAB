@@ -10,8 +10,8 @@ services:
 {% endfor %}
 
 volumes:
-{% if 'portainer' in autolab_services_enabled %}
-  portainer-data:
+{% if 'dockhand' in autolab_services_enabled %}
+  dockhand-data:
 {% endif %}
 {% if 'registry' in autolab_services_enabled %}
   registry-data:
@@ -21,4 +21,11 @@ volumes:
 {% endif %}
 {% if 'diun' in autolab_services_enabled %}
   diun-data:
+{% endif %}
+
+{% if 'dockhand' in autolab_services_enabled %}
+# Keep the unauthenticated backend off the other services' Docker network.
+# This dedicated bridge still permits Dockhand's outbound registry/Git calls.
+networks:
+  dockhand-control:
 {% endif %}
