@@ -330,7 +330,7 @@
 # without a restart. Holds the client secret, hence 0600.
 - name: Collect the services host's SSH identity over the tailnet
   ansible.builtin.command:
-    argv: [ssh-keyscan, -H, -t, ed25519, -T, '10', "{{ autolab_ingress_services_fqdn }}"]
+    argv: [ssh-keyscan, -H, -t, ed25519, -T, '10', "{{ hostvars[autolab_ingress_services_host].ansible_host | default(autolab_ingress_services_host) }}"]
   delegate_to: localhost
   become: false
   register: autolab_ingress_services_key
@@ -340,7 +340,7 @@
 
 - name: Trust the services host for the credential handoff
   ansible.builtin.known_hosts:
-    name: "{{ autolab_ingress_services_fqdn }}"
+    name: "{{ hostvars[autolab_ingress_services_host].ansible_host | default(autolab_ingress_services_host) }}"
     key: "{{ autolab_ingress_services_key.stdout }}"
   delegate_to: localhost
   become: false

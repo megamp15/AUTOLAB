@@ -229,6 +229,16 @@
     box.append(el('h2', title), el('p', copy, 'muted'));
     return box;
   }
+  function scheduleLabel(value) {
+    const schedule = String(value || 'Unknown');
+    if (/^\d{2}:\d{2}$/.test(schedule)) return 'Daily at ' + schedule;
+    if (schedule === 'daily') return 'Daily at 00:00';
+    if (schedule === '*-*-* 06:00:00') return 'Daily at 06:00';
+    if (schedule === '*-*-* 00/6:17:00') return '00:17, 06:17, 12:17, 18:17';
+    if (schedule === '0 8 * * *') return 'Daily at 08:00';
+    if (schedule === 'sat 04:00') return 'Saturday at 04:00';
+    return schedule;
+  }
   function renderSchedules() {
     const op = state.operations;
     const box = section('Schedules & notifications', 'Backup schedules come from each node. PBS jobs come from the server. Times below name the host timezone; the next backup is also shown in your browser timezone.');
@@ -244,7 +254,7 @@
       op.schedules.forEach(job => {
         const tr = el('tr');
         const name = el('td', job.name); name.append(el('small', job.host));
-        const schedule = el('td', job.schedule); schedule.append(el('small', job.timezone));
+        const schedule = el('td', scheduleLabel(job.schedule)); schedule.append(el('small', job.timezone));
         const status = el('td', !job.enabled ? 'Disabled' : job.next ? new Date(job.next * 1000).toLocaleString([], {dateStyle:'short', timeStyle:'short'}) : 'Enabled');
         status.append(el('small', job.details));
         tr.append(name, schedule, status); tbody.append(tr);

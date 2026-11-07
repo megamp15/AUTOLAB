@@ -245,7 +245,7 @@ def operations(conf):
             try:
                 for job in pbs(endpoint):
                     result["schedules"].append({"name": name, "host": "ark", "schedule": job.get("schedule", "manual"),
-                        "timezone": "ark local time", "enabled": not job.get("disable", False),
+                        "timezone": "ark local time", "next": job.get("next-run"), "enabled": not job.get("disable", False),
                         "details": "Datastore " + job.get("store", "?") + "; last run: " + str(job.get("last-run-state", "unknown"))})
             except Exception as e:
                 result["errors"].append(name + ": " + type(e).__name__)
