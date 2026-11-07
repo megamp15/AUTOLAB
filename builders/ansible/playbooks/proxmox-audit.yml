@@ -102,6 +102,11 @@
                   st = p.stat()
                   r = subprocess.run(['runuser', '-u', 'backup', '--', 'test', '-r', str(p)])
                   print(str(p), 'uid=', st.st_uid, 'gid=', st.st_gid, 'mode=', oct(st.st_mode & 0o777), 'backup-readable=', r.returncode == 0)
+          journal = subprocess.run(['journalctl', '-u', 'proxmox-backup-proxy', '--since', '-20min', '--no-pager'], capture_output=True, text=True)
+          print('Recent PBS service errors:')
+          for line in journal.stdout.splitlines():
+              if any(word in line.lower() for word in ('permission', 'denied', 'error', 'failed')):
+                  print(line)
           print('Recent PBS task error details:')
           paths = pathlib.Path('/var/log/proxmox-backup/tasks').glob('*/*')
           recent = sorted((p for p in paths if p.is_file() and p.stat().st_mtime > time.time()-172800), key=lambda p: p.stat().st_mtime, reverse=True)
