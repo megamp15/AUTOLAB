@@ -1,6 +1,7 @@
   dockhand:
     image: {{ autolab_services_images.dockhand }}
     restart: unless-stopped
+    networks: [dockhand-control]
     group_add:
       - "{{ autolab_dockhand_socket.stat.gid }}"
     volumes:
@@ -10,6 +11,7 @@
   dockhand-proxy:
     image: {{ autolab_services_images.dockhand_proxy }}
     restart: unless-stopped
+    networks: [dockhand-control]
     depends_on: [dockhand]
     volumes:
       - {{ autolab_services_root }}/dockhand-proxy.conf:/etc/nginx/conf.d/default.conf:ro

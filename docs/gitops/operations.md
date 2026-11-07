@@ -78,7 +78,8 @@ challenge is incompatible with those clients.
 ## Dockhand
 
 Dockhand replaces Portainer on jwst at `dockhand.lab.<zone>`. Traefik requires the
-Pocket ID `admins` group. Dockhand's backend has no published port. A small nginx
+Pocket ID `admins` group. Dockhand's backend has no published port and shares a dedicated Docker network
+only with its authenticated proxy. A small nginx
 proxy on the tailnet requires a random, host-generated upstream token which
 Traefik adds after login; a direct request receives 403. Neither the token nor
 the backend appears in homepage data. The credential remains in root-owned files
