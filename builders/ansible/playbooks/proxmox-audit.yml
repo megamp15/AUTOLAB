@@ -34,3 +34,50 @@
     - name: Show backup evidence
       ansible.builtin.debug:
         var: autolab_backup_audit.stdout_lines
+
+    - name: Add the backup server for its side of the failure
+      ansible.builtin.add_host:
+        name: ark
+        groups: backup_audit
+        ansible_host: "ark.{{ lookup('env', 'AUTOLAB_TAILNET_DOMAIN') }}"
+        ansible_user: gitops
+      run_once: true
+
+- name: Inspect PBS evidence without changing the datastore
+  hosts: backup_audit
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read PBS errors and datastore access
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: |
+          python3 - <<'PY'
+          import pathlib, subprocess, time
+          for cmd in (
+              ['date', '-Is'],
+              ['systemctl', 'is-active', 'proxmox-backup-proxy', 'proxmox-backup', 'autolab-pbs-access.timer'],
+              ['findmnt', '/mnt/autolab'],
+              ['df', '-h', '/mnt/autolab/ark'],
+              ['namei', '-l', '/mnt/autolab/ark'],
+              ['sudo', '-u', 'backup', 'test', '-r', '/mnt/autolab/ark'],
+          ):
+              r = subprocess.run(cmd, capture_output=True, text=True)
+              print(cmd[0], 'rc=', r.returncode, r.stdout, r.stderr)
+          print('Recent PBS task error details:')
+          paths = pathlib.Path('/var/log/proxmox-backup/tasks').glob('*/*')
+          recent = sorted((p for p in paths if p.is_file() and p.stat().st_mtime > time.time()-172800), key=lambda p: p.stat().st_mtime, reverse=True)
+          for p in recent[:100]:
+              lines = p.read_text(errors='replace').splitlines()
+              errors = [s for s in lines if any(w in s.lower() for w in ('error', 'failed', 'previous', 'permission', 'denied'))]
+              if errors:
+                  print(p.name)
+                  print('\n'.join(errors[-8:]))
+          PY
+      register: autolab_pbs_audit
+      changed_when: false
+      check_mode: false
+
+    - name: Show PBS evidence
+      ansible.builtin.debug:
+        var: autolab_pbs_audit.stdout_lines
