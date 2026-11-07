@@ -411,3 +411,20 @@
     - autolab_pbs_openid_client_id | length > 0
     - autolab_pbs_openid_issuer_url | length > 0
     - not ansible_check_mode or autolab_pbs_install is not changed
+
+# Shell access to the mount is necessary but not sufficient: also prove the
+# running PBS service can open the datastore with the token its collector uses.
+- name: Verify datastore access through the running PBS API
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:8007/api2/json/admin/datastore/{{ item.name }}/status"
+    headers:
+      Authorization: "PBSAPIToken={{ autolab_pbs_digest_token_id }}:{{ autolab_pbs_digest_token_secret }}"
+    validate_certs: false
+    status_code: [200]
+  loop: "{{ autolab_pbs_datastores }}"
+  register: autolab_pbs_api_access
+  until: autolab_pbs_api_access.status == 200
+  retries: 6
+  delay: 5
+  no_log: true
+  when: not ansible_check_mode
