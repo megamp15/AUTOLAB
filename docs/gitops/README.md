@@ -98,3 +98,5 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
 From "Proxmox is on Tailscale" to working CI pipelines and the Packer/template
 lifecycle:
 **[setup-checklist.md](./setup-checklist.md)**
+
+[Lab operations](operations.md) covers homepage views, schedules, notification timing and access boundaries.

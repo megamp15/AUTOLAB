@@ -10,8 +10,8 @@ services:
 {% endfor %}
 
 volumes:
-{% if 'portainer' in autolab_services_enabled %}
-  portainer-data:
+{% if 'dockhand' in autolab_services_enabled %}
+  dockhand-data:
 {% endif %}
 {% if 'registry' in autolab_services_enabled %}
   registry-data:

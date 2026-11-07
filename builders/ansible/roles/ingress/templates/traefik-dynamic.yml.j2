@@ -54,11 +54,13 @@ http:
 {%   endfor %}
 {%   for name in autolab_ingress_services %}
 {%     set svc = autolab_service_catalog[name] %}
-{%     if svc.port is defined and (svc.login != 'plugin' or plugin_on) %}
+{%     if svc.port is defined and (svc.login not in ['plugin', 'admin'] or plugin_on) %}
     lab-{{ name }}:
       rule: "Host(`{{ name }}.{{ lab }}`)"
       entryPoints: [tailnet-https]
-{%       if svc.login == 'plugin' %}
+{%       if svc.login == 'admin' %}
+      middlewares: [oidc-admin, dockhand-upstream]
+{%       elif svc.login == 'plugin' %}
       middlewares: [oidc]
 {%       endif %}
       service: lab-{{ name }}
@@ -108,7 +110,7 @@ http:
 {%   endfor %}
 {%   for name in autolab_ingress_services %}
 {%     set svc = autolab_service_catalog[name] %}
-{%     if svc.port is defined and (svc.login != 'plugin' or plugin_on) %}
+{%     if svc.port is defined and (svc.login not in ['plugin', 'admin'] or plugin_on) %}
     lab-{{ name }}:
       loadBalancer:
         servers:
@@ -129,7 +131,8 @@ http:
   # callback is a single public URL and the cookie is set for the whole zone,
   # so one session covers home.<zone> and every *.lab.<zone> name alike.
   middlewares:
-    oidc:
+{% for middleware, groups in [('oidc', autolab_ingress_homepage_groups), ('oidc-admin', ['admins'])] %}
+    {{ middleware }}:
       plugin:
         traefik-oidc-auth:
           Secret: "{{ autolab_ingress_oidc_plugin_secret }}"
@@ -145,5 +148,12 @@ http:
           Authorization:
             AssertClaims:
               - Name: groups
-                AnyOf: {{ autolab_ingress_homepage_groups | to_json }}
+                AnyOf: {{ groups | to_json }}
+{% endfor %}
+{% if 'dockhand' in autolab_ingress_services %}
+    dockhand-upstream:
+      headers:
+        customRequestHeaders:
+          X-Autolab-Dockhand-Token: "{{ autolab_ingress_dockhand_token.content | b64decode | trim }}"
+{% endif %}
 {% endif %}

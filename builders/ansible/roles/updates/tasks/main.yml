@@ -69,3 +69,15 @@
       reboot {{ 'REQUIRED' if (autolab_updates_reboot_flag.stat.exists
                               or autolab_updates_newest_kernel.stdout != ansible_kernel)
                 else 'not needed' }}
+
+# Clear pending-update metrics immediately rather than leaving the old alert
+# visible until the next six-hour report.
+- name: See whether the update reporter is installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/autolab-updates-report
+  register: autolab_updates_reporter
+
+- name: Refresh update metrics after applying packages
+  ansible.builtin.command: /usr/local/bin/autolab-updates-report
+  changed_when: false
+  when: autolab_updates_reporter.stat.exists and not ansible_check_mode

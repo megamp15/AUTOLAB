@@ -3,7 +3,7 @@
 # names. One Compose project; one template per service, so a service is
 # added, removed or upgraded on its own.
 #
-# Enabled per machine: builder.services = ["portainer", "registry", …].
+# Enabled per machine: builder.services = ["dockhand", "registry", …].
 # A name not in the catalog fails the run rather than being ignored.
 
 # Every service this role knows how to run. A machine's list is checked
@@ -21,7 +21,8 @@ autolab_services_enabled: "{{ (autolab_builder | default({})).services | default
 # Pinned, like every other image in this lab: a management UI that upgrades
 # itself overnight is a management UI that broke itself overnight.
 autolab_services_images:
-  portainer: "portainer/portainer-ce:2.45.1"
+  dockhand: "fnsys/dockhand:v1.0.57"
+  dockhand_proxy: "nginx:1.31.6-alpine"
   registry: "registry:3.1.1"
   registry_ui: "ghcr.io/eznix86/docker-registry-ui:1.6.0"
   diun: "crazymax/diun:4.33.0"
@@ -36,7 +37,7 @@ autolab_services_images:
 # Bound to the tailnet address only: Docker writes its iptables rules ahead
 # of ufw's, so 0.0.0.0 would reach the LAN whatever the host firewall says.
 autolab_services_ports:
-  portainer: "{{ autolab_service_catalog.portainer.port }}"
+  dockhand: "{{ autolab_service_catalog.dockhand.port }}"
   registry: "{{ autolab_service_catalog.registry.port }}"
   registry_ui: "{{ autolab_service_catalog['registry-ui'].port }}"
   code_server: "{{ autolab_service_catalog['code-server'].port }}"
@@ -126,11 +127,6 @@ autolab_services_code_server_npm:
 # language server each are enough to push Prometheus into swap; capped, the
 # editor is what gets killed instead of the thing that says why.
 autolab_services_code_server_memory: 2g
-
-# Portainer creates its admin account from this at first start, so there is
-# no five-minute window to lose: leave it empty and Portainer opens its setup
-# page instead, which expires. Ignored once an admin exists.
-autolab_services_portainer_admin_password: ""
 
 # What the registry answers to. The tailnet is the boundary, as it is for
 # Prometheus and Loki: reaching this address at all means passing the tailnet

@@ -1,0 +1,17 @@
+  dockhand:
+    image: {{ autolab_services_images.dockhand }}
+    restart: unless-stopped
+    group_add:
+      - "{{ autolab_dockhand_socket.stat.gid }}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - dockhand-data:/app/data
+    # No host port: all browser access passes through the authenticated proxy.
+  dockhand-proxy:
+    image: {{ autolab_services_images.dockhand_proxy }}
+    restart: unless-stopped
+    depends_on: [dockhand]
+    volumes:
+      - {{ autolab_services_root }}/dockhand-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.dockhand }}:80"
