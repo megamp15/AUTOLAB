@@ -35,6 +35,25 @@
       ansible.builtin.debug:
         var: autolab_backup_audit.stdout_lines
 
+    - name: Collect the backup server's SSH host key over the tailnet
+      ansible.builtin.command:
+        argv: [ssh-keyscan, -H, -t, ed25519, -T, '10', "ark.{{ lookup('env', 'AUTOLAB_TAILNET_DOMAIN') }}"]
+      delegate_to: localhost
+      become: false
+      run_once: true
+      register: autolab_pbs_host_key
+      changed_when: false
+      check_mode: false
+
+    - name: Trust that key for the audit runner
+      ansible.builtin.known_hosts:
+        name: "ark.{{ lookup('env', 'AUTOLAB_TAILNET_DOMAIN') }}"
+        key: "{{ autolab_pbs_host_key.stdout }}"
+      delegate_to: localhost
+      become: false
+      run_once: true
+      check_mode: false
+
     - name: Add the backup server for its side of the failure
       ansible.builtin.add_host:
         name: ark
