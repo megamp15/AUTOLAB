@@ -30,7 +30,10 @@ can_reach() {
   for tree in "$1/vm" "$1/ct" "$1/host"; do
     [ -d "$tree" ] || continue
     unreadable=$(runuser -u backup -- find "$tree" -xdev       \( -type d \( ! -executable -o ! -writable \) -o -type f ! -readable \) -print -quit 2>/dev/null) || return 1
-    [ -z "$unreadable" ] || return 1
+    if [ -n "$unreadable" ]; then
+      echo "$unreadable: snapshot entry is inaccessible to backup" >&2
+      return 1
+    fi
   done
 }
 
