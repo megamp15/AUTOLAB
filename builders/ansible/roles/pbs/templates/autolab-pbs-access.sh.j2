@@ -41,11 +41,13 @@ repair_snapshots() {
   local tree
   for tree in "$1/vm" "$1/ct" "$1/host"; do
     [ -d "$tree" ] || continue
-    # Preserve data and other permission bits. Only PBS-owned snapshot
+    # Reapply explicit modes even when cached NFS mode bits look correct.
+    # UGOS ACL resets can deny ACCESS while stat still shows the old mode.
+    # Preserve backup bytes. Only PBS-owned snapshot
     # metadata is touched; chunk contents and unrelated NAS shares are not.
     find "$tree" -xdev \( ! -user backup -o ! -group backup \) -exec chown -h backup:backup {} + || return 1
-    find "$tree" -xdev -type d ! -perm -0750 -exec chmod 0750 {} + || return 1
-    find "$tree" -xdev -type f ! -perm -0640 -exec chmod 0640 {} + || return 1
+    find "$tree" -xdev -type d -exec chmod 0750 {} + || return 1
+    find "$tree" -xdev -type f -exec chmod 0640 {} + || return 1
   done
 }
 
