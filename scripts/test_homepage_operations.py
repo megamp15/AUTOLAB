@@ -10,12 +10,12 @@ import urllib.error
 import unittest
 import urllib.parse
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, mock_open
 
 
 SOURCE = Path(__file__).resolve().parents[1] / 'builders/ansible/roles/observability-stack/templates/autolab-obs-digest.py.j2'
 TREE = ast.parse(SOURCE.read_text())
-FUNCTIONS = ast.Module(body=[n for n in TREE.body if isinstance(n, ast.FunctionDef) and n.name in ('operations', 'link_access', 'probe')], type_ignores=[])
+FUNCTIONS = ast.Module(body=[n for n in TREE.body if isinstance(n, ast.FunctionDef) and n.name in ('operations', 'link_access', 'probe', 'write_metrics', 'complete_snapshots')], type_ignores=[])
 
 
 class HomepageOperationsTest(unittest.TestCase):
@@ -42,6 +42,24 @@ class HomepageOperationsTest(unittest.TestCase):
         self.assertFalse(result['nodes'][1]['available'])
         self.assertIn('offline: OSError', result['errors'])
         self.assertNotIn('secret', json.dumps(result))
+
+    def test_in_progress_snapshot_does_not_clear_missing_backup_metrics(self):
+        self.scope.update({
+            'guests_everywhere': lambda: [({}, {'name':'probe', 'vmid':100})],
+            'excluded_everywhere': lambda: set(),
+            'PBS_DATASTORES': ['store'], 'BACKUP_STORAGE':'store',
+            'NOW': dt.datetime.fromtimestamp(200000, dt.timezone.utc),
+            'pbs': lambda path: [
+                {'backup-id':'100', 'backup-time':100000, 'size':4096},
+                {'backup-id':'100', 'backup-time':199999, 'size':None},
+            ],
+        })
+        writer = mock_open()
+        with patch('builtins.open', writer), patch.object(self.scope['os'], 'makedirs'), patch.object(self.scope['os'], 'replace'):
+            self.scope['write_metrics']()
+        output = ''.join(call.args[0] for call in writer().write.call_args_list)
+        self.assertIn('autolab_backup_last_seconds{name="probe",vmid="100"} 100000', output)
+        self.assertNotIn('199999', output)
 
     def test_auth_proxy_response_does_not_hide_an_unhealthy_backend(self):
         check = {'type': 'docker', 'target': 'services-dockhand-1', 'url': 'http://jwst:9000/'}

@@ -45,7 +45,9 @@ New groups wait 30 seconds before delivery; changes in an existing group wait
 5 minutes. Critical alerts repeat hourly, warnings every 6 hours, and update
 reminders every 4 days. Recovery uses the same grouping policy.
 
-Backup freshness uses the PBS snapshot's timestamp, not backup completion.
+Backup freshness uses the timestamp of a snapshot with a readable completed
+manifest. An active or incomplete snapshot does not count; its timestamp alone
+is not evidence of a successful backup.
 A running, covered guest with no snapshot newer than 26 hours must remain in
 that condition for 30 minutes before paging. New guests get a 26-hour grace
 period. Exclusions come from the jobs. A collector failure has its own alert;
