@@ -29,7 +29,7 @@ can_reach() {
   # only: walking millions of chunk files every 15 minutes would be costly.
   for tree in "$1/vm" "$1/ct" "$1/host"; do
     [ -d "$tree" ] || continue
-    unreadable=$(runuser -u backup -- find "$tree" -xdev       \( -type d \( ! -executable -o ! -writable \) -o -type f ! -readable \) -print -quit 2>/dev/null) || return 1
+    unreadable=$(runuser -u backup -- sh -c 'cd / && exec find "$@"' _ "$tree" -xdev       \( -type d \( ! -executable -o ! -writable \) -o -type f ! -readable \) -print -quit 2>/dev/null) || return 1
     if [ -n "$unreadable" ]; then
       echo "$unreadable: snapshot entry is inaccessible to backup" >&2
       return 1
@@ -44,8 +44,8 @@ repair_snapshots() {
     # Preserve data and other permission bits. Only PBS-owned snapshot
     # metadata is touched; chunk contents and unrelated NAS shares are not.
     find "$tree" -xdev \( ! -user backup -o ! -group backup \) -exec chown -h backup:backup {} + || return 1
-    find "$tree" -xdev -type d ! -perm -0700 -exec chmod u+rwx {} + || return 1
-    find "$tree" -xdev -type f ! -perm -0400 -exec chmod u+r {} + || return 1
+    find "$tree" -xdev -type d ! -perm -0750 -exec chmod 0750 {} + || return 1
+    find "$tree" -xdev -type f ! -perm -0640 -exec chmod 0640 {} + || return 1
   done
 }
 

@@ -22,6 +22,9 @@ chmod 0750 /tmp/pbs-test/store /tmp/pbs-test/store/.chunks
 echo index > /tmp/pbs-test/store/vm/301/snapshot/drive-scsi0.img.fidx
 chown root:root /tmp/pbs-test/store/vm/301/snapshot/drive-scsi0.img.fidx
 chmod 0600 /tmp/pbs-test/store/vm/301/snapshot/drive-scsi0.img.fidx
+mkdir -p /root/private
+chmod 0700 /root/private
+cd /root/private
 set +e
 bash /guard.sh --check
 result=$?
