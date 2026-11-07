@@ -83,6 +83,13 @@
           ):
               r = subprocess.run(cmd, capture_output=True, text=True)
               print(cmd[0], 'rc=', r.returncode, r.stdout, r.stderr)
+          print('Snapshot index access:')
+          for tree in ('vm', 'ct'):
+              base = pathlib.Path('/mnt/autolab/ark') / tree
+              for p in sorted(base.glob('*/*/*.fidx'))[:5] + sorted(base.glob('*/*/*.didx'))[:5]:
+                  st = p.stat()
+                  r = subprocess.run(['runuser', '-u', 'backup', '--', 'test', '-r', str(p)])
+                  print(str(p), 'uid=', st.st_uid, 'gid=', st.st_gid, 'mode=', oct(st.st_mode & 0o777), 'backup-readable=', r.returncode == 0)
           print('Recent PBS task error details:')
           paths = pathlib.Path('/var/log/proxmox-backup/tasks').glob('*/*')
           recent = sorted((p for p in paths if p.is_file() and p.stat().st_mtime > time.time()-172800), key=lambda p: p.stat().st_mtime, reverse=True)
