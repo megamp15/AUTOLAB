@@ -79,6 +79,8 @@
               ['findmnt', '/mnt/autolab'],
               ['df', '-h', '/mnt/autolab/ark'],
               ['namei', '-l', '/mnt/autolab/ark'],
+              ['ls', '-lan', '/mnt/autolab/ark'],
+              ['runuser', '-u', 'backup', '--', 'test', '-w', '/mnt/autolab/ark/.lock'],
               ['sudo', '-u', 'backup', 'test', '-r', '/mnt/autolab/ark'],
           ):
               r = subprocess.run(cmd, capture_output=True, text=True)
