@@ -80,6 +80,7 @@
               ['df', '-h', '/mnt/autolab/ark'],
               ['namei', '-l', '/mnt/autolab/ark'],
               ['ls', '-lan', '/mnt/autolab/ark'],
+              ['ps', '-C', 'proxmox-backup-proxy', '-o', 'pid,euid,egid,comm'],
               ['runuser', '-u', 'backup', '--', 'test', '-w', '/mnt/autolab/ark/.lock'],
               ['sudo', '-u', 'backup', 'test', '-r', '/mnt/autolab/ark'],
           ):

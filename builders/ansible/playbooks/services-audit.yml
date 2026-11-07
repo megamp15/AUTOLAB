@@ -1,0 +1,30 @@
+---
+- name: Inspect the container service state
+  hosts: linux_servers
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read service status and recent startup errors
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: |
+          python3 - <<'PY'
+          import pathlib, subprocess
+          token_path = pathlib.Path('/etc/autolab/dockhand-proxy-token')
+          token = token_path.read_text().strip() if token_path.exists() else ''
+          for command in (
+              ['docker', 'compose', '--project-directory', '/opt/autolab/services', 'ps', '-a'],
+              ['docker', 'compose', '--project-directory', '/opt/autolab/services', 'logs', '--tail=25', 'dockhand', 'dockhand-proxy'],
+          ):
+              result = subprocess.run(command, text=True, capture_output=True)
+              output = result.stdout + result.stderr
+              print(output.replace(token, '<REDACTED>') if token else output)
+          PY
+      register: autolab_service_audit
+      changed_when: false
+      check_mode: false
+      no_log: true
+
+    - name: Show sanitized service evidence
+      ansible.builtin.debug:
+        var: autolab_service_audit.stdout_lines
