@@ -1,0 +1,36 @@
+---
+# Read-only evidence for backup failures; runnable while the operator is on a
+# different tailnet. Never print storage.cfg or private storage credentials.
+- name: Inspect backup jobs on each Proxmox node
+  hosts: proxmox_nodes
+  vars:
+    ansible_user: "{{ autolab_proxmox_user | default('gitops') }}"
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read recent backup results and their error lines
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: |
+          python3 - <<'PY'
+          import datetime, json, subprocess
+          def api(path, *args):
+              return json.loads(subprocess.check_output(['pvesh', 'get', path, *args, '--output-format', 'json']))
+          print('UTC:', datetime.datetime.now(datetime.timezone.utc).isoformat())
+          print('Local:', subprocess.check_output(['date', '-Is'], text=True).strip())
+          print('Jobs:', json.dumps(api('/cluster/backup')))
+          for task in api('/nodes/localhost/tasks', '--typefilter', 'vzdump', '--limit', '3'):
+              print('Task:', json.dumps(task))
+              for line in api('/nodes/localhost/tasks/' + task['upid'] + '/log', '--limit', '2000'):
+                  text = line.get('t', '')
+                  if any(word in text.lower() for word in ('error', 'failed', 'permission', 'timeout', 'finished', 'starting backup')):
+                      print(text)
+          print('Guests:', json.dumps(api('/cluster/resources', '--type', 'vm')))
+          PY
+      register: autolab_backup_audit
+      changed_when: false
+      check_mode: false
+
+    - name: Show backup evidence
+      ansible.builtin.debug:
+        var: autolab_backup_audit.stdout_lines

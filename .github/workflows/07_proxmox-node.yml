@@ -18,7 +18,7 @@ on:
         required: true
         default: proxmox
         type: choice
-        options: [proxmox, reboot]
+        options: [proxmox, reboot, audit]
       force_reboot:
         description: playbook=reboot only — reboot even when no update asks for it
         required: false
@@ -169,6 +169,7 @@ jobs:
           user=gitops
           if [[ "$PVE_BOOTSTRAP" == "true" ]]; then user=root; fi
           playbook=playbooks/proxmox.yml
+          if [[ "$PVE_PLAYBOOK" == "audit" ]]; then playbook=playbooks/proxmox-audit.yml; fi
           apply=apply
           if [[ "$PVE_PLAYBOOK" == "reboot" ]]; then
             # Every guest on the node stops while it reboots: one node, named,
