@@ -39,6 +39,8 @@ bump is a pull request.
 | `registry-ui` | seeing what is in the registry without curl | 8082 |
 | `diun` | a notification when a pinned image has a newer tag. Never updates anything | — |
 | `code-server` | browser-based VS Code for the operator workspace | 8443 |
+| `qr` | QR codes whose destination can change after printing — see [qr](qr.md) | 8097 (admin) |
+| `paradigm-tunnel` | the connector for the tunnel in the Paradigm Prints Cloudflare account — see [qr](qr.md) | — |
 
 ## Where they are reachable
 

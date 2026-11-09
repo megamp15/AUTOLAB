@@ -1,0 +1,51 @@
+  # QR codes that redirect, as two containers from one image over one SQLite
+  # file. The one a tunnel can reach (qr-public) has no admin page in it; the
+  # admin page (qr) is on the tailnet behind the passkey and is on no network
+  # the tunnel is on. See docs/gitops/qr.md.
+  qr:
+    image: {{ autolab_services_qr_image }}
+    build:
+      context: ./qr/build
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges
+    labels:
+      diun.enable: "false"
+    environment:
+      MODE: admin
+      PUBLIC_BASE_URL: "{{ autolab_services_qr_public_url }}"
+    volumes:
+      - {{ autolab_services_root }}/qr/data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8081/healthz || exit 1"]
+      start_period: 10s
+      timeout: 5s
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.qr }}:8081"
+
+  qr-public:
+    # Its own tag from the same context: two services building one tag at the
+    # same moment collide. The second build is all cache.
+    image: {{ autolab_services_qr_image }}-public
+    build:
+      context: ./qr/build
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges
+    labels:
+      diun.enable: "false"
+    environment:
+      MODE: public
+      PUBLIC_BASE_URL: "{{ autolab_services_qr_public_url }}"
+    volumes:
+      - {{ autolab_services_root }}/qr/data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1"]
+      start_period: 10s
+      timeout: 5s
+    # Only the network the connector is on. No published port.
+    networks: [paradigm-public]

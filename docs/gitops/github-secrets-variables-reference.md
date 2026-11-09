@@ -95,6 +95,8 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `GRAFANA_OIDC_CLIENT_ID` | `<uuid>` | Ansible Builder (`observability`, `ingress`) | Grafana's own OIDC client in Pocket ID. Set: Grafana logs in via Pocket ID, anonymous viewing off, public route on. Unset: tailnet-only as before. |
 | `GRAFANA_OIDC_CLIENT_SECRET` | `<random>` | Ansible Builder (`observability`) | Its secret. |
 | `INGRESS_ACME_DNS_TOKEN` | `<token>` | Ansible Builder (`ingress`) | A second Cloudflare token: Zone → DNS → Edit on the one zone, nothing else. Lives on horizon for the wildcard certificate's DNS challenge. Unset: the tailnet side stays off. |
+| `PARADIGM_TUNNEL_TOKEN` | `eyJh…` | Ansible Builder (`services`) | The token of the tunnel in the **Paradigm Prints** Cloudflare account (a different account from the lab's), shown in that tunnel's Docker command after `--token`. Read by the `paradigm-tunnel` service. Required when that service is in a machine's list. See [qr](./qr.md). |
+| `QR_PUBLIC_URL` | `https://go.paradigm-prints.com` | Ansible Builder (`services`) | A **variable**, not a secret. The address printed QR codes open. It is baked into every code, so it is chosen once. Required when `qr` is in a machine's services list. |
 | `PROXMOX_OIDC_CLIENT_ID` | `<uuid>` | Proxmox Node, Ansible Builder (`backup`) | One Pocket ID client for PVE and PBS. Set: both offer a Pocket ID realm. |
 | `PROXMOX_OIDC_CLIENT_SECRET` | `<random>` | same | Its secret. |
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |

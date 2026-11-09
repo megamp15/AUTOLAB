@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QR codes</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --card: #fff; --ink: #1b1b1a; --muted: #6b6b66; --line: #e2e2dc;
+    --accent: #1f5eff; --accent-ink: #fff; --danger: #c0392b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #131312; --card: #1c1c1a; --ink: #ecece8; --muted: #9a9a93; --line: #2d2d2a; --accent: #6b95ff; --accent-ink: #0b1220; --danger: #ff7a6b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+  h1 { font-size: 22px; margin: 0; }
+  .stats { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  button, a.btn { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 6px; padding: 6px 10px; text-decoration: none; display: inline-block; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); padding: 9px 16px; font-weight: 600; }
+  button.danger { color: var(--danger); }
+  button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; align-content: start; }
+  .qr { width: 100%; aspect-ratio: 1; max-width: 220px; justify-self: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+  .name { font-weight: 600; font-size: 16px; overflow-wrap: anywhere; }
+  .short { font-family: ui-monospace, monospace; font-size: 13px; overflow-wrap: anywhere; color: var(--accent); }
+  .dest { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .scans { color: var(--muted); font-size: 13px; }
+  .scans b { color: var(--ink); font-size: 15px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .empty { text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 12px; padding: 56px 16px; }
+  .empty p { margin: 0; }
+
+  dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); padding: 0; width: min(460px, calc(100vw - 32px)); }
+  dialog::backdrop { background: rgb(0 0 0 / .45); }
+  form { display: grid; gap: 14px; padding: 20px; }
+  form h2 { margin: 0; font-size: 18px; }
+  label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+  input { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; min-width: 0; }
+  input[readonly] { opacity: .65; }
+  .hint { font-size: 12px; color: var(--muted); }
+  .buttons { display: flex; justify-content: flex-end; gap: 8px; }
+  #error { color: var(--danger); margin: 0; min-height: 1.3em; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>QR codes</h1>
+      <div class="stats" id="stats"></div>
+    </div>
+    <button class="primary" id="add">+ New QR code</button>
+  </header>
+
+  <div id="grid" class="grid"></div>
+</main>
+
+<dialog id="dlg">
+  <form id="form" method="dialog">
+    <h2 id="dlg-title">New QR code</h2>
+    <label>Name
+      <input name="label" required maxlength="120" placeholder="Open house sign-up" autocomplete="off">
+    </label>
+    <label>Destination
+      <input name="target" type="url" required placeholder="https://forms.gle/…" autocomplete="off">
+    </label>
+    <label>Short address
+      <input name="slug" maxlength="64" placeholder="leave empty for a random one, or e.g. signup" autocomplete="off" autocapitalize="none" spellcheck="false">
+      <span class="hint" id="slug-hint">This is what the QR code actually contains. It can't change after the code is printed; the destination can.</span>
+    </label>
+    <p id="error" role="alert"></p>
+    <div class="buttons">
+      <button type="button" id="cancel">Cancel</button>
+      <button type="submit" class="primary" id="submit">Create QR code</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const $ = s => document.querySelector(s);
+const dlg = $('#dlg'), form = $('#form'), errEl = $('#error');
+let editing = null; // slug being edited, or null when adding
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json' } });
+  if (res.status === 204) return null;
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || res.statusText);
+  return body;
+}
+
+function el(tag, props = {}, ...kids) {
+  const e = Object.assign(document.createElement(tag), props);
+  kids.forEach(k => e.append(k));
+  return e;
+}
+
+function when(unix) {
+  return unix ? new Date(unix * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'never';
+}
+
+function openDialog(link) {
+  editing = link ? link.slug : null;
+  form.reset();
+  errEl.textContent = '';
+  $('#dlg-title').textContent = link ? 'Edit QR code' : 'New QR code';
+  $('#submit').textContent = link ? 'Save' : 'Create QR code';
+  form.slug.readOnly = !!link;
+  $('#slug-hint').hidden = !!link;
+  if (link) { form.label.value = link.label; form.target.value = link.target; form.slug.value = link.slug; }
+  dlg.showModal();
+  form.label.focus();
+}
+
+function card(l) {
+  const copy = el('button', { textContent: 'Copy link' });
+  copy.onclick = async () => {
+    try { await navigator.clipboard.writeText(l.short); copy.textContent = 'Copied'; }
+    catch { copy.textContent = 'Press ⌘C'; prompt('Copy this link', l.short); }
+    setTimeout(() => copy.textContent = 'Copy link', 1400);
+  };
+  const edit = el('button', { textContent: 'Edit' });
+  edit.onclick = () => openDialog(l);
+  const del = el('button', { textContent: 'Delete', className: 'danger' });
+  del.onclick = async () => {
+    if (!confirm(`Delete "${l.label || l.slug}"? Printed copies of this code will stop working.`)) return;
+    try { await api('/api/links/' + l.slug, { method: 'DELETE' }); load(); } catch (e) { alert(e.message); }
+  };
+  return el('article', { className: 'card' },
+    el('img', { className: 'qr', src: `/qr/${l.slug}.png?size=440&v=${l.short}`, alt: `QR code for ${l.label || l.slug}` }),
+    el('div', { className: 'name', textContent: l.label || l.slug }),
+    el('a', { className: 'short', href: l.short, textContent: l.short, target: '_blank', rel: 'noopener' }),
+    el('div', { className: 'dest', textContent: '→ ' + l.target }),
+    el('div', { className: 'scans' }, el('b', { textContent: l.scans }), ` scan${l.scans === 1 ? '' : 's'} · last ${when(l.last_scan)}`),
+    el('div', { className: 'actions' },
+      copy, edit,
+      el('a', { className: 'btn', href: `/qr/${l.slug}.png?size=1024&download`, textContent: 'PNG' }),
+      el('a', { className: 'btn', href: `/qr/${l.slug}.svg?download`, textContent: 'SVG' }),
+      del));
+}
+
+async function load() {
+  const grid = $('#grid');
+  try {
+    const links = await api('/api/links');
+    const scans = links.reduce((n, l) => n + l.scans, 0);
+    $('#stats').textContent = links.length ? `${links.length} code${links.length === 1 ? '' : 's'} · ${scans} scan${scans === 1 ? '' : 's'}` : '';
+    if (!links.length) {
+      grid.replaceChildren(el('div', { className: 'empty', style: 'grid-column: 1 / -1' }, el('p', { textContent: 'No QR codes yet. Use “New QR code” to make one.' })));
+    } else grid.replaceChildren(...links.map(card));
+  } catch (e) { grid.replaceChildren(el('div', { className: 'empty', textContent: e.message, style: 'grid-column: 1 / -1' })); }
+}
+
+$('#add').onclick = () => openDialog();
+$('#cancel').onclick = () => dlg.close();
+dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); }); // click on the backdrop
+
+form.addEventListener('submit', async ev => {
+  ev.preventDefault();
+  errEl.textContent = '';
+  const data = Object.fromEntries(new FormData(form));
+  try {
+    if (editing) await api('/api/links/' + editing, { method: 'PATCH', body: JSON.stringify({ label: data.label, target: data.target }) });
+    else await api('/api/links', { method: 'POST', body: JSON.stringify(data) });
+    dlg.close();
+    load();
+  } catch (e) { errEl.textContent = e.message; }
+});
+
+load();
+</script>
+</body>
+</html>

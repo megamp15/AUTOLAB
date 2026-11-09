@@ -44,3 +44,17 @@ autolab_service_catalog:
   dash:
     port: 8096
     login: plugin
+  # QR codes that redirect. The admin page is the catalog port, behind the
+  # passkey at qr.<label>.<zone>. The redirect side has no port on the host at
+  # all: it joins the paradigm-public network, where paradigm-tunnel carries it
+  # out through a tunnel in another Cloudflare account, never touching
+  # horizon's Traefik.
+  qr:
+    port: 8097
+    login: plugin
+  # The connector for the tunnel in the Paradigm Prints Cloudflare account. One
+  # tunnel, any number of hostnames: each is a route in that account's
+  # dashboard to <container>:<port> on the paradigm-public network. Only
+  # containers meant to be public join that network.
+  paradigm-tunnel:
+    login: none

@@ -1,0 +1,11 @@
+  # The connector for the tunnel in the Paradigm Prints Cloudflare account. It
+  # dials out; routes (hostname -> container:port) are set in that account.
+  # It can reach whatever is on paradigm-public, so only a container that is
+  # safe to be public goes there: never an admin page.
+  paradigm-tunnel:
+    image: {{ autolab_services_images.paradigm_tunnel }}
+    restart: unless-stopped
+    env_file: ./paradigm-tunnel.env
+    # --no-autoupdate: the image tag is the version.
+    command: tunnel --no-autoupdate run
+    networks: [paradigm-public]

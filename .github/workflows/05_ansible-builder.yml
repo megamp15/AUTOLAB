@@ -380,6 +380,12 @@ jobs:
           # Pi-hole's admin page password. Unset: the page asks for none, which
           # the tailnet alone then guards.
           AUTOLAB_PIHOLE_WEB_PASSWORD: ${{ secrets.PIHOLE_WEB_PASSWORD }}
+          # The QR redirect: the https address printed codes open (baked into
+          # every code), and the token of the tunnel in the Paradigm Prints
+          # Cloudflare account that carries it. Both only matter on a machine
+          # whose services list has qr and paradigm-tunnel.
+          AUTOLAB_QR_PUBLIC_URL: ${{ vars.QR_PUBLIC_URL }}
+          AUTOLAB_PARADIGM_TUNNEL_TOKEN: ${{ secrets.PARADIGM_TUNNEL_TOKEN }}
         run: |
           out="$RUNNER_TEMP/extra-vars.json"
           umask 077
@@ -418,6 +424,8 @@ jobs:
               "autolab_git_sha": os.environ.get("AUTOLAB_GIT_SHA", ""),
               "autolab_pbs_pve_password": os.environ.get("AUTOLAB_PBS_PVE_PASSWORD", ""),
               "autolab_pihole_web_password": os.environ.get("AUTOLAB_PIHOLE_WEB_PASSWORD", ""),
+              "autolab_services_qr_public_url": os.environ.get("AUTOLAB_QR_PUBLIC_URL", ""),
+              "autolab_services_paradigm_tunnel_token": os.environ.get("AUTOLAB_PARADIGM_TUNNEL_TOKEN", ""),
           }, open(sys.argv[1], "w"))
           PY
           if [ -n "${AUTOLAB_BUILDER_SSH_PUBLIC_KEY}" ]; then
