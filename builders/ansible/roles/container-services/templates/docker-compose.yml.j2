@@ -23,9 +23,19 @@ volumes:
   diun-data:
 {% endif %}
 
-{% if 'dockhand' in autolab_services_enabled %}
-# Keep the unauthenticated backend off the other services' Docker network.
-# This dedicated bridge still permits Dockhand's outbound registry/Git calls.
+# Two bridges besides the default, each there to keep something away from
+# something else.
+{% if 'dockhand' in autolab_services_enabled or 'qr' in autolab_services_enabled or 'paradigm-tunnel' in autolab_services_enabled %}
 networks:
+{% endif %}
+{% if 'dockhand' in autolab_services_enabled %}
+  # Keep the unauthenticated backend off the other services' Docker network.
+  # This dedicated bridge still permits Dockhand's outbound registry/Git calls.
   dockhand-control:
+{% endif %}
+{% if 'qr' in autolab_services_enabled or 'paradigm-tunnel' in autolab_services_enabled %}
+  # What the Paradigm tunnel can reach: its connector and the containers meant
+  # to be public, nothing else. An admin page, which has no login of its own,
+  # is never on it.
+  paradigm-public:
 {% endif %}

@@ -31,6 +31,9 @@ autolab_services_images:
   code_server: "codercom/code-server:4.138.0"
   immich_share: "alangrainger/immich-public-proxy:4.1.2"
   dash: "ghcr.io/gethomepage/homepage:v2.4.0"
+  # The connector for the Paradigm Prints tunnel, pinned with the same
+  # version horizon's runs.
+  paradigm_tunnel: "cloudflare/cloudflared:2026.9.1"
 
 # Host ports come from the shared catalog in playbooks/group_vars/all.yml,
 # because the ingress role on another machine routes to the same numbers.
@@ -43,11 +46,27 @@ autolab_services_ports:
   code_server: "{{ autolab_service_catalog['code-server'].port }}"
   immich_share: "{{ autolab_service_catalog['immich-share'].port }}"
   dash: "{{ autolab_service_catalog.dash.port }}"
+  qr: "{{ autolab_service_catalog.qr.port }}"
 
 # gethomepage. The names it answers to (it refuses any other Host header), and
 # the zone and internal label its links are built from.
 autolab_services_dash_zone: "pmahir.space"
 autolab_services_dash_label: "lab"
+
+# QR redirect. The files that make its image: copied to the host, and what its
+# tag is a hash of. A new source file belongs here or it never reaches the host.
+autolab_services_qr_build_files: [Dockerfile, go.mod, go.sum, main.go, index.html]
+# The address every printed code points at: baked into the codes,
+# so it is chosen once and kept. It lives in a GitHub variable (QR_PUBLIC_URL),
+# not here, because it is a customer-facing name rather than lab config.
+autolab_services_qr_public_url: ""
+
+# The paradigm-tunnel service: the token of a tunnel made in the Paradigm
+# Prints Cloudflare account. A secret (PARADIGM_TUNNEL_TOKEN). Its hostnames
+# and the container each one points at are routes in that account's dashboard,
+# so a new public service is a route there plus a container on the
+# paradigm-public network here. Required when the service is enabled.
+autolab_services_paradigm_tunnel_token: ""
 
 # Immich Public Proxy. The address shared links are opened at (Immich's own
 # External Domain must say the same), and where Immich answers on the tailnet:
