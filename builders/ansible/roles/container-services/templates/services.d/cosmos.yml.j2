@@ -1,0 +1,64 @@
+  # COSMOS, the personal hub: Postgres, the API, and an nginx gateway that
+  # serves the web build. Only the gateway publishes a port, and it refuses a
+  # request that did not come through horizon's Traefik after the Pocket ID
+  # admin check. The API and database are on an internal network with no route
+  # out. Each container reads only its own env file. See docs/gitops/cosmos.md.
+  cosmos-db:
+    image: {{ autolab_services_images.cosmos_db }}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges
+    env_file: [./cosmos-db.env]
+    volumes:
+      - cosmos-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    networks: [cosmos-backend]
+
+  cosmos-api:
+    image: {{ autolab_services_cosmos_registry }}/cosmos-api:{{ autolab_services_cosmos_image_tag }}
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges
+    # Pinned by tag in git; there is no newer tag for Diun to report.
+    labels:
+      diun.enable: "false"
+    env_file: [./cosmos-api.env]
+    depends_on:
+      cosmos-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/live').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      cosmos-backend:
+        # The gateway's nginx config proxies to the name `api`.
+        aliases: [api]
+
+  cosmos-gateway:
+    image: {{ autolab_services_cosmos_registry }}/cosmos-gateway:{{ autolab_services_cosmos_image_tag }}
+    restart: unless-stopped
+    # nginx starts as root to bind port 80 and switch its workers; nothing else.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID, NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges
+    labels:
+      diun.enable: "false"
+    env_file: [./cosmos-gateway.env]
+    depends_on:
+      cosmos-api:
+        condition: service_healthy
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.cosmos }}:80"
+    networks:
+      - cosmos-backend
+      - cosmos-edge

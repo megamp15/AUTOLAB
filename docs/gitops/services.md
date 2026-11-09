@@ -48,6 +48,7 @@ bump is a pull request.
 | `rustdesk` | remote desktop between your own machines, tailnet only, key-enforced — see [rustdesk](rustdesk.md) | 21115-21117 (TCP), 21116 (UDP) |
 | `qr` | QR codes whose destination can change after printing — see [qr](qr.md) | 8097 (admin) |
 | `paradigm-tunnel` | the connector for the tunnel in the Paradigm Prints Cloudflare account — see [qr](qr.md) | — |
+| `cosmos` | the owner's personal hub: gateway, API and Postgres, Pocket ID admins only — see [cosmos](cosmos.md) | 8105 |
 
 ## Where they are reachable
 

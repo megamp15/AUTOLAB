@@ -578,7 +578,7 @@
     owner: root
     group: root
     mode: "0755"
-  when: "'dockhand' in autolab_services_enabled"
+  when: "'dockhand' in autolab_services_enabled or 'cosmos' in autolab_services_enabled"
 
 - name: Create Dockhand's proxy credential once
   ansible.builtin.shell:
@@ -623,6 +623,148 @@
   no_log: true
   when: "'dockhand' in autolab_services_enabled and not ansible_check_mode"
   notify: Restart the Dockhand proxy
+
+# COSMOS. Its credentials are generated here, once, and stay on this host:
+# the database password and the two tokens never pass through GitHub, a log or
+# a repository. horizon reads the proxy token over SSH to add it after the
+# Pocket ID check; each container gets an env file with only what it uses.
+- name: Require a COSMOS image tag
+  ansible.builtin.assert:
+    that: autolab_services_cosmos_image_tag is match('^[0-9a-f]{40}-[0-9]+-[0-9]+$')
+    fail_msg: >-
+      The cosmos service needs autolab_services_cosmos_image_tag set to the tag
+      the "Publish COSMOS images" workflow printed, such as
+      <40-hex commit>-<run id>-<attempt>. Publish first, then enable the service.
+  when: "'cosmos' in autolab_services_enabled"
+
+- name: Create COSMOS's credential directory
+  ansible.builtin.file:
+    path: /etc/autolab/cosmos
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: "'cosmos' in autolab_services_enabled"
+
+# Generated once; creates makes every later run a no-op, so a re-run can never
+# rotate the database password out from under the data directory.
+- name: Create COSMOS's credentials once
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      umask 077
+      credential_file=$(mktemp /etc/autolab/cosmos/.credential.XXXXXX)
+      trap 'rm -f "$credential_file"' EXIT
+      openssl rand -hex 32 > "$credential_file"
+      mv "$credential_file" /etc/autolab/cosmos/{{ item }}
+    creates: /etc/autolab/cosmos/{{ item }}
+  loop: [db-password, proxy-token, mcp-token]
+  loop_control:
+    label: "{{ item }}"
+  no_log: true
+  when: "'cosmos' in autolab_services_enabled"
+
+- name: Read COSMOS's credentials
+  ansible.builtin.slurp:
+    src: "/etc/autolab/cosmos/{{ item }}"
+  loop: [db-password, proxy-token, mcp-token]
+  loop_control:
+    label: "{{ item }}"
+  register: autolab_cosmos_credentials
+  no_log: true
+  when: "'cosmos' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Require valid 64-character COSMOS credentials
+  ansible.builtin.assert:
+    that: (item.content | b64decode | trim) is match('^[0-9a-f]{64}$')
+    fail_msg: A COSMOS credential is invalid; refusing to render the containers' environment.
+  loop: "{{ autolab_cosmos_credentials.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  no_log: true
+  when: "'cosmos' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Name COSMOS's credentials
+  ansible.builtin.set_fact:
+    autolab_cosmos_db_password: "{{ autolab_cosmos_credentials.results[0].content | b64decode | trim }}"
+    autolab_cosmos_proxy_token: "{{ autolab_cosmos_credentials.results[1].content | b64decode | trim }}"
+    autolab_cosmos_mcp_token: "{{ autolab_cosmos_credentials.results[2].content | b64decode | trim }}"
+  no_log: true
+  when: "'cosmos' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Write COSMOS's container environments
+  ansible.builtin.copy:
+    content: "{{ item.content }}"
+    dest: "{{ autolab_services_root }}/{{ item.name }}.env"
+    owner: root
+    group: root
+    mode: "0600"
+  loop:
+    - name: cosmos-db
+      content: |
+        POSTGRES_DB=cosmos
+        POSTGRES_USER=cosmos
+        POSTGRES_PASSWORD={{ autolab_cosmos_db_password }}
+    - name: cosmos-api
+      content: |
+        HOST=0.0.0.0
+        PORT=3000
+        DATABASE_HOST=cosmos-db
+        DATABASE_PORT=5432
+        COSMOS_DB_NAME=cosmos
+        COSMOS_DB_USER=cosmos
+        COSMOS_DB_PASSWORD={{ autolab_cosmos_db_password }}
+        COSMOS_PROXY_TOKEN={{ autolab_cosmos_proxy_token }}
+        COSMOS_MCP_TOKEN={{ autolab_cosmos_mcp_token }}
+        COSMOS_MCP_SCOPES=system:read
+    - name: cosmos-gateway
+      content: |
+        COSMOS_PROXY_TOKEN={{ autolab_cosmos_proxy_token }}
+        COSMOS_DEV_MODE=0
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+  notify: Restart the services stack
+  when: "'cosmos' in autolab_services_enabled and not ansible_check_mode"
+
+# A logical dump is the backup that survives a Postgres upgrade or a damaged
+# data directory; the nightly Proxmox backup of this VM carries the dump files
+# to the NAS. -Fc is restorable table by table with pg_restore.
+- name: Create COSMOS's dump directory
+  ansible.builtin.file:
+    path: "{{ autolab_services_root }}/cosmos/dumps"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: "'cosmos' in autolab_services_enabled"
+
+- name: Install COSMOS's dump script
+  ansible.builtin.template:
+    src: cosmos-dump.sh.j2
+    dest: /usr/local/sbin/autolab-cosmos-dump
+    owner: root
+    group: root
+    mode: "0750"
+  when: "'cosmos' in autolab_services_enabled"
+
+- name: Install COSMOS's dump units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [autolab-cosmos-dump.service, autolab-cosmos-dump.timer]
+  when: "'cosmos' in autolab_services_enabled"
+
+- name: Enable COSMOS's daily dump
+  ansible.builtin.systemd_service:
+    name: autolab-cosmos-dump.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: "'cosmos' in autolab_services_enabled and not ansible_check_mode"
 
 - name: Assemble the services compose file
   ansible.builtin.template:
@@ -1042,6 +1184,30 @@
     - autolab_services_sure_oidc_client_id | length > 0
     - not ansible_check_mode
 
+- name: Verify direct COSMOS access is denied
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.cosmos }}/api/status"
+    status_code: [403]
+  register: autolab_cosmos_denied
+  until: autolab_cosmos_denied.status == 403
+  retries: 20
+  delay: 3
+  when: "'cosmos' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Verify authenticated proxy traffic reaches COSMOS and its database
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.cosmos }}/api/status"
+    headers:
+      X-Autolab-Cosmos-Token: "{{ autolab_cosmos_proxy_token }}"
+    return_content: true
+    status_code: [200]
+  register: autolab_cosmos_ready
+  until: autolab_cosmos_ready.status == 200
+  retries: 30
+  delay: 3
+  no_log: true
+  when: "'cosmos' in autolab_services_enabled and not ansible_check_mode"
+
 # After the stack is up, because it runs inside the container. The CLI is
 # idempotent and says so — "already installed" is how a converged host is
 # told apart from one that just gained an extension, which is what keeps a
@@ -1163,3 +1329,4 @@
           ~ ':' ~ autolab_services_adventurelog_immich_port ~ '/api)' if 'adventurelog' in autolab_services_enabled else '' }}
       {{- ', rustdesk: ID server ' ~ autolab_services_fqdn ~ ', key ' ~ (autolab_rustdesk_key_raw.content | default('') | b64decode | trim)
           if 'rustdesk' in autolab_services_enabled else '' }}
+      {{- ', cosmos :' ~ autolab_services_ports.cosmos if 'cosmos' in autolab_services_enabled else '' }}

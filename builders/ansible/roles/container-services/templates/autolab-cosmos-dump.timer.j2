@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily COSMOS database dump, before the 02:00 Proxmox backup
+
+[Timer]
+OnCalendar=*-*-* 01:15:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,8 @@
+[Unit]
+Description=Autolab COSMOS database dump
+Requires=docker.service
+After=docker.service autolab-services.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/autolab-cosmos-dump

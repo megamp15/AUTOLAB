@@ -98,6 +98,7 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `INGRESS_ACME_DNS_TOKEN` | `<token>` | Ansible Builder (`ingress`) | A second Cloudflare token: Zone → DNS → Edit on the one zone, nothing else. Lives on horizon for the wildcard certificate's DNS challenge. Unset: the tailnet side stays off. |
 | `PARADIGM_TUNNEL_TOKEN` | `eyJh…` | Ansible Builder (`services`) | The token of the tunnel in the **Paradigm Prints** Cloudflare account (a different account from the lab's), shown in that tunnel's Docker command after `--token`. Read by the `paradigm-tunnel` service. Required when that service is in a machine's list. See [qr](./qr.md). |
 | `QR_PUBLIC_URL` | `https://go.paradigm-prints.com` | Ansible Builder (`services`) | A **variable**, not a secret. The address printed QR codes open. It is baked into every code, so it is chosen once. Required when `qr` is in a machine's services list. |
+| `COSMOS_DEPLOY_KEY` | `-----BEGIN OPENSSH PRIVATE KEY-----…` | Publish COSMOS images | **Environment-level (`lab`).** The private half of a **read-only deploy key** on the COSMOS repository, used only to check out the commit being published. Never the owner's personal key. See [cosmos](./cosmos.md). |
 | `PROXMOX_OIDC_CLIENT_ID` | `<uuid>` | Proxmox Node, Ansible Builder (`backup`) | One Pocket ID client for PVE and PBS. Set: both offer a Pocket ID realm. |
 | `PROXMOX_OIDC_CLIENT_SECRET` | `<random>` | same | Its secret. |
 | `R2_ACCESS_KEY_ID` | `abc123...` | OpenTofu | R2 → Manage API Tokens. Shown once. |
@@ -148,7 +149,7 @@ Copy from `infra/stacks/lab/terraform.tfvars.example` and edit locally.
 
 | Environment | Workflow | Holds |
 |-------------|----------|-------|
-| `lab` | Plan, Apply, Destroy, Builder when `environment: lab` | Nothing yet; the provider's own stack falls through to repository-level values |
+| `lab` | Plan, Apply, Destroy, Builder when `environment: lab`; Publish COSMOS images | `COSMOS_DEPLOY_KEY`; everything else falls through to repository-level values |
 | `qnta` | Plan, Apply, Destroy, Builder when `environment: qnta` | `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` from the tenant's tailnet; `NAS_SMB_PASSWORD`; variables `TAILSCALE_VM_TAG`, `NAS_SERVER`, `NAS_SMB_USERNAME` |
 | `autolab-plan`, `autolab-apply` | Not targeted | Retained; nothing reads them |
 
