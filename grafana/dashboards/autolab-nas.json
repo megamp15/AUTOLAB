@@ -1,0 +1,556 @@
+{
+  "apiVersion": "dashboard.grafana.app/v1",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "autolab-nas"
+  },
+  "spec": {
+    "title": "Autolab / Singularity NAS",
+    "description": "UGOS host and Docker telemetry from Alloy. Volume capacity is shown per mount, never added across /volume1 and /home aliases. Existing Immich media stays read-only.",
+    "tags": [
+      "autolab",
+      "nas",
+      "singularity"
+    ],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "DS",
+          "type": "datasource",
+          "query": "prometheus",
+          "current": {},
+          "hide": 0
+        },
+        {
+          "name": "DS_LOKI",
+          "type": "datasource",
+          "query": "loki",
+          "current": {},
+          "hide": 0
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Telemetry health",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "up{instance=\"singularity\"}",
+            "refId": "A",
+            "legendFormat": "{{job}}"
+          }
+        ],
+        "description": "1 is a successful scrape; this is not a SMART disk-health assessment."
+      },
+      {
+        "id": 2,
+        "title": "CPU used",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "100 * (1 - avg(rate(node_cpu_seconds_total{instance=\"singularity\",mode=\"idle\"}[5m])))",
+            "refId": "A",
+            "legendFormat": ""
+          }
+        ],
+        "description": ""
+      },
+      {
+        "id": 3,
+        "title": "Memory used",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "node_memory_MemTotal_bytes{instance=\"singularity\"} - node_memory_MemAvailable_bytes{instance=\"singularity\"}",
+            "refId": "A",
+            "legendFormat": ""
+          }
+        ],
+        "description": ""
+      },
+      {
+        "id": 4,
+        "title": "Volume used",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "node_filesystem_size_bytes{instance=\"singularity\",mountpoint=\"/volume1\"} - node_filesystem_free_bytes{instance=\"singularity\",mountpoint=\"/volume1\"}",
+            "refId": "A",
+            "legendFormat": "{{mountpoint}}"
+          }
+        ],
+        "description": "The main NAS filesystem only. /home is another mount of this same filesystem and is not added."
+      },
+      {
+        "id": 5,
+        "title": "Volume capacity",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "node_filesystem_size_bytes{instance=\"singularity\",mountpoint=\"/volume1\"}",
+            "refId": "A",
+            "legendFormat": "{{mountpoint}}"
+          }
+        ],
+        "description": "Logical filesystem capacity reported by the NAS. Not the sum of physical drive labels."
+      },
+      {
+        "id": 6,
+        "title": "Available to workloads",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "node_filesystem_avail_bytes{instance=\"singularity\",mountpoint=\"/volume1\"}",
+            "refId": "A",
+            "legendFormat": "{{mountpoint}}"
+          }
+        ],
+        "description": "Space available to ordinary workloads; Btrfs allocation and reserved space can affect this."
+      },
+      {
+        "id": 7,
+        "title": "Volume used percentage",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 24
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "100 * (1 - node_filesystem_free_bytes{instance=\"singularity\",mountpoint=\"/volume1\"} / node_filesystem_size_bytes{instance=\"singularity\",mountpoint=\"/volume1\"})",
+            "refId": "A",
+            "legendFormat": ""
+          }
+        ],
+        "description": ""
+      },
+      {
+        "id": 8,
+        "title": "Temperatures",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 24
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "celsius"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "node_hwmon_temp_celsius{instance=\"singularity\"}",
+            "refId": "A",
+            "legendFormat": "{{chip}} / {{sensor}}"
+          }
+        ],
+        "description": "Only sensors exposed by the NAS kernel. No data means unavailable."
+      },
+      {
+        "id": 9,
+        "title": "Network received",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 32
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "Bps"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "rate(node_network_receive_bytes_total{instance=\"singularity\",device!~\"lo|veth.*|docker.*|br-.*\"}[5m])",
+            "refId": "A",
+            "legendFormat": "{{device}}"
+          }
+        ],
+        "description": ""
+      },
+      {
+        "id": 10,
+        "title": "Network sent",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 32
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "Bps"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "rate(node_network_transmit_bytes_total{instance=\"singularity\",device!~\"lo|veth.*|docker.*|br-.*\"}[5m])",
+            "refId": "A",
+            "legendFormat": "{{device}}"
+          }
+        ],
+        "description": ""
+      },
+      {
+        "id": 11,
+        "title": "Container CPU",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 40
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{instance=\"singularity\",name!=\"\"}[5m])) * 100",
+            "refId": "A",
+            "legendFormat": "{{name}}"
+          }
+        ],
+        "description": "Percent of one CPU core. Values above 100% mean multiple cores."
+      },
+      {
+        "id": 12,
+        "title": "Container memory",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 40
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "container_memory_working_set_bytes{instance=\"singularity\",name!=\"\"}",
+            "refId": "A",
+            "legendFormat": "{{name}}"
+          }
+        ],
+        "description": ""
+      },
+      {
+        "id": 13,
+        "title": "RAID member disks",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 48
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "node_md_disks{instance=\"singularity\"}",
+            "refId": "A",
+            "legendFormat": "{{device}} / {{state}}"
+          }
+        ],
+        "description": "Only mdadm arrays exposed by the kernel. UGOS Btrfs pools may have no mdadm series; no data does not mean healthy."
+      },
+      {
+        "id": 14,
+        "title": "Disk reads",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 48
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            },
+            "unit": "Bps"
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "rate(node_disk_read_bytes_total{instance=\"singularity\",device=~\"sd[a-z]+|nvme[0-9]+n[0-9]+\"}[5m])",
+            "refId": "A",
+            "legendFormat": "{{device}}"
+          }
+        ],
+        "description": "Physical block-device I/O; not added to filesystem capacity."
+      },
+      {
+        "id": 15,
+        "title": "NAS container logs",
+        "type": "logs",
+        "gridPos": {
+          "h": 12,
+          "w": 24,
+          "x": 0,
+          "y": 56
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "${DS_LOKI}"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 8,
+              "lineWidth": 2
+            }
+          },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "{host=\"singularity\",job=\"docker\"}",
+            "refId": "A"
+          }
+        ],
+        "description": "The same containers, from Loki. Labelled by Compose project and service, so a container being recreated does not break the query.",
+        "options": {
+          "showTime": true,
+          "wrapLogMessage": true,
+          "sortOrder": "Descending",
+          "enableLogDetails": true
+        }
+      }
+    ],
+    "links": [
+      {
+        "type": "link",
+        "title": "Hosts",
+        "url": "/d/autolab-hosts?var-instance=singularity",
+        "targetBlank": false
+      },
+      {
+        "type": "link",
+        "title": "Containers",
+        "url": "/d/autolab-containers?var-host=singularity",
+        "targetBlank": false
+      }
+    ]
+  }
+}

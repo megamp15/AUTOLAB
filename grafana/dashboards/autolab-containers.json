@@ -256,6 +256,6 @@
     }
    }
   ],
-  "links": []
+  "links": [{"type": "link", "title": "Singularity NAS", "url": "/d/autolab-nas", "targetBlank": false}]
  }
 }

@@ -33,6 +33,8 @@ builders/ansible/inventories/**/hosts.yml
 # nothing to target. Committed without it once already, which passed CI and
 # failed on the runner with "No hosts matched".
 !builders/ansible/inventories/hypervisors/hosts.yml
+# Physical NAS appliances are declarations too, not generated VM state.
+!builders/ansible/inventories/nas/hosts.yml
 builders/ansible/inventories/**/group_vars/
 builders/ansible/inventories/**/host_vars/
 

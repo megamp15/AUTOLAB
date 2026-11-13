@@ -1,0 +1,9 @@
+---
+- name: Restart NAS Alloy
+  community.docker.docker_compose_v2:
+    project_src: "{{ autolab_nas_root }}"
+    project_name: "{{ autolab_nas_project }}"
+    services: [alloy]
+    dependencies: false
+    state: restarted
+  when: not ansible_check_mode

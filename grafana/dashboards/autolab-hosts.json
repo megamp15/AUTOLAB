@@ -1049,7 +1049,7 @@
         ]
       }
     },
-    "links": [],
+    "links": [{"type": "link", "title": "Singularity NAS", "url": "/d/autolab-nas", "targetBlank": false}],
     "liveNow": false,
     "preload": false,
     "tags": [

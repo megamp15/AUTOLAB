@@ -84,7 +84,7 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
 10. [Template lifecycle](./template-lifecycle.md)
 11. [Tailscale device lifecycle](./tailscale-device-lifecycle.md)
 12. [Tailnet policy GitOps](./tailnet-policy-gitops.md)
-13. [NAS storage over the tailnet](./nas-storage.md)
+13. [NAS storage over the tailnet](./nas-storage.md), [Singularity Docker and photo jobs](./singularity.md)
 14. [Naming](./naming.md)
 15. [Observability](./observability.md)
 16. [Backups](./backups.md)
