@@ -265,6 +265,17 @@
     path: "{{ autolab_obs_root }}/docker-compose.yml"
   register: autolab_obs_compose_file
 
+# Apply Grafana environment changes without restarting metrics or log storage.
+# Run together with homepage to discover the host facts and render compose.
+- name: Apply Grafana service configuration
+  community.docker.docker_compose_v2:
+    project_src: "{{ autolab_obs_root }}"
+    services: [grafana]
+    dependencies: false
+    state: present
+  when: not ansible_check_mode or autolab_obs_compose_file.stat.exists
+  tags: [never, grafana]
+
 - name: Note what check mode cannot inspect
   ansible.builtin.debug:
     msg: >-

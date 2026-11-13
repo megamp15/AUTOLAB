@@ -1,11 +1,9 @@
 zone_name   = "pmahir.space"
 tunnel_name = "autolab"
 
-# Three names, one origin. Traefik on horizon routes by Host header; Pocket ID
-# answers auth. Adding a public service is a line here plus its Traefik route.
+# Public sign-in and shared links only. Operator dashboards use the private
+# *.lab names and have no Cloudflare DNS record or tunnel ingress rule.
 public_hostnames = {
-  home    = { comment = "the homepage, behind the login" }
-  grafana = { comment = "Grafana, logs in via Pocket ID" }
-  auth    = { comment = "Pocket ID, the login page itself" }
-  share   = { comment = "Immich shared links only, through Immich Public Proxy" }
+  auth  = { comment = "Pocket ID, the login page itself" }
+  share = { comment = "Immich shared links only, through Immich Public Proxy" }
 }

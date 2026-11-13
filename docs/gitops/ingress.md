@@ -6,35 +6,17 @@ audience: operator
 
 # Ingress
 
-The lab reachable from anywhere, by people you name, with nothing opened on
-the router and nothing about the lab visible to anyone who was not let in.
-Cloudflare carries the traffic. `horizon` decides who gets in. The services
-stay exactly where they are.
+Home, Grafana and administrative pages require Tailscale. Public Cloudflare
+routes are limited to `auth.<zone>` for Pocket ID and `share.<zone>` for shared
+photo links. There are no public DNS records or tunnel ingress rules for Home
+or Grafana, and Traefik has no public router for either dashboard.
 
 ## The shape
 
-```mermaid
-flowchart TB
-    P["a phone on LTE<br/><small>https://grafana.pmahir.space</small>"]
-    CF["Cloudflare edge<br/><small>DNS + tunnel · TLS ends here · no Access</small>"]
-    subgraph H["horizon · 1 vCPU · 1 GB · one compose"]
-        C["cloudflared"] --> T["Traefik<br/><small>routes by Host · OIDC plugin</small>"]
-        T <--> ID["Pocket ID<br/><small>passkeys · users · groups</small>"]
-    end
-    J["jwst<br/><small>homepage :8080 · Grafana :3000</small>"]
-    X["Proxmox · PBS · Prometheus · NAS<br/><small>no hostname, no route</small>"]
-    P -- "CNAME, proxied" --> CF
-    CF -- "tunnel: horizon dialed out" --> C
-    T -- "over the tailnet" --> J
-    style X stroke-dasharray: 5 5
-```
-
-Three hostnames, one origin. `home`, `grafana` and `auth` under the zone all
-CNAME to the tunnel, and every ingress rule in the tunnel hands the request to
-`http://traefik:80` inside horizon's compose network. Traefik routes by Host
-header and asks Pocket ID who the person is. Anything without a hostname here
-has no route: the tunnel's catch-all answers 404 from cloudflared and never
-reaches the lab.
+- Public internet → Cloudflare tunnel → Traefik → Pocket ID or shared links.
+- Tailscale → horizon HTTPS → `home.lab.<zone>` or `grafana.lab.<zone>`.
+- Home requires Pocket ID through Traefik; Grafana handles its own Pocket ID login.
+- Loki is private. Its browser link opens Explore in the private Grafana.
 
 Who may enter is decided on horizon, not at Cloudflare. Cloudflare Access was
 rejected on purpose: a fifty-seat cap and an emailed code on every login. Pocket
@@ -90,14 +72,14 @@ anything can print it. The role brings up one compose on horizon:
 | `traefik` | Pocket ID on the compose network; jwst over the tailnet | cloudflared only |
 | `pocket-id` | nothing | Traefik only |
 
-No port is published on the host. Two secrets are generated on horizon on
+HTTPS and HTTP redirect ports bind only to horizon's Tailscale address. Two secrets are generated on horizon on
 the first run and kept in `/etc/autolab/ingress`: Pocket ID's encryption key
 and the OIDC plugin's cookie secret. They live and die with the SQLite next
 to them, so they belong on the same disk and in the same nightly backup, not
 in GitHub.
 
-After the first run, `https://auth.<zone>` is Pocket ID and `https://home.<zone>`
-is a 404 from Traefik. The homepage has no route until its OIDC client
+After the first run, `https://auth.<zone>` is Pocket ID. Home is available only
+at `https://home.lab.<zone>` after its client is configured. The homepage has no route until its OIDC client
 exists, which is the next section. Nothing is ever reachable without a login,
 including during setup.
 
@@ -108,14 +90,14 @@ including during setup.
    phone; add a second one from a laptop before inviting anyone.
 2. *User Groups*: create `admins` and `viewers`. Put yourself in `admins`.
 3. *OIDC Clients* → *Add*: name `traefik`, callback URL
-   `https://*.<zone>/oidc/callback`, logout callback the same, *Skip
+   `https://home.lab.<zone>/oidc/callback`, logout callback the same, *Skip
    Consent Screen* on. This one client serves every hostname the plugin
    protects; only apps that speak OIDC themselves (Grafana) get their own.
    Save, open it, *Generate* the secret, copy both.
 4. Repository secrets `INGRESS_TRAEFIK_CLIENT_ID` and
    `INGRESS_TRAEFIK_CLIENT_SECRET`. Run the `ingress` playbook again. The
    home route now exists, behind the plugin, allowing `admins` and `viewers`.
-5. From a phone on LTE: `https://home.<zone>` → Pocket ID's passkey prompt →
+5. From a phone with Tailscale connected: `https://home.lab.<zone>` → Pocket ID's passkey prompt →
    the homepage. Sign out of Pocket ID, try again as a user in no group:
    403 from Traefik, the homepage never answered.
 
@@ -125,31 +107,40 @@ the groups claim on every login and on every session renewal.
 
 ## Grafana
 
-Grafana speaks OIDC itself, so it gets its own client and no plugin in
-front. Once its client exists, three things change at once, all from the same
-secret: Grafana's root URL becomes `https://grafana.<zone>`, it logs people
-in via Pocket ID with `admins` → server admin and everyone else a viewer, and
-**anonymous viewing goes off**, tailnet included. A public route plus an
-anonymous viewer would be public dashboards. The admin password stays as the
-break-glass login. The homepage's Grafana and Loki links switch to the public
-name, and it gains a *Pocket ID · sign in* row whose check goes out through
-Cloudflare and the tunnel: a red dot there is the tunnel.
+Grafana speaks OIDC itself and has a private HTTPS route. Its root URL and
+homepage links use `https://grafana.lab.<zone>`. Configuring its Pocket ID
+client disables anonymous viewing, including through its raw Tailscale port.
+The admin password remains available for recovery.
 
 1. Pocket ID → *OIDC Clients* → *Add*: name `grafana`, callback URL
-   `https://grafana.<zone>/login/generic_oauth`, logout callback
-   `https://grafana.<zone>/login`, *Skip Consent Screen* on. Save, open it,
-   *Generate* the secret.
-2. Repository secrets `GRAFANA_OIDC_CLIENT_ID` and
-   `GRAFANA_OIDC_CLIENT_SECRET`.
-3. Run **observability** first (Grafana restarts with its login on), then
-   **ingress** (the `grafana` route appears). In that order: the route is
-   keyed on the same secret, and a route in front of a Grafana that has not
-   restarted yet would serve the anonymous viewer to the internet for the
-   minutes in between.
-4. Proof: `https://grafana.<zone>` → *Sign in with Pocket ID* → passkey (or
-   nothing, if the homepage already signed you in) → your name top right,
-   *Server Admin*. `http://jwst.<tailnet>:3000` shows the same login page,
-   no anonymous dashboards.
+   `https://grafana.lab.<zone>/login/generic_oauth`, logout callback
+   `https://grafana.lab.<zone>/login`, *Skip Consent Screen* on.
+2. Repository secrets `GRAFANA_OIDC_CLIENT_ID` and `GRAFANA_OIDC_CLIENT_SECRET`.
+3. Run **observability** and **ingress**. For an existing installation, use
+   observability tags `homepage,grafana` to apply links and Grafana environment
+   changes without restarting Prometheus or Loki.
+4. Connect Tailscale, open `https://grafana.lab.<zone>` and sign in with Pocket ID.
+   With Tailscale disconnected, both private dashboard names are unreachable.
+
+### Client configuration as code
+
+`builders/ansible/pocketid-clients.json` owns the existing Traefik and Grafana
+clients' callback URLs, logout callback URLs and launch URLs. Client IDs come
+from the existing GitHub secrets. The workflow adopts those clients and keeps
+their credentials, group restrictions and other settings. It never creates
+replacement clients or rotates secrets.
+
+Create a Pocket ID administration API key once and store it in repository
+secret `POCKETID_API_KEY`. Renew the secret before the key expires. The key is
+available only to the runner steps calling Pocket ID, never written to a host
+or committed. Users, passkeys and recovery remain managed in Pocket ID.
+
+Ingress and observability runs read the declared clients before deploying.
+Check mode reports differences without changing Pocket ID. Apply adds the new
+callbacks before deployment; once Ansible succeeds it reconciles the exact
+private URLs and removes obsolete callbacks. The public Pocket ID issuer stays
+unchanged. For the initial migration deploy ingress, then scoped observability
+`homepage,grafana`, then apply Cloudflare to remove public DNS and tunnel rules.
 
 ## Watching the tunnel
 
@@ -198,7 +189,7 @@ is untouched and remains the break-glass login.
    Same at `https://pbs.lab.<zone>`. Pick the realm once; the browser
    remembers it.
 
-## What was proven, and how
+## Historical checks before the private-dashboard migration
 
 | claim | how |
 |---|---|
@@ -217,7 +208,7 @@ is untouched and remains the break-glass login.
 Proxmox, PBS, Prometheus and the NAS get no public route, ever. What they get
 is the same treatment on the tailnet: a real name, a real certificate, HTTP
 bounced to HTTPS, and for the ones with no login of their own, the same
-passkey session as the public side.
+passkey session across internal browser services.
 
 `*.lab.<zone>` is **not in public DNS.** From the internet the name does not
 exist. Inside the tailnet, Tailscale's split DNS sends queries for
@@ -235,7 +226,8 @@ machine, so it can do nothing else.
 
 | name | goes to | login |
 |---|---|---|
-| `home.lab.<zone>` | the homepage on jwst | the plugin, same session as `home.<zone>` |
+| `home.lab.<zone>` | the homepage on jwst | the plugin |
+| `grafana.lab.<zone>` | Grafana on jwst | Grafana’s Pocket ID login |
 | `prometheus.lab.<zone>` | Prometheus on jwst | the plugin |
 | `xps-pve.lab.<zone>` | the node's :8006 | Proxmox's own, until it joins the SSO |
 | `pbs.lab.<zone>` | PBS on :8007 (ark) | PBS's own, until it joins the SSO |
@@ -256,8 +248,8 @@ renamed. Everything else is named for what it is, whichever machine runs it.
 Proxmox, PBS and UGOS present self-signed certificates; Traefik does not
 verify that hop (tailnet to tailnet, identity is the tailnet's job) and the
 browser sees Traefik's real certificate. The plugin's session cookie is set
-for the whole zone with one public callback URL, so a login on
-`home.<zone>` from LTE is the same session as `home.lab.<zone>` at home.
+for the whole zone with the private callback
+`https://home.lab.<zone>/oidc/callback`, so browser admin routes share a session.
 
 ### Setting it up
 
@@ -279,5 +271,5 @@ for the whole zone with one public callback URL, so a login on
 Proof: from a tailnet device, `dig home.lab.<zone>` answers horizon's
 address; from LTE it answers nothing. `https://xps-pve.lab.<zone>` opens with
 a valid certificate and no warning; `http://` redirects to it.
-`https://home.lab.<zone>` opens without a prompt if `home.<zone>` already
-signed you in.
+`https://home.lab.<zone>` uses the Pocket ID session shared with the other
+internal browser services.

@@ -33,12 +33,8 @@ autolab_obs_retention_time: "90d"
 # guard rail.
 autolab_obs_retention_size: "2GB"
 
-# The public side, once the ingress phase is live. The workflow fills these
-# from the Cloudflare stack's outputs and from Grafana's OIDC client in
-# Pocket ID. Empty means Grafana stays as it was: tailnet-only, anonymous
-# viewer. Set, Grafana gets its public root URL, logs in via Pocket ID and
-# anonymous viewing goes off — a public route plus anonymous viewing would
-# be public dashboards. The homepage's links follow.
+# Zone and service labels come from the Cloudflare stack. Grafana remains
+# tailnet-only; configuring its Pocket ID client disables anonymous viewing.
 autolab_obs_public_zone: ""
 autolab_obs_public_hosts:
   grafana: grafana
@@ -229,12 +225,11 @@ autolab_obs_alert_backup_max_age_hours: 26
 # link. Hosts are named by MagicDNS so the addresses follow the devices.
 autolab_obs_homepage_enabled: true
 autolab_obs_homepage_port: 8080
-# Grafana's address as people should open it: the public name once Grafana
-# logs people in itself (the same switch that gives it a public route), the
-# tailnet address until then. Also its root_url.
-autolab_obs_grafana_public_url: >-
-  {{ 'https://' ~ autolab_obs_public_hosts.grafana ~ '.' ~ autolab_obs_public_zone
-     if autolab_obs_grafana_oidc_client_id | length > 0
+# The operator dashboard is always private, including when OIDC is enabled.
+# Grafana uses the same URL for links and OAuth callback construction.
+autolab_obs_grafana_url: >-
+  {{ 'https://' ~ autolab_obs_public_hosts.grafana ~ '.' ~ autolab_obs_internal_label ~ '.' ~ autolab_obs_public_zone
+     if autolab_obs_internal_label | length > 0
      else 'http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_obs_grafana_port }}
 
 # An internal name when the tailnet side exists, the raw address otherwise.
@@ -286,7 +281,7 @@ autolab_obs_homepage_links:
   - name: Grafana
     group: observability
     meta: dashboards
-    url: "{{ autolab_obs_grafana_public_url }}"
+    url: "{{ autolab_obs_grafana_url }}"
     icon: metrics
     check:
       type: http
@@ -302,7 +297,7 @@ autolab_obs_homepage_links:
   - name: Loki
     group: observability
     meta: logs
-    url: "{{ autolab_obs_grafana_public_url }}/explore"
+    url: "{{ autolab_obs_grafana_url }}/explore"
     icon: logs
     check:
       type: http

@@ -537,8 +537,8 @@
                pools: (tel.pools || []).filter(p => p.node === n.name), rootFs: (tel.filesystems || []).find(f => f.host === n.name && f.mount === "/"),
                hidden: all.length - shown.length, extra: all.length - mine.length, temp: temps[n.name], host: hosts[n.name] };
     });
-    // The page itself and the shared-link proxy are public names with no row.
-    publicNames.unshift('home');
+    // The page has a private name; the shared-link proxy is deliberately public.
+    labNames.unshift('home');
     if ((op.services || []).includes('immich-share')) publicNames.push('share');
     // Where everything opens, from the rows' own links so nothing here names
     // a domain: by row name (machines, Loki), by node name (Proxmox rows), and
@@ -558,7 +558,7 @@
     const pubUrl = label => byLabel[label] || (zone ? `https://${label}.${zone}` : '');
     // A container opens the app it serves; one with nothing to open stays text.
     const CTR_APPS = { grafana: () => byName.Grafana, loki: () => byName.Loki, prometheus: () => labUrl('prometheus'),
-      homepage: () => pubUrl('home'), 'code-server': () => labUrl('code-server'), dockhand: () => labUrl('dockhand'),
+      homepage: () => labUrl('home'), 'code-server': () => labUrl('code-server'), dockhand: () => labUrl('dockhand'),
       registry: () => labUrl('registry-ui'), 'registry-ui': () => labUrl('registry-ui'), dash: () => labUrl('dash'),
       qr: () => labUrl('qr'), cosmos: () => labUrl('cosmos'), pihole: () => byName['Pi-hole'], 'pocket-id': () => pubUrl('auth') };
     const link = { byName, labUrl, pubUrl, ctr: name => (CTR_APPS[name] || (() => ''))() || '' };
@@ -776,7 +776,7 @@
       edgeCard('obs', 'Signals', 'Alloy on every host → jwst', 'obs', [], [['Grafana', m.link.byName.Grafana], ['Prometheus', m.link.byName.Prometheus], ['Loki', m.link.byName.Loki], ['Alerts', m.link.byName.Grafana && m.link.byName.Grafana.replace(/\/$/, '') + '/alerting/list']], m.link.byName.Grafana),
     );
     canvas.append(bottom);
-    canvas.append(mk('p', 'a-access', 'Who can reach what: public names open through Cloudflare and always ask Pocket ID, except the sign-in page and shared photo links. *.lab names resolve only on the tailnet, with Pocket ID in front of browser admin routes; Immich and Grafana do their own Pocket ID login. Raw service ports are tailnet-only.'));
+    canvas.append(mk('p', 'a-access', 'Home, Grafana and admin pages require Tailscale. Public lab routes are limited to the sign-in page and shared photo links. Browser admin routes require Pocket ID; Immich and Grafana handle their own login. Raw service ports are tailnet-only.'));
     if ((state.operations.errors || []).length) canvas.append(mk('p', 'a-access a-errors', 'Some live sources could not be read: ' + state.operations.errors.join('; ')));
     sizer.append(canvas); zoom.append(sizer); root.append(zoom);
     wireZoom(zoom);

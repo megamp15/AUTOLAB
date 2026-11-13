@@ -153,8 +153,7 @@ jobs:
           AUTOLAB_INGRESS_TRAEFIK_CLIENT_ID: ${{ secrets.INGRESS_TRAEFIK_CLIENT_ID }}
           AUTOLAB_INGRESS_TRAEFIK_CLIENT_SECRET: ${{ secrets.INGRESS_TRAEFIK_CLIENT_SECRET }}
           # Grafana's own client. Read by the observability playbook to turn
-          # its login on, and by the ingress playbook to know Grafana may have
-          # a public route. Run observability before ingress when setting it.
+          # its login on. Grafana's browser route remains tailnet-only.
           AUTOLAB_GRAFANA_OIDC_CLIENT_ID: ${{ secrets.GRAFANA_OIDC_CLIENT_ID }}
           AUTOLAB_GRAFANA_OIDC_CLIENT_SECRET: ${{ secrets.GRAFANA_OIDC_CLIENT_SECRET }}
           # The tailnet side: a DNS-only Cloudflare token for the wildcard
@@ -224,7 +223,7 @@ jobs:
             echo "No INGRESS_ACME_DNS_TOKEN; the tailnet side stays off."
           fi
           if [ -n "${AUTOLAB_GRAFANA_OIDC_CLIENT_ID}" ]; then
-            echo "Grafana's OIDC client supplied: Grafana logs in via Pocket ID, anonymous viewing off, public route on."
+            echo "Grafana's OIDC client supplied: Grafana logs in via Pocket ID, anonymous viewing off, tailnet-only route."
           else
             echo "No GRAFANA_OIDC_CLIENT_ID; Grafana stays tailnet-only with the anonymous viewer."
           fi
@@ -459,6 +458,19 @@ jobs:
             echo "No OBSERVABILITY_STACK_ADDRESS; management-plane hosts cannot run the agent."
           fi
 
+      # Add the private callbacks before services switch URLs. The old callbacks
+      # stay valid until the playbook succeeds, so a failed deploy is recoverable.
+      - name: Prepare declared Pocket ID client URLs
+        if: env.BUILDER_ENVIRONMENT == 'lab' && (env.BUILDER_PLAYBOOK == 'ingress' || env.BUILDER_PLAYBOOK == 'observability')
+        env:
+          POCKETID_API_KEY: ${{ secrets.POCKETID_API_KEY }}
+        run: |
+          client=grafana
+          if [ "$BUILDER_PLAYBOOK" = "ingress" ]; then client=traefik; fi
+          args=(--variables "$RUNNER_TEMP/ingress-vars.json" --client "$client")
+          if [ "$BUILDER_CONFIRM" = "apply" ]; then args+=(--prepare); fi
+          python3 scripts/pocketid_clients.py "${args[@]}"
+
       - name: Run Builder playbook
         working-directory: builders/ansible
         run: |
@@ -473,6 +485,15 @@ jobs:
         env:
           ANSIBLE_HOST_KEY_CHECKING: 'true'
           ANSIBLE_SSH_COMMON_ARGS: '-o StrictHostKeyChecking=yes'
+
+      - name: Reconcile declared Pocket ID client URLs
+        if: env.BUILDER_ENVIRONMENT == 'lab' && (env.BUILDER_PLAYBOOK == 'ingress' || env.BUILDER_PLAYBOOK == 'observability') && env.BUILDER_CONFIRM == 'apply'
+        env:
+          POCKETID_API_KEY: ${{ secrets.POCKETID_API_KEY }}
+        run: |
+          client=grafana
+          if [ "$BUILDER_PLAYBOOK" = "ingress" ]; then client=traefik; fi
+          python3 scripts/pocketid_clients.py --variables "$RUNNER_TEMP/ingress-vars.json" --client "$client" --apply
 
       # The file holds a Proxmox token and the ntfy topic; the runner is
       # ephemeral but the step is cheap and makes the lifetime explicit.

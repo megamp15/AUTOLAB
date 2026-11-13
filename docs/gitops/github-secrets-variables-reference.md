@@ -90,6 +90,7 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `PACKER_SSH_PASSWORD` | generated password | Packer Build | Temporary build-only password. Not your SSH key. |
 | `TAILNET_DOMAIN` | `xxx-yyy.ts.net` | every workflow that joins the tailnet | Not a credential. Referenced only so the runner masks it: GitHub masks a secret from a job's first log line, a variable never, and a public repository publishes its logs. Unset means logs show the name; nothing else changes. |
 | `CLOUDFLARE_API_TOKEN` | `v1.0-...` | 10 - Cloudflare | Custom token: Zone → DNS → Edit and Account → Cloudflare Tunnel → Edit, scoped to the one zone and account. See [ingress](./ingress.md). |
+| `POCKETID_API_KEY` | `<secret>` | Ansible Builder (`ingress`, `observability`) | Pocket ID administration key for reconciling existing Traefik and Grafana client URLs. Renew before expiry. |
 | `INGRESS_TRAEFIK_CLIENT_ID` | `<uuid>` | Ansible Builder (`ingress`) | The Traefik plugin's OIDC client in Pocket ID: one for every hostname the plugin protects (wildcard callback). Unset means nothing behind the plugin has a route. |
 | `INGRESS_TRAEFIK_CLIENT_SECRET` | `<random>` | Ansible Builder (`ingress`) | Its secret. Shown once by Pocket ID. |
 | `GRAFANA_OIDC_CLIENT_ID` | `<uuid>` | Ansible Builder (`observability`, `ingress`) | Grafana's own OIDC client in Pocket ID. Set: Grafana logs in via Pocket ID, anonymous viewing off, public route on. Unset: tailnet-only as before. |
