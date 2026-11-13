@@ -217,7 +217,19 @@ def operations(conf):
             resources = pve(node, "/cluster/resources?type=vm")
             for guest in resources:
                 entry["guests"].append({k: guest.get(k) for k in
-                    ("name", "vmid", "type", "status", "template", "tags", "maxmem", "maxcpu")})
+                    ("name", "vmid", "type", "status", "template", "tags", "maxmem", "maxcpu", "mem", "cpu", "uptime")})
+            # The machine itself, for the architecture diagram. Optional: an
+            # older node or a token without Sys.Audit just draws less.
+            try:
+                status = pve(node, f"/nodes/{node['name']}/status")
+                cpuinfo = status.get("cpuinfo", {})
+                entry["hardware"] = {"model": cpuinfo.get("model"), "cpus": cpuinfo.get("cpus"),
+                    "memory_total": status.get("memory", {}).get("total"),
+                    "memory_used": status.get("memory", {}).get("used"),
+                    "cpu": status.get("cpu"), "uptime": status.get("uptime"),
+                    "pveversion": status.get("pveversion")}
+            except Exception:
+                pass
             timezone = "node local time"
             try:
                 timezone = pve(node, f"/nodes/{node['name']}/time").get("timezone", timezone)
@@ -272,7 +284,41 @@ def operations(conf):
             except Exception as e:
                 result["errors"].append(name + ": " + type(e).__name__)
     result["services"] = conf.get("services", [])
+    try:
+        result["telemetry"] = telemetry()
+    except Exception as e:
+        result["errors"].append("telemetry: " + type(e).__name__)
     return result
+
+
+def telemetry():
+    # Live numbers for the architecture diagram, from what Alloy and cAdvisor
+    # already send: per host (node_exporter) and per container. One query per
+    # figure; a host or container missing from one simply lacks that figure.
+    hosts, containers = {}, {}
+    for key, query in (
+        ("cores", 'count by (instance) (node_cpu_seconds_total{mode="idle"})'),
+        ("cpu", '1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))'),
+        ("mem_total", 'node_memory_MemTotal_bytes'),
+        ("mem_used", 'node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes'),
+        ("disk", '1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}'),
+        ("uptime", 'node_time_seconds - node_boot_time_seconds'),
+        ("load", 'node_load1'),
+    ):
+        for r in prom(query):
+            instance = r["metric"].get("instance")
+            if instance:
+                hosts.setdefault(instance, {"name": instance})[key] = float(r["value"][1])
+    for key, query in (
+        ("mem", 'sum by (instance, name) (container_memory_working_set_bytes{name!=""})'),
+        ("cpu", 'sum by (instance, name) (rate(container_cpu_usage_seconds_total{name!=""}[5m]))'),
+    ):
+        for r in prom(query):
+            m = r["metric"]
+            if m.get("instance") and m.get("name"):
+                containers.setdefault((m["instance"], m["name"]), {"host": m["instance"], "name": m["name"]})[key] = float(r["value"][1])
+    return {"hosts": sorted(hosts.values(), key=lambda h: h["name"]),
+            "containers": sorted(containers.values(), key=lambda c: (c["host"], c["name"]))}
 
 
 def write_status(path):

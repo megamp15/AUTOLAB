@@ -60,6 +60,10 @@
   #rows { overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-width:none; }
   #rows::-webkit-scrollbar { display:none; }
   [data-sg-root].static #rows { overflow:visible; }
+  /* Everything in the dashboard fades in with the flood, like the header and
+     the rows. The tabs and the panels' own copy once had no opacity of their
+     own, so they sat blurred over the black hole for the whole intro. */
+  .tabs, #rows > .ops, #rows > .arch { opacity:calc((var(--sg-flood) - 0.02) * 9); }
   .tabs { display:flex; gap:24px; border-bottom:1px solid currentColor; }
   .tabs button { color:inherit; background:none; border:0; border-bottom:2px solid transparent; padding:12px 0; font:inherit; font-size:13px; cursor:pointer; }
   .tabs button[aria-selected="true"] { border-bottom-color:currentColor; }
@@ -78,12 +82,100 @@
   .ops summary { cursor:pointer; }
   .ops details p { margin:10px 0 0; }
   .ops code { font:11px 'IBM Plex Mono',monospace; overflow-wrap:anywhere; }
-  .ops .table-scroll, .topology { overflow-x:auto; }
-  .topology svg { width:100%; min-width:650px; display:block; }
-  .topology svg text { fill:currentColor; font-family:'Space Grotesk',system-ui,sans-serif; }
-  .topology svg .vm { cursor:pointer; }
-  .topology svg .vm:hover rect, .topology svg .vm:focus-visible rect { fill:currentColor; fill-opacity:.1; }
-  #architecture-detail { margin:14px 0; min-height:48px; }
+  .ops .table-scroll { overflow-x:auto; }
+
+  /* Architecture. The panel widens past the list's 760px; everything is ink
+     on paper at different strengths, so it follows the flip and the flood
+     like the rest of the page. */
+  #content.wide { width:min(1240px,100%) !important; }
+  .arch { display:flex; flex-direction:column; gap:18px; }
+  .a-toggle { font-size:12px; display:inline-flex; gap:6px; align-items:center; cursor:pointer; }
+  .a-canvas { position:relative; padding:6px 2px 2px;
+    background-image:radial-gradient(color-mix(in srgb,currentColor 13%,transparent) 1px, transparent 1.2px); background-size:22px 22px; }
+  .a-canvas::after { content:""; position:absolute; left:0; right:0; top:0; height:90px; pointer-events:none; z-index:2;
+    background:linear-gradient(transparent, color-mix(in srgb,currentColor 5%,transparent), transparent); animation:a-scan 11s linear infinite; }
+  .a-wires { position:absolute; left:0; top:0; pointer-events:none; overflow:visible; z-index:0; }
+  .a-row { position:relative; z-index:1; display:grid; gap:14px; margin-bottom:52px; }
+  .a-row-edge, .a-row-data { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .a-row-data { margin-bottom:0; }
+  .a-row-door { justify-items:center; }
+  .a-door { width:min(600px,100%); text-align:center; }
+  .a-door .a-title { justify-content:center; }
+  .a-row-nodes { grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); align-items:start; }
+  .a-card { position:relative; border:1px solid color-mix(in srgb,currentColor 26%,transparent); border-radius:6px; padding:12px 14px;
+    background:color-mix(in srgb,var(--sg-bg) 90%,transparent); }
+  /* Corner brackets: the one ornament, and it is only a frame. */
+  .a-card::before { content:""; position:absolute; inset:-1px; border-radius:6px; pointer-events:none; opacity:.9;
+    background:
+      linear-gradient(currentColor,currentColor) top left/12px 1px no-repeat,
+      linear-gradient(currentColor,currentColor) top left/1px 12px no-repeat,
+      linear-gradient(currentColor,currentColor) bottom right/12px 1px no-repeat,
+      linear-gradient(currentColor,currentColor) bottom right/1px 12px no-repeat; }
+  .a-node { background:color-mix(in srgb,var(--sg-bg) 62%,transparent); }
+  .a-vm { padding:9px 10px; background:color-mix(in srgb,var(--sg-bg) 94%,transparent); }
+  .a-vm::before { display:none; }
+  .a-off { opacity:.5; }
+  .a-title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:500; letter-spacing:.02em; }
+  .a-node > .a-head .a-title, .a-door .a-title { font-size:17px; }
+  .a-sub { font-size:11px; opacity:.72; margin-top:2px; }
+  .a-spec { display:flex; flex-wrap:wrap; gap:3px 10px; font-size:10.5px; letter-spacing:.05em; opacity:.8; margin:8px 0 6px; }
+  .a-bar { display:grid; grid-template-columns:38px 1fr auto; align-items:center; gap:8px; font:10px 'IBM Plex Mono',monospace; margin:3px 0; }
+  .a-bar-label { opacity:.6; text-transform:uppercase; letter-spacing:.12em; }
+  .a-bar-track { height:3px; position:relative; overflow:hidden; background:color-mix(in srgb,currentColor 14%,transparent); }
+  .a-bar-track i { position:absolute; left:0; top:0; bottom:0; width:0; background:currentColor; transition:width 1.4s cubic-bezier(.2,.7,.2,1); }
+  .a-bar-track i::after { content:""; position:absolute; inset:0; width:40%;
+    background:linear-gradient(90deg, transparent, var(--sg-bg), transparent); opacity:.55; animation:a-sheen 3.2s ease-in-out infinite; }
+  .a-bar-val { opacity:.85; min-width:70px; text-align:right; font-variant-numeric:tabular-nums; }
+  .a-vms { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+  .a-tenant { border:1px dashed color-mix(in srgb,currentColor 32%,transparent); border-radius:5px; padding:8px; }
+  .a-tenant-label { font-size:10px; letter-spacing:.2em; text-transform:uppercase; opacity:.65; margin-bottom:6px; }
+  .a-tenant-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:6px; }
+  .a-ctrs { margin-top:8px; display:flex; flex-direction:column; gap:5px; border-top:1px solid color-mix(in srgb,currentColor 14%,transparent); padding-top:7px; }
+  .a-ctr-group { display:grid; grid-template-columns:58px 1fr; gap:6px; align-items:start; }
+  .a-ctr-label { font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; opacity:.55; padding-top:3px; }
+  .a-ctr-chips, .a-chips { display:flex; flex-wrap:wrap; gap:4px; }
+  .a-chips { margin-top:8px; }
+  .a-chip { font:10.5px 'IBM Plex Mono',monospace; padding:2px 6px; border:1px solid color-mix(in srgb,currentColor 24%,transparent); border-radius:3px; white-space:nowrap; }
+  .a-chip small { opacity:.55; font-size:9.5px; }
+  .a-chip-strong { border-color:currentColor; padding:4px 10px; font-size:11.5px; }
+  .a-line { font-size:10.5px; opacity:.75; margin-top:4px; letter-spacing:.03em; }
+  .a-flow { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:8px; margin:12px 0 8px; }
+  .a-arrow { opacity:.6; display:inline-block; animation:a-nudge 1.8s ease-in-out infinite; }
+  .a-dot { width:6px; height:6px; border-radius:50%; border:1px solid currentColor; flex:none; position:relative; }
+  .a-dot.on { background:currentColor; }
+  .a-dot.on::after { content:""; position:absolute; inset:-4px; border-radius:50%; border:1px solid currentColor; opacity:0; animation:a-ping 2.6s ease-out infinite; }
+  .a-foot { font-size:10px; opacity:.55; margin-top:8px; }
+  .a-wire { fill:none; stroke:currentColor; stroke-width:1; }
+  .a-public { stroke-opacity:.85; stroke-width:1.3; }
+  .a-tailnet { stroke-opacity:.6; stroke-dasharray:5 4; animation:a-flow 1.2s linear infinite; }
+  .a-tailnet-faint { stroke-opacity:.2; stroke-dasharray:2 5; }
+  .a-backup { stroke-opacity:.5; stroke-dasharray:1 5; stroke-linecap:round; stroke-width:1.8; animation:a-flow 3s linear infinite; }
+  .a-signal { stroke-opacity:.5; stroke-dasharray:10 3 2 3; animation:a-flow 2s linear infinite reverse; }
+  .a-signal-faint { stroke-opacity:.15; }
+  .a-packet { fill:currentColor; }
+  .a-p-public { filter:drop-shadow(0 0 3px currentColor); }
+  .a-legend { display:flex; flex-wrap:wrap; gap:8px 20px; font-size:10.5px; opacity:.8; }
+  .a-key { display:inline-flex; align-items:center; gap:8px; }
+  .a-key i { width:28px; height:0; border-top:1px solid currentColor; }
+  .a-k-tailnet i { border-top-style:dashed; }
+  .a-k-backup i { border-top:2px dotted currentColor; }
+  .a-k-signal i { border-top-style:dashed; opacity:.6; }
+  @keyframes a-flow { to { stroke-dashoffset:-18; } }
+  @keyframes a-ping { 0% { transform:scale(.6); opacity:.7; } 100% { transform:scale(2.3); opacity:0; } }
+  @keyframes a-nudge { 50% { transform:translateX(3px); } }
+  @keyframes a-sheen { 0% { transform:translateX(-120%); } 60%, 100% { transform:translateX(320%); } }
+  @keyframes a-scan { 0% { transform:translateY(-90px); } 100% { transform:translateY(1600px); } }
+  @media (prefers-reduced-motion: reduce) {
+    .a-wire, .a-dot.on::after, .a-arrow, .a-canvas::after, .a-bar-track i::after { animation:none !important; }
+    .a-bar-track i { transition:none; }
+  }
+  /* Narrow: one column, and the wires go, because they would only run
+     through the cards stacked above their ends. */
+  @media (max-width:900px) {
+    .a-row-edge, .a-row-data { grid-template-columns:1fr; }
+    .a-wires { display:none; }
+    .a-row { margin-bottom:14px; }
+  }
   [hidden] { display:none !important; }
   @media (max-width:600px) {
     .row { flex-wrap:wrap; gap:8px 12px; }
@@ -100,7 +192,7 @@
     <div class="stick" style="position:sticky; top:0; height:100vh; overflow:hidden;">
       <canvas data-sg-sky="1" style="position:absolute; inset:0; width:100%; height:100%; display:block;"></canvas>
       <div id="stage" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:clamp(20px,5vw,64px); pointer-events:none;">
-        <div style="width:min(760px,100%); display:flex; flex-direction:column; gap:clamp(16px,2.6vh,26px); filter:blur(calc((1 - var(--sg-flood)) * 3px)); transform:scaleY(calc(0.82 + var(--sg-flood) * 0.18));">
+        <div id="content" style="width:min(760px,100%); display:flex; flex-direction:column; gap:clamp(16px,2.6vh,26px); filter:blur(calc((1 - var(--sg-flood)) * 3px)); transform:scaleY(calc(0.82 + var(--sg-flood) * 0.18));">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; opacity:calc((var(--sg-flood) - 0.02) * 9);">
             <span class="mono" style="font-size:11px; letter-spacing:.34em;">AUTOLAB</span>
             <div style="display:flex; align-items:center; gap:14px;">
@@ -158,6 +250,8 @@
   // ---- data --------------------------------------------------------------
   function render() {
     rowsEl.setAttribute('aria-labelledby', 'tab-' + state.tab);
+    document.getElementById('content').classList.toggle('wide', state.tab === 'architecture');
+    if (state.tab !== 'architecture') arch.sig = '';
     document.querySelectorAll('[data-tab]').forEach(b => {
       const selected = b.dataset.tab === state.tab;
       b.setAttribute('aria-selected', String(selected));
@@ -282,63 +376,298 @@
     if ((op.errors || []).length) box.append(el('p', 'Some live sources could not be read: ' + op.errors.join('; ')));
     rowsEl.replaceChildren(box);
   }
+  // ---- architecture -------------------------------------------------------
+  // The lab as it is right now: hardware and placement from Proxmox, load
+  // from node_exporter and cAdvisor, reachability from the probes. Cards are
+  // HTML; the wires between them are one SVG measured off the cards, so the
+  // layout stays responsive. The structure is rebuilt only when the shape of
+  // the lab changes (a guest, a container, the toggle); every 30-second
+  // refresh otherwise just rewrites the numbers, so the wires keep flowing.
+  const ROLES = {
+    sputnik: 'disposable probe · pipeline canary',
+    jwst: 'observability + services',
+    ark: 'Proxmox Backup Server',
+    horizon: 'ingress · tunnel · Traefik · Pocket ID',
+    magnetosphere: 'edge DNS · Pi-hole',
+  };
+  const arch = { sig: '', showAll: false, wired: null };
+  const gib = b => (b || 0) / 1073741824;
+  const pct = v => Math.max(0, Math.min(100, (v || 0) * 100));
+  const fmtG = b => gib(b) >= 10 ? gib(b).toFixed(0) : gib(b).toFixed(1);
+  const fmtM = b => (b || 0) >= 1073741824 ? gib(b).toFixed(1) + 'G' : Math.round((b || 0) / 1048576) + 'M';
+  const fmtUp = s => !s ? '—' : s >= 86400 ? Math.floor(s / 86400) + 'd' : s >= 3600 ? Math.floor(s / 3600) + 'h' : Math.floor(s / 60) + 'm';
+  const tagsOf = g => String(g.tags || '').split(';').map(t => t.trim()).filter(Boolean);
+  const ctrName = n => n.replace(/^(observability|services|ingress|cadvisor)-/, '').replace(/-\d+$/, '');
+  const ctrGroup = n => (n.match(/^(observability|services|ingress)-/) || [, 'host'])[1];
+
+  function archModel() {
+    const op = state.operations;
+    const tel = op.telemetry || { hosts: [], containers: [] };
+    const hosts = Object.fromEntries((tel.hosts || []).map(h => [h.name, h]));
+    const ctrs = {};
+    (tel.containers || []).forEach(c => (ctrs[c.host] = ctrs[c.host] || []).push(c));
+    const rowBy = name => state.rows.find(r => r.name === name);
+    const temps = {};
+    state.rows.forEach(r => { const m = /^(\S+) · (\d+)°C/.exec(r.meta || ''); if (r.name === 'Proxmox VE' && m) temps[m[1]] = +m[2]; });
+    const labNames = [], publicNames = [];
+    state.rows.forEach(r => {
+      let host = ''; try { host = new URL(r.url).hostname; } catch (e) { return; }
+      if (/\.lab\./.test(host)) labNames.push(host.split('.')[0]);
+      else if (/^Public/.test(r.access || '')) publicNames.push(host.split('.')[0]);
+    });
+    const nodes = (op.nodes || []).map(n => {
+      const all = n.guests || [];
+      const mine = all.filter(g => !g.template && tagsOf(g).includes('autolab'));
+      const shown = arch.showAll ? all : mine;
+      return { ...n, own: shown.filter(g => !tagsOf(g).some(t => t.startsWith('tenant-'))),
+               tenants: shown.filter(g => tagsOf(g).some(t => t.startsWith('tenant-'))),
+               hidden: all.length - shown.length, temp: temps[n.name], host: hosts[n.name] };
+    });
+    // The page itself and the shared-link proxy are public names with no row.
+    publicNames.unshift('home');
+    if ((op.services || []).includes('immich-share')) publicNames.push('share');
+    return { op, nodes, hosts, ctrs, rowBy, labNames: [...new Set(labNames)], publicNames: [...new Set(publicNames)] };
+  }
+
+  function archSignature(m) {
+    return JSON.stringify([arch.showAll, m.nodes.map(n => [n.name, n.available, !!n.hardware, n.own.map(g => g.name + g.status), n.tenants.map(g => g.name + g.status)]),
+      Object.entries(m.ctrs).map(([h, cs]) => [h, cs.map(c => c.name)]), m.labNames, m.publicNames]);
+  }
+
+  // One small helper per kind of thing on the page. `live` marks a node whose
+  // text or width is rewritten on refresh without rebuilding anything.
+  function mk(tag, cls, text) { return el(tag, text, cls); }
+  function live(e, key) { e.dataset.live = key; return e; }
+  function bar(key, label) {
+    const wrap = mk('div', 'a-bar'); wrap.append(mk('span', 'a-bar-label', label));
+    const track = mk('span', 'a-bar-track'); const fill = live(mk('i'), key + ':w'); track.append(fill);
+    wrap.append(track, live(mk('span', 'a-bar-val'), key + ':t')); return wrap;
+  }
+  function dot(key) { return live(mk('span', 'a-dot'), key + ':dot'); }
+  function chip(text, cls) { return mk('span', 'a-chip' + (cls ? ' ' + cls : ''), text); }
+  function card(cls, wire) { const c = mk('div', 'a-card ' + (cls || '')); if (wire) c.dataset.wire = wire; return c; }
+  function cardHead(title, sub, key) {
+    const head = mk('div', 'a-head');
+    const t = mk('div', 'a-title'); if (key) t.append(dot(key)); const name = mk('span', undefined, title); name.dataset.final = title; t.append(name);
+    head.append(t); if (sub) head.append(mk('div', 'a-sub', sub)); return head;
+  }
+
+  function vmCard(g, m) {
+    const c = card('a-vm' + (g.status === 'running' ? '' : ' a-off'), 'vm-' + g.name);
+    const key = 'vm-' + g.name;
+    c.append(cardHead(g.name, ROLES[g.name] || (tagsOf(g).find(t => t.startsWith('tenant-')) || tagsOf(g).join(' · ') || 'unmanaged').replace('tenant-', 'tenant · '), key));
+    const spec = mk('div', 'a-spec mono');
+    spec.append(mk('span', undefined, `${g.type || 'qemu'} ${g.vmid}`), mk('span', undefined, `${g.maxcpu || '?'} vCPU`), mk('span', undefined, `${fmtG(g.maxmem)} GiB`), live(mk('span'), key + ':up'));
+    c.append(spec);
+    if (g.status === 'running') c.append(bar(key + '-cpu', 'cpu'), bar(key + '-mem', 'mem'));
+    const ctrs = m.ctrs[g.name] || [];
+    if (ctrs.length) {
+      const groups = {};
+      ctrs.forEach(x => (groups[ctrGroup(x.name)] = groups[ctrGroup(x.name)] || []).push(x));
+      const box = mk('div', 'a-ctrs');
+      Object.entries(groups).forEach(([group, list]) => {
+        const row = mk('div', 'a-ctr-group');
+        row.append(mk('span', 'a-ctr-label mono', { host: 'agents', observability: 'stack', services: 'apps', ingress: 'ingress' }[group] || group));
+        const chips = mk('div', 'a-ctr-chips');
+        list.forEach(x => { const ch = chip(ctrName(x.name)); ch.append(live(mk('small'), 'ctr-' + g.name + '-' + x.name)); chips.append(ch); });
+        row.append(chips); box.append(row);
+      });
+      c.append(box);
+    }
+    return c;
+  }
+
+  function nodeCard(n, m) {
+    const c = card('a-node', 'node-' + n.name);
+    const hw = n.hardware || {};
+    c.append(cardHead(n.name, n.available ? (hw.model ? hw.model.replace(/\(R\)|\(TM\)|CPU|@.*$/g, '').replace(/\s+/g, ' ').trim() : 'Proxmox VE') : 'node unavailable', 'node-' + n.name));
+    const spec = mk('div', 'a-spec mono');
+    spec.append(mk('span', undefined, `${hw.cpus || (n.host && n.host.cores) || '?'} threads`), mk('span', undefined, `${fmtG(hw.memory_total || (n.host && n.host.mem_total))} GiB`),
+      live(mk('span'), 'node-' + n.name + ':temp'), live(mk('span'), 'node-' + n.name + ':up'));
+    c.append(spec, bar('node-' + n.name + '-cpu', 'cpu'), bar('node-' + n.name + '-mem', 'mem'), bar('node-' + n.name + '-alloc', 'alloc'));
+    const vms = mk('div', 'a-vms');
+    n.own.forEach(g => vms.append(vmCard(g, m)));
+    if (n.tenants.length) {
+      const t = mk('div', 'a-tenant');
+      t.append(mk('div', 'a-tenant-label mono', 'tenant · ' + (tagsOf(n.tenants[0]).find(x => x.startsWith('tenant-')) || 'tenant-').slice(7) + ' · own tailnet'));
+      const grid = mk('div', 'a-tenant-grid');
+      n.tenants.forEach(g => grid.append(vmCard(g, m)));
+      t.append(grid); vms.append(t);
+    }
+    if (!n.own.length && !n.tenants.length) vms.append(mk('div', 'a-sub', 'No guests shown.'));
+    c.append(vms);
+    if (n.hidden) c.append(mk('div', 'a-foot mono', `+${n.hidden} templates / unmanaged`));
+    return c;
+  }
+
+  function edgeCard(wire, title, sub, key, lines, chips) {
+    const c = card('a-edge', wire);
+    c.append(cardHead(title, sub, key));
+    if (lines) lines.forEach(l => c.append(mk('div', 'a-line mono', l)));
+    if (chips && chips.length) { const box = mk('div', 'a-chips'); chips.forEach(x => box.append(chip(x))); c.append(box); }
+    return c;
+  }
+
+  function buildArchitecture(m) {
+    const root = mk('div', 'arch');
+    const intro = section('Current architecture', 'Live: placement and hardware from Proxmox, load from node_exporter and cAdvisor, health from the homepage probes. Refreshes every 30 seconds.');
+    const controls = mk('label', 'a-toggle'); const show = el('input'); show.type = 'checkbox'; show.checked = arch.showAll;
+    show.addEventListener('change', () => { arch.showAll = show.checked; arch.sig = ''; renderArchitecture(); });
+    controls.append(show, document.createTextNode(' Include templates and unmanaged guests'));
+    intro.append(controls);
+    root.append(intro);
+
+    const canvas = mk('div', 'a-canvas');
+    const wires = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); wires.classList.add('a-wires'); wires.setAttribute('aria-hidden', 'true');
+    canvas.append(wires);
+
+    // Edge: the ways in, and where the lab is driven from.
+    const edge = mk('div', 'a-row a-row-edge');
+    edge.append(
+      edgeCard('cf', 'Cloudflare', 'DNS · tunnel · TLS at the edge', 'cf', ['zone pmahir.space', 'no ports open at home'], m.publicNames.map(x => x + '.')),
+      edgeCard('ts', 'Tailscale', 'tailnet · MagicDNS · ACLs as code', 'ts', ['split DNS *.lab → horizon', 'Let’s Encrypt wildcard'], m.labNames.slice(0, 14).map(x => x + '.lab')),
+      edgeCard('gh', 'GitHub', 'the source of truth', 'gh', ['Actions → OpenTofu → Proxmox API', 'Actions → Ansible over the tailnet', 'state in R2 · Renovate · Diun'], []),
+    );
+    canvas.append(edge);
+
+    // The front door.
+    const door = card('a-door', 'horizon');
+    door.append(cardHead('horizon · front door', 'one compose · nothing published on the host', 'horizon'));
+    const flow = mk('div', 'a-flow mono');
+    ['cloudflared', 'Traefik', 'Pocket ID'].forEach((x, i) => { if (i) flow.append(mk('span', 'a-arrow', '→')); flow.append(chip(x, 'a-chip-strong')); });
+    door.append(flow, mk('div', 'a-line mono', 'public: tunnel → Traefik :80 · tailnet: Traefik :443 on the tailnet IP · passkeys, one session for both'));
+    const doorRow = mk('div', 'a-row a-row-door'); doorRow.append(door); canvas.append(doorRow);
+
+    // Compute.
+    const nodesRow = mk('div', 'a-row a-row-nodes');
+    m.nodes.forEach(n => nodesRow.append(nodeCard(n, m)));
+    canvas.append(nodesRow);
+
+    // Data and signals.
+    const bottom = mk('div', 'a-row a-row-data');
+    bottom.append(
+      edgeCard('backups', 'Backups', 'vzdump nightly → PBS on ark', 'backups', ['encrypted, deduplicated, verified', 'datastore on the NAS over SMB', 'restore-all proven']),
+      edgeCard('obs', 'Signals', 'Alloy on every host → jwst', 'obs', ['Prometheus · Loki · Grafana', 'alert rules → ntfy on the phone', 'morning digest · this page']),
+      edgeCard('nas', 'singularity · NAS', 'UGOS · ZFS-backed shares', 'nas', ['PBS datastore · snapshots', 'Immich photos · app login', 'shared links via share.']),
+    );
+    canvas.append(bottom);
+    root.append(canvas);
+
+    const legend = mk('div', 'a-legend mono');
+    [['a-k-public', 'public · through the tunnel'], ['a-k-tailnet', 'tailnet · WireGuard'], ['a-k-backup', 'backup · nightly'], ['a-k-signal', 'telemetry · alerts']].forEach(([k, t]) => {
+      const i = mk('span', 'a-key ' + k); i.append(mk('i')); i.append(document.createTextNode(t)); legend.append(i);
+    });
+    root.append(legend);
+    const access = section('Access boundaries', 'Public names open through Cloudflare and always ask Pocket ID, except the sign-in page and shared photo links. *.lab names resolve only on the tailnet, with Pocket ID in front of browser admin routes. Immich and Grafana do their own Pocket ID login. Raw service ports are tailnet-only and governed by the tailnet policy.');
+    root.append(access);
+    if ((state.operations.errors || []).length) root.append(mk('p', 'ops muted a-errors', 'Some live sources could not be read: ' + state.operations.errors.join('; ')));
+    return root;
+  }
+
+  // The wires. Anchors are each card's offset inside the canvas, which a
+  // transform does not change, so the intro's scaling leaves them alone.
+  // Only the paths worth following: a wire per route that crosses a whole
+  // card says less than the legend does.
+  const WIRES = [
+    ['cf', 'horizon', 'public'], ['ts', 'horizon', 'tailnet'],
+    ['horizon', 'vm-jwst', 'tailnet'], ['horizon', 'vm-magnetosphere', 'tailnet'],
+    ['node-*', 'backups', 'backup'], ['backups', 'nas', 'backup'],
+    ['node-*', 'obs', 'signal'],
+  ];
+  function drawWires() {
+    const canvas = rowsEl.querySelector('.a-canvas'); if (!canvas) return;
+    const svg = canvas.querySelector('.a-wires');
+    const ns = 'http://www.w3.org/2000/svg';
+    const W = canvas.offsetWidth, H = canvas.offsetHeight;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
+    const pos = e => { let x = 0, y = 0, n = e; while (n && n !== canvas) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; } return { x, y, w: e.offsetWidth, h: e.offsetHeight }; };
+    const find = k => k.endsWith('*') ? [...canvas.querySelectorAll(`[data-wire^="${k.slice(0, -1)}"]`)] : [...canvas.querySelectorAll(`[data-wire="${k}"]`)];
+    const still = lessMotion.matches;
+    const out = [];
+    let id = 0;
+    WIRES.forEach(([from, to, kind]) => {
+      find(from).forEach(a => find(to).forEach(b => {
+        const A = pos(a), B = pos(b);
+        let x1 = A.x + A.w / 2, y1 = A.y + A.h, x2 = B.x + B.w / 2, y2 = B.y;
+        if (B.y < A.y + A.h) { y1 = A.y; y2 = B.y + B.h; }      // b sits above a
+        if (Math.abs(y2 - y1) < 8) return;                     // stacked side by side: no wire
+        // Spread several wires out of one card so they do not overlap.
+        x1 += Math.max(-A.w / 3, Math.min(A.w / 3, (x2 - x1) * 0.25));
+        x2 += Math.max(-B.w / 3, Math.min(B.w / 3, (x1 - x2) * 0.2));
+        const my = (y1 + y2) / 2;
+        const d = `M${x1.toFixed(1)} ${y1.toFixed(1)} C${x1.toFixed(1)} ${my.toFixed(1)} ${x2.toFixed(1)} ${my.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+        const pid = 'a-w' + (id++);
+        let markup = `<path id="${pid}" class="a-wire a-${kind}" d="${d}"/>`;
+        if (!still && !kind.endsWith('faint')) {
+          const dur = kind === 'backup' ? 6 : kind === 'signal' ? 3.2 : 2.6;
+          for (let k = 0; k < (kind === 'backup' ? 1 : 2); k++)
+            markup += `<circle class="a-packet a-p-${kind}" r="${kind === 'public' ? 2.6 : 2}"><animateMotion dur="${dur}s" begin="${(k * dur / 2 + id * 0.37).toFixed(2)}s" repeatCount="indefinite" rotate="auto"><mpath href="#${pid}"/></animateMotion></circle>`;
+        }
+        out.push(markup);
+      }));
+    });
+    svg.innerHTML = out.join('');
+  }
+  let wireTimer = 0;
+  const wireObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { cancelAnimationFrame(wireTimer); wireTimer = requestAnimationFrame(drawWires); }) : null;
+
+  function updateLive(m) {
+    const set = (key, text, width) => {
+      const t = rowsEl.querySelector(`[data-live="${key}:t"]`); if (t && text !== undefined) t.textContent = text;
+      const w = rowsEl.querySelector(`[data-live="${key}:w"]`); if (w && width !== undefined) w.style.width = width.toFixed(1) + '%';
+    };
+    const txt = (key, text) => { const e = rowsEl.querySelector(`[data-live="${key}"]`); if (e) e.textContent = text; };
+    const up = (key, ok) => { const e = rowsEl.querySelector(`[data-live="${key}:dot"]`); if (e) { e.classList.toggle('on', !!ok); e.title = ok ? 'up' : 'down'; } };
+    m.nodes.forEach(n => {
+      const hw = n.hardware || {}, k = 'node-' + n.name, host = n.host || {};
+      const memUsed = hw.memory_used || host.mem_used, memTotal = hw.memory_total || host.mem_total;
+      const cpu = hw.cpu !== undefined ? hw.cpu : host.cpu;
+      set(k + '-cpu', `${pct(cpu).toFixed(0)}%`, pct(cpu));
+      set(k + '-mem', `${fmtG(memUsed)}/${fmtG(memTotal)}G`, pct(memUsed / (memTotal || 1)));
+      const alloc = (n.guests || []).filter(g => g.status === 'running').reduce((a, g) => a + (g.maxmem || 0), 0);
+      set(k + '-alloc', `${fmtG(alloc)}G to VMs`, pct(alloc / (memTotal || 1)));
+      txt(k + ':temp', n.temp ? n.temp + '°C' : '');
+      txt(k + ':up', 'up ' + fmtUp(hw.uptime || host.uptime));
+      up(k, n.available);
+      [...n.own, ...n.tenants].forEach(g => {
+        const gk = 'vm-' + g.name, gh = m.hosts[g.name] || {};
+        const cpu = gh.cpu !== undefined ? gh.cpu : g.cpu;
+        const mem = gh.mem_used !== undefined ? gh.mem_used : g.mem;
+        set(gk + '-cpu', `${pct(cpu).toFixed(0)}%`, pct(cpu));
+        set(gk + '-mem', `${fmtG(mem)}/${fmtG(g.maxmem)}G`, pct(mem / (g.maxmem || 1)));
+        txt(gk + ':up', g.status === 'running' ? 'up ' + fmtUp(gh.uptime || g.uptime) : g.status);
+        up(gk, g.status === 'running');
+        (m.ctrs[g.name] || []).forEach(x => txt('ctr-' + g.name + '-' + x.name, ' ' + fmtM(x.mem)));
+      });
+    });
+    const row = n => m.rowBy(n);
+    up('cf', (row('Pocket ID') || {}).up);
+    up('ts', m.nodes.some(n => n.available));
+    up('gh', true);
+    up('horizon', (row('Pocket ID') || {}).up);
+    up('backups', (row('Backup Server') || {}).up);
+    up('obs', (row('Grafana') || {}).up && (row('Prometheus') || {}).up);
+    up('nas', (row('NAS') || {}).up);
+  }
+
   function renderArchitecture() {
     const op = state.operations;
-    const box = section('Current architecture', 'Guest placement and power state come from Proxmox. Select a machine for its resources. The paths below describe the configured lab; application health is shown in Services.');
     if (!(op.nodes || []).length) {
-      box.append(el('p', 'Topology data is unavailable. The collector refreshes every minute.'));
+      arch.sig = '';
+      const box = section('Current architecture', 'Topology data is unavailable. The collector refreshes every minute.');
       rowsEl.replaceChildren(box); return;
     }
-    const controls = el('label'); const show = el('input'); show.type = 'checkbox';
-    controls.append(show, document.createTextNode(' Include templates and unmanaged guests'));
-    box.append(controls);
-    const diagram = el('div', undefined, 'topology');
-    const detail = el('div', 'Select a VM in the diagram.', 'muted'); detail.id = 'architecture-detail'; detail.setAttribute('aria-live', 'polite');
-    function draw() {
-      const ns = 'http://www.w3.org/2000/svg';
-      const svg = document.createElementNS(ns, 'svg');
-      const nodes = op.nodes;
-      const guests = nodes.map(n => (n.guests || []).filter(g => show.checked || (!g.template && String(g.tags || '').split(';').includes('autolab'))));
-      const height = 260 + Math.max(1, ...guests.map(g => g.length)) * 58;
-      svg.setAttribute('viewBox', `0 0 ${nodes.length * 240} ${height}`);
-      svg.setAttribute('role', 'group'); svg.setAttribute('aria-label', 'Proxmox hosts and their current guests, with ingress and backup paths');
-      function shape(tag, attrs, parent = svg) { const e = document.createElementNS(ns, tag); Object.entries(attrs).forEach(([k,v]) => e.setAttribute(k,v)); parent.append(e); return e; }
-      function text(x,y,value,size=12,parent=svg) { const t=shape('text',{x,y,'font-size':size},parent); t.textContent=value; return t; }
-      function line(d) { shape('path',{d,fill:'none',stroke:'currentColor','stroke-width':1,opacity:.75}); }
-      const width = nodes.length * 240;
-      text(12,24,'Internet → Cloudflare Tunnel → horizon / Traefik → Pocket ID',13);
-      text(12,48,'Tailscale → horizon / HTTPS → Pocket ID → internal browser routes',12);
-      line(`M12 64 H${width - 12}`);
-      nodes.forEach((node,i) => {
-        const x=i*240+8;
-        shape('rect',{x,y:90,width:224,height:height-190,rx:5,fill:'none',stroke:'currentColor','stroke-opacity':.35});
-        text(x+12,114,node.name,16);
-        text(x+12,134,node.available ? `${guests[i].length} guests shown` : 'Node unavailable',11);
-        line(`M${x+112} 64 V90`);
-        guests[i].forEach((g,j) => {
-          const y=152+j*58;
-          const group=shape('g',{class:'vm',tabindex:0,role:'button','aria-label':`${g.name}, ${g.status}, on ${node.name}`});
-          shape('rect',{x:x+10,y,width:204,height:48,rx:3,fill:'none',stroke:'currentColor','stroke-opacity':.25},group);
-          shape('circle',{cx:x+22,cy:y+16,r:3,fill:g.status==='running'?'currentColor':'none',stroke:'currentColor'},group);
-          text(x+32,y+20,g.name,12,group);
-          text(x+20,y+37,`${g.type} ${g.vmid} · ${g.status}${g.template ? ' · template' : ''}`,10,group);
-          const select=() => { detail.replaceChildren(el('strong',g.name),document.createTextNode(` on ${node.name}: ${g.maxcpu || '?'} vCPU, ${((g.maxmem || 0)/1073741824).toFixed(1)} GiB RAM. ${g.status}.`));
-            if (g.name==='jwst') detail.append(el('p','Declared services: '+(op.services || []).join(', ')));
-          };
-          group.addEventListener('click',select); group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select();}});
-        });
-        line(`M${x+112} ${height-100} V${height-78} H${width/2}`);
-      });
-      text(12,height-48,'All nodes → ark / PBS → singularity / NAS · encrypted nightly backups',12);
-      text(12,height-24,'Hosts → Alloy → jwst / Prometheus + Loki + Grafana → ntfy alerts',12);
-      diagram.replaceChildren(svg);
+    const m = archModel();
+    const sig = archSignature(m);
+    if (sig !== arch.sig || !rowsEl.querySelector('.arch')) {
+      const scroll = rowsEl.scrollTop;
+      arch.sig = sig;
+      rowsEl.replaceChildren(buildArchitecture(m));
+      rowsEl.scrollTop = scroll;
+      if (wireObserver) { wireObserver.disconnect(); wireObserver.observe(rowsEl.querySelector('.a-canvas')); }
+      requestAnimationFrame(drawWires);
     }
-    show.addEventListener('change',draw); draw();
-    box.append(diagram,detail);
-    box.append(el('h3','Access boundaries'));
-    box.append(el('p','Public: home and Grafana require Pocket ID; auth is the sign-in service. Immich shared links are intentionally public. Internal: *.lab names require Tailscale, with Pocket ID on browser admin routes. Immich authenticates in the app so its mobile API keeps working. Raw service and API ports are separate access paths, governed by tailnet policy and application authentication.'));
-    if ((op.errors || []).length) box.append(el('p','Some live sources could not be read: '+op.errors.join('; ')));
-    rowsEl.replaceChildren(box);
+    updateLive(m);
   }
   document.querySelector('.tabs').addEventListener('click', event => {
     const tab = event.target.closest('[data-tab]'); if (!tab) return;
