@@ -116,8 +116,29 @@ image's tag is a hash of that build context, so a version bump in
 Installing from the terminal still works, but lasts only until the container is
 recreated; anything worth keeping belongs in the Dockerfile. Extensions follow
 the same rule through `autolab_services_code_server_extensions`, installed from
-Open VSX by pinned version. The container is capped at 2 GB, because jwst also
-runs the observability stack on 6 GB.
+Open VSX by pinned version. The container is capped at 3 GB and 3 of jwst's 4
+cores, because jwst also runs the observability stack: the editor is what gets
+slowed or killed, never the thing that says why.
+
+**Agents can read Grafana.** The image carries
+[mcp-grafana](https://github.com/grafana/mcp-grafana), and the container's
+environment has `GRAFANA_URL` and `GRAFANA_SERVICE_ACCOUNT_TOKEN` from
+`/etc/autolab/grafana-agent.env`, which the observability role writes on the
+Grafana host: a **Viewer** service account, `autolab-agent`. An agent can
+search dashboards, run PromQL and LogQL, and read alert rules and their state,
+and change nothing; dashboard changes go through `grafana/dashboards` in git.
+Register it once per agent, from the editor's terminal:
+
+```sh
+claude mcp add --scope user grafana -- mcp-grafana
+codex mcp add grafana -- mcp-grafana
+```
+
+From a laptop on the tailnet the same token works:
+`ssh jwst sudo cat /etc/autolab/grafana-agent.env`, then run `mcp-grafana`
+with those two variables set. To rotate, delete the file and the token under
+Grafana → Administration → Service accounts → `autolab-agent`, then rerun
+observability and services.
 
 ## Diun
 

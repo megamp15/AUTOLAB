@@ -15,6 +15,13 @@
       --disable-workspace-trust
       /home/coder/workspace
     mem_limit: {{ autolab_services_code_server_memory }}
+    cpus: {{ autolab_services_code_server_cpus }}
+    # GRAFANA_URL and a read-only (Viewer) Grafana token for mcp-grafana, when
+    # this host runs Grafana. Viewer is enough: dashboards are changed in git
+    # (grafana/dashboards) and synced, not edited live.
+    env_file:
+      - path: /etc/autolab/grafana-agent.env
+        required: false
     # Diun compares a tag against its registry, and this one is in none.
     labels:
       diun.enable: "false"
