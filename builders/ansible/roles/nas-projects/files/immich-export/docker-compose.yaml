@@ -1,0 +1,10 @@
+name: immich-export
+services:
+  export:
+    image: alpine:3.20
+    volumes:
+      - /volume1/docker/Immich-Upload:/src:ro
+      - /home/Mahir/media/old_immich_upload_extracted:/dst
+      - /volume1/docker/immich-export:/job:ro
+    command: sh /job/export.sh
+    restart: "no"

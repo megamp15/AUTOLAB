@@ -28,3 +28,7 @@ Contents read/write. It lives in Grafana's database on the stack host rather
 than as a GitHub Actions secret like every other Autolab credential, so it is
 rotated from Grafana's Provisioning page. See
 `docs/gitops/github-secrets-variables-reference.md`.
+
+`autolab-nas.json` is the Singularity host, volume, container and Docker-log view.
+It reads the same Prometheus/Loki data as the existing dashboards and counts
+`/volume1` once, without adding the `/home` mount of the same filesystem.

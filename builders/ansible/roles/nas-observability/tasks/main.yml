@@ -1,0 +1,70 @@
+---
+- name: Require the existing NAS SSH account
+  ansible.builtin.assert:
+    that: ansible_user | length > 0
+    fail_msg: Set NAS_SSH_USER to the existing UGOS SSH account before deployment.
+
+- name: Inspect the vendor-managed Docker engine
+  ansible.builtin.command: docker info --format '{{ "{{json .DockerRootDir}}" }}'
+  register: autolab_nas_engine
+  changed_when: false
+  check_mode: false
+
+- name: Use the NAS engine's actual Docker data directory
+  ansible.builtin.set_fact:
+    autolab_nas_docker_root: "{{ autolab_nas_engine.stdout | from_json }}"
+
+- name: Require an absolute Docker data directory
+  ansible.builtin.assert:
+    that:
+      - autolab_nas_docker_root is match('^/[^\n]+$')
+      - autolab_nas_root is match('^/volume[0-9]+/[^\n]+$')
+    fail_msg: NAS Docker and observability data paths must be absolute persistent paths.
+
+- name: Create only the observability project's directories
+  ansible.builtin.file:
+    path: "{{ autolab_nas_root }}/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: ["", config, textfile]
+
+- name: Render NAS Alloy configuration
+  ansible.builtin.template:
+    src: config.alloy.j2
+    dest: "{{ autolab_nas_root }}/config/config.alloy"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart NAS Alloy
+
+- name: Render the isolated NAS observability project
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ autolab_nas_root }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy NAS telemetry without touching other Docker projects
+  community.docker.docker_compose_v2:
+    project_src: "{{ autolab_nas_root }}"
+    project_name: "{{ autolab_nas_project }}"
+    state: present
+    pull: missing
+    remove_orphans: false
+  when: not ansible_check_mode
+
+- name: Apply Alloy configuration before verifying health
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify NAS Alloy is ready locally
+  ansible.builtin.uri:
+    url: http://127.0.0.1:12345/-/ready
+    status_code: 200
+  register: autolab_nas_alloy_ready
+  until: autolab_nas_alloy_ready.status == 200
+  retries: 15
+  delay: 2
+  when: not ansible_check_mode

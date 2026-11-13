@@ -1,0 +1,14 @@
+---
+- name: Manage existing NAS Docker projects
+  hosts: nas_servers
+  become: true
+  gather_facts: true
+  vars:
+    autolab_nas_action: inspect
+  roles:
+    - role: nas-projects
+      when: autolab_nas_action != 'telemetry'
+      tags: [nas, projects]
+    - role: nas-observability
+      when: autolab_nas_action == 'telemetry'
+      tags: [nas, observability]

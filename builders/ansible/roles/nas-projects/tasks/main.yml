@@ -1,0 +1,86 @@
+---
+- name: Require a supported NAS management action
+  ansible.builtin.assert:
+    that:
+      - autolab_nas_action in ['inspect', 'adopt', 'start', 'stop', 'restart']
+      - autolab_nas_selected_project in autolab_nas_projects
+
+# Project paths and names match the existing UGOS installations. Refuse a
+# fresh install instead of creating empty app/database/media directories.
+- name: Inspect the existing project definitions
+  ansible.builtin.stat:
+    path: "/volume1/docker/{{ item }}/docker-compose.yaml"
+  loop: "{{ autolab_nas_projects }}"
+  register: autolab_nas_existing_projects
+
+- name: Require every adopted project to exist already
+  ansible.builtin.assert:
+    that: item.stat.isreg | default(false)
+    fail_msg: This is adoption of existing NAS projects, not a new installation.
+  loop: "{{ autolab_nas_existing_projects.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Record container identities before managing definitions
+  ansible.builtin.command:
+    argv: [docker, ps, -a, --no-trunc, --format, "{{ '{{.ID}} {{.Names}} {{.Status}}' }}"]
+  register: autolab_nas_containers_before
+  check_mode: false
+  changed_when: false
+
+- name: Adopt the existing Compose definitions and photo source
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/volume1/docker/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  loop: "{{ autolab_nas_source_files }}"
+  when: autolab_nas_action == 'adopt'
+
+- name: Validate definitions against existing NAS environment files
+  ansible.builtin.command:
+    argv: [docker, compose, --project-name, "{{ item }}", --file, docker-compose.yaml, config, --quiet]
+    chdir: "/volume1/docker/{{ item }}"
+  loop: "{{ autolab_nas_projects }}"
+  check_mode: false
+  changed_when: false
+
+- name: Require explicit photo job execution outside lifecycle controls
+  ansible.builtin.assert:
+    that: autolab_nas_selected_project in ['immich', 'portainer']
+    fail_msg: Photo jobs can move files. Use their reviewed plan/apply workflow, not a generic start or restart.
+  when: autolab_nas_action in ['start', 'stop', 'restart']
+
+# These Compose commands operate on existing containers only. No up/down,
+# automatic pull, image upgrades, volume changes or container recreation.
+- name: Manage the explicitly selected existing application
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ autolab_nas_selected_project }}"
+      - --file
+      - docker-compose.yaml
+      - "{{ autolab_nas_action }}"
+    chdir: "/volume1/docker/{{ autolab_nas_selected_project }}"
+  changed_when: true
+  when: autolab_nas_action in ['start', 'stop', 'restart'] and not ansible_check_mode
+
+- name: Record container identities after adoption
+  ansible.builtin.command:
+    argv: [docker, ps, -a, --no-trunc, --format, "{{ '{{.ID}} {{.Names}} {{.Status}}' }}"]
+  register: autolab_nas_containers_after
+  check_mode: false
+  changed_when: false
+  when: autolab_nas_action in ['inspect', 'adopt']
+
+- name: Verify adoption preserved every container identity
+  ansible.builtin.assert:
+    that: >-
+      autolab_nas_containers_before.stdout_lines | map('split', ' ') | map('first') | sort | list
+      == autolab_nas_containers_after.stdout_lines | map('split', ' ') | map('first') | sort | list
+    fail_msg: Container membership changed during read-only inspection or definition adoption.
+  when: autolab_nas_action in ['inspect', 'adopt']

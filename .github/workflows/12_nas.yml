@@ -1,0 +1,124 @@
+name: 12 - NAS
+run-name: "NAS ${{ inputs.confirm || 'validation' }}"
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/12_nas.yml
+      - builders/ansible/playbooks/nas.yml
+      - builders/ansible/inventories/nas/**
+      - builders/ansible/roles/nas-observability/**
+      - builders/ansible/roles/nas-projects/**
+      - scripts/test_nas_observability.py
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Adopt definitions without recreating containers; lifecycle actions operate on existing applications
+        type: choice
+        options: [inspect, adopt, telemetry, start, stop, restart]
+        default: inspect
+      project:
+        description: Application for an explicit lifecycle action
+        type: choice
+        options: [immich, portainer]
+        default: immich
+      confirm:
+        description: Check first; apply performs the selected NAS action
+        type: choice
+        options: [check, apply]
+        default: check
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nas-singularity
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install template dependencies
+        run: python3 -m pip install --quiet 'jinja2>=3.1,<4' pyyaml
+      - name: Render and validate NAS Compose
+        run: |
+          python3 scripts/test_nas_observability.py --render "$RUNNER_TEMP/nas"
+          docker compose -f "$RUNNER_TEMP/nas/docker-compose.yml" config --quiet
+      - name: Validate Alloy configuration with the pinned image
+        run: |
+          docker run --rm --entrypoint /bin/alloy \
+            -v "$RUNNER_TEMP/nas/config.alloy:/etc/alloy/config.alloy:ro" \
+            grafana/alloy:v1.22.0 validate /etc/alloy/config.alloy
+
+  configure:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: lab
+    env:
+      AUTOLAB_NAS_SSH_USER: ${{ vars.NAS_SSH_USER }}
+      AUTOLAB_NAS_SSH_PORT: ${{ vars.NAS_SSH_PORT }}
+      NAS_MODE: ${{ inputs.confirm }}
+      NAS_ACTION: ${{ inputs.action }}
+      NAS_PROJECT: ${{ inputs.project }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/connect-tailscale
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+      - name: Install Ansible and collections
+        run: |
+          python3 -m pip install --quiet 'ansible-core>=2.21,<2.22'
+          ansible-galaxy collection install -r builders/ansible/requirements.yml
+      - name: Install the existing Builder SSH identity
+        env:
+          BUILDER_SSH_PRIVATE_KEY: ${{ secrets.BUILDER_SSH_PRIVATE_KEY }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          umask 077
+          printf '%s\n' "$BUILDER_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          ssh-keyscan -H -t ed25519 -T 10 -p "${AUTOLAB_NAS_SSH_PORT:-22}" singularity >> "$HOME/.ssh/known_hosts"
+      - name: Run the NAS playbook
+        working-directory: builders/ansible
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: 'true'
+          ANSIBLE_SSH_COMMON_ARGS: '-o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=10'
+        run: |
+          args=(-i inventories/nas/hosts.yml playbooks/nas.yml -e "autolab_nas_action=$NAS_ACTION" -e "autolab_nas_selected_project=$NAS_PROJECT")
+          if [ "$NAS_MODE" != apply ]; then args+=(--check); fi
+          ansible-playbook "${args[@]}"
+
+      - name: Verify NAS telemetry and Grafana synchronization
+        if: inputs.confirm == 'apply'
+        env:
+          GF_ADMIN_PASSWORD: ${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}
+        run: |
+          python3 - <<'PYTHON'
+          import base64, json, os, time, urllib.error, urllib.parse, urllib.request
+          query = urllib.parse.urlencode({'query': 'up{instance="singularity"}'})
+          with urllib.request.urlopen('http://jwst:9090/api/v1/query?' + query, timeout=15) as response:
+              targets = json.load(response)['data']['result']
+          assert len(targets) >= 3 and all(float(t['value'][1]) == 1 for t in targets), 'NAS scrape targets are not all healthy'
+          print('NAS node, Alloy and container metric targets are healthy')
+          with urllib.request.urlopen('http://jwst:3100/loki/api/v1/label/host/values', timeout=15) as response:
+              assert 'singularity' in json.load(response)['data'], 'NAS Docker logs have not arrived'
+          print('NAS logs are present in Loki')
+          password = os.environ['GF_ADMIN_PASSWORD']
+          assert password, 'GF_SECURITY_ADMIN_PASSWORD is required to verify dashboard sync'
+          header = 'Basic ' + base64.b64encode(('admin:' + password).encode()).decode()
+          request = urllib.request.Request('http://jwst:3000/api/dashboards/uid/autolab-nas', headers={'Authorization': header})
+          for attempt in range(30):
+              try:
+                  with urllib.request.urlopen(request, timeout=10) as response:
+                      dashboard = json.load(response)
+                  assert dashboard['dashboard']['title'] == 'Autolab / Singularity NAS'
+                  print('Singularity NAS dashboard synchronized from Git')
+                  break
+              except urllib.error.HTTPError as error:
+                  if error.code != 404 or attempt == 29:
+                      raise SystemExit('Grafana dashboard verification failed, HTTP ' + str(error.code)) from None
+                  time.sleep(2)
+          PYTHON

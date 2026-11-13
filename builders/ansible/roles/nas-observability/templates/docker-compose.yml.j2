@@ -1,0 +1,36 @@
+# Managed by AUTOLAB. UGOS continues to own Docker and the appliance OS.
+services:
+  alloy:
+    image: {{ autolab_nas_alloy_image }}
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    command:
+      - run
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./config:/etc/alloy:ro
+      - alloy-data:/var/lib/alloy/data
+      - /:/host/root:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /run/udev/data:/host/udev:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./textfile:/var/lib/autolab/textfile:ro
+  cadvisor:
+    image: {{ autolab_nas_cadvisor_image }}
+    restart: unless-stopped
+    privileged: true
+    command: [--docker_only=true, --housekeeping_interval=15s]
+    ports:
+      - "127.0.0.1:{{ autolab_nas_cadvisor_port }}:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - {{ autolab_nas_docker_root }}:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+volumes:
+  alloy-data:
