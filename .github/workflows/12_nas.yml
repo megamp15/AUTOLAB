@@ -9,18 +9,20 @@ on:
       - builders/ansible/inventories/nas/**
       - builders/ansible/roles/nas-observability/**
       - builders/ansible/roles/nas-projects/**
+      - builders/ansible/roles/nas-management/**
       - scripts/test_nas_observability.py
+      - scripts/test_nas_management.py
   workflow_dispatch:
     inputs:
       action:
         description: Adopt definitions without recreating containers; lifecycle actions operate on existing applications
         type: choice
-        options: [inspect, adopt, telemetry, start, stop, restart]
+        options: [inspect, adopt, telemetry, management, start, stop, restart]
         default: inspect
       project:
         description: Application for an explicit lifecycle action
         type: choice
-        options: [immich, portainer]
+        options: [immich]
         default: immich
       confirm:
         description: Check first; apply performs the selected NAS action
@@ -81,6 +83,9 @@ jobs:
           umask 077
           printf '%s\n' "$BUILDER_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
           ssh-keyscan -H -t ed25519 -T 10 -p "${AUTOLAB_NAS_SSH_PORT:-22}" singularity >> "$HOME/.ssh/known_hosts"
+          if [ "$NAS_ACTION" = management ]; then
+            ssh-keyscan -H -t ed25519 -T 10 jwst >> "$HOME/.ssh/known_hosts"
+          fi
       - name: Run the NAS playbook
         working-directory: builders/ansible
         env:

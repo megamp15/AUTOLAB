@@ -1,0 +1,9 @@
+# UGOS can create a desktop shortcut for this local container's web port.
+# It only redirects. Administration stays behind the existing private login.
+server {
+    listen 80;
+    server_name _;
+    location / {
+        return 302 {{ autolab_nas_dockhand_browser }}/;
+    }
+}

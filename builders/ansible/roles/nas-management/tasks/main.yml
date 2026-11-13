@@ -1,0 +1,152 @@
+---
+- name: Record the existing Immich and photo containers
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - --format
+      - "{{ '{{.Id}} {{.State.StartedAt}}' }}"
+      - immich_server
+      - immich_machine_learning
+      - immich_postgres
+      - immich_redis
+      - photo-sort-sort-1
+      - immich-export-export-1
+  register: autolab_nas_protected_before
+  changed_when: false
+  check_mode: false
+
+- name: Discover the NAS tailnet address
+  ansible.builtin.command: tailscale ip -4
+  register: autolab_nas_management_ip_raw
+  changed_when: false
+  check_mode: false
+
+- name: Name the NAS management bind address
+  ansible.builtin.set_fact:
+    autolab_nas_management_ip: "{{ autolab_nas_management_ip_raw.stdout_lines[0] }}"
+
+- name: Create the NAS management project
+  ansible.builtin.file:
+    path: "{{ autolab_nas_management_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create protected agent credential storage
+  ansible.builtin.file:
+    path: "{{ autolab_nas_management_root }}/secrets"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Generate the NAS agent credential once
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      umask 077
+      temporary=$(mktemp "{{ autolab_nas_management_root }}/secrets/.hawser.XXXXXX")
+      trap 'rm -f "$temporary"' EXIT
+      openssl rand -hex 32 > "$temporary"
+      mv "$temporary" "{{ autolab_nas_management_root }}/secrets/hawser-token"
+    creates: "{{ autolab_nas_management_root }}/secrets/hawser-token"
+  no_log: true
+
+- name: Render the NAS management definitions
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ autolab_nas_management_root }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [docker-compose.yml, launcher.conf]
+
+- name: Start only the authenticated Docker agent
+  community.docker.docker_compose_v2:
+    project_src: "{{ autolab_nas_management_root }}"
+    project_name: "{{ autolab_nas_management_project }}"
+    services: [hawser]
+    dependencies: false
+    state: present
+    pull: missing
+    remove_orphans: false
+  when: not ansible_check_mode
+
+- name: Wait for the NAS agent's health endpoint
+  ansible.builtin.uri:
+    url: "http://{{ autolab_nas_management_ip }}:{{ autolab_nas_hawser_port }}/_hawser/health"
+    status_code: 200
+  register: autolab_nas_hawser_health
+  until: autolab_nas_hawser_health.status == 200
+  retries: 20
+  delay: 2
+  when: not ansible_check_mode
+
+- name: Verify anonymous Docker management is denied
+  ansible.builtin.uri:
+    url: "http://{{ autolab_nas_management_ip }}:{{ autolab_nas_hawser_port }}/_ping"
+    status_code: 401
+  when: not ansible_check_mode
+
+- name: Register and verify NAS management before retiring Portainer
+  ansible.builtin.include_tasks: register.yml
+  when: not ansible_check_mode
+
+# No engine-wide compose operation. Removing this one container leaves every
+# Immich/database/photo container alone and retains Portainer's bind-mount data.
+- name: Retire only the old Portainer container
+  community.docker.docker_container:
+    name: Portainer
+    state: absent
+    keep_volumes: true
+  when: not ansible_check_mode and autolab_nas_dockhand_test.json.success | default(false)
+
+- name: Start the UGOS desktop launcher after its port is free
+  community.docker.docker_compose_v2:
+    project_src: "{{ autolab_nas_management_root }}"
+    project_name: "{{ autolab_nas_management_project }}"
+    services: [dockhand-launcher]
+    dependencies: false
+    state: present
+    pull: missing
+    remove_orphans: false
+  when: not ansible_check_mode
+
+- name: Verify the launcher opens the protected Dockhand address
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ autolab_nas_launcher_port }}/"
+    follow_redirects: none
+    status_code: 302
+  register: autolab_nas_launcher_response
+  until: autolab_nas_launcher_response.status == 302
+  retries: 15
+  delay: 2
+  when: not ansible_check_mode
+
+- name: Require the launcher to preserve the private login route
+  ansible.builtin.assert:
+    that: autolab_nas_launcher_response.location == autolab_nas_dockhand_browser ~ '/'
+  when: not ansible_check_mode
+
+- name: Check that existing photo services were preserved
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - --format
+      - "{{ '{{.Id}} {{.State.StartedAt}}' }}"
+      - immich_server
+      - immich_machine_learning
+      - immich_postgres
+      - immich_redis
+      - photo-sort-sort-1
+      - immich-export-export-1
+  register: autolab_nas_protected_after
+  changed_when: false
+  check_mode: false
+
+- name: Verify no Immich or photo container was recreated or restarted
+  ansible.builtin.assert:
+    that: autolab_nas_protected_before.stdout == autolab_nas_protected_after.stdout
