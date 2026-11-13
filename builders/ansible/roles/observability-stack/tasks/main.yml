@@ -573,6 +573,7 @@
     group: root
     mode: "0755"
   when: autolab_obs_homepage_enabled | bool
+  tags: [homepage]
 
 - name: Install the homepage
   ansible.builtin.copy:
@@ -582,6 +583,7 @@
     group: root
     mode: "0644"
   when: autolab_obs_homepage_enabled | bool
+  tags: [homepage]
 
 # What a browser shows when the page is in a tab, pinned, or on a home screen.
 - name: Install the homepage's icons
