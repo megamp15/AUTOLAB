@@ -87,9 +87,34 @@
   /* Architecture. The panel widens past the list's 760px; everything is ink
      on paper at different strengths, so it follows the flip and the flood
      like the rest of the page. */
-  #content.wide { width:min(1240px,100%) !important; }
-  .arch { display:flex; flex-direction:column; gap:18px; }
+  /* Services: each group's rows flow into as many columns as the screen
+     holds; one column on a phone. */
+  .group-rows { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); column-gap:44px; }
+  #rows { position:relative; }
+  .arch { display:flex; flex-direction:column; gap:12px; }
+  .a-toolbar { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-end; gap:12px 24px; }
+  .a-intro h2 { margin:0 0 2px; }
+  .a-intro p { margin:0; }
+  .a-tools { display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; }
   .a-toggle { font-size:12px; display:inline-flex; gap:6px; align-items:center; cursor:pointer; }
+  .a-zoomctl { display:inline-flex; align-items:center; border:1px solid color-mix(in srgb,currentColor 35%,transparent); border-radius:4px; font-size:11px; }
+  .a-zoomctl button { color:inherit; background:none; border:0; border-left:1px solid color-mix(in srgb,currentColor 20%,transparent); padding:5px 9px; font:inherit; cursor:pointer; }
+  .a-zoomctl button:first-child { border-left:0; }
+  .a-zoomctl button:hover, .a-zoomctl button[aria-pressed="true"] { background:color-mix(in srgb,currentColor 12%,transparent); }
+  .a-zoomval { min-width:46px; text-align:center; font-variant-numeric:tabular-nums; border-left:1px solid color-mix(in srgb,currentColor 20%,transparent); padding:5px 4px; }
+  .a-zoom { position:relative; }
+  .a-zoom.on { overflow:auto; overscroll-behavior:contain; cursor:grab; scrollbar-width:thin;
+    border:1px solid color-mix(in srgb,currentColor 18%,transparent); border-radius:6px; }
+  .a-zoom.on.dragging { cursor:grabbing; user-select:none; }
+  .a-zoom.on .a-sizer { margin:0 auto; }
+  .a-zoom.on .a-canvas { transform-origin:0 0; padding:24px; box-sizing:border-box; }
+  .a-access { font-size:11.5px; line-height:1.6; opacity:.7; margin:22px 0 0; max-width:110ch; }
+  /* Hovering a legend entry: its wires stay, the rest step back. */
+  .a-canvas[data-focus] .a-wire, .a-canvas[data-focus] .a-packet { opacity:.12; transition:opacity .25s; }
+  .a-canvas[data-focus="public"] .a-public, .a-canvas[data-focus="public"] .a-p-public,
+  .a-canvas[data-focus="tailnet"] .a-tailnet, .a-canvas[data-focus="tailnet"] .a-p-tailnet,
+  .a-canvas[data-focus="backup"] .a-backup, .a-canvas[data-focus="backup"] .a-p-backup,
+  .a-canvas[data-focus="signal"] .a-signal, .a-canvas[data-focus="signal"] .a-signal-streak { opacity:1; }
   .a-canvas { position:relative; padding:6px 2px 2px;
     background-image:radial-gradient(color-mix(in srgb,currentColor 13%,transparent) 1px, transparent 1.2px); background-size:22px 22px; }
   .a-canvas::after { content:""; position:absolute; left:0; right:0; top:0; height:90px; pointer-events:none; z-index:2;
@@ -146,32 +171,37 @@
   .a-dot.on::after { content:""; position:absolute; inset:-4px; border-radius:50%; border:1px solid currentColor; opacity:0; animation:a-ping 2.6s ease-out infinite; }
   .a-foot { font-size:10px; opacity:.55; margin-top:8px; }
   .a-wire { fill:none; stroke:currentColor; stroke-width:1; }
-  .a-public { stroke-opacity:.85; stroke-width:1.3; }
-  .a-tailnet { stroke-opacity:.6; stroke-dasharray:5 4; animation:a-flow 1.2s linear infinite; }
-  .a-tailnet-faint { stroke-opacity:.2; stroke-dasharray:2 5; }
-  .a-backup { stroke-opacity:.5; stroke-dasharray:1 5; stroke-linecap:round; stroke-width:1.8; animation:a-flow 3s linear infinite; }
-  .a-signal { stroke-opacity:.5; stroke-dasharray:10 3 2 3; animation:a-flow 2s linear infinite reverse; }
-  .a-signal-faint { stroke-opacity:.15; }
+  /* Four kinds of wire, told apart by shape, not by shade alone:
+     internet = thick solid with glowing packets; private = dashes;
+     backups = round dots; metrics = a faint line with a running streak. */
+  .a-public { stroke-opacity:.95; stroke-width:2; }
+  .a-tailnet { stroke-opacity:.7; stroke-width:1.1; stroke-dasharray:7 5; animation:a-flow 1.2s linear infinite; }
+  .a-backup { stroke-opacity:.6; stroke-width:2.6; stroke-dasharray:0.1 7; stroke-linecap:round; animation:a-flow-dots 2.4s linear infinite; }
+  .a-signal { stroke-opacity:.2; stroke-width:1; }
+  .a-signal-streak { stroke-opacity:.95; stroke-width:1.5; stroke-linecap:round; stroke-dasharray:8 70; animation:a-streak 2.2s linear infinite; }
   .a-packet { fill:currentColor; }
   .a-p-public { filter:drop-shadow(0 0 3px currentColor); }
-  .a-legend { display:flex; flex-wrap:wrap; gap:8px 20px; font-size:10.5px; opacity:.8; }
-  .a-key { display:inline-flex; align-items:center; gap:8px; }
-  .a-key i { width:28px; height:0; border-top:1px solid currentColor; }
-  .a-k-tailnet i { border-top-style:dashed; }
-  .a-k-backup i { border-top:2px dotted currentColor; }
-  .a-k-signal i { border-top-style:dashed; opacity:.6; }
-  @keyframes a-flow { to { stroke-dashoffset:-18; } }
+  .a-legend { display:flex; flex-wrap:wrap; gap:6px 22px; font-size:11px; }
+  .a-key { display:inline-flex; align-items:center; gap:8px; cursor:help; opacity:.85; padding:2px 0; }
+  .a-key:hover, .a-key:focus-visible { opacity:1; }
+  .a-key svg { overflow:visible; }
+  @keyframes a-flow { to { stroke-dashoffset:-24; } }
+  @keyframes a-flow-dots { to { stroke-dashoffset:-14.2; } }
+  @keyframes a-streak { from { stroke-dashoffset:78; } to { stroke-dashoffset:0; } }
   @keyframes a-ping { 0% { transform:scale(.6); opacity:.7; } 100% { transform:scale(2.3); opacity:0; } }
   @keyframes a-nudge { 50% { transform:translateX(3px); } }
   @keyframes a-sheen { 0% { transform:translateX(-120%); } 60%, 100% { transform:translateX(320%); } }
   @keyframes a-scan { 0% { transform:translateY(-90px); } 100% { transform:translateY(1600px); } }
   @media (prefers-reduced-motion: reduce) {
+    .a-signal-streak { display:none; }
     .a-wire, .a-dot.on::after, .a-arrow, .a-canvas::after, .a-bar-track i::after { animation:none !important; }
     .a-bar-track i { transition:none; }
   }
   /* Narrow: one column, and the wires go, because they would only run
      through the cards stacked above their ends. */
+  [data-sg-root].static .a-zoomctl { display:none; }
   @media (max-width:900px) {
+    .a-zoomctl { display:none; }
     .a-row-edge, .a-row-data { grid-template-columns:1fr; }
     .a-wires { display:none; }
     .a-row { margin-bottom:14px; }
@@ -192,7 +222,7 @@
     <div class="stick" style="position:sticky; top:0; height:100vh; overflow:hidden;">
       <canvas data-sg-sky="1" style="position:absolute; inset:0; width:100%; height:100%; display:block;"></canvas>
       <div id="stage" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:clamp(20px,5vw,64px); pointer-events:none;">
-        <div id="content" style="width:min(760px,100%); display:flex; flex-direction:column; gap:clamp(16px,2.6vh,26px); filter:blur(calc((1 - var(--sg-flood)) * 3px)); transform:scaleY(calc(0.82 + var(--sg-flood) * 0.18));">
+        <div id="content" style="width:min(1680px,100%); display:flex; flex-direction:column; gap:clamp(16px,2.6vh,26px); filter:blur(calc((1 - var(--sg-flood)) * 3px)); transform:scaleY(calc(0.82 + var(--sg-flood) * 0.18));">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; opacity:calc((var(--sg-flood) - 0.02) * 9);">
             <span class="mono" style="font-size:11px; letter-spacing:.34em;">AUTOLAB</span>
             <div style="display:flex; align-items:center; gap:14px;">
@@ -250,8 +280,10 @@
   // ---- data --------------------------------------------------------------
   function render() {
     rowsEl.setAttribute('aria-labelledby', 'tab-' + state.tab);
-    document.getElementById('content').classList.toggle('wide', state.tab === 'architecture');
     if (state.tab !== 'architecture') arch.sig = '';
+    // The feed is the lab's news; it belongs with the services, not under
+    // the schedule table or the diagram, where it only took their room.
+    feedEl.hidden = state.tab !== 'services';
     document.querySelectorAll('[data-tab]').forEach(b => {
       const selected = b.dataset.tab === state.tab;
       b.setAttribute('aria-selected', String(selected));
@@ -262,18 +294,20 @@
     const out = [];
     const legend = el('p', 'Public links work outside Tailscale. Internal links require Tailscale; their login protection is shown on each row.', 'ops muted');
     out.push(legend);
-    let group = null;
+    let group = null, box = null;
     state.rows.forEach((r, i) => {
-      if (r.group && r.group !== group) {
+      if (!box || (r.group && r.group !== group)) {
         group = r.group;
         const h = document.createElement('div');
         h.className = 'head';
         h.innerHTML = '<span></span>';
-        h.firstChild.textContent = group;
+        h.firstChild.textContent = group || '';
         h.style.opacity = `calc((var(--sg-flood) - ${(0.04 + i * (0.5 / Math.max(1, state.rows.length - 1))).toFixed(3)}) * 9)`;
-        out.push(h);
+        box = document.createElement('div');
+        box.className = 'group-rows';
+        out.push(h, box);
       }
-      out.push(row(r, i));
+      box.append(row(r, i));
     });
     rowsEl.replaceChildren(...out);
     renderFeed();
@@ -510,13 +544,48 @@
 
   function buildArchitecture(m) {
     const root = mk('div', 'arch');
-    const intro = section('Current architecture', 'Live: placement and hardware from Proxmox, load from node_exporter and cAdvisor, health from the homepage probes. Refreshes every 30 seconds.');
+    const bar = mk('div', 'a-toolbar');
+    const intro = mk('div', 'a-intro ops');
+    intro.append(mk('h2', undefined, 'Current architecture'), mk('p', 'muted', 'Live from Proxmox, node_exporter, cAdvisor and the probes · every 30 s'));
+    const tools = mk('div', 'a-tools');
     const controls = mk('label', 'a-toggle'); const show = el('input'); show.type = 'checkbox'; show.checked = arch.showAll;
     show.addEventListener('change', () => { arch.showAll = show.checked; arch.sig = ''; renderArchitecture(); });
-    controls.append(show, document.createTextNode(' Include templates and unmanaged guests'));
-    intro.append(controls);
-    root.append(intro);
+    controls.append(show, document.createTextNode(' Templates & unmanaged'));
+    const zoomBox = mk('div', 'a-zoomctl mono');
+    const btn = (label, title, fn) => { const b = mk('button', undefined, label); b.type = 'button'; b.title = title; b.setAttribute('aria-label', title); b.addEventListener('click', fn); return b; };
+    zoomBox.append(
+      btn('−', 'Zoom out', () => zoomBy(1 / 1.2)),
+      live(mk('span', 'a-zoomval'), 'zoom'),
+      btn('+', 'Zoom in', () => zoomBy(1.2)),
+      btn('Fit', 'Fit the whole diagram', () => setZoomMode('page')),
+      btn('Width', 'Fit the width', () => setZoomMode('width')),
+      btn('1:1', 'Actual size', () => setZoomMode('manual', 1)));
+    tools.append(controls, zoomBox);
+    bar.append(intro, tools);
+    root.append(bar);
 
+    // The legend draws each kind of wire with the wire's own classes, so it
+    // is the same line, moving the same way. Hovering one picks out those
+    // wires on the diagram.
+    const legend = mk('div', 'a-legend mono');
+    [['public', 'Internet → tunnel', 'Someone outside your network: Cloudflare carries it down the tunnel to horizon'],
+     ['tailnet', 'Private network (Tailscale)', 'Your devices and the lab talking over encrypted WireGuard; invisible to the internet'],
+     ['backup', 'Nightly backups', 'Each node backs its VMs up to PBS around 02:00; PBS keeps them on the NAS'],
+     ['signal', 'Metrics & logs', 'Alloy on every host sends metrics and logs to jwst, which feeds Grafana and the alerts']].forEach(([k, label, hint]) => {
+      const item = mk('span', 'a-key'); item.dataset.kind = k; item.title = hint; item.tabIndex = 0;
+      item.innerHTML = `<svg width="44" height="10" viewBox="0 0 44 10" aria-hidden="true"><path id="a-key-${k}" class="a-wire a-${k}" d="M2 5 H42"/>` +
+        (k === 'signal' ? '<path class="a-wire a-signal-streak" d="M2 5 H42"/>' : '') +
+        (lessMotion.matches || k === 'backup' || k === 'signal' ? '' : `<circle class="a-packet a-p-${k}" r="${k === 'public' ? 2.4 : 1.8}"><animateMotion dur="1.8s" repeatCount="indefinite"><mpath href="#a-key-${k}"/></animateMotion></circle>`) + '</svg>';
+      item.append(document.createTextNode(label));
+      const on = () => root.querySelector('.a-canvas').dataset.focus = k, off = () => delete root.querySelector('.a-canvas').dataset.focus;
+      item.addEventListener('mouseenter', on); item.addEventListener('mouseleave', off);
+      item.addEventListener('focus', on); item.addEventListener('blur', off);
+      legend.append(item);
+    });
+    root.append(legend);
+
+    const zoom = mk('div', 'a-zoom'); zoom.tabIndex = 0; zoom.setAttribute('aria-label', 'Architecture diagram. Drag to pan; Ctrl or Cmd and scroll, or pinch, to zoom.');
+    const sizer = mk('div', 'a-sizer');
     const canvas = mk('div', 'a-canvas');
     const wires = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); wires.classList.add('a-wires'); wires.setAttribute('aria-hidden', 'true');
     canvas.append(wires);
@@ -551,16 +620,10 @@
       edgeCard('nas', 'singularity · NAS', 'UGOS · ZFS-backed shares', 'nas', ['PBS datastore · snapshots', 'Immich photos · app login', 'shared links via share.']),
     );
     canvas.append(bottom);
-    root.append(canvas);
-
-    const legend = mk('div', 'a-legend mono');
-    [['a-k-public', 'public · through the tunnel'], ['a-k-tailnet', 'tailnet · WireGuard'], ['a-k-backup', 'backup · nightly'], ['a-k-signal', 'telemetry · alerts']].forEach(([k, t]) => {
-      const i = mk('span', 'a-key ' + k); i.append(mk('i')); i.append(document.createTextNode(t)); legend.append(i);
-    });
-    root.append(legend);
-    const access = section('Access boundaries', 'Public names open through Cloudflare and always ask Pocket ID, except the sign-in page and shared photo links. *.lab names resolve only on the tailnet, with Pocket ID in front of browser admin routes. Immich and Grafana do their own Pocket ID login. Raw service ports are tailnet-only and governed by the tailnet policy.');
-    root.append(access);
-    if ((state.operations.errors || []).length) root.append(mk('p', 'ops muted a-errors', 'Some live sources could not be read: ' + state.operations.errors.join('; ')));
+    canvas.append(mk('p', 'a-access', 'Who can reach what: public names open through Cloudflare and always ask Pocket ID, except the sign-in page and shared photo links. *.lab names resolve only on the tailnet, with Pocket ID in front of browser admin routes; Immich and Grafana do their own Pocket ID login. Raw service ports are tailnet-only.'));
+    if ((state.operations.errors || []).length) canvas.append(mk('p', 'a-access a-errors', 'Some live sources could not be read: ' + state.operations.errors.join('; ')));
+    sizer.append(canvas); zoom.append(sizer); root.append(zoom);
+    wireZoom(zoom);
     return root;
   }
 
@@ -598,7 +661,8 @@
         const d = `M${x1.toFixed(1)} ${y1.toFixed(1)} C${x1.toFixed(1)} ${my.toFixed(1)} ${x2.toFixed(1)} ${my.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`;
         const pid = 'a-w' + (id++);
         let markup = `<path id="${pid}" class="a-wire a-${kind}" d="${d}"/>`;
-        if (!still && !kind.endsWith('faint')) {
+        if (kind === 'signal') markup += `<path class="a-wire a-signal-streak" d="${d}"/>`;
+        if (!still && kind !== 'signal' && kind !== 'backup') {
           const dur = kind === 'backup' ? 6 : kind === 'signal' ? 3.2 : 2.6;
           for (let k = 0; k < (kind === 'backup' ? 1 : 2); k++)
             markup += `<circle class="a-packet a-p-${kind}" r="${kind === 'public' ? 2.6 : 2}"><animateMotion dur="${dur}s" begin="${(k * dur / 2 + id * 0.37).toFixed(2)}s" repeatCount="indefinite" rotate="auto"><mpath href="#${pid}"/></animateMotion></circle>`;
@@ -609,7 +673,7 @@
     svg.innerHTML = out.join('');
   }
   let wireTimer = 0;
-  const wireObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { cancelAnimationFrame(wireTimer); wireTimer = requestAnimationFrame(drawWires); }) : null;
+  const wireObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { cancelAnimationFrame(wireTimer); wireTimer = requestAnimationFrame(() => { applyZoom(); drawWires(); }); }) : null;
 
   function updateLive(m) {
     const set = (key, text, width) => {
@@ -650,6 +714,70 @@
     up('nas', (row('NAS') || {}).up);
   }
 
+  // ---- zoom and pan --------------------------------------------------------
+  // On a desktop the diagram is laid out once at a fixed design width and
+  // scaled as a picture: zooming never reflows it, and the wires, measured
+  // in the canvas's own coordinates, scale with it. A phone keeps the
+  // stacked, reflowing layout and none of this.
+  const DESIGN_W = 1480;
+  arch.mode = arch.mode || 'width'; arch.z = arch.z || 1;
+  const zoomable = () => !staticMode && window.innerWidth > 900;
+  const zEls = () => { const zoom = rowsEl.querySelector('.a-zoom'); return zoom && { zoom, sizer: zoom.firstElementChild, canvas: zoom.querySelector('.a-canvas') }; };
+  function applyZoom(z, ax, ay) {
+    const e = zEls(); if (!e) return;
+    const on = zoomable();
+    e.zoom.classList.toggle('on', on);
+    if (!on) { e.canvas.style.transform = ''; e.canvas.style.width = ''; e.sizer.style.width = e.sizer.style.height = ''; return; }
+    e.canvas.style.width = DESIGN_W + 'px';
+    const W = DESIGN_W, H = e.canvas.offsetHeight, vw = e.zoom.clientWidth, vh = e.zoom.clientHeight;
+    if (arch.mode === 'width') z = vw / W;
+    else if (arch.mode === 'page') z = Math.min(vw / W, vh / H);
+    z = Math.max(0.25, Math.min(2.5, z || arch.z));
+    // Keep the point under the cursor where it was. A button zoom keeps the
+    // centre; a fit keeps the top-left corner, so it never opens mid-way.
+    const fit = arch.mode !== 'manual';
+    if (ax === undefined) { ax = fit ? 0 : vw / 2; ay = fit ? 0 : vh / 2; }
+    const cx = (e.zoom.scrollLeft + ax) / arch.z, cy = (e.zoom.scrollTop + ay) / arch.z;
+    arch.z = z;
+    e.canvas.style.transform = `scale(${z})`;
+    e.sizer.style.width = Math.ceil(W * z) + 'px'; e.sizer.style.height = Math.ceil(H * z) + 'px';
+    e.zoom.scrollLeft = cx * z - ax; e.zoom.scrollTop = cy * z - ay;
+    const val = rowsEl.querySelector('[data-live="zoom"]'); if (val) val.textContent = Math.round(z * 100) + '%';
+    rowsEl.querySelectorAll('.a-zoomctl button').forEach(b => b.setAttribute('aria-pressed', String(
+      (b.textContent === 'Fit' && arch.mode === 'page') || (b.textContent === 'Width' && arch.mode === 'width'))));
+  }
+  function setZoomMode(mode, z) { arch.mode = mode; applyZoom(z); }
+  function zoomBy(f, ax, ay) { arch.mode = 'manual'; applyZoom(arch.z * f, ax, ay); }
+  function wireZoom(zoom) {
+    zoom.addEventListener('wheel', e => {
+      if (!zoomable() || !(e.ctrlKey || e.metaKey)) return;   // plain wheel scrolls
+      e.preventDefault();
+      const r = zoom.getBoundingClientRect();
+      zoomBy(Math.exp(-e.deltaY * 0.0022), e.clientX - r.left, e.clientY - r.top);
+    }, { passive: false });
+    let drag = null;
+    zoom.addEventListener('pointerdown', e => {
+      if (!zoomable() || e.button !== 0 || e.target.closest('a,button,input,label')) return;
+      drag = { x: e.clientX, y: e.clientY, l: zoom.scrollLeft, t: zoom.scrollTop };
+      zoom.classList.add('dragging'); try { zoom.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    zoom.addEventListener('pointermove', e => { if (!drag) return; zoom.scrollLeft = drag.l - (e.clientX - drag.x); zoom.scrollTop = drag.t - (e.clientY - drag.y); });
+    const stop = () => { drag = null; zoom.classList.remove('dragging'); };
+    zoom.addEventListener('pointerup', stop); zoom.addEventListener('pointercancel', stop);
+    zoom.addEventListener('keydown', e => {
+      if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(1.2); }
+      else if (e.key === '-') { e.preventDefault(); zoomBy(1 / 1.2); }
+      else if (e.key === '0') { e.preventDefault(); setZoomMode('page'); }
+    });
+  }
+  // The viewport fills whatever height the page leaves it, like the list.
+  function sizeZoom(room) {
+    const e = zEls(); if (!e) return;
+    if (!zoomable()) { if (e.zoom.style.height) e.zoom.style.height = ''; return; }
+    const hgt = Math.max(240, Math.floor(room - e.zoom.offsetTop - 2)) + 'px';
+    if (e.zoom.style.height !== hgt) { e.zoom.style.height = hgt; applyZoom(); }
+  }
+
   function renderArchitecture() {
     const op = state.operations;
     if (!(op.nodes || []).length) {
@@ -664,8 +792,8 @@
       arch.sig = sig;
       rowsEl.replaceChildren(buildArchitecture(m));
       rowsEl.scrollTop = scroll;
-      if (wireObserver) { wireObserver.disconnect(); wireObserver.observe(rowsEl.querySelector('.a-canvas')); }
-      requestAnimationFrame(drawWires);
+      if (wireObserver) { wireObserver.disconnect(); wireObserver.observe(rowsEl.querySelector('.a-canvas')); wireObserver.observe(rowsEl.querySelector('.a-zoom')); }
+      requestAnimationFrame(() => { applyZoom(); drawWires(); });
     }
     updateLive(m);
   }
@@ -783,8 +911,10 @@
     const others = content.offsetHeight - rowsEl.offsetHeight;
     const room = Math.max(160, Math.floor(window.innerHeight - pad - others));
     if (rowsEl.style.maxHeight !== room + 'px') rowsEl.style.maxHeight = room + 'px';
+    if (state.tab === 'architecture') sizeZoom(room);
   }
   function unfitRows() {
+    if (state.tab === 'architecture') sizeZoom(0);
     if (rowsEl.style.maxHeight) rowsEl.style.maxHeight = '';
   }
 
@@ -941,7 +1071,7 @@
   root.style.cursor = 'grab';
   root.addEventListener('contextmenu', (e) => e.preventDefault());
   root.addEventListener('pointerdown', (e) => {
-    if (e.target.closest && e.target.closest('a,button,input,label,summary,.ops')) return;
+    if (e.target.closest && e.target.closest('a,button,input,label,summary,.ops,.arch')) return;
     e.preventDefault(); S.drag = { x: e.clientX, y: e.clientY }; root.style.cursor = 'grabbing';
     try { root.setPointerCapture(e.pointerId); } catch (err) {}
   });
