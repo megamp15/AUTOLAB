@@ -9,17 +9,17 @@
 
 - name: Require the media folder
   ansible.builtin.stat:
-    path: "{{ autolab_photos_media }}"
+    path: "{{autolab_photos_media}}"
   register: autolab_photos_media_stat
 
 - name: Stop if the media folder is missing
   ansible.builtin.assert:
     that: autolab_photos_media_stat.stat.isdir | default(false)
-    fail_msg: "{{ autolab_photos_media }} does not exist on the NAS; refusing to create an empty library."
+    fail_msg: "{{autolab_photos_media}} does not exist on the NAS; refusing to create an empty library."
 
 - name: Record the Immich containers
   ansible.builtin.command:
-    cmd: "docker inspect --format '{{ '{{.Id}} {{.State.StartedAt}}' }}' {{ autolab_photos_protected | join(' ') }}"
+    cmd: "docker inspect --format '{{ '{{.Id}} {{.State.StartedAt}}' }}' {{autolab_photos_protected | join(' ')}}"
   register: autolab_photos_before
   changed_when: false
   check_mode: false
@@ -32,50 +32,50 @@
 
 - name: Name the bind address
   ansible.builtin.set_fact:
-    autolab_photos_ip: "{{ autolab_photos_ip_raw.stdout_lines[0] }}"
+    autolab_photos_ip: "{{autolab_photos_ip_raw.stdout_lines[0]}}"
 
 - name: Create the project and its state folder
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{item}}"
     state: directory
     owner: root
     group: root
     mode: "0755"
   loop:
-    - "{{ autolab_photos_root }}"
-    - "{{ autolab_photos_root }}/state"
+    - "{{autolab_photos_root}}"
+    - "{{autolab_photos_root}}/state"
 
 - name: Copy the build context from the repository
   ansible.builtin.copy:
-    src: "{{ autolab_photos_source }}/{{ item.src }}"
-    dest: "{{ autolab_photos_root }}/{{ item.dest }}"
+    src: "{{autolab_photos_source}}/{{item.src}}"
+    dest: "{{autolab_photos_root}}/{{item.dest}}"
     owner: root
     group: root
     mode: preserve
   loop:
-    - { src: Dockerfile, dest: Dockerfile }
-    - { src: photo_jobs/, dest: photo_jobs/ }
-    - { src: web/, dest: web/ }
+    - {src: Dockerfile, dest: Dockerfile}
+    - {src: photo_jobs/, dest: photo_jobs/}
+    - {src: web/, dest: web/}
   loop_control:
-    label: "{{ item.dest }}"
+    label: "{{item.dest}}"
 
 - name: Render the compose file and the token file
   ansible.builtin.template:
-    src: "{{ item.src }}"
-    dest: "{{ autolab_photos_root }}/{{ item.dest }}"
+    src: "{{item.src}}"
+    dest: "{{autolab_photos_root}}/{{item.dest}}"
     owner: root
     group: root
-    mode: "{{ item.mode }}"
+    mode: "{{item.mode}}"
   loop:
-    - { src: docker-compose.yml.j2, dest: docker-compose.yaml, mode: "0644" }
-    - { src: env.j2, dest: .env, mode: "0600" }
+    - {src: docker-compose.yml.j2, dest: docker-compose.yaml, mode: "0644"}
+    - {src: env.j2, dest: .env, mode: "0600"}
   loop_control:
-    label: "{{ item.dest }}"
+    label: "{{item.dest}}"
 
 - name: Build and start only this project
   community.docker.docker_compose_v2:
-    project_src: "{{ autolab_photos_root }}"
-    project_name: "{{ autolab_photos_project }}"
+    project_src: "{{autolab_photos_root}}"
+    project_name: "{{autolab_photos_project}}"
     state: present
     build: always
     pull: missing
@@ -84,9 +84,9 @@
 
 - name: Wait for the service
   ansible.builtin.uri:
-    url: "http://{{ autolab_photos_ip }}:{{ autolab_photos_port }}/api/status"
+    url: "http://{{autolab_photos_ip}}:{{autolab_photos_port}}/api/status"
     headers:
-      X-Autolab-Photos-Token: "{{ autolab_photos_token }}"
+      X-Autolab-Photos-Token: "{{autolab_photos_token}}"
     status_code: 200
   register: autolab_photos_up
   until: autolab_photos_up.status == 200
@@ -97,15 +97,15 @@
 
 - name: Verify the API refuses a request without the token
   ansible.builtin.uri:
-    url: "http://{{ autolab_photos_ip }}:{{ autolab_photos_port }}/api/status"
+    url: "http://{{autolab_photos_ip}}:{{autolab_photos_port}}/api/status"
     status_code: 401
   when: not ansible_check_mode
 
 - name: Verify it can see the media folder
   ansible.builtin.uri:
-    url: "http://{{ autolab_photos_ip }}:{{ autolab_photos_port }}/api/status"
+    url: "http://{{autolab_photos_ip}}:{{autolab_photos_port}}/api/status"
     headers:
-      X-Autolab-Photos-Token: "{{ autolab_photos_token }}"
+      X-Autolab-Photos-Token: "{{autolab_photos_token}}"
     return_content: true
   register: autolab_photos_status
   no_log: true
@@ -113,7 +113,7 @@
 
 - name: Record the Immich containers again
   ansible.builtin.command:
-    cmd: "docker inspect --format '{{ '{{.Id}} {{.State.StartedAt}}' }}' {{ autolab_photos_protected | join(' ') }}"
+    cmd: "docker inspect --format '{{ '{{.Id}} {{.State.StartedAt}}' }}' {{autolab_photos_protected | join(' ')}}"
   register: autolab_photos_after
   changed_when: false
   check_mode: false
