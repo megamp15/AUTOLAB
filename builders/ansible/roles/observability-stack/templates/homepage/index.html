@@ -124,7 +124,11 @@
   .a-zoom { position:relative; }
   .a-zoom.on { overflow:hidden; overflow:clip; cursor:grab; touch-action:none; overscroll-behavior:contain;
     border:1px solid color-mix(in srgb,currentColor 18%,transparent); border-radius:6px; }
-  .a-zoom.on.dragging { cursor:grabbing; user-select:none; }
+  .a-zoom.on.dragging, .a-zoom.on.dragging * { cursor:grabbing; user-select:none; -webkit-user-select:none; }
+  .a-zoom.on .a-card, .a-zoom.on .a-access { cursor:auto; }
+  .a-zoom.on { background-image:radial-gradient(color-mix(in srgb,currentColor 13%,transparent) 1px, transparent 1.2px);
+    background-size:var(--a-grid-size,22px) var(--a-grid-size,22px); background-position:var(--a-grid-x,0px) var(--a-grid-y,0px); }
+  .a-zoom.on .a-canvas { background-image:none; }
   .a-zoom.on .a-sizer { position:absolute; left:0; top:0; }
   /* Hidden until the first fit, so nothing shows at the wrong size first. */
   .a-zoom.on:not(.ready) .a-sizer { visibility:hidden; }
@@ -680,7 +684,7 @@
     });
     bar.append(intro, legend, tools);
 
-    const zoom = mk('div', 'a-zoom'); zoom.tabIndex = 0; zoom.setAttribute('aria-label', 'Architecture diagram. Drag to pan; Ctrl or Cmd and scroll, or pinch, to zoom.');
+    const zoom = mk('div', 'a-zoom'); zoom.tabIndex = 0; zoom.setAttribute('aria-label', 'Architecture diagram. Ctrl or Cmd and drag to pan; drag text to select. Ctrl or Cmd and scroll, or pinch, to zoom.');
     const sizer = mk('div', 'a-sizer');
     const canvas = mk('div', 'a-canvas');
     const wires = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); wires.classList.add('a-wires'); wires.setAttribute('aria-hidden', 'true');
@@ -861,7 +865,7 @@
   // On a desktop the diagram has two fixed layouts at set widths: landscape
   // (left to right) for wide windows, stacked for narrower or taller ones.
   // The window picks one; the view opens fitted and centred; from there it is
-  // a canvas: drag or two-finger scroll to pan anywhere, Ctrl/Cmd-scroll or
+  // a canvas: Ctrl/Cmd-drag or two-finger scroll to pan anywhere, Ctrl/Cmd-scroll or
   // pinch to zoom, Reset to come back. A phone keeps the stacked, reflowing
   // layout and none of this.
   //
@@ -923,11 +927,14 @@
   }
   // Free movement, with one rule: some of the diagram always stays in view.
   function placeView(e, tx, ty, W, H, vw, vh) {
-    const keep = 120, z = arch.z;
+    const keep = 60, z = arch.z;
     arch.tx = Math.min(vw - keep, Math.max(keep - W * z, tx));
     arch.ty = Math.min(vh - keep, Math.max(keep - H * z, ty));
     setScale(e.canvas, z);
     e.sizer.style.transform = `translate(${arch.tx.toFixed(1)}px, ${arch.ty.toFixed(1)}px)`;
+    e.zoom.style.setProperty('--a-grid-size', (22 * z).toFixed(2) + 'px');
+    e.zoom.style.setProperty('--a-grid-x', arch.tx.toFixed(1) + 'px');
+    e.zoom.style.setProperty('--a-grid-y', arch.ty.toFixed(1) + 'px');
   }
   function panBy(dx, dy) {
     const e = zEls(); if (!e || !zoomable()) return;
@@ -949,18 +956,36 @@
       if (e.ctrlKey || e.metaKey) zoomBy(Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
       else panBy(-(e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX), -(e.shiftKey && !e.deltaX ? 0 : e.deltaY));
     }, { passive: false });
-    let drag = null;
+    let drag = null, suppressClick = false;
+    zoom.setAttribute('aria-description', 'Ctrl or Command plus drag to pan. Drag text to select it. Scroll to pan, Ctrl or Command plus scroll to zoom.');
     zoom.addEventListener('pointerdown', e => {
-      if (!zoomable() || e.button !== 0 || e.target.closest('a,button,input,label')) return;
-      drag = { x: e.clientX, y: e.clientY };
+      if (!zoomable() || e.button !== 0) return;
+      suppressClick = false;
+      const modified = e.ctrlKey || e.metaKey;
+      // Text and links retain their normal behaviour unless pan is requested.
+      if (!modified && e.target.closest('.a-card,.a-access,a,button,input,label,select,textarea')) return;
+      e.preventDefault();
+      drag = { x: e.clientX, y: e.clientY, id: e.pointerId };
       zoom.classList.add('dragging'); try { zoom.setPointerCapture(e.pointerId); } catch (err) {}
     });
     zoom.addEventListener('pointermove', e => {
-      if (!drag) return;
-      panBy(e.clientX - drag.x, e.clientY - drag.y); drag = { x: e.clientX, y: e.clientY };
+      if (!drag || e.pointerId !== drag.id) return;
+      e.preventDefault();
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (dx || dy) suppressClick = true;
+      panBy(dx, dy); drag.x = e.clientX; drag.y = e.clientY;
     });
-    const stop = () => { drag = null; zoom.classList.remove('dragging'); };
+    const stop = () => {
+      const id = drag && drag.id;
+      drag = null; zoom.classList.remove('dragging');
+      if (id !== null && zoom.hasPointerCapture(id)) zoom.releasePointerCapture(id);
+    };
     zoom.addEventListener('pointerup', stop); zoom.addEventListener('pointercancel', stop);
+    zoom.addEventListener('lostpointercapture', stop);
+    zoom.addEventListener('click', e => {
+      if (!suppressClick) return;
+      e.preventDefault(); e.stopPropagation(); suppressClick = false;
+    }, true);
     zoom.addEventListener('keydown', e => {
       const step = 60;
       if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(1.2); }
