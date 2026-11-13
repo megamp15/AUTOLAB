@@ -31,6 +31,7 @@
         // below is not optional — without it, tagging would lock you out of the
         // machine you just brought under management.
         "tag:autolab-pve": ["autogroup:admin"],
+        "tag:autolab-nas": ["autogroup:admin"],
     },
 
     // Define access control lists for users, groups, autogroups, tags,
@@ -79,6 +80,21 @@
 
     // Define users and devices that can use Tailscale SSH.
     "ssh": [
+        // The UGOS appliance already exposes root through Tailscale SSH.
+        // Scope automation to its own tag; VM and hypervisor rules stay separate.
+        {
+            "action": "accept",
+            "src": ["tag:ci-runner"],
+            "dst": ["tag:autolab-nas"],
+            "users": ["root"],
+        },
+        {
+            "action": "check",
+            "src": ["autogroup:member"],
+            "dst": ["tag:autolab-nas"],
+            "users": ["root"],
+            "checkPeriod": "12h",
+        },
         // Allow all users to SSH into their own devices in check mode.
         // Comment this section out if you want to define specific restrictions.
         // NOTE: does NOT cover tag:autolab-vm — tagged devices have no owner,
@@ -163,6 +179,17 @@
     // tag:autolab-vm at all while the admin console still reported SSH as
     // "already allowed". Deleting that rule now fails CI instead of production.
     "sshTests": [
+        {
+            "src": "tag:ci-runner",
+            "dst": ["tag:autolab-nas"],
+            "accept": ["root"],
+            "deny": ["autolab", "gitops"],
+        },
+        {
+            "src": "megamp15@github",
+            "dst": ["tag:autolab-nas"],
+            "check": ["root"],
+        },
         // A human operator reaches Builder VMs in check mode as any of the
         // three accounts, and never as root. All three are asserted because
         // all three are intentionally permitted: megamp15 for normal work,
