@@ -47,7 +47,7 @@ class NasObservabilityTest(unittest.TestCase):
         inventory = yaml.safe_load((ROOT / "builders/ansible/inventories/nas/hosts.yml").read_text())
         self.assertNotIn("linux_servers", inventory["all"]["children"])
         play = yaml.safe_load((ROOT / "builders/ansible/playbooks/nas.yml").read_text())[0]
-        self.assertEqual([role["role"] for role in play["roles"]], ["nas-projects", "nas-observability", "nas-management"])
+        self.assertEqual([role["role"] for role in play["roles"]], ["nas-projects", "nas-observability", "nas-management", "nas-photos"])
         self.assertEqual(play["vars"]["autolab_nas_action"], "inspect")
         tasks = yaml.safe_load((ROLE / "tasks/main.yml").read_text())
         deploy = next(task["community.docker.docker_compose_v2"] for task in tasks if "community.docker.docker_compose_v2" in task)

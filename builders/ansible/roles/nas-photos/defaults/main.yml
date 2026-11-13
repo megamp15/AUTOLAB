@@ -1,0 +1,20 @@
+---
+# Photo Jobs on the NAS: one container, built here from apps/photo-jobs in the
+# repository, reading and moving files in the personal media folder that Immich
+# scans (read-only there). Only this project is created or recreated; nothing
+# else on the appliance is touched, and the Immich containers are checked
+# before and after to prove it.
+autolab_photos_root: /volume1/docker/photo-jobs
+autolab_photos_project: photo-jobs
+autolab_photos_media: /home/Mahir/media
+autolab_photos_port: 8099
+autolab_photos_memory: 768m
+# The repository's copy of the app, as the runner has it checked out.
+autolab_photos_source: "{{ playbook_dir }}/../../../apps/photo-jobs"
+# The second lock: the API refuses anything without this header value, so
+# reaching the container's port directly gets nothing. The same secret is given
+# to Traefik, which adds it after Pocket ID has let an admin in. Comes from the
+# PHOTO_JOBS_TOKEN secret; the play stops without it.
+autolab_photos_token: ""
+# Containers that must come out of this exactly as they went in.
+autolab_photos_protected: [immich_server, immich_machine_learning, immich_postgres, immich_redis]

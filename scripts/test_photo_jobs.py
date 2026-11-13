@@ -165,6 +165,17 @@ class Unchanged(Library):
         self.sort()
         self.assertTrue(all(t.startswith('library/2025/06/Trip/') for t in self.tree()))
 
+    def test_a_folder_dropped_in_loose_is_flattened_into_the_recording_month(self):
+        self.put('_inbox/loose/uploaded-folder/photo.jpg', 'example photo', '2026-09')
+        self.sort()
+        self.assertEqual(self.tree(), ['library/2026/09/photo.jpg'])
+
+    def test_a_named_event_stays_grouped_and_uses_recording_dates(self):
+        self.put('_inbox/events/Trip/a.jpg', 'photo a', '2026-09')
+        self.put('_inbox/events/Trip/b.jpg', 'photo b', '2026-09')
+        self.sort()
+        self.assertEqual(self.tree(), ['library/2026/09/Trip/a.jpg', 'library/2026/09/Trip/b.jpg'])
+
     def test_planning_changes_nothing(self):
         self.put('_inbox/loose/IMG_1.HEIC', 'a', '2025-06')
         self.put('_inbox/loose/IMG_1.MOV', 'b', '2025-06')

@@ -113,6 +113,9 @@ autolab_ingress_nas_apps:
 # name -> {upstream, login}. The playbook that runs this role names them; the
 # role knows none, so a deployment with none (a tenant's) gets none.
 autolab_ingress_extra_routes: {}
+# The photo service's second lock (a route may carry token_header and token):
+# Traefik adds it after Pocket ID has let an admin in. Empty = no photos route.
+autolab_ingress_photos_token: ""
 # Public routes through the tunnel with no login in front: name -> upstream,
 # where name is a label in the Cloudflare stack's public_hostnames. For things
 # meant to open without an account, like a shared link. Empty for a tenant.
