@@ -23,7 +23,7 @@ jobs:
           find docs/proxmox/scripts scripts -name '*.sh' -print0 | xargs -0 shellcheck -S warning
 
       - name: Install yamllint
-        run: python3 -m pip install --quiet yamllint
+        run: python3 -m pip install --quiet yamllint 'jinja2>=3.1,<4'
 
       - name: yamllint (workflows, actions, schemas, Ansible)
         run: |

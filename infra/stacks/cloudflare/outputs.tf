@@ -9,8 +9,8 @@ output "zone_name" {
 }
 
 output "hostname_labels" {
-  description = "Label per role (auth, home, grafana): what the ingress role names its routers by."
-  value       = { for label, _ in var.public_hostnames : label => label }
+  description = "Service labels used by ingress and internal URLs; a label does not grant public exposure."
+  value       = merge({ home = "home", grafana = "grafana" }, { for label, _ in var.public_hostnames : label => label })
 }
 
 output "public_hostnames" {

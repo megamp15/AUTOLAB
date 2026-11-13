@@ -55,11 +55,10 @@ services:
     depends_on: [prometheus, loki{{ ', tempo' if autolab_obs_tempo_enabled | bool else '' }}]
     environment:
 {% if autolab_obs_grafana_oidc_client_id | length > 0 %}
-      # Public, behind Pocket ID. Anonymous viewing is off: this Grafana is
-      # reachable through the tunnel, and a public route plus anonymous
-      # viewing would be public dashboards. Everyone signs in with a passkey,
+      # Tailnet-only and behind Pocket ID. Anonymous viewing stays off.
+      # Everyone signs in with a passkey,
       # tailnet included; the admin password stays as the break-glass login.
-      GF_SERVER_ROOT_URL: "{{ autolab_obs_grafana_public_url }}"
+      GF_SERVER_ROOT_URL: "{{ autolab_obs_grafana_url }}"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
       GF_AUTH_GENERIC_OAUTH_NAME: "Pocket ID"

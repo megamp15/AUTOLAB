@@ -107,6 +107,12 @@
     autolab_ingress_tailnet_side: >-
       {{ autolab_ingress_internal_label | length > 0 and autolab_ingress_acme_dns_token | length > 0 }}
 
+- name: Require private HTTPS for operator dashboards
+  ansible.builtin.assert:
+    that: autolab_ingress_tailnet_side | bool
+    fail_msg: Home and Grafana require the internal label and tailnet certificate configuration.
+  when: autolab_ingress_traefik_client_id | length > 0 or autolab_ingress_grafana_route | bool
+
 - name: Create the ingress directory tree
   ansible.builtin.file:
     path: "{{ item }}"
@@ -415,8 +421,8 @@
   ansible.builtin.debug:
     msg: >-
       Routes: auth (Pocket ID)
-      {{- ', home (behind Pocket ID)' if autolab_ingress_traefik_client_id | length > 0 else '' }}
-      {{- ', grafana (logs in itself)' if autolab_ingress_grafana_route | bool else '' }}
+      {{- ', home (tailnet only, behind Pocket ID)' if autolab_ingress_traefik_client_id | length > 0 else '' }}
+      {{- ', grafana (tailnet only, logs in itself)' if autolab_ingress_grafana_route | bool else '' }}
       {{- ('; tailnet side: *.' ~ autolab_ingress_internal_label ~ '.' ~ autolab_ingress_zone ~ ", Let's Encrypt")
           if autolab_ingress_tailnet_side | bool else '; tailnet side off' }}.
       {{ 'Nothing behind the plugin has a route until INGRESS_TRAEFIK_CLIENT_ID/SECRET are set.'

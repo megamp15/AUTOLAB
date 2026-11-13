@@ -4,7 +4,7 @@
 # tailnet's wildcard record hands every internal name to it too.
 {% set zone = autolab_ingress_zone %}
 {% set auth_host = autolab_ingress_hostnames.auth ~ '.' ~ zone %}
-{% set home_host = autolab_ingress_hostnames.home ~ '.' ~ zone %}
+{% set home_host = autolab_ingress_hostnames.home ~ '.' ~ autolab_ingress_internal_label ~ '.' ~ zone %}
 {% set plugin_on = autolab_ingress_traefik_client_id | length > 0 %}
 {% set tailnet_on = autolab_ingress_tailnet_side | bool %}
 {% set lab = autolab_ingress_internal_label ~ '.' ~ zone %}
@@ -15,19 +15,6 @@ http:
       rule: "Host(`{{ auth_host }}`)"
       entryPoints: [web]
       service: pocket-id
-{% if plugin_on %}
-    home:
-      rule: "Host(`{{ home_host }}`)"
-      entryPoints: [web]
-      middlewares: [oidc]
-      service: homepage
-{% endif %}
-{% if autolab_ingress_grafana_route | bool %}
-    grafana:
-      rule: "Host(`{{ autolab_ingress_hostnames.grafana }}.{{ zone }}`)"
-      entryPoints: [web]
-      service: grafana
-{% endif %}
 {% for name, route in autolab_ingress_public_routes.items() %}
     public-{{ name }}:
       rule: "Host(`{{ name }}.{{ zone }}`)"
@@ -84,18 +71,6 @@ http:
       loadBalancer:
         servers:
           - url: "http://pocket-id:1411"
-{% if autolab_ingress_grafana_route | bool %}
-    grafana:
-      loadBalancer:
-        servers:
-          - url: "{{ autolab_ingress_upstreams.grafana }}"
-{% endif %}
-{% if plugin_on %}
-    homepage:
-      loadBalancer:
-        servers:
-          - url: "{{ autolab_ingress_upstreams.homepage }}"
-{% endif %}
 {% if tailnet_on %}
 {%   for name, route in autolab_ingress_internal_routes.items() %}
 {%     if route.login != 'plugin' or plugin_on %}
@@ -127,9 +102,8 @@ http:
 {% endif %}
 {% if plugin_on %}
 
-  # One login for everything the plugin fronts, public or tailnet. The
-  # callback is a single public URL and the cookie is set for the whole zone,
-  # so one session covers home.<zone> and every *.lab.<zone> name alike.
+  # One login for internal services. The callback is private too, and the
+  # cookie remains scoped to the zone so existing internal services share it.
   middlewares:
 {% for middleware, groups in [('oidc', autolab_ingress_homepage_groups), ('oidc-admin', ['admins'])] %}
     {{ middleware }}:

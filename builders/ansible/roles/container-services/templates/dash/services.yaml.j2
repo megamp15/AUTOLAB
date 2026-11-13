@@ -16,7 +16,7 @@
         siteMonitor: http://magnetosphere.{{ tn }}:8053/admin/
     - Grafana:
         icon: grafana.png
-        href: https://grafana.{{ zone }}
+        href: https://grafana.{{ lab }}
         description: Dashboards and alerts
         siteMonitor: http://jwst.{{ tn }}:3000/api/health
     - Prometheus:
@@ -42,7 +42,7 @@
         description: Redirecting QR codes
     - Homepage:
         icon: mdi-orbit
-        href: https://home.{{ zone }}
+        href: https://home.{{ lab }}
         description: The Singularity page
 - Server Config:
 {% for node in ['xps-pve', 'pve', 'zima-pve'] %}

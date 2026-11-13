@@ -62,10 +62,8 @@ autolab_ingress_stack_host: ""
 autolab_ingress_traefik_client_id: ""
 autolab_ingress_traefik_client_secret: ""
 
-# Grafana gets a route only once it logs people in itself (its OIDC client
-# in Pocket ID, applied by the observability playbook). Before that a route
-# would expose the anonymous viewer to the internet. The workflow sets this
-# from the same secret the observability playbook reads.
+# Whether Grafana has its own OIDC login configured. This never enables a
+# public route; Grafana is reachable only on the tailnet HTTPS entrypoint.
 autolab_ingress_grafana_route: false
 
 # Groups Pocket ID must put in the token for the homepage to open.
@@ -125,6 +123,9 @@ autolab_ingress_services_host: ""
 autolab_ingress_services: []
 
 autolab_ingress_service_routes:
+  grafana:
+    upstream: "http://{{ autolab_ingress_stack_fqdn }}:3000"
+    login: own
   home:
     upstream: "http://{{ autolab_ingress_stack_fqdn }}:8080"
     login: plugin
