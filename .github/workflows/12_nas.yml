@@ -110,7 +110,8 @@ jobs:
           query = urllib.parse.urlencode({'query': 'up{instance="singularity"}'})
           with urllib.request.urlopen('http://jwst:9090/api/v1/query?' + query, timeout=15) as response:
               targets = json.load(response)['data']['result']
-          assert len(targets) >= 3 and all(float(t['value'][1]) == 1 for t in targets), 'NAS scrape targets are not all healthy'
+          state = sorted((t['metric'].get('job', '?'), 'up' if float(t['value'][1]) == 1 else 'DOWN') for t in targets)
+          assert len(targets) >= 3 and all(v == 'up' for _, v in state), f'NAS scrape targets are not all healthy: {state}'
           print('NAS node, Alloy and container metric targets are healthy')
           with urllib.request.urlopen('http://jwst:3100/loki/api/v1/label/host/values', timeout=15) as response:
               assert 'singularity' in json.load(response)['data'], 'NAS Docker logs have not arrived'
