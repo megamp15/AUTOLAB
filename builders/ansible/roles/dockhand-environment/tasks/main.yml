@@ -1,0 +1,95 @@
+---
+- name: Read the local Docker agent credential
+  ansible.builtin.slurp:
+    src: "{{ autolab_dockhand_agent_token_file }}"
+  register: autolab_dockhand_agent_token
+  no_log: true
+
+- name: Read the existing manager proxy credential on jwst
+  ansible.builtin.slurp:
+    src: /etc/autolab/dockhand-proxy-token
+  delegate_to: "{{ autolab_dockhand_manager }}"
+  vars:
+    ansible_user: "{{ autolab_dockhand_manager_user }}"
+  register: autolab_dockhand_proxy_token
+  no_log: true
+
+- name: Reconcile and test the Docker environment through the protected API
+  delegate_to: "{{ autolab_dockhand_manager }}"
+  no_log: true
+  vars:
+    ansible_user: "{{ autolab_dockhand_manager_user }}"
+  block:
+    - name: List the manager's existing environments
+      ansible.builtin.uri:
+        url: "{{ autolab_dockhand_api }}/api/environments"
+        headers:
+          X-Autolab-Dockhand-Token: "{{ autolab_dockhand_proxy_token.content | b64decode | trim }}"
+        return_content: true
+      register: autolab_dockhand_environments
+
+    - name: Register the manager's existing local Docker socket
+      run_once: true
+      ansible.builtin.uri:
+        url: "{{ autolab_dockhand_api }}/api/environments"
+        method: POST
+        headers:
+          X-Autolab-Dockhand-Token: "{{ autolab_dockhand_proxy_token.content | b64decode | trim }}"
+        body_format: json
+        body:
+          name: jwst
+          connectionType: socket
+          socketPath: /var/run/docker.sock
+        status_code: 200
+      when: autolab_dockhand_environments.json | selectattr('name', 'equalto', 'jwst') | list | length == 0
+      changed_when: true
+
+    - name: Find this host in the existing environments
+      ansible.builtin.set_fact:
+        autolab_dockhand_environment: >-
+          {{ autolab_dockhand_environments.json | selectattr('name', 'equalto', inventory_hostname) | first | default({}) }}
+        autolab_dockhand_environment_body:
+          name: "{{ inventory_hostname }}"
+          connectionType: hawser-standard
+          host: "{{ inventory_hostname }}"
+          port: "{{ autolab_dockhand_agent_port }}"
+          protocol: http
+          hawserToken: "{{ autolab_dockhand_agent_token.content | b64decode | trim }}"
+
+    - name: Register this Docker host with the manager
+      ansible.builtin.uri:
+        url: >-
+          {{ autolab_dockhand_api }}/api/environments{{
+             '/' ~ autolab_dockhand_environment.id
+             if autolab_dockhand_environment.id is defined else '' }}
+        method: "{{ 'PUT' if autolab_dockhand_environment.id is defined else 'POST' }}"
+        headers:
+          X-Autolab-Dockhand-Token: "{{ autolab_dockhand_proxy_token.content | b64decode | trim }}"
+        body_format: json
+        body: "{{ autolab_dockhand_environment_body }}"
+        status_code: 200
+        return_content: true
+      register: autolab_dockhand_registered
+      changed_when: autolab_dockhand_environment.id is not defined
+
+    - name: Test this host through the manager's agent connection
+      ansible.builtin.uri:
+        url: "{{ autolab_dockhand_api }}/api/environments/{{ autolab_dockhand_registered.json.id }}/test"
+        method: POST
+        headers:
+          X-Autolab-Dockhand-Token: "{{ autolab_dockhand_proxy_token.content | b64decode | trim }}"
+        status_code: 200
+        return_content: true
+      register: autolab_dockhand_connection_test
+
+- name: Require a verified connection to the intended Docker engine
+  ansible.builtin.assert:
+    that:
+      - autolab_dockhand_connection_test.json.success | default(false)
+      - autolab_dockhand_connection_test.json.info.name | lower == inventory_hostname | lower
+    fail_msg: Dockhand has not verified the intended Docker engine.
+
+- name: Link the existing private registry for all managed Docker hosts
+  ansible.builtin.include_tasks: registry.yml
+  run_once: true
+  when: autolab_dockhand_registry_url | length > 0

@@ -1,0 +1,16 @@
+---
+- name: Connect AUTOLAB Docker hosts to the central manager
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+  pre_tasks:
+    - name: Limit central Docker control to provider-owned stacks
+      ansible.builtin.assert:
+        that: autolab_environment in ['lab', 'edge']
+        fail_msg: Tenant application control remains on the tenant's own management plane.
+  roles:
+    - role: docker-agent
+      when:
+        - (autolab_builder | default({})).docker_enabled | default(false) | bool
+        - inventory_hostname != 'jwst'
+        - autolab_ssh_jump_host is not defined
