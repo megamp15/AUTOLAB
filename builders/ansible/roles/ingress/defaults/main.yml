@@ -54,8 +54,8 @@ autolab_ingress_upstreams:
 autolab_ingress_stack_host: ""
 
 # The OIDC client the Traefik plugin logs people in with — one client for
-# every hostname the plugin protects, registered in Pocket ID by hand after
-# its first run with a wildcard callback (https://*.<zone>/oidc/callback).
+# every hostname the plugin protects. Existing client URLs are managed by
+# builders/ansible/pocketid-clients.json after the initial manual registration.
 # Apps that speak OIDC themselves (Grafana) register their own. Until both
 # are set, nothing the plugin would protect has a route: a 404, not a
 # public page.

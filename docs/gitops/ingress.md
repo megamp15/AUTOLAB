@@ -122,10 +122,25 @@ The admin password remains available for recovery.
 4. Connect Tailscale, open `https://grafana.lab.<zone>` and sign in with Pocket ID.
    With Tailscale disconnected, both private dashboard names are unreachable.
 
-When migrating an existing public installation, register the private callback
-URLs in Pocket ID before changing the services. Apply the Cloudflare stack to
-remove the old Home/Grafana DNS records and tunnel rules, and deploy ingress to
-remove their public Traefik routers. Keep the public Pocket ID issuer URL.
+### Client configuration as code
+
+`builders/ansible/pocketid-clients.json` owns the existing Traefik and Grafana
+clients' callback URLs, logout callback URLs and launch URLs. Client IDs come
+from the existing GitHub secrets. The workflow adopts those clients and keeps
+their credentials, group restrictions and other settings. It never creates
+replacement clients or rotates secrets.
+
+Create a Pocket ID administration API key once and store it in repository
+secret `POCKETID_API_KEY`. Renew the secret before the key expires. The key is
+available only to the runner steps calling Pocket ID, never written to a host
+or committed. Users, passkeys and recovery remain managed in Pocket ID.
+
+Ingress and observability runs read the declared clients before deploying.
+Check mode reports differences without changing Pocket ID. Apply adds the new
+callbacks before deployment; once Ansible succeeds it reconciles the exact
+private URLs and removes obsolete callbacks. The public Pocket ID issuer stays
+unchanged. For the initial migration deploy ingress, then scoped observability
+`homepage,grafana`, then apply Cloudflare to remove public DNS and tunnel rules.
 
 ## Watching the tunnel
 
