@@ -1,85 +1,14 @@
 ---
-- name: Read the agent credential locally on the NAS
-  ansible.builtin.slurp:
-    src: "{{ autolab_nas_management_root }}/secrets/hawser-token"
-  register: autolab_nas_hawser_token
+- name: Register the existing NAS agent through shared Docker management
+  ansible.builtin.include_role:
+    name: dockhand-environment
+  vars:
+    autolab_dockhand_agent_token_file: "{{ autolab_nas_management_root }}/secrets/hawser-token"
+    autolab_dockhand_agent_port: "{{ autolab_nas_hawser_port }}"
+    autolab_dockhand_api: "{{ autolab_nas_dockhand_api }}"
+    autolab_dockhand_manager: "{{ autolab_nas_dockhand_manager }}"
+
+- name: Retain the verified NAS connection result for retirement checks
+  ansible.builtin.set_fact:
+    autolab_nas_dockhand_test: "{{ autolab_dockhand_connection_test }}"
   no_log: true
-
-- name: Read the existing manager proxy credential on jwst
-  ansible.builtin.slurp:
-    src: /etc/autolab/dockhand-proxy-token
-  delegate_to: "{{ autolab_nas_dockhand_manager }}"
-  register: autolab_nas_manager_token
-  no_log: true
-
-- name: Reconcile and test Dockhand environments through its protected API
-  delegate_to: "{{ autolab_nas_dockhand_manager }}"
-  no_log: true
-  block:
-    - name: List the manager's existing environments
-      ansible.builtin.uri:
-        url: "{{ autolab_nas_dockhand_api }}/api/environments"
-        headers:
-          X-Autolab-Dockhand-Token: "{{ autolab_nas_manager_token.content | b64decode | trim }}"
-        return_content: true
-      register: autolab_nas_dockhand_environments
-
-    - name: Register the manager's existing local Docker socket
-      ansible.builtin.uri:
-        url: "{{ autolab_nas_dockhand_api }}/api/environments"
-        method: POST
-        headers:
-          X-Autolab-Dockhand-Token: "{{ autolab_nas_manager_token.content | b64decode | trim }}"
-        body_format: json
-        body:
-          name: jwst
-          connectionType: socket
-          socketPath: /var/run/docker.sock
-        status_code: 200
-      when: autolab_nas_dockhand_environments.json | selectattr('name', 'equalto', 'jwst') | list | length == 0
-      changed_when: true
-
-    - name: Find the existing NAS environment
-      ansible.builtin.set_fact:
-        autolab_nas_dockhand_environment: >-
-          {{ autolab_nas_dockhand_environments.json | selectattr('name', 'equalto', inventory_hostname) | first | default({}) }}
-        autolab_nas_dockhand_body:
-          name: "{{ inventory_hostname }}"
-          connectionType: hawser-standard
-          host: "{{ inventory_hostname }}"
-          port: "{{ autolab_nas_hawser_port }}"
-          protocol: http
-          hawserToken: "{{ autolab_nas_hawser_token.content | b64decode | trim }}"
-
-    - name: Adopt the NAS agent as a Docker environment
-      ansible.builtin.uri:
-        url: >-
-          {{ autolab_nas_dockhand_api }}/api/environments{{
-             '/' ~ autolab_nas_dockhand_environment.id
-             if autolab_nas_dockhand_environment.id is defined else '' }}
-        method: "{{ 'PUT' if autolab_nas_dockhand_environment.id is defined else 'POST' }}"
-        headers:
-          X-Autolab-Dockhand-Token: "{{ autolab_nas_manager_token.content | b64decode | trim }}"
-        body_format: json
-        body: "{{ autolab_nas_dockhand_body }}"
-        status_code: 200
-        return_content: true
-      register: autolab_nas_dockhand_registered
-      changed_when: autolab_nas_dockhand_environment.id is not defined
-
-    - name: Test the NAS through the manager's agent connection
-      ansible.builtin.uri:
-        url: "{{ autolab_nas_dockhand_api }}/api/environments/{{ autolab_nas_dockhand_registered.json.id }}/test"
-        method: POST
-        headers:
-          X-Autolab-Dockhand-Token: "{{ autolab_nas_manager_token.content | b64decode | trim }}"
-        status_code: 200
-        return_content: true
-      register: autolab_nas_dockhand_test
-
-- name: Require a verified NAS connection before removing Portainer
-  ansible.builtin.assert:
-    that:
-      - autolab_nas_dockhand_test.json.success | default(false)
-      - autolab_nas_dockhand_test.json.info.name | lower == inventory_hostname | lower
-    fail_msg: The manager has not verified the NAS Docker engine; Portainer is retained.

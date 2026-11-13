@@ -10,6 +10,7 @@ on:
       - builders/ansible/roles/nas-observability/**
       - builders/ansible/roles/nas-projects/**
       - builders/ansible/roles/nas-management/**
+      - builders/ansible/roles/dockhand-environment/**
       - scripts/test_nas_observability.py
       - scripts/test_nas_management.py
   workflow_dispatch:

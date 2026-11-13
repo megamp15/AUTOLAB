@@ -1,0 +1,6 @@
+---
+autolab_docker_agent_root: /opt/autolab/docker-agent
+autolab_docker_agent_project: autolab-docker-agent
+autolab_docker_agent_stacks: /opt/autolab
+autolab_docker_agent_image: ghcr.io/finsys/hawser:0.2.53
+autolab_docker_agent_port: 2376

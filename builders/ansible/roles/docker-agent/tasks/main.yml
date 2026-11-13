@@ -1,0 +1,84 @@
+---
+- name: Require an existing Docker engine
+  ansible.builtin.command: docker info --format '{{ "{{.ServerVersion}}" }}'
+  changed_when: false
+  check_mode: false
+
+- name: Discover the host tailnet address
+  ansible.builtin.command: tailscale ip -4
+  register: autolab_docker_agent_ip_raw
+  changed_when: false
+  check_mode: false
+
+- name: Name the agent bind address
+  ansible.builtin.set_fact:
+    autolab_docker_agent_ip: "{{ autolab_docker_agent_ip_raw.stdout_lines[0] }}"
+
+- name: Create the isolated Docker agent project
+  ansible.builtin.file:
+    path: "{{ autolab_docker_agent_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create protected agent credential storage
+  ansible.builtin.file:
+    path: "{{ autolab_docker_agent_root }}/secrets"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Generate the host's own agent token once
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      umask 077
+      temporary=$(mktemp "{{ autolab_docker_agent_root }}/secrets/.hawser.XXXXXX")
+      trap 'rm -f "$temporary"' EXIT
+      openssl rand -hex 32 > "$temporary"
+      mv "$temporary" "{{ autolab_docker_agent_root }}/secrets/hawser-token"
+    creates: "{{ autolab_docker_agent_root }}/secrets/hawser-token"
+  no_log: true
+
+- name: Render the dedicated agent project
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ autolab_docker_agent_root }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Start the agent without changing application projects
+  community.docker.docker_compose_v2:
+    project_src: "{{ autolab_docker_agent_root }}"
+    project_name: "{{ autolab_docker_agent_project }}"
+    state: present
+    pull: missing
+    remove_orphans: false
+  when: not ansible_check_mode
+
+- name: Wait for the Docker agent
+  ansible.builtin.uri:
+    url: "http://{{ autolab_docker_agent_ip }}:{{ autolab_docker_agent_port }}/_hawser/health"
+    status_code: 200
+  register: autolab_docker_agent_health
+  until: autolab_docker_agent_health.status == 200
+  retries: 20
+  delay: 2
+  when: not ansible_check_mode
+
+- name: Verify anonymous Docker access is denied
+  ansible.builtin.uri:
+    url: "http://{{ autolab_docker_agent_ip }}:{{ autolab_docker_agent_port }}/_ping"
+    status_code: 401
+  when: not ansible_check_mode
+
+- name: Register and verify the host through the shared Dockhand configuration
+  ansible.builtin.include_role:
+    name: dockhand-environment
+  vars:
+    autolab_dockhand_agent_token_file: "{{ autolab_docker_agent_root }}/secrets/hawser-token"
+    autolab_dockhand_agent_port: "{{ autolab_docker_agent_port }}"
+  when: not ansible_check_mode

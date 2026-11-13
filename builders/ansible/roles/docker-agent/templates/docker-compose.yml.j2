@@ -1,0 +1,15 @@
+# Managed by AUTOLAB. Existing applications remain in their own projects.
+services:
+  hawser:
+    image: {{ autolab_docker_agent_image }}
+    restart: unless-stopped
+    environment:
+      TOKEN_FILE: /run/secrets/hawser-token
+      AGENT_NAME: "{{ inventory_hostname }}"
+      STACKS_DIR: "{{ autolab_docker_agent_stacks }}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - {{ autolab_docker_agent_stacks }}:{{ autolab_docker_agent_stacks }}
+      - ./secrets/hawser-token:/run/secrets/hawser-token:ro
+    ports:
+      - "{{ autolab_docker_agent_ip }}:{{ autolab_docker_agent_port }}:2376"

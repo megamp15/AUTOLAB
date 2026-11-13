@@ -1,0 +1,8 @@
+---
+autolab_dockhand_manager: jwst
+autolab_dockhand_manager_user: gitops
+autolab_dockhand_api: http://jwst:9000
+autolab_dockhand_agent_port: 2376
+autolab_dockhand_agent_token_file: ""
+autolab_dockhand_registry_name: AUTOLAB
+autolab_dockhand_registry_url: https://registry.lab.pmahir.space

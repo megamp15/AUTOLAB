@@ -25,7 +25,7 @@ on:
         required: true
         default: harden
         type: choice
-        options: [harden, docker, tailscale-update, nfs, storage, observability, backup, ingress, services, services-audit, dns, updates, reboot]
+        options: [harden, docker, docker-management, tailscale-update, nfs, storage, observability, backup, ingress, services, services-audit, dns, updates, reboot]
       limit:
         description: Optional Ansible host limit
         required: false
@@ -335,6 +335,10 @@ jobs:
               sleep 5
             done
           done
+
+      - name: Collect the central Docker manager SSH identity
+        if: env.BUILDER_PLAYBOOK == 'docker-management'
+        run: ssh-keyscan -H -t ed25519 -T 10 jwst >> "$HOME/.ssh/known_hosts"
 
       # Written to a 0600 file rather than passed inline. `--extra-vars` on the
       # command line lands in the runner's process list, and anything echoed

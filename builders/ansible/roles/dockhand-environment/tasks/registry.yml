@@ -1,0 +1,72 @@
+---
+- name: Connect the existing private registry to Dockhand
+  delegate_to: "{{ autolab_dockhand_manager }}"
+  vars:
+    ansible_user: "{{ autolab_dockhand_manager_user }}"
+  no_log: true
+  block:
+    - name: List configured registries
+      ansible.builtin.uri:
+        url: "{{ autolab_dockhand_api }}/api/registries"
+        headers:
+          X-Autolab-Dockhand-Token: "{{ autolab_dockhand_proxy_token.content | b64decode | trim }}"
+        return_content: true
+      register: autolab_dockhand_registries
+
+    - name: Find the existing private registry connection
+      ansible.builtin.set_fact:
+        autolab_dockhand_private_registry: >-
+          {{ autolab_dockhand_registries.json | selectattr('url', 'equalto', autolab_dockhand_registry_url) | first | default({}) }}
+
+    - name: Add the existing registry as the default browser connection
+      ansible.builtin.uri:
+        url: "{{ autolab_dockhand_api }}/api/registries"
+        method: POST
+        headers:
+          X-Autolab-Dockhand-Token: "{{ autolab_dockhand_proxy_token.content | b64decode | trim }}"
+        body_format: json
+        body:
+          name: "{{ autolab_dockhand_registry_name }}"
+          url: "{{ autolab_dockhand_registry_url }}"
+          isDefault: true
+        status_code: 201
+        return_content: true
+      register: autolab_dockhand_created_registry
+      when: autolab_dockhand_private_registry.id is not defined
+      changed_when: true
+
+    - name: Use the saved registry identity
+      ansible.builtin.set_fact:
+        autolab_dockhand_private_registry_id: >-
+          {{ autolab_dockhand_private_registry.id
+             if autolab_dockhand_private_registry.id is defined
+             else autolab_dockhand_created_registry.json.id }}
+
+    - name: Verify Dockhand can reach the same registry backend
+      ansible.builtin.uri:
+        url: "{{ autolab_dockhand_api }}/api/registries/test"
+        method: POST
+        headers:
+          X-Autolab-Dockhand-Token: "{{ autolab_dockhand_proxy_token.content | b64decode | trim }}"
+        body_format: json
+        body:
+          registryId: "{{ autolab_dockhand_private_registry_id }}"
+        return_content: true
+        status_code: 200
+      register: autolab_dockhand_registry_test
+
+    - name: Verify private repository browsing works in Dockhand
+      ansible.builtin.uri:
+        url: "{{ autolab_dockhand_api }}/api/registry/catalog?registry={{ autolab_dockhand_private_registry_id }}"
+        headers:
+          X-Autolab-Dockhand-Token: "{{ autolab_dockhand_proxy_token.content | b64decode | trim }}"
+        return_content: true
+        status_code: 200
+      register: autolab_dockhand_registry_catalog
+
+- name: Require registry connectivity and a repository listing
+  ansible.builtin.assert:
+    that:
+      - autolab_dockhand_registry_test.json.success | default(false)
+      - autolab_dockhand_registry_catalog.json.repositories is defined
+    fail_msg: Dockhand cannot browse the existing private registry.
