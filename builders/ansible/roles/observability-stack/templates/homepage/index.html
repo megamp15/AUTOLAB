@@ -64,10 +64,18 @@
      the rows. The tabs and the panels' own copy once had no opacity of their
      own, so they sat blurred over the black hole for the whole intro. */
   .tabs, #rows > .ops, #rows > .arch { opacity:calc((var(--sg-flood) - 0.02) * 9); }
-  .tabs { display:flex; gap:24px; border-bottom:1px solid currentColor; }
+  #bar { display:flex; align-items:center; gap:12px 40px; flex-wrap:wrap; }
+  #brand { flex:none; }
+  #clockbox { margin-left:auto; }
+  .tabs { display:flex; gap:28px; }
+  .tabs button { padding:6px 0 !important; }
   .tabs button { color:inherit; background:none; border:0; border-bottom:2px solid transparent; padding:12px 0; font:inherit; font-size:13px; cursor:pointer; }
   .tabs button[aria-selected="true"] { border-bottom-color:currentColor; }
-  :focus-visible { outline:2px solid currentColor; outline-offset:4px; }
+  :focus-visible { outline:1px dashed color-mix(in srgb,currentColor 60%,transparent); outline-offset:3px; }
+  /* Tabs show focus the way they show selection, by their underline; the
+     diagram's viewport and the panel never draw a ring around themselves. */
+  .tabs button:focus-visible { outline:none; border-bottom-style:dashed; border-bottom-color:currentColor; }
+  .a-zoom:focus, .a-zoom:focus-visible, #rows:focus, #rows:focus-visible { outline:none; }
   .access { font-size:11px; white-space:nowrap; opacity:.8; }
   .ops { font-size:13px; line-height:1.6; }
   .ops h2 { margin:0 0 8px; font-size:20px; font-weight:500; }
@@ -102,6 +110,9 @@
   .a-toolbar .a-legend { flex:1 1 auto; justify-content:center; }
   .a-intro h2 { margin:0 0 2px; }
   .a-intro p { margin:0; }
+  .a-live { font-size:10.5px; letter-spacing:.2em; }
+  .a-live::before { content:""; display:inline-block; width:6px; height:6px; border-radius:50%; background:currentColor; margin-right:8px; vertical-align:1px; animation:a-blink 2s ease-in-out infinite; }
+  @keyframes a-blink { 50% { opacity:.25; } }
   .a-tools { display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; }
   .a-toggle { font-size:12px; display:inline-flex; gap:6px; align-items:center; cursor:pointer; }
   .a-zoomctl { display:inline-flex; align-items:center; border:1px solid color-mix(in srgb,currentColor 35%,transparent); border-radius:4px; font-size:11px; }
@@ -118,7 +129,8 @@
      data goes on the right. The rows dissolve so each card takes a cell. */
   .a-canvas.a-land { display:grid; column-gap:90px; row-gap:40px; align-items:center;
     grid-template-columns:minmax(300px,1fr) minmax(0,4.2fr) minmax(280px,1fr);
-    grid-template-areas:"cf nodes backups" "door nodes nas" "ts nodes obs" "gh nodes ." "access access access"; }
+    grid-template-areas:"cf nodes backups" "door nodes nas" "ts nodes obs" "gh nodes ." "access access access";
+    grid-template-rows:repeat(4, minmax(0,1fr)) auto; }
   .a-land .a-row-edge, .a-land .a-row-door, .a-land .a-row-data { display:contents; }
   .a-land .a-row-nodes { grid-area:nodes; margin:0; }
   .a-land .a-card { z-index:1; }
@@ -244,7 +256,7 @@
     .row .name { flex-basis:45%; }
     .row .meta { font-size:11px; letter-spacing:0; }
     .row .access { margin-left:27px; order:5; width:100%; }
-    .tabs { gap:20px; }
+    .tabs { gap:20px; order:3; flex-basis:100%; }
   }
 </style>
 </head>
@@ -253,21 +265,23 @@
   <div class="scene" style="height:230vh;">
     <div class="stick" style="position:sticky; top:0; height:100vh; overflow:hidden;">
       <canvas data-sg-sky="1" style="position:absolute; inset:0; width:100%; height:100%; display:block;"></canvas>
-      <div id="stage" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:clamp(20px,5vw,64px); pointer-events:none;">
-        <div id="content" style="width:min(1680px,100%); display:flex; flex-direction:column; gap:clamp(16px,2.6vh,26px); filter:blur(calc((1 - var(--sg-flood)) * 3px)); transform:scaleY(calc(0.82 + var(--sg-flood) * 0.18));">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; opacity:calc((var(--sg-flood) - 0.02) * 9);">
-            <span class="mono" style="font-size:11px; letter-spacing:.34em;">AUTOLAB</span>
-            <div style="display:flex; align-items:center; gap:14px;">
+      <div id="stage" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:clamp(14px,1.6vw,28px); pointer-events:none;">
+        <div id="content" style="width:100%; display:flex; flex-direction:column; gap:clamp(10px,1.6vh,18px); filter:blur(calc((1 - var(--sg-flood)) * 3px)); transform:scaleY(calc(0.82 + var(--sg-flood) * 0.18));">
+          <!-- One row on a desktop: wordmark, tabs, clock. On a phone the tabs
+               wrap onto their own line under the wordmark. -->
+          <div id="bar" style="opacity:calc((var(--sg-flood) - 0.02) * 9);">
+            <span class="mono" id="brand" style="font-size:11px; letter-spacing:.34em;">AUTOLAB</span>
+            <nav class="tabs" role="tablist" aria-label="Lab views">
+              <button type="button" id="tab-services" role="tab" aria-controls="rows" aria-selected="true" data-tab="services">Services</button>
+              <button type="button" id="tab-schedules" role="tab" aria-controls="rows" aria-selected="false" tabindex="-1" data-tab="schedules">Schedules</button>
+              <button type="button" id="tab-architecture" role="tab" aria-controls="rows" aria-selected="false" tabindex="-1" data-tab="architecture">Architecture</button>
+            </nav>
+            <div id="clockbox" style="display:flex; align-items:center; gap:14px;">
               <span id="clock" class="mono" style="font-size:11px; letter-spacing:.2em; font-variant-numeric:tabular-nums;">--:--</span>
               <button id="flip" type="button" style="width:30px; height:30px; padding:0; display:grid; place-items:center; cursor:pointer; background:transparent; color:var(--sg-fg); border:1px solid var(--sg-fg); border-radius:999px;"></button>
             </div>
           </div>
           <div style="height:1px; background:var(--sg-fg); transform:scaleX(min(1, calc(var(--sg-flood) * 1.6))); opacity:calc(var(--sg-flood) * 4);"></div>
-          <nav class="tabs" role="tablist" aria-label="Lab views">
-            <button type="button" id="tab-services" role="tab" aria-controls="rows" aria-selected="true" data-tab="services">Services</button>
-            <button type="button" id="tab-schedules" role="tab" aria-controls="rows" aria-selected="false" tabindex="-1" data-tab="schedules">Schedules</button>
-            <button type="button" id="tab-architecture" role="tab" aria-controls="rows" aria-selected="false" tabindex="-1" data-tab="architecture">Architecture</button>
-          </nav>
           <div id="rows" role="tabpanel" aria-labelledby="tab-services" tabindex="0" style="display:flex; flex-direction:column;"></div>
           <div id="feed" style="display:flex; flex-direction:column; gap:8px; opacity:calc((var(--sg-flood) - 0.66) * 8);"></div>
         </div>
@@ -620,7 +634,8 @@
     const root = mk('div', 'arch');
     const bar = mk('div', 'a-toolbar');
     const intro = mk('div', 'a-intro ops');
-    intro.append(mk('h2', undefined, 'Current architecture'), mk('p', 'muted', 'Live from Proxmox, node_exporter, cAdvisor and the probes · every 30 s'));
+    intro.append(mk('p', 'muted a-live mono', 'LIVE · every 30 s'));
+    intro.title = 'Placement and hardware from Proxmox, load from node_exporter and cAdvisor, health from the homepage probes';
     const tools = mk('div', 'a-tools');
     // VM templates and guests AUTOLAB does not manage (the stopped q360 VMs on
     // pve, say) are left off by default. The button names how many.
@@ -771,7 +786,7 @@
     svg.innerHTML = out.join('');
   }
   let wireTimer = 0;
-  const wireObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { cancelAnimationFrame(wireTimer); wireTimer = requestAnimationFrame(() => { applyZoom(); drawWires(); }); }) : null;
+  const wireObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { cancelAnimationFrame(wireTimer); wireTimer = requestAnimationFrame(() => { if (!arch.applying) { applyZoom(); drawWires(); } }); }) : null;
 
   function updateLive(m) {
     const set = (key, text, width) => {
@@ -822,13 +837,24 @@
   const zoomable = () => !staticMode && window.innerWidth > 900;
   const zEls = () => { const zoom = rowsEl.querySelector('.a-zoom'); return zoom && { zoom, sizer: zoom.firstElementChild, canvas: zoom.querySelector('.a-canvas') }; };
   function applyZoom(z, ax, ay) {
+    if (arch.applying) return;
+    arch.applying = true;
+    try { applyZoomNow(z, ax, ay); } finally { arch.applying = false; }
+  }
+  function applyZoomNow(z, ax, ay) {
     const e = zEls(); if (!e) return;
     const on = zoomable();
     e.zoom.classList.toggle('on', on);
     if (!on) { e.canvas.classList.remove('a-land'); e.canvas.style.transform = ''; e.canvas.style.width = ''; e.sizer.style.width = e.sizer.style.height = ''; e.sizer.style.marginTop = ''; return; }
     const vw = e.zoom.clientWidth, vh = e.zoom.clientHeight;
     const before = arch.w;
-    if (arch.mode === 'fit') {
+    const fitKey = [vw, vh, arch.sig].join('|');
+    if (arch.mode === 'fit' && arch.fitKey === fitKey) {
+      // Same window, same lab: keep the shape. A refresh that changes a
+      // number must never re-pick the layout under the reader.
+      e.canvas.classList.toggle('a-land', !!arch.land); e.canvas.style.width = arch.w + 'px';
+    } else if (arch.mode === 'fit') {
+      arch.fitKey = fitKey;
       // Fit reshapes, then scales. The layout reflows at whatever width
       // gives it the window's proportions — wider means VMs side by side
       // and a shorter diagram — and is then scaled to fill. Never wider than
@@ -864,7 +890,7 @@
     const cx = (e.zoom.scrollLeft + ax) / arch.z, cy = (e.zoom.scrollTop + ay) / arch.z;
     arch.z = z;
     e.canvas.style.transform = `scale(${z})`;
-    e.sizer.style.width = Math.ceil(W * z) + 'px'; e.sizer.style.height = Math.ceil(H * z) + 'px';
+    e.sizer.style.width = Math.floor(W * z) + 'px'; e.sizer.style.height = Math.floor(H * z) + 'px';
     e.sizer.style.marginTop = Math.max(0, Math.floor((vh - H * z) / 2)) + 'px';
     e.zoom.scrollLeft = cx * z - ax; e.zoom.scrollTop = cy * z - ay;
     const val = rowsEl.querySelector('[data-live="zoom"]'); if (val) val.textContent = Math.round(z * 100) + '%';
@@ -872,7 +898,7 @@
       b.textContent === 'Fit' && arch.mode === 'fit')));
     if (arch.w !== before) requestAnimationFrame(drawWires);
   }
-  function setZoomMode(mode, z) { arch.mode = mode; applyZoom(z); }
+  function setZoomMode(mode, z) { arch.mode = mode; arch.fitKey = ''; applyZoom(z); }
   function zoomBy(f, ax, ay) { arch.mode = 'manual'; applyZoom(arch.z * f, ax, ay); }
   function wireZoom(zoom) {
     zoom.addEventListener('wheel', e => {
