@@ -4,7 +4,7 @@ tunnel_name = "autolab"
 # Every name, one origin. Traefik on horizon routes by Host header; Pocket ID
 # answers auth. Adding a public service is a line here plus its Traefik route.
 public_hostnames = {
-  home    = { comment = "the homepage, behind the login" }
-  auth    = { comment = "Pocket ID, the login page itself" }
-  share   = { comment = "Immich shared links only, through Immich Public Proxy" }
+  home  = { comment = "the homepage, behind the login" }
+  auth  = { comment = "Pocket ID, the login page itself" }
+  share = { comment = "Immich shared links only, through Immich Public Proxy" }
 }
