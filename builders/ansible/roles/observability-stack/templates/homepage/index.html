@@ -19,6 +19,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="details.css">
+<script src="details.js"></script>
 <style>
   html, body { margin:0; padding:0; background:#FFFFFF; }
   a { color: inherit; text-decoration: none; }
@@ -136,9 +138,10 @@
      data goes on the right. The rows dissolve so each card takes a cell. */
   .a-canvas.a-land { display:grid; column-gap:96px; row-gap:30px; align-items:center; padding-bottom:16px !important;
     grid-template-columns:minmax(300px,1fr) minmax(0,4.2fr) minmax(280px,1fr);
-    grid-template-areas:"cf nodes backups" "door nodes nas" "ts nodes obs" "gh nodes ." "access access access";
-    grid-template-rows:repeat(4, minmax(0,1fr)) auto; }
-  .a-land .a-row-edge, .a-land .a-row-door, .a-land .a-row-data { display:contents; }
+    grid-template-areas:"internet nodes backups" "cf nodes ." "door nodes nas" "ts nodes obs" "gh nodes ." "access access access";
+    grid-template-rows:repeat(5, auto) auto; }
+  .a-land .a-row-edge, .a-land .a-row-door, .a-land .a-row-data, .a-land .a-row-internet { display:contents; }
+  .a-land .a-internet { grid-area:internet; }
   .a-land .a-row-nodes { grid-area:nodes; margin:0; padding-top:48px; align-self:start; }
   .a-land .a-card { z-index:1; }
   .a-land [data-wire="cf"] { grid-area:cf; } .a-land [data-wire="ts"] { grid-area:ts; } .a-land [data-wire="gh"] { grid-area:gh; }
@@ -146,6 +149,17 @@
   .a-land [data-wire="backups"] { grid-area:backups; } .a-land [data-wire="nas"] { grid-area:nas; } .a-land [data-wire="obs"] { grid-area:obs; }
   .a-land .a-access { grid-area:access; margin:56px 0 0; }
   .a-zoom.on .a-canvas { padding:24px; box-sizing:border-box; }
+  .a-row-internet { justify-items:center; }
+  .a-internet { width:100%; display:flex; align-items:center; justify-content:center; gap:18px; padding:12px 0; }
+  .a-earth-node { width:112px; height:112px; flex:none; }
+  .a-earth { width:112px; height:112px; flex:none; overflow:visible; }
+  .a-earth-map { animation:a-earth-turn 48s linear infinite; }
+  .a-earth-label { font-size:14px; font-weight:500; }
+  .a-earth-label small { display:block; font-size:11px; font-weight:400; opacity:.65; margin-top:6px; }
+  @keyframes a-earth-turn { to { transform:translateX(-160px); } }
+  @media (prefers-reduced-motion:reduce) { .a-earth-map { animation:none; } }
+  /* Remove the intro's compositor filter once it has fully resolved. */
+  [data-sg-root].arrived #content { filter:none !important; transform:none !important; }
   .a-access { font-size:11.5px; line-height:1.6; opacity:.7; margin:22px 0 0; max-width:110ch; }
   /* Hovering a legend entry: its wires stay, the rest step back. */
   .a-canvas[data-focus] .a-wire, .a-canvas[data-focus] .a-packet { opacity:.12; transition:opacity .25s; }
@@ -165,8 +179,9 @@
   .a-row-edge, .a-row-data { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .a-row-data { margin-bottom:0; }
   .a-row-door { justify-items:center; }
-  .a-door { width:min(600px,100%); text-align:center; }
-  .a-door .a-title { justify-content:center; }
+  .a-door { box-sizing:border-box; width:min(600px,100%); text-align:center; }
+  .a-door .a-head { text-align:left; }
+  .a-door .a-title { justify-content:flex-start; }
   .a-row-nodes { grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); align-items:start; }
   .a-card { position:relative; border:1px solid color-mix(in srgb,currentColor 26%,transparent); border-radius:6px; padding:12px 14px;
     background:color-mix(in srgb,var(--sg-bg) 90%,transparent); }
@@ -188,9 +203,17 @@
   .a-bar { display:grid; grid-template-columns:38px 1fr auto; align-items:center; gap:8px; font:10px 'IBM Plex Mono',monospace; margin:3px 0; }
   .a-bar-label { opacity:.6; text-transform:uppercase; letter-spacing:.12em; }
   .a-bar-track { height:3px; position:relative; overflow:hidden; background:color-mix(in srgb,currentColor 14%,transparent); }
-  .a-bar-track i { position:absolute; left:0; top:0; bottom:0; width:0; background:currentColor; transition:width 1.4s cubic-bezier(.2,.7,.2,1); }
-  .a-bar-track i::after { content:""; position:absolute; inset:0; width:40%;
-    background:linear-gradient(90deg, transparent, var(--sg-bg), transparent); opacity:.55; animation:a-sheen 3.2s ease-in-out infinite; }
+  .a-bar-track i { position:absolute; left:0; top:0; bottom:0; width:0; color:var(--a-ok); background:currentColor; transition:width 1.4s cubic-bezier(.2,.7,.2,1); }
+  .a-canvas { --a-ok:#75b89a; --a-warn:#d4ad68; --a-critical:#e08383; }
+  [data-sg-root].light-dashboard .a-canvas { --a-ok:#27734f; --a-warn:#8b601a; --a-critical:#b23b3b; }
+  .a-bar[data-level="high"] .a-bar-track i, .a-bar[data-level="high"] .a-bar-val { color:var(--a-warn); }
+  .a-bar[data-level="critical"] .a-bar-track i, .a-bar[data-level="critical"] .a-bar-val { color:var(--a-critical); }
+  .a-bar[data-metric="alloc"] .a-bar-track i { color:inherit; }
+  .a-pools { margin:12px 0; padding-top:8px; border-top:1px solid color-mix(in srgb,currentColor 16%,transparent); }
+  .a-pools p { margin:0 0 8px; }
+  .a-pool-bar { grid-template-columns:minmax(76px,auto) 1fr auto; }
+  .a-pool-bar .a-bar-label { text-transform:none; letter-spacing:0; }
+  .a-pool-bar[data-level="unknown"] .a-bar-val { color:var(--a-critical); }
   .a-bar-val { opacity:.85; min-width:70px; text-align:right; font-variant-numeric:tabular-nums; }
   .a-vms { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr)); gap:8px; margin-top:12px; align-items:start; }
   .a-tenant { grid-column:1 / -1; border:1px dashed color-mix(in srgb,currentColor 32%,transparent); border-radius:5px; padding:8px; }
@@ -220,15 +243,16 @@
   .a-flow { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:8px; margin:12px 0 8px; }
   .a-arrow { opacity:.6; display:inline-block; animation:a-nudge 1.8s ease-in-out infinite; }
   .a-dot { width:6px; height:6px; border-radius:50%; border:1px solid currentColor; flex:none; position:relative; }
-  .a-dot.on { background:currentColor; }
-  .a-dot.on::after { content:""; position:absolute; inset:-4px; border-radius:50%; border:1px solid currentColor; opacity:0; animation:a-ping 2.6s ease-out infinite; }
+  .a-dot.on { color:var(--a-ok); background:currentColor; }
+  .a-dot[data-state="down"] { color:var(--a-critical); background:currentColor; }
+  .a-dot[data-state="stopped"], .a-dot[data-state="unknown"] { opacity:.65; }
   .a-foot { font-size:10px; opacity:.55; margin-top:8px; }
   .a-wire { fill:none; stroke:currentColor; stroke-width:1; }
   /* Four kinds of wire, told apart by shape, not by shade alone:
      internet = thick solid with glowing packets; private = dashes;
      backups = round dots; metrics = a faint line with a running streak. */
   .a-public { stroke-opacity:.95; stroke-width:2; }
-  .a-tailnet { stroke-opacity:.7; stroke-width:1.1; stroke-dasharray:7 5; animation:a-flow 1.2s linear infinite; }
+  .a-tailnet { stroke-opacity:.7; stroke-width:1.1; stroke-dasharray:7 5; }
   .a-backup { stroke-opacity:.6; stroke-width:2.6; stroke-dasharray:0.1 7; stroke-linecap:round; animation:a-flow-dots 2.4s linear infinite; }
   .a-signal { stroke-opacity:.2; stroke-width:1; }
   .a-signal-streak { stroke-opacity:.95; stroke-width:1.5; stroke-linecap:round; stroke-dasharray:8 70; animation:a-streak 2.2s linear infinite; }
@@ -241,20 +265,18 @@
   @keyframes a-flow { to { stroke-dashoffset:-24; } }
   @keyframes a-flow-dots { to { stroke-dashoffset:-14.2; } }
   @keyframes a-streak { from { stroke-dashoffset:78; } to { stroke-dashoffset:0; } }
-  @keyframes a-ping { 0% { transform:scale(.6); opacity:.7; } 100% { transform:scale(2.3); opacity:0; } }
   @keyframes a-nudge { 50% { transform:translateX(3px); } }
-  @keyframes a-sheen { 0% { transform:translateX(-120%); } 60%, 100% { transform:translateX(320%); } }
   @keyframes a-scan { from { top:-90px; } to { top:100%; } }
   @media (prefers-reduced-motion: reduce) {
     .a-signal-streak { display:none; }
-    .a-wire, .a-dot.on::after, .a-arrow, .a-canvas::after, .a-bar-track i::after { animation:none !important; }
+    .a-wire, .a-arrow, .a-canvas::after { animation:none !important; }
     .a-bar-track i { transition:none; }
   }
   /* Narrow: one column, and the wires go, because they would only run
      through the cards stacked above their ends. */
   [data-sg-root].static .a-zoomctl { display:none; }
   @media (max-width:900px) {
-    .a-zoomctl { display:none; }
+    .a-zoomctl, .a-legend, .a-tools { display:none; }
     .a-row-edge, .a-row-data, .a-row-nodes { grid-template-columns:1fr !important; }
     .a-vms { grid-template-columns:1fr; }
     .a-wires { display:none; }
@@ -317,7 +339,7 @@
     photos: 'M3 7h4l2-2.5h6L17 7h4v12H3zM12 10a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7'
   };
 
-  const state = { dark: false, rows: [], feed: [], stale: false, tab: location.hash.slice(1) || "services", operations: {} };
+  const state = { dark: false, rows: [], feed: [], stale: false, tab: location.hash.slice(1).split("?")[0] || "services", operations: {} };
   const root = document.querySelector('[data-sg-root]');
   const sky = document.querySelector('[data-sg-sky]');
   const stage = document.getElementById('stage');
@@ -483,7 +505,8 @@
   const arch = { sig: '', showAll: false, wired: null };
   const gib = b => (b || 0) / 1073741824;
   const pct = v => Math.max(0, Math.min(100, (v || 0) * 100));
-  const fmtG = b => gib(b) >= 10 ? gib(b).toFixed(0) : gib(b).toFixed(1);
+  const fmtG = b => b == null ? '—' : gib(b) >= 10 ? gib(b).toFixed(0) : gib(b).toFixed(1);
+  const fmtPool = (used, total) => { const unit = total >= 1099511627776 ? 1099511627776 : 1073741824; return `${(used/unit).toFixed(1)}/${(total/unit).toFixed(1)} ${unit === 1099511627776 ? 'TiB' : 'GiB'}`; };
   const fmtM = b => (b || 0) >= 1073741824 ? gib(b).toFixed(1) + 'G' : Math.round((b || 0) / 1048576) + 'M';
   const fmtUp = s => !s ? '—' : s >= 86400 ? Math.floor(s / 86400) + 'd' : s >= 3600 ? Math.floor(s / 3600) + 'h' : Math.floor(s / 60) + 'm';
   const tagsOf = g => String(g.tags || '').split(';').map(t => t.trim()).filter(Boolean);
@@ -511,6 +534,7 @@
       const shown = arch.showAll ? all : mine;
       return { ...n, own: shown.filter(g => !tagsOf(g).some(t => t.startsWith('tenant-'))),
                tenants: shown.filter(g => tagsOf(g).some(t => t.startsWith('tenant-'))),
+               pools: (tel.pools || []).filter(p => p.node === n.name), rootFs: (tel.filesystems || []).find(f => f.host === n.name && f.mount === "/"),
                hidden: all.length - shown.length, extra: all.length - mine.length, temp: temps[n.name], host: hosts[n.name] };
     });
     // The page itself and the shared-link proxy are public names with no row.
@@ -542,7 +566,7 @@
   }
 
   function archSignature(m) {
-    return JSON.stringify([arch.showAll, m.nodes.map(n => [n.name, n.available, !!n.hardware, n.own.map(g => g.name + g.status), n.tenants.map(g => g.name + g.status)]),
+    return JSON.stringify([arch.showAll, m.nodes.map(n => [n.name, n.available, !!n.hardware, n.own.map(g => g.name + g.status), n.tenants.map(g => g.name + g.status), n.pools.map(p => p.name)]),
       Object.entries(m.ctrs).map(([h, cs]) => [h, cs.map(c => c.name)]), m.labNames, m.publicNames]);
   }
 
@@ -551,7 +575,7 @@
   function mk(tag, cls, text) { return el(tag, text, cls); }
   function live(e, key) { e.dataset.live = key; return e; }
   function bar(key, label) {
-    const wrap = mk('div', 'a-bar'); wrap.append(mk('span', 'a-bar-label', label));
+    const wrap = mk('div', 'a-bar'); wrap.dataset.metric = label; wrap.append(mk('span', 'a-bar-label', label));
     const track = mk('span', 'a-bar-track'); const fill = live(mk('i'), key + ':w'); track.append(fill);
     wrap.append(track, live(mk('span', 'a-bar-val'), key + ':t')); return wrap;
   }
@@ -576,7 +600,10 @@
     const head = mk('div', 'a-head');
     const t = mk('div', 'a-title'); if (key) t.append(dot(key));
     const name = mk('span', undefined, title); name.dataset.final = title;
-    if (url) {
+    if (key && /^(node-|vm-)/.test(key)) {
+      const inspect = mk('button', 'a-title-inspect'); inspect.type = 'button'; inspect.append(name); t.append(inspect);
+      if (url) { const a = anchor(url, 'a-title-link', ''); a.title = 'Open Proxmox'; a.setAttribute('aria-label', 'Open ' + title + ' in Proxmox'); a.innerHTML = ARROW; t.append(a); }
+    } else if (url) {
       const a = anchor(url, 'a-title-link'); a.title = 'Open ' + url.replace(/^https?:\/\//, '').replace(/\/$/, '');
       a.append(name); a.insertAdjacentHTML('beforeend', ARROW); t.append(a);
     } else t.append(name);
@@ -585,7 +612,7 @@
 
   function vmCard(g, m) {
     const c = card('a-vm' + (g.status === 'running' ? '' : ' a-off'), 'vm-' + g.name);
-    const key = 'vm-' + g.name;
+    const key = 'vm-' + g.name; c.dataset.detailVm = g.name;
     c.append(cardHead(g.name, ROLES[g.name] || (tagsOf(g).find(t => t.startsWith('tenant-')) || tagsOf(g).join(' · ') || 'unmanaged').replace('tenant-', 'tenant · '), key, m.link.byName[g.name]));
     const spec = mk('div', 'a-spec mono');
     spec.append(mk('span', undefined, `${g.type || 'qemu'} ${g.vmid}`), mk('span', undefined, `${g.maxcpu || '?'} vCPU`), mk('span', undefined, `${fmtG(g.maxmem)} GiB`), live(mk('span'), key + ':up'));
@@ -609,13 +636,18 @@
   }
 
   function nodeCard(n, m) {
-    const c = card('a-node', 'node-' + n.name);
+    const c = card('a-node', 'node-' + n.name); c.dataset.detailNode = n.name;
     const hw = n.hardware || {};
     c.append(cardHead(n.name, n.available ? (hw.model ? hw.model.replace(/\(R\)|\(TM\)|CPU|@.*$/g, '').replace(/\s+/g, ' ').trim() : 'Proxmox VE') : 'node unavailable', 'node-' + n.name, m.link.byName[n.name]));
     const spec = mk('div', 'a-spec mono');
     spec.append(mk('span', undefined, `${hw.cpus || (n.host && n.host.cores) || '?'} threads`), mk('span', undefined, `${fmtG(hw.memory_total || (n.host && n.host.mem_total))} GiB`),
       live(mk('span'), 'node-' + n.name + ':temp'), live(mk('span'), 'node-' + n.name + ':up'));
-    c.append(spec, bar('node-' + n.name + '-cpu', 'cpu'), bar('node-' + n.name + '-mem', 'mem'), bar('node-' + n.name + '-alloc', 'alloc'));
+    c.append(spec, bar('node-' + n.name + '-cpu', 'cpu'), bar('node-' + n.name + '-mem', 'mem'), bar('node-' + n.name + '-alloc', 'alloc'), bar('node-' + n.name + '-root', 'root'));
+    if (n.pools.length) {
+      const pools = mk('div', 'a-pools'); pools.append(mk('p', 'a-sub', 'Proxmox storage pools'));
+      n.pools.forEach(p => { const row = bar('node-' + n.name + '-pool-' + p.name, p.name); row.classList.add('a-pool-bar'); row.dataset.metric = 'pool'; pools.append(row); });
+      c.append(pools);
+    }
     const vms = mk('div', 'a-vms');
     n.own.forEach(g => vms.append(vmCard(g, m)));
     if (n.tenants.length) {
@@ -690,6 +722,22 @@
     const wires = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); wires.classList.add('a-wires'); wires.setAttribute('aria-hidden', 'true');
     canvas.append(wires);
 
+    const internetRow = mk('div', 'a-row a-row-internet');
+    const internet = mk('div', 'a-internet');
+    internet.innerHTML = `<div class="a-earth-node" data-wire="internet"><svg class="a-earth" viewBox="0 0 112 112" role="img" aria-label="Slowly rotating Earth representing the Internet">
+      <defs><clipPath id="a-earth-clip"><circle cx="56" cy="56" r="44"/></clipPath>
+        <path id="a-earth-land" d="M8 25 20 17 36 20 42 29 34 36 27 38 25 48 17 43 13 34ZM30 49 40 51 47 61 43 76 36 89 30 76 33 63ZM77 22 91 16 108 23 124 20 141 31 139 43 127 48 119 43 111 51 101 44 95 35 86 38 77 32ZM84 43 98 45 106 58 98 76 89 80 81 64 78 52ZM129 72 141 68 151 76 146 86 133 84Z"/></defs>
+      <circle cx="56" cy="56" r="53" fill="none" stroke="currentColor" stroke-opacity=".15" stroke-dasharray="1 5"/>
+      <circle cx="56" cy="56" r="44" fill="var(--sg-bg)" stroke="currentColor" stroke-opacity=".7"/>
+      <g clip-path="url(#a-earth-clip)">
+        <g fill="none" stroke="currentColor" stroke-opacity=".16"><ellipse cx="56" cy="56" rx="22" ry="44"/><ellipse cx="56" cy="56" rx="44" ry="18"/><path d="M12 56H100M56 12V100"/></g>
+        <g class="a-earth-map" fill="currentColor" fill-opacity=".28"><use href="#a-earth-land"/><use href="#a-earth-land" x="160"/></g>
+      </g>
+      <path d="M56 100V112" stroke="currentColor" stroke-opacity=".7"/>
+      <circle cx="56" cy="3" r="2" fill="currentColor"/>
+    </svg></div><div class="a-earth-label">Internet<small>Public traffic to the lab</small></div>`;
+    internetRow.append(internet); canvas.append(internetRow);
+
     // Edge: the ways in, and where the lab is driven from.
     const gh = m.link.byName.GitHub || '';
     const edge = mk('div', 'a-row a-row-edge');
@@ -724,7 +772,7 @@
     const bottom = mk('div', 'a-row a-row-data');
     bottom.append(
       edgeCard('backups', 'Backups', 'vzdump nightly → PBS on ark', 'backups', ['encrypted, deduplicated, verified', 'datastore on the NAS over SMB', 'restore-all proven'], [], m.link.byName['Backup Server']),
-      edgeCard('nas', 'singularity · NAS', 'UGOS · ZFS-backed shares', 'nas', ['PBS datastore · snapshots', ['Immich photos · app login', m.link.byName.Immich], 'shared links via share.'], [], m.link.byName.NAS),
+      edgeCard('nas', 'singularity · NAS', 'UGOS · shared storage', 'nas', ['PBS datastore · snapshots', ['Immich photos · app login', m.link.byName.Immich], 'shared links via share.'], [], m.link.byName.NAS),
       edgeCard('obs', 'Signals', 'Alloy on every host → jwst', 'obs', [], [['Grafana', m.link.byName.Grafana], ['Prometheus', m.link.byName.Prometheus], ['Loki', m.link.byName.Loki], ['Alerts', m.link.byName.Grafana && m.link.byName.Grafana.replace(/\/$/, '') + '/alerting/list']], m.link.byName.Grafana),
     );
     canvas.append(bottom);
@@ -759,10 +807,7 @@
     const svg = canvas.querySelector('.a-wires');
     if (getComputedStyle(svg).display === 'none') { svg.innerHTML = ''; arch.wires = ''; return; }
     if (!svg.firstChild) arch.wires = '';
-    // Measure at 100%: offsets inside a zoomed element are not reported the
-    // same way by every browser. Restored before anything paints.
-    const zoomWas = canvas.style.zoom; if (zoomWas) canvas.style.zoom = '';
-    try { drawWiresAt(canvas, svg); } finally { if (zoomWas) canvas.style.zoom = zoomWas; }
+    drawWiresAt(canvas, svg);
   }
   function drawWiresAt(canvas, svg) {
     const W = canvas.offsetWidth, H = canvas.offsetHeight;
@@ -770,16 +815,21 @@
     const pos = e => { let x = 0, y = 0, n = e; while (n && n !== canvas) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
       const w = e.offsetWidth, h = e.offsetHeight; return { x, y, w, h, r: x + w, b: y + h, cx: x + w / 2, cy: y + h / 2 }; };
     const one = k => { const e = canvas.querySelector(`[data-wire="${k}"]`); return e && pos(e); };
-    const cf = one('cf'), ts = one('ts'), door = one('horizon'), bk = one('backups'), nas = one('nas'), obs = one('obs');
+    const internet = one('internet'), cf = one('cf'), ts = one('ts'), door = one('horizon'), bk = one('backups'), nas = one('nas'), obs = one('obs');
     const nodes = [...canvas.querySelectorAll('[data-wire^="node-"]')].map(pos);
     if (!cf || !ts || !door || !bk || !nas || !obs || !nodes.length) { svg.innerHTML = ''; arch.wires = ''; return; }
-    // Where the tailnet goes from horizon: the VMs it routes names to.
-    const targets = ['vm-jwst', 'vm-magnetosphere'].map(k => {
-      const v = canvas.querySelector(`[data-wire="${k}"]`); if (!v) return null;
-      return { v: pos(v), n: pos(v.closest('[data-wire^="node-"]')) };
-    }).filter(Boolean);
+    // Private management reaches every hypervisor, including hosts whose
+    // guests belong to another tenant. Stop at the host boundary: this is
+    // not a connection into the tenant's own tailnet.
+    const targets = nodes.map(node => ({ v: node, n: node }));
     const nodesT = Math.min(...nodes.map(n => n.y)), nodesB = Math.max(...nodes.map(n => n.b));
     const routes = [];
+    if (internet) {
+      const land = canvas.classList.contains('a-land');
+      const x = internet.cx;
+      const gap = (internet.b + (land ? cf.y : Math.min(cf.y, ts.y))) / 2;
+      routes.push(['public', [[x, internet.b], [x, gap], [cf.cx - (land ? 24 : 0), gap], [cf.cx - (land ? 24 : 0), cf.y]]]);
+    }
     if (canvas.classList.contains('a-land')) {
       const gL = (Math.max(cf.r, ts.r, door.r) + Math.min(...nodes.map(n => n.x))) / 2;
       const gR = (Math.max(...nodes.map(n => n.r)) + Math.min(bk.x, nas.x, obs.x)) / 2;
@@ -805,16 +855,49 @@
       });
       routes.push(['backup', [[bk.r, bk.cy], [nas.x, nas.cy]]]);
     }
-    const still = lessMotion.matches;
-    const html = routes.map(([kind, pts], i) => {
+    let html = routes.map(([kind, pts], i) => {
       const d = roundedPath(pts), pid = 'a-w' + i;
-      let markup = `<path id="${pid}" class="a-wire a-${kind}" d="${d}"/>`;
-      if (kind === 'signal') markup += `<path class="a-wire a-signal-streak" d="${d}"/>`;
-      if (!still && (kind === 'public' || kind === 'tailnet'))
-        for (let k = 0; k < 2; k++)
-          markup += `<circle class="a-packet a-p-${kind}" r="${kind === 'public' ? 2.6 : 2}"><animateMotion dur="3s" begin="${(k * 1.5 + i * 0.37).toFixed(2)}s" repeatCount="indefinite"><mpath href="#${pid}"/></animateMotion></circle>`;
-      return markup;
+      return `<path id="${pid}" class="a-wire a-${kind}" d="${d}"/>` +
+        (kind === 'signal' ? `<path class="a-wire a-signal-streak" d="${d}"/>` : '');
     }).join('');
+    if (!lessMotion.matches) {
+      // One journey through each network, rather than a separate looping dot
+      // on every visible segment. Bridges through cards are hidden by a mask.
+      const join = paths => paths.map((path, i) => i ? path.replace(/^M/, 'L') : path).join(' ');
+      const publicPaths = routes.filter(([kind]) => kind === 'public').map(([, pts]) => roundedPath(pts));
+      const privatePaths = routes.filter(([kind]) => kind === 'tailnet').map(([, pts]) => roundedPath(pts));
+      const flows = [
+        { kind: 'public', d: join(publicPaths) },
+        ...privatePaths.slice(1).map(path => ({ kind: 'tailnet', d: join([privatePaths[0], path]) })),
+      ].map(flow => {
+        const probe = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        probe.setAttribute('d', flow.d);
+        return { ...flow, length: probe.getTotalLength() };
+      });
+      // Every journey emits together every 1.1 seconds at 90 canvas px/s.
+      // A shared cycle has enough room for the longest trip; shorter trips
+      // hide their packet after arrival until its next departure.
+      const speed = 90, cadence = 1.1;
+      const count = Math.ceil(Math.max(...flows.map(flow => flow.length)) / (speed * cadence)) + 1;
+      const period = count * cadence;
+      const holes = [...canvas.querySelectorAll('.a-card')].map(card => {
+        const b = pos(card);
+        return `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="black"/>`;
+      }).join('');
+      html += `<defs><mask id="a-packet-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="white"/>${holes}</mask>`;
+      html += flows.map((flow, i) => `<path id="a-journey-${i}" class="a-journey" data-kind="${flow.kind}" d="${flow.d}"/>`).join('') + '</defs>';
+      html += '<g mask="url(#a-packet-mask)">';
+      flows.forEach((flow, i) => {
+        const finish = (flow.length / speed / period).toFixed(8);
+        for (let k = 0; k < count; k++) {
+          const timing = `dur="${period.toFixed(3)}s" begin="${(-k * cadence).toFixed(3)}s" repeatCount="indefinite"`;
+          html += `<g class="a-packet a-p-${flow.kind}"><circle data-journey="${i}" r="${flow.kind === 'public' ? 2.6 : 2}">` +
+            `<animateMotion ${timing} calcMode="linear" keyPoints="0;1;1" keyTimes="0;${finish};1"><mpath href="#a-journey-${i}"/></animateMotion>` +
+            `<animate attributeName="opacity" ${timing} calcMode="discrete" values="1;0;0" keyTimes="0;${finish};1"/></circle></g>`;
+        }
+      });
+      html += '</g>';
+    }
     // Same routes as last time: leave the SVG alone so the packets keep their
     // place instead of restarting on every refresh.
     if (html !== arch.wires) { arch.wires = html; svg.innerHTML = html; }
@@ -823,31 +906,60 @@
   const wireObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { cancelAnimationFrame(wireTimer); wireTimer = requestAnimationFrame(() => { if (!arch.applying) { applyZoom(); drawWires(); } }); }) : null;
 
   function updateLive(m) {
-    const set = (key, text, width) => {
+    let visibilityChanged = false;
+    const set = (key, text, width, hideMissing = false) => {
       const t = rowsEl.querySelector(`[data-live="${key}:t"]`); if (t && text !== undefined) t.textContent = text;
-      const w = rowsEl.querySelector(`[data-live="${key}:w"]`); if (w && width !== undefined) w.style.width = width.toFixed(1) + '%';
+      const w = rowsEl.querySelector(`[data-live="${key}:w"]`);
+      if (w && width !== undefined) {
+        w.style.width = width.toFixed(1) + '%';
+        const wrap = w.closest('.a-bar'), metric = wrap.dataset.metric;
+        const available = text !== 'unavailable';
+        const hidden = hideMissing && !available;
+        if (wrap.hidden !== hidden) { wrap.hidden = hidden; visibilityChanged = true; }
+        // Allocation is reserved capacity, not measured memory pressure.
+        // Only actual CPU and memory usage receive warning colors.
+        const critical = metric === 'mem' ? 90 : metric === 'pool' || metric === 'root' ? 85 : 95;
+        const level = !available ? 'unknown' : metric === 'alloc' ? 'normal' : width >= critical ? 'critical' : width >= 80 ? 'high' : 'normal';
+        wrap.dataset.level = level;
+        wrap.title = metric === 'alloc' ? 'Memory assigned to running VMs, not current memory usage' :
+          `${metric.toUpperCase()} ${text} · ${level} · high at 80%, critical at ${critical}%`;
+        wrap.setAttribute('aria-label', wrap.title);
+      }
     };
     const txt = (key, text) => { const e = rowsEl.querySelector(`[data-live="${key}"]`); if (e) e.textContent = text; };
-    const up = (key, ok) => { const e = rowsEl.querySelector(`[data-live="${key}:dot"]`); if (e) { e.classList.toggle('on', !!ok); e.title = ok ? 'up' : 'down'; } };
+    const up = (key, ok, stopped = false) => {
+      const e = rowsEl.querySelector(`[data-live="${key}:dot"]`); if (!e) return;
+      const status = ok == null ? 'unknown' : ok ? 'up' : stopped ? 'stopped' : 'down';
+      e.classList.toggle('on', !!ok); e.dataset.state = status;
+      e.title = status; e.setAttribute('aria-label', status);
+    };
     m.nodes.forEach(n => {
       const hw = n.hardware || {}, k = 'node-' + n.name, host = n.host || {};
-      const memUsed = hw.memory_used || host.mem_used, memTotal = hw.memory_total || host.mem_total;
+      const memUsed = hw.memory_used ?? host.mem_used, memTotal = hw.memory_total ?? host.mem_total;
       const cpu = hw.cpu !== undefined ? hw.cpu : host.cpu;
-      set(k + '-cpu', `${pct(cpu).toFixed(0)}%`, pct(cpu));
-      set(k + '-mem', `${fmtG(memUsed)}/${fmtG(memTotal)}G`, pct(memUsed / (memTotal || 1)));
+      set(k + '-cpu', cpu == null ? 'unavailable' : `${pct(cpu).toFixed(0)}%`, pct(cpu));
+      set(k + '-mem', memUsed == null || !memTotal ? 'unavailable' : `${fmtG(memUsed)}/${fmtG(memTotal)}G`, pct(memUsed / (memTotal || 1)));
       const alloc = (n.guests || []).filter(g => g.status === 'running').reduce((a, g) => a + (g.maxmem || 0), 0);
-      set(k + '-alloc', `${fmtG(alloc)}G to VMs`, pct(alloc / (memTotal || 1)));
+      set(k + '-alloc', `${fmtG(alloc)}G to VMs`, memTotal ? pct(alloc / memTotal) : 0);
+      const fs = n.rootFs;
+      set(k + '-root', fs && fs.total && fs.used != null ? `${fmtG(fs.used)}/${fmtG(fs.total)}G` : 'unavailable', fs && fs.total ? pct(fs.used/fs.total) : 0);
+      n.pools.forEach(p => set(k + '-pool-' + p.name, p.total ? fmtPool(p.used, p.total) : 'unavailable', p.total ? pct(p.used/p.total) : 0));
       txt(k + ':temp', n.temp ? n.temp + '°C' : '');
       txt(k + ':up', 'up ' + fmtUp(hw.uptime || host.uptime));
       up(k, n.available);
       [...n.own, ...n.tenants].forEach(g => {
         const gk = 'vm-' + g.name, gh = m.hosts[g.name] || {};
+        const tenant = tagsOf(g).some(tag => tag.startsWith('tenant-'));
         const cpu = gh.cpu !== undefined ? gh.cpu : g.cpu;
         const mem = gh.mem_used !== undefined ? gh.mem_used : g.mem;
-        set(gk + '-cpu', `${pct(cpu).toFixed(0)}%`, pct(cpu));
-        set(gk + '-mem', `${fmtG(mem)}/${fmtG(g.maxmem)}G`, pct(mem / (g.maxmem || 1)));
-        txt(gk + ':up', g.status === 'running' ? 'up ' + fmtUp(gh.uptime || g.uptime) : g.status);
-        up(gk, g.status === 'running');
+        set(gk + '-cpu', cpu == null ? 'unavailable' : `${pct(cpu).toFixed(0)}%`, pct(cpu), tenant);
+        set(gk + '-mem', mem == null || !g.maxmem ? 'unavailable' : `${fmtG(mem)}/${fmtG(g.maxmem)}G`, pct(mem / (g.maxmem || 1)), tenant);
+        const uptime = gh.uptime ?? g.uptime;
+        const uptimeText = g.status === 'running' ? tenant && !uptime ? '' : 'up ' + fmtUp(uptime) : g.status;
+        txt(gk + ':up', uptimeText);
+        const uptimeEl = rowsEl.querySelector(`[data-live="${gk}:up"]`);
+        if (uptimeEl) uptimeEl.hidden = !uptimeText;
+        up(gk, g.status === 'running', g.status === 'stopped');
         (m.ctrs[g.name] || []).forEach(x => txt('ctr-' + g.name + '-' + x.name, ' ' + fmtM(x.mem)));
       });
     });
@@ -859,6 +971,10 @@
     up('backups', (row('Backup Server') || {}).up);
     up('obs', (row('Grafana') || {}).up && (row('Prometheus') || {}).up);
     up('nas', (row('NAS') || {}).up);
+    if (visibilityChanged) {
+      cancelAnimationFrame(wireTimer);
+      wireTimer = requestAnimationFrame(() => { applyZoom(); drawWires(); });
+    }
   }
 
   // ---- zoom and pan --------------------------------------------------------
@@ -869,12 +985,9 @@
   // pinch to zoom, Reset to come back. A phone keeps the stacked, reflowing
   // layout and none of this.
   //
-  // The zoom is CSS `zoom`, not a scale transform: the browser lays the text
-  // out again at the new size, so it stays sharp at 300% instead of being a
-  // stretched picture of itself. The pan is a translate on the wrapper, inside
-  // a viewport that clips, so there is no scroll range for anything to leak
-  // into.
-  const CSS_ZOOM = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('zoom', '1.5');
+  // Scale one fixed layout. CSS zoom reflows nested grids and changes text
+  // wrapping at small scales, leaving previously measured wires disconnected.
+  // A 2D transform preserves every card and wire in the same coordinate space.
   arch.mode = arch.mode || 'fit'; arch.z = arch.z || 1; arch.tx = arch.tx || 0; arch.ty = arch.ty || 0;
   const zoomable = () => !staticMode && window.innerWidth > 900;
   const zEls = () => { const zoom = rowsEl.querySelector('.a-zoom'); return zoom && { zoom, sizer: zoom.firstElementChild, canvas: zoom.querySelector('.a-canvas') }; };
@@ -884,8 +997,8 @@
     return { land, w: land ? (iw >= 1800 ? 2200 : 2000) : (iw >= 1400 ? 1600 : 1400) };
   }
   function setScale(canvas, z) {
-    if (CSS_ZOOM) { canvas.style.zoom = z === 1 ? '' : String(z); canvas.style.transform = ''; }
-    else { canvas.style.transform = z === 1 ? '' : `scale(${z})`; canvas.style.transformOrigin = '0 0'; }
+    canvas.style.transform = z === 1 ? '' : `scale(${z})`;
+    canvas.style.transformOrigin = '0 0';
   }
   function applyZoom(z, ax, ay) {
     if (arch.applying) return;
@@ -905,7 +1018,6 @@
     const L = layoutFor(vw, vh), key = L.land + ':' + L.w, changed = key !== arch.layout;
     if (changed) { arch.layout = key; e.canvas.classList.toggle('a-land', L.land); e.canvas.style.width = L.w + 'px'; }
     // The diagram's own size, measured at 100% so the zoom cannot skew it.
-    setScale(e.canvas, 1);
     const W = L.w, H = e.canvas.offsetHeight;
     arch.h = H;
     let tx, ty;
@@ -932,15 +1044,18 @@
     arch.ty = Math.min(vh - keep, Math.max(keep - H * z, ty));
     setScale(e.canvas, z);
     e.sizer.style.transform = `translate(${arch.tx.toFixed(1)}px, ${arch.ty.toFixed(1)}px)`;
-    e.zoom.style.setProperty('--a-grid-size', (22 * z).toFixed(2) + 'px');
+    // Show every second grid dot at small scales to avoid a dense pattern.
+    let grid = 22 * z;
+    while (grid < 16) grid *= 2;
+    while (grid > 32) grid /= 2;
+    e.zoom.style.setProperty('--a-grid-size', grid.toFixed(2) + 'px');
     e.zoom.style.setProperty('--a-grid-x', arch.tx.toFixed(1) + 'px');
     e.zoom.style.setProperty('--a-grid-y', arch.ty.toFixed(1) + 'px');
   }
   function panBy(dx, dy) {
     const e = zEls(); if (!e || !zoomable()) return;
     arch.mode = 'manual';
-    // The diagram's height at 100% is cached by applyZoom: under CSS zoom,
-    // offsetHeight means different things in different browsers.
+    // Transform scaling never changes the cached layout dimensions.
     placeView(e, arch.tx + dx, arch.ty + dy, parseFloat(e.canvas.style.width) || 1, arch.h || 1, e.zoom.clientWidth, e.zoom.clientHeight);
     const reset = rowsEl.querySelector('.a-zoomctl [data-reset]'); if (reset) reset.disabled = false;
   }
@@ -1006,6 +1121,7 @@
   }
 
   function renderArchitecture() {
+    if (detailView.active()) { detailView.refresh(); return; }
     const op = state.operations;
     if (!(op.nodes || []).length) {
       arch.sig = '';
@@ -1025,6 +1141,7 @@
     }
     updateLive(m);
   }
+  const detailView = createAutolabDetails({ rows: rowsEl, getModel: archModel, renderPage: () => { state.tab = location.hash.slice(1).split('?')[0] || 'services'; render(); }, lessMotion: () => window.matchMedia('(prefers-reduced-motion: reduce)').matches });
   document.querySelector('.tabs').addEventListener('click', event => {
     const tab = event.target.closest('[data-tab]'); if (!tab) return;
     state.tab = tab.dataset.tab; history.replaceState(null, '', '#' + state.tab); render(); rowsEl.scrollTop=0;
@@ -1055,7 +1172,9 @@
 
   async function load() {
     try {
-      const r = await fetch('status.json?t=' + Date.now(), { cache: 'no-store' });
+      let r;
+      try { r = await fetch('api/status?t=' + Date.now(), { cache: 'no-store' }); } catch (err) {}
+      if (!r || !r.ok) r = await fetch('status.json?t=' + Date.now(), { cache: 'no-store' });
       const j = await r.json();
       state.rows = j.rows || [];
       state.operations = j.operations || {};
@@ -1089,6 +1208,7 @@
   const MOON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>';
   const paintFlip = () => {
     const toLight = !state.dark;
+    root.classList.toggle('light-dashboard', state.dark);
     flipBtn.innerHTML = toLight ? SUN : MOON;
     flipBtn.title = toLight ? 'Light' : 'Dark';
     flipBtn.setAttribute('aria-label', toLight ? 'Switch to light' : 'Switch to dark');
@@ -1174,6 +1294,7 @@
     const ink = state.dark ? '#F4F4F5' : '#0A0A0A';
     const u = clamp((p - 0.86) / 0.06), sm = u * u * (3 - 2 * u);
     px = { p, enter, glitch, flood, bg: mix(paper, ink, sm), fg: mix(ink, paper, sm) };
+    root.classList.toggle('arrived', flood === 1);
     root.style.setProperty('--sg-p', p.toFixed(4));
     root.style.setProperty('--sg-enter', enter.toFixed(4));
     root.style.setProperty('--sg-glitch', glitch.toFixed(4));

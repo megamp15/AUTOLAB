@@ -21,12 +21,14 @@
 # rules ahead of ufw's, so publishing on 0.0.0.0 would reach the LAN despite the
 # host firewall's default-deny.
 - name: Discover this host's tailnet address
+  tags: [homepage]
   ansible.builtin.command: tailscale ip -4
   register: autolab_tailscale_ip_raw
   check_mode: false
   changed_when: false
 
 - name: Set the tailnet address fact
+  tags: [homepage]
   ansible.builtin.set_fact:
     autolab_tailscale_ip: "{{ autolab_tailscale_ip_raw.stdout_lines[0] }}"
 
@@ -35,18 +37,21 @@
 # recreating this VM produces a new one — which would leave every past
 # notification pointing at nothing, with no error anywhere.
 - name: Discover this host's MagicDNS name
+  tags: [homepage]
   ansible.builtin.command: tailscale status --json
   register: autolab_tailscale_status
   check_mode: false
   changed_when: false
 
 - name: Set the MagicDNS name fact
+  tags: [homepage]
   ansible.builtin.set_fact:
     autolab_tailscale_fqdn: >-
       {{ (autolab_tailscale_status.stdout | from_json).Self.DNSName
          | regex_replace('\.$', '') }}
 
 - name: Create the observability directory tree
+  tags: [homepage]
   ansible.builtin.file:
     path: "{{ autolab_obs_root }}/{{ item }}"
     state: directory
@@ -60,6 +65,9 @@
     - grafana/provisioning/datasources
     - grafana/provisioning/dashboards
     - grafana/provisioning/alerting
+    - homepage
+    - homepage/api
+    - homepage/site
 
 # Grafana's container runs as uid 472 and will not start if it cannot write its
 # database.
@@ -191,14 +199,59 @@
   when: autolab_obs_pve_nodes | length > 0
   notify: Restart observability stack
 
+- name: Install homepage detail assets
+  ansible.builtin.copy:
+    src: "{{ role_path }}/templates/homepage/{{ item }}"
+    dest: "{{ autolab_obs_root }}/homepage/site/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [details.js, details.css]
+  when: autolab_obs_homepage_enabled | bool
+  tags: [homepage]
+
+- name: Own the homepage API directory
+  ansible.builtin.file:
+    path: "{{ autolab_obs_root }}/homepage/api"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: autolab_obs_homepage_enabled | bool
+  tags: [homepage]
+
+- name: Install the read-only homepage API
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ autolab_obs_root }}/homepage/api/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [homepage_api.py, homepage_metrics.py]
+  when: autolab_obs_homepage_enabled | bool
+  notify: "{{ 'Restart homepage services' if 'homepage' in ansible_run_tags else 'Restart observability stack' }}"
+  tags: [homepage]
+
+- name: Install the homepage API proxy
+  ansible.builtin.template:
+    src: homepage-nginx.conf.j2
+    dest: "{{ autolab_obs_root }}/homepage/nginx.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  when: autolab_obs_homepage_enabled | bool
+  notify: "{{ 'Restart homepage services' if 'homepage' in ansible_run_tags else 'Restart observability stack' }}"
+  tags: [homepage]
+
 - name: Install the compose file
+  tags: [homepage]
   ansible.builtin.template:
     src: docker-compose.yml.j2
     dest: "{{ autolab_obs_root }}/docker-compose.yml"
     owner: root
     group: root
     mode: "0644"
-  notify: Restart observability stack
+  notify: "{{ 'Restart homepage services' if 'homepage' in ansible_run_tags else 'Restart observability stack' }}"
 
 # On a fresh host in check mode nothing above was written — not the
 # directory, not the compose file, not the unit — so compose and systemd
@@ -207,6 +260,7 @@
 # provisioned the files exist and check mode inspects them for real, the
 # same rule the ingress role follows.
 - name: See whether the stack was ever installed
+  tags: [homepage]
   ansible.builtin.stat:
     path: "{{ autolab_obs_root }}/docker-compose.yml"
   register: autolab_obs_compose_file
@@ -483,6 +537,7 @@
     - autolab_obs_backup_parent.stat.exists | default(false)
 
 - name: Decide whether the digest can run here
+  tags: [homepage]
   ansible.builtin.set_fact:
     autolab_obs_digest_active: >-
       {{ autolab_obs_digest_enabled | bool
@@ -490,6 +545,7 @@
          and autolab_obs_pve_nodes | length > 0 }}
 
 - name: Own the directory the digest reads its settings from
+  tags: [homepage]
   ansible.builtin.file:
     path: /etc/autolab
     state: directory
@@ -499,6 +555,7 @@
   when: autolab_obs_digest_active | bool
 
 - name: Install the digest's settings
+  tags: [homepage]
   ansible.builtin.template:
     src: autolab-obs-digest.env.j2
     dest: /etc/autolab/obs-digest.env
@@ -508,7 +565,17 @@
   when: autolab_obs_digest_active | bool
   notify: Send a digest
 
+- name: Install shared homepage metrics collection
+  ansible.builtin.copy:
+    src: homepage_metrics.py
+    dest: /usr/local/bin/homepage_metrics.py
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [homepage]
+
 - name: Install the digest
+  tags: [homepage]
   ansible.builtin.template:
     src: autolab-obs-digest.py.j2
     dest: /usr/local/bin/autolab-obs-digest
@@ -602,6 +669,7 @@
   when: autolab_obs_homepage_enabled | bool
 
 - name: Declare the homepage's links
+  tags: [homepage]
   ansible.builtin.template:
     src: homepage.json.j2
     dest: /etc/autolab/homepage.json
@@ -612,6 +680,7 @@
   notify: Write status once
 
 - name: Install the status writer's timer
+  tags: [homepage]
   ansible.builtin.template:
     src: "{{ item }}.j2"
     dest: "/etc/systemd/system/{{ item }}"
@@ -624,6 +693,7 @@
   when: autolab_obs_homepage_enabled | bool and autolab_obs_digest_active | bool
 
 - name: Enable the status writer's timer
+  tags: [homepage]
   ansible.builtin.systemd_service:
     name: autolab-obs-status.timer
     state: started
@@ -631,3 +701,78 @@
     daemon_reload: true
   when: autolab_obs_homepage_enabled | bool and autolab_obs_digest_active | bool
   notify: Write status once
+
+- name: Refresh the homepage data with the installed collector
+  ansible.builtin.systemd_service:
+    name: autolab-obs-status.service
+    state: restarted
+    daemon_reload: true
+  changed_when: false
+  when: autolab_obs_homepage_enabled | bool and autolab_obs_digest_active | bool and not ansible_check_mode
+  tags: [homepage]
+
+- name: Read the generated homepage data
+  ansible.builtin.slurp:
+    src: "{{ autolab_obs_root }}/homepage/site/status.json"
+  register: autolab_obs_homepage_status
+  when: autolab_obs_homepage_enabled | bool and autolab_obs_digest_active | bool and not ansible_check_mode
+  tags: [homepage]
+
+- name: Verify that the homepage has fresh hardware and telemetry data
+  vars:
+    homepage_status: "{{ autolab_obs_homepage_status.content | b64decode | from_json }}"
+  ansible.builtin.assert:
+    that:
+      - homepage_status.generated | int >= ansible_date_time.epoch | int - 60
+      - homepage_status.operations.nodes | selectattr('hardware', 'defined') | list | length > 0
+      - homepage_status.operations.telemetry.hosts | default([]) | length > 0
+    fail_msg: The homepage collector did not produce fresh hardware and host metrics. Check the status writer and its upstream sources.
+    success_msg: Homepage data is fresh and contains Proxmox hardware and Prometheus host metrics.
+  when: autolab_obs_homepage_enabled | bool and autolab_obs_digest_active | bool and not ansible_check_mode
+  tags: [homepage]
+
+- name: Apply pending homepage handlers before checking the API
+  ansible.builtin.meta: flush_handlers
+  when: autolab_obs_homepage_enabled | bool and not ansible_check_mode
+  tags: [homepage]
+
+- name: Wait for the read-only homepage API
+  ansible.builtin.uri:
+    url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_homepage_port }}/api/status"
+    return_content: true
+    timeout: 30
+    status_code: 200
+  register: autolab_obs_homepage_api
+  until: autolab_obs_homepage_api.status == 200
+  retries: 6
+  delay: 3
+  when: autolab_obs_homepage_enabled | bool and autolab_obs_digest_active | bool and not ansible_check_mode
+  tags: [homepage]
+
+- name: Verify storage pools are present in the homepage API
+  ansible.builtin.assert:
+    that:
+      - autolab_obs_homepage_api.json.operations.telemetry.pools | default([]) | length > 0
+    fail_msg: The homepage API is running but has no Proxmox storage pool readings.
+    success_msg: The homepage API serves live host metrics and Proxmox storage pools.
+  when: autolab_obs_homepage_enabled | bool and autolab_obs_digest_active | bool and not ansible_check_mode
+  tags: [homepage]
+
+# An explicit rollout check, not a requirement on every routine Builder run.
+- name: Verify Grafana has synchronized the storage pool queries
+  ansible.builtin.uri:
+    url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}/api/dashboards/uid/autolab-proxmox"
+    user: admin
+    password: "{{ autolab_obs_grafana_admin_password }}"
+    force_basic_auth: true
+    return_content: true
+    status_code: [200, 404]
+  register: autolab_obs_grafana_storage_sync
+  until:
+    - autolab_obs_grafana_storage_sync.status == 200
+    - "'pve_storage_info' in autolab_obs_grafana_storage_sync.content"
+  retries: 12
+  delay: 10
+  no_log: true
+  when: autolab_obs_grafana_admin_password | length > 0 and not ansible_check_mode
+  tags: [never, verify-dashboard]

@@ -58,3 +58,12 @@
     state: started
     daemon_reload: true
   failed_when: false
+
+- name: Restart homepage services
+  community.docker.docker_compose_v2:
+    project_src: "{{ autolab_obs_root }}"
+    services: [homepage-api, homepage]
+    dependencies: false
+    state: present
+    recreate: always
+  when: not ansible_check_mode or autolab_obs_compose_file.stat.exists | default(true)

@@ -104,13 +104,32 @@ services:
       - "{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}:3000"
 {% if autolab_obs_homepage_enabled | bool %}
 
-  # The homepage: static files and a status.json the digest script writes
-  # every minute. Nothing dynamic runs in the container.
+  # Static homepage plus bounded, read-only metrics/history/log queries.
+  # The API has no published port and inherits the homepage ingress policy.
+  homepage-api:
+    image: {{ autolab_obs_images.homepage_api }}
+    restart: unless-stopped
+    command: [python, /app/homepage_api.py]
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      HOMEPAGE_STATUS: /site/status.json
+      PROMETHEUS_URL: http://prometheus:9090
+      LOKI_URL: http://loki:{{ autolab_obs_loki_port }}
+    volumes:
+      - ./homepage/api:/app:ro
+      - ./homepage/site:/site:ro
+
   homepage:
+    depends_on: [homepage-api]
     image: {{ autolab_obs_images.homepage }}
     restart: unless-stopped
     volumes:
       - ./homepage/site:/usr/share/nginx/html:ro
+      - ./homepage/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
       - "{{ autolab_tailscale_ip }}:{{ autolab_obs_homepage_port }}:80"
 {% endif %}
