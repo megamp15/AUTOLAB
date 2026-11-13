@@ -95,3 +95,31 @@ and pinned images remain managed by this repository.
 Dockhand is free for homelab use under BSL 1.1, with each release converting to
 Apache 2.0 after four years. See the [manual](https://dockhand.pro/manual/) and
 [license information](https://dockhand.pro/).
+
+
+## Architecture drilldowns
+
+Select a host or VM title to inspect it. The small external-link arrow still
+opens Proxmox. Breadcrumbs, Back, and browser history return through the same
+hierarchy. VM details list observed containers; selecting one scopes the history
+and recent logs to that container. History ranges retain the current charts while
+new samples load. Tenant detail views exclude application containers and query
+only the system journal.
+
+The read-only homepage API runs inside the observability compose network, with
+no published port. Nginx forwards `/api/status` and `/api/detail` through the
+homepage's existing ingress authentication. Detail requests accept only known
+node/VM/container identities and the bounded `1h`, `6h`, and `24h` ranges. They do
+not accept arbitrary PromQL, LogQL, upstream URLs, or write operations.
+
+Storage pools use `pve_disk_usage_bytes` and `pve_disk_size_bytes`, keyed by both
+exporter instance and storage ID, with type and node labels from
+`pve_storage_info`. Only metadata is retained for one hour to keep an unavailable
+pool identifiable; capacity is shown only while its pool and exporter report up.
+A shared datastore appears under each connected node and is never summed across
+nodes. Root filesystem usage and provisioned VM memory/disk capacity are separate
+from physical pool usage. The Grafana Proxmox Storage tab uses the same sources.
+
+For local review with live read-only sources, run `python3 scripts/preview_homepage.py`
+from the repository root, then open `http://127.0.0.1:8766/index.html#architecture`.
+Use `--status`, `--prometheus`, and `--loki` to override the source addresses.

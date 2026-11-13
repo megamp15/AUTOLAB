@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the collector functions without contacting a real lab."""
 import ast
+import sys
 import datetime as dt
 import json
 import subprocess
@@ -14,6 +15,7 @@ from unittest.mock import patch, mock_open
 
 
 SOURCE = Path(__file__).resolve().parents[1] / 'builders/ansible/roles/observability-stack/templates/autolab-obs-digest.py.j2'
+sys.path.insert(0, str(SOURCE.parents[1] / 'files'))
 TREE = ast.parse(SOURCE.read_text())
 FUNCTIONS = ast.Module(body=[n for n in TREE.body if isinstance(n, ast.FunctionDef) and n.name in ('operations', 'link_access', 'probe', 'write_metrics', 'complete_snapshots', 'telemetry')], type_ignores=[])
 

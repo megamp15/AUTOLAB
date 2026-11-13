@@ -16,6 +16,7 @@ autolab_obs_images:
   # tag is not proof that a registry tag exists; check the registry.
   grafana: "grafana/grafana:13.2.2"
   pve_exporter: "prompve/prometheus-pve-exporter:3.10.0"
+  homepage_api: "python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e"
   homepage: "nginx:1.31.6-alpine"
   tempo: "grafana/tempo:2.10.8"
 

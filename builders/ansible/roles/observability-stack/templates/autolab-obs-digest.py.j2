@@ -292,33 +292,14 @@ def operations(conf):
 
 
 def telemetry():
-    # Live numbers for the architecture diagram, from what Alloy and cAdvisor
-    # already send: per host (node_exporter) and per container. One query per
-    # figure; a host or container missing from one simply lacks that figure.
-    hosts, containers = {}, {}
-    for key, query in (
-        ("cores", 'count by (instance) (node_cpu_seconds_total{mode="idle"})'),
-        ("cpu", '1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))'),
-        ("mem_total", 'node_memory_MemTotal_bytes'),
-        ("mem_used", 'node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes'),
-        ("disk", '1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}'),
-        ("uptime", 'node_time_seconds - node_boot_time_seconds'),
-        ("load", 'node_load1'),
-    ):
-        for r in prom(query):
-            instance = r["metric"].get("instance")
-            if instance:
-                hosts.setdefault(instance, {"name": instance})[key] = float(r["value"][1])
-    for key, query in (
-        ("mem", 'sum by (instance, name) (container_memory_working_set_bytes{name!=""})'),
-        ("cpu", 'sum by (instance, name) (rate(container_cpu_usage_seconds_total{name!=""}[5m]))'),
-    ):
-        for r in prom(query):
-            m = r["metric"]
-            if m.get("instance") and m.get("name"):
-                containers.setdefault((m["instance"], m["name"]), {"host": m["instance"], "name": m["name"]})[key] = float(r["value"][1])
-    return {"hosts": sorted(hosts.values(), key=lambda h: h["name"]),
-            "containers": sorted(containers.values(), key=lambda c: (c["host"], c["name"]))}
+    from homepage_metrics import collect_telemetry, storage_pools, filesystems
+    data = collect_telemetry(prom)
+    for name, collect in (("pools", storage_pools), ("filesystems", filesystems)):
+        try:
+            data[name] = collect(prom)
+        except Exception:
+            data[name] = []
+    return data
 
 
 def write_status(path):
