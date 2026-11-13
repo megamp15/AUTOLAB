@@ -122,10 +122,12 @@
   .a-zoomctl button:disabled { opacity:.4; cursor:default; }
   .a-zoomval { min-width:46px; text-align:center; font-variant-numeric:tabular-nums; border-left:1px solid color-mix(in srgb,currentColor 20%,transparent); padding:5px 4px; }
   .a-zoom { position:relative; }
-  .a-zoom.on { overflow:auto; overscroll-behavior:contain; cursor:grab; scrollbar-width:thin;
+  .a-zoom.on { overflow:hidden; overflow:clip; cursor:grab; touch-action:none; overscroll-behavior:contain;
     border:1px solid color-mix(in srgb,currentColor 18%,transparent); border-radius:6px; }
   .a-zoom.on.dragging { cursor:grabbing; user-select:none; }
-  .a-zoom.on .a-sizer { margin:0 auto; }
+  .a-zoom.on .a-sizer { position:absolute; left:0; top:0; }
+  /* Hidden until the first fit, so nothing shows at the wrong size first. */
+  .a-zoom.on:not(.ready) .a-sizer { visibility:hidden; }
   /* Landscape: the way in on the left, the machines in the middle, where the
      data goes on the right. The rows dissolve so each card takes a cell. */
   .a-canvas.a-land { display:grid; column-gap:96px; row-gap:30px; align-items:center; padding-bottom:16px !important;
@@ -139,7 +141,7 @@
   .a-land .a-door { grid-area:door; width:auto; }
   .a-land [data-wire="backups"] { grid-area:backups; } .a-land [data-wire="nas"] { grid-area:nas; } .a-land [data-wire="obs"] { grid-area:obs; }
   .a-land .a-access { grid-area:access; margin:56px 0 0; }
-  .a-zoom.on .a-canvas { transform-origin:0 0; padding:24px; box-sizing:border-box; }
+  .a-zoom.on .a-canvas { padding:24px; box-sizing:border-box; }
   .a-access { font-size:11.5px; line-height:1.6; opacity:.7; margin:22px 0 0; max-width:110ch; }
   /* Hovering a legend entry: its wires stay, the rest step back. */
   .a-canvas[data-focus] .a-wire, .a-canvas[data-focus] .a-packet { opacity:.12; transition:opacity .25s; }
@@ -149,7 +151,10 @@
   .a-canvas[data-focus="signal"] .a-signal, .a-canvas[data-focus="signal"] .a-signal-streak { opacity:1; }
   .a-canvas { position:relative; padding:6px 2px 2px;
     background-image:radial-gradient(color-mix(in srgb,currentColor 13%,transparent) 1px, transparent 1.2px); background-size:22px 22px; }
-  .a-canvas::after { content:""; position:absolute; left:0; right:0; top:0; height:90px; pointer-events:none; z-index:2;
+  /* The scan line sweeps the diagram and stops at its edge: the canvas clips,
+     so it never makes the panel taller for the length of a sweep. */
+  .a-canvas { overflow:hidden; }
+  .a-canvas::after { content:""; position:absolute; left:0; right:0; top:-90px; height:90px; pointer-events:none; z-index:2;
     background:linear-gradient(transparent, color-mix(in srgb,currentColor 5%,transparent), transparent); animation:a-scan 11s linear infinite; }
   .a-wires { position:absolute; left:0; top:0; pointer-events:none; overflow:visible; z-index:0; }
   .a-row { position:relative; z-index:1; display:grid; gap:14px; margin-bottom:64px; }
@@ -235,7 +240,7 @@
   @keyframes a-ping { 0% { transform:scale(.6); opacity:.7; } 100% { transform:scale(2.3); opacity:0; } }
   @keyframes a-nudge { 50% { transform:translateX(3px); } }
   @keyframes a-sheen { 0% { transform:translateX(-120%); } 60%, 100% { transform:translateX(320%); } }
-  @keyframes a-scan { 0% { transform:translateY(-90px); } 100% { transform:translateY(1600px); } }
+  @keyframes a-scan { from { top:-90px; } to { top:100%; } }
   @media (prefers-reduced-motion: reduce) {
     .a-signal-streak { display:none; }
     .a-wire, .a-dot.on::after, .a-arrow, .a-canvas::after, .a-bar-track i::after { animation:none !important; }
@@ -748,7 +753,14 @@
   function drawWires() {
     const canvas = rowsEl.querySelector('.a-canvas'); if (!canvas) return;
     const svg = canvas.querySelector('.a-wires');
-    if (getComputedStyle(svg).display === 'none') { svg.innerHTML = ''; return; }
+    if (getComputedStyle(svg).display === 'none') { svg.innerHTML = ''; arch.wires = ''; return; }
+    if (!svg.firstChild) arch.wires = '';
+    // Measure at 100%: offsets inside a zoomed element are not reported the
+    // same way by every browser. Restored before anything paints.
+    const zoomWas = canvas.style.zoom; if (zoomWas) canvas.style.zoom = '';
+    try { drawWiresAt(canvas, svg); } finally { if (zoomWas) canvas.style.zoom = zoomWas; }
+  }
+  function drawWiresAt(canvas, svg) {
     const W = canvas.offsetWidth, H = canvas.offsetHeight;
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
     const pos = e => { let x = 0, y = 0, n = e; while (n && n !== canvas) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
@@ -756,7 +768,7 @@
     const one = k => { const e = canvas.querySelector(`[data-wire="${k}"]`); return e && pos(e); };
     const cf = one('cf'), ts = one('ts'), door = one('horizon'), bk = one('backups'), nas = one('nas'), obs = one('obs');
     const nodes = [...canvas.querySelectorAll('[data-wire^="node-"]')].map(pos);
-    if (!cf || !ts || !door || !bk || !nas || !obs || !nodes.length) { svg.innerHTML = ''; return; }
+    if (!cf || !ts || !door || !bk || !nas || !obs || !nodes.length) { svg.innerHTML = ''; arch.wires = ''; return; }
     // Where the tailnet goes from horizon: the VMs it routes names to.
     const targets = ['vm-jwst', 'vm-magnetosphere'].map(k => {
       const v = canvas.querySelector(`[data-wire="${k}"]`); if (!v) return null;
@@ -790,7 +802,7 @@
       routes.push(['backup', [[bk.r, bk.cy], [nas.x, nas.cy]]]);
     }
     const still = lessMotion.matches;
-    svg.innerHTML = routes.map(([kind, pts], i) => {
+    const html = routes.map(([kind, pts], i) => {
       const d = roundedPath(pts), pid = 'a-w' + i;
       let markup = `<path id="${pid}" class="a-wire a-${kind}" d="${d}"/>`;
       if (kind === 'signal') markup += `<path class="a-wire a-signal-streak" d="${d}"/>`;
@@ -799,6 +811,9 @@
           markup += `<circle class="a-packet a-p-${kind}" r="${kind === 'public' ? 2.6 : 2}"><animateMotion dur="3s" begin="${(k * 1.5 + i * 0.37).toFixed(2)}s" repeatCount="indefinite"><mpath href="#${pid}"/></animateMotion></circle>`;
       return markup;
     }).join('');
+    // Same routes as last time: leave the SVG alone so the packets keep their
+    // place instead of restarting on every refresh.
+    if (html !== arch.wires) { arch.wires = html; svg.innerHTML = html; }
   }
   let wireTimer = 0;
   const wireObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { cancelAnimationFrame(wireTimer); wireTimer = requestAnimationFrame(() => { if (!arch.applying) { applyZoom(); drawWires(); } }); }) : null;
@@ -845,17 +860,28 @@
   // ---- zoom and pan --------------------------------------------------------
   // On a desktop the diagram has two fixed layouts at set widths: landscape
   // (left to right) for wide windows, stacked for narrower or taller ones.
-  // Nothing is searched for or reshaped on the fly: the window picks one of
-  // four sizes, the view is scaled to fit it, and from there it is a picture
-  // to zoom and pan. Reset returns to the fitted view. A phone keeps the
-  // stacked, reflowing layout and none of this.
-  arch.mode = arch.mode || 'fit'; arch.z = arch.z || 1;
+  // The window picks one; the view opens fitted and centred; from there it is
+  // a canvas: drag or two-finger scroll to pan anywhere, Ctrl/Cmd-scroll or
+  // pinch to zoom, Reset to come back. A phone keeps the stacked, reflowing
+  // layout and none of this.
+  //
+  // The zoom is CSS `zoom`, not a scale transform: the browser lays the text
+  // out again at the new size, so it stays sharp at 300% instead of being a
+  // stretched picture of itself. The pan is a translate on the wrapper, inside
+  // a viewport that clips, so there is no scroll range for anything to leak
+  // into.
+  const CSS_ZOOM = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('zoom', '1.5');
+  arch.mode = arch.mode || 'fit'; arch.z = arch.z || 1; arch.tx = arch.tx || 0; arch.ty = arch.ty || 0;
   const zoomable = () => !staticMode && window.innerWidth > 900;
   const zEls = () => { const zoom = rowsEl.querySelector('.a-zoom'); return zoom && { zoom, sizer: zoom.firstElementChild, canvas: zoom.querySelector('.a-canvas') }; };
   function layoutFor(vw, vh) {
     const iw = window.innerWidth;
     const land = vw / vh > 1.5;
     return { land, w: land ? (iw >= 1800 ? 2200 : 2000) : (iw >= 1400 ? 1600 : 1400) };
+  }
+  function setScale(canvas, z) {
+    if (CSS_ZOOM) { canvas.style.zoom = z === 1 ? '' : String(z); canvas.style.transform = ''; }
+    else { canvas.style.transform = z === 1 ? '' : `scale(${z})`; canvas.style.transformOrigin = '0 0'; }
   }
   function applyZoom(z, ax, ay) {
     if (arch.applying) return;
@@ -866,49 +892,84 @@
     const e = zEls(); if (!e) return;
     const on = zoomable();
     e.zoom.classList.toggle('on', on);
-    if (!on) { e.canvas.classList.remove('a-land'); e.canvas.style.transform = ''; e.canvas.style.width = ''; e.sizer.style.width = e.sizer.style.height = ''; e.sizer.style.marginTop = ''; arch.layout = ''; return; }
+    if (!on) {
+      e.canvas.classList.remove('a-land'); e.canvas.style.width = ''; setScale(e.canvas, 1);
+      e.sizer.style.transform = ''; arch.layout = ''; e.zoom.classList.remove('ready'); return;
+    }
     const vw = e.zoom.clientWidth, vh = e.zoom.clientHeight;
+    if (vw < 50 || vh < 50) return;              // not sized yet: stay hidden
     const L = layoutFor(vw, vh), key = L.land + ':' + L.w, changed = key !== arch.layout;
     if (changed) { arch.layout = key; e.canvas.classList.toggle('a-land', L.land); e.canvas.style.width = L.w + 'px'; }
+    // The diagram's own size, measured at 100% so the zoom cannot skew it.
+    setScale(e.canvas, 1);
     const W = L.w, H = e.canvas.offsetHeight;
-    if (arch.mode === 'fit') z = Math.min(vw / W, vh / H);
-    z = Math.max(0.2, Math.min(3, z || arch.z));
-    // Keep the point under the cursor where it was. A button zoom keeps the
-    // centre; the fitted view starts at the top-left corner.
-    const fit = arch.mode === 'fit';
-    if (ax === undefined) { ax = fit ? 0 : vw / 2; ay = fit ? 0 : vh / 2; }
-    const cx = (e.zoom.scrollLeft + ax) / arch.z, cy = (e.zoom.scrollTop + ay) / arch.z;
+    arch.h = H;
+    let tx, ty;
+    if (arch.mode === 'fit') {
+      z = Math.min(vw / W, vh / H);
+      tx = (vw - W * z) / 2; ty = (vh - H * z) / 2;
+    } else {
+      z = Math.max(0.15, Math.min(4, z || arch.z));
+      if (ax === undefined) { ax = vw / 2; ay = vh / 2; }
+      // Keep the point under the cursor (or the centre) where it is.
+      tx = ax - (ax - arch.tx) / arch.z * z; ty = ay - (ay - arch.ty) / arch.z * z;
+    }
     arch.z = z;
-    e.canvas.style.transform = `scale(${z})`;
-    e.sizer.style.width = Math.floor(W * z) + 'px'; e.sizer.style.height = Math.floor(H * z) + 'px';
-    e.sizer.style.marginTop = Math.max(0, Math.floor((vh - H * z) / 2)) + 'px';
-    e.zoom.scrollLeft = fit ? 0 : cx * z - ax; e.zoom.scrollTop = fit ? 0 : cy * z - ay;
+    placeView(e, tx, ty, W, H, vw, vh);
     const val = rowsEl.querySelector('[data-live="zoom"]'); if (val) val.textContent = Math.round(z * 100) + '%';
-    const reset = rowsEl.querySelector('.a-zoomctl [data-reset]'); if (reset) reset.disabled = fit;
+    const reset = rowsEl.querySelector('.a-zoomctl [data-reset]'); if (reset) reset.disabled = arch.mode === 'fit';
+    e.zoom.classList.add('ready');
     if (changed) requestAnimationFrame(drawWires);
+  }
+  // Free movement, with one rule: some of the diagram always stays in view.
+  function placeView(e, tx, ty, W, H, vw, vh) {
+    const keep = 120, z = arch.z;
+    arch.tx = Math.min(vw - keep, Math.max(keep - W * z, tx));
+    arch.ty = Math.min(vh - keep, Math.max(keep - H * z, ty));
+    setScale(e.canvas, z);
+    e.sizer.style.transform = `translate(${arch.tx.toFixed(1)}px, ${arch.ty.toFixed(1)}px)`;
+  }
+  function panBy(dx, dy) {
+    const e = zEls(); if (!e || !zoomable()) return;
+    arch.mode = 'manual';
+    // The diagram's height at 100% is cached by applyZoom: under CSS zoom,
+    // offsetHeight means different things in different browsers.
+    placeView(e, arch.tx + dx, arch.ty + dy, parseFloat(e.canvas.style.width) || 1, arch.h || 1, e.zoom.clientWidth, e.zoom.clientHeight);
+    const reset = rowsEl.querySelector('.a-zoomctl [data-reset]'); if (reset) reset.disabled = false;
   }
   function setZoomMode(mode, z) { arch.mode = mode; applyZoom(z); }
   function zoomBy(f, ax, ay) { arch.mode = 'manual'; applyZoom(arch.z * f, ax, ay); }
   function wireZoom(zoom) {
     zoom.addEventListener('wheel', e => {
-      if (!zoomable() || !(e.ctrlKey || e.metaKey)) return;   // plain wheel scrolls
+      if (!zoomable()) return;
       e.preventDefault();
       const r = zoom.getBoundingClientRect();
-      zoomBy(Math.exp(-e.deltaY * 0.0022), e.clientX - r.left, e.clientY - r.top);
+      // Pinch arrives as a wheel with ctrlKey; Cmd-scroll zooms too. Any
+      // other scroll (two fingers, a mouse wheel) pans.
+      if (e.ctrlKey || e.metaKey) zoomBy(Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
+      else panBy(-(e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX), -(e.shiftKey && !e.deltaX ? 0 : e.deltaY));
     }, { passive: false });
     let drag = null;
     zoom.addEventListener('pointerdown', e => {
       if (!zoomable() || e.button !== 0 || e.target.closest('a,button,input,label')) return;
-      drag = { x: e.clientX, y: e.clientY, l: zoom.scrollLeft, t: zoom.scrollTop };
+      drag = { x: e.clientX, y: e.clientY };
       zoom.classList.add('dragging'); try { zoom.setPointerCapture(e.pointerId); } catch (err) {}
     });
-    zoom.addEventListener('pointermove', e => { if (!drag) return; zoom.scrollLeft = drag.l - (e.clientX - drag.x); zoom.scrollTop = drag.t - (e.clientY - drag.y); });
+    zoom.addEventListener('pointermove', e => {
+      if (!drag) return;
+      panBy(e.clientX - drag.x, e.clientY - drag.y); drag = { x: e.clientX, y: e.clientY };
+    });
     const stop = () => { drag = null; zoom.classList.remove('dragging'); };
     zoom.addEventListener('pointerup', stop); zoom.addEventListener('pointercancel', stop);
     zoom.addEventListener('keydown', e => {
+      const step = 60;
       if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(1.2); }
       else if (e.key === '-') { e.preventDefault(); zoomBy(1 / 1.2); }
       else if (e.key === '0' || e.key === 'Escape') { e.preventDefault(); setZoomMode('fit'); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); panBy(step, 0); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); panBy(-step, 0); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); panBy(0, step); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); panBy(0, -step); }
     });
   }
   // The viewport fills whatever height the page leaves it, like the list.
@@ -934,7 +995,8 @@
       rowsEl.replaceChildren(buildArchitecture(m));
       rowsEl.scrollTop = scroll;
       if (wireObserver) { wireObserver.disconnect(); wireObserver.observe(rowsEl.querySelector('.a-canvas')); wireObserver.observe(rowsEl.querySelector('.a-zoom')); }
-      requestAnimationFrame(() => { applyZoom(); drawWires(); });
+      arch.wires = ''; arch.layout = '';
+      applyZoom(); drawWires();
     }
     updateLive(m);
   }
