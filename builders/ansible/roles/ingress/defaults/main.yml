@@ -38,7 +38,6 @@ autolab_ingress_zone: ""
 autolab_ingress_hostnames:
   auth: "auth"
   home: "home"
-  grafana: "grafana"
 
 # The tunnel token, read by the workflow from the Cloudflare stack's state.
 # Never in git, never in a log.
@@ -61,12 +60,6 @@ autolab_ingress_stack_host: ""
 # public page.
 autolab_ingress_traefik_client_id: ""
 autolab_ingress_traefik_client_secret: ""
-
-# Grafana gets a route only once it logs people in itself (its OIDC client
-# in Pocket ID, applied by the observability playbook). Before that a route
-# would expose the anonymous viewer to the internet. The workflow sets this
-# from the same secret the observability playbook reads.
-autolab_ingress_grafana_route: false
 
 # Groups Pocket ID must put in the token for the homepage to open.
 autolab_ingress_homepage_groups: [admins, viewers]
@@ -131,3 +124,9 @@ autolab_ingress_service_routes:
   prometheus:
     upstream: "http://{{ autolab_ingress_stack_fqdn }}:9090"
     login: plugin
+  # Tailnet-only, never through the tunnel: dashboards, logs and the query API
+  # are not for the internet even behind a login. Grafana does its own OIDC
+  # login with Pocket ID, so no plugin in front.
+  grafana:
+    upstream: "{{ autolab_ingress_upstreams.grafana }}"
+    login: own

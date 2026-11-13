@@ -203,7 +203,6 @@ jobs:
               "autolab_ingress_traefik_client_secret": os.environ.get("AUTOLAB_INGRESS_TRAEFIK_CLIENT_SECRET", ""),
               "autolab_obs_grafana_oidc_client_id": grafana_client,
               "autolab_obs_grafana_oidc_client_secret": os.environ.get("AUTOLAB_GRAFANA_OIDC_CLIENT_SECRET", ""),
-              "autolab_ingress_grafana_route": bool(grafana_client),
               "autolab_ingress_acme_dns_token": os.environ.get("AUTOLAB_INGRESS_ACME_DNS_TOKEN", ""),
               "autolab_ingress_acme_email": os.environ.get("AUTOLAB_INGRESS_ACME_EMAIL", ""),
               "autolab_pbs_openid_client_id": os.environ.get("AUTOLAB_PROXMOX_OIDC_CLIENT_ID", ""),

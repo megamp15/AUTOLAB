@@ -416,7 +416,6 @@
     msg: >-
       Routes: auth (Pocket ID)
       {{- ', home (behind Pocket ID)' if autolab_ingress_traefik_client_id | length > 0 else '' }}
-      {{- ', grafana (logs in itself)' if autolab_ingress_grafana_route | bool else '' }}
       {{- ('; tailnet side: *.' ~ autolab_ingress_internal_label ~ '.' ~ autolab_ingress_zone ~ ", Let's Encrypt")
           if autolab_ingress_tailnet_side | bool else '; tailnet side off' }}.
       {{ 'Nothing behind the plugin has a route until INGRESS_TRAEFIK_CLIENT_ID/SECRET are set.'

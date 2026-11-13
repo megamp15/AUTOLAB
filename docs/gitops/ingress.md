@@ -15,22 +15,22 @@ stay exactly where they are.
 
 ```mermaid
 flowchart TB
-    P["a phone on LTE<br/><small>https://grafana.pmahir.space</small>"]
+    P["a phone on LTE<br/><small>https://home.pmahir.space</small>"]
     CF["Cloudflare edge<br/><small>DNS + tunnel · TLS ends here · no Access</small>"]
     subgraph H["horizon · 1 vCPU · 1 GB · one compose"]
         C["cloudflared"] --> T["Traefik<br/><small>routes by Host · OIDC plugin</small>"]
         T <--> ID["Pocket ID<br/><small>passkeys · users · groups</small>"]
     end
-    J["jwst<br/><small>homepage :8080 · Grafana :3000</small>"]
-    X["Proxmox · PBS · Prometheus · NAS<br/><small>no hostname, no route</small>"]
+    J["jwst<br/><small>homepage :8080</small>"]
+    X["Grafana · Proxmox · PBS · Prometheus · NAS<br/><small>no public hostname, tailnet only</small>"]
     P -- "CNAME, proxied" --> CF
     CF -- "tunnel: horizon dialed out" --> C
     T -- "over the tailnet" --> J
     style X stroke-dasharray: 5 5
 ```
 
-Three hostnames, one origin. `home`, `grafana` and `auth` under the zone all
-CNAME to the tunnel, and every ingress rule in the tunnel hands the request to
+A handful of hostnames, one origin. `home`, `auth` and `share` under the zone
+all CNAME to the tunnel, and every ingress rule in the tunnel hands the request to
 `http://traefik:80` inside horizon's compose network. Traefik routes by Host
 header and asks Pocket ID who the person is. Anything without a hostname here
 has no route: the tunnel's catch-all answers 404 from cloudflared and never
@@ -125,31 +125,32 @@ the groups claim on every login and on every session renewal.
 
 ## Grafana
 
+Grafana is **tailnet-only**: `grafana.<label>.<zone>`, never through the
+tunnel. Dashboards, logs and the query API are not for the internet even
+behind a login, so it has no public hostname at all. (It had one,
+`grafana.<zone>`, from the first ingress phase until 2026-11; the record and
+route were removed.)
+
 Grafana speaks OIDC itself, so it gets its own client and no plugin in
 front. Once its client exists, three things change at once, all from the same
-secret: Grafana's root URL becomes `https://grafana.<zone>`, it logs people
-in via Pocket ID with `admins` → server admin and everyone else a viewer, and
-**anonymous viewing goes off**, tailnet included. A public route plus an
-anonymous viewer would be public dashboards. The admin password stays as the
-break-glass login. The homepage's Grafana and Loki links switch to the public
-name, and it gains a *Pocket ID · sign in* row whose check goes out through
-Cloudflare and the tunnel: a red dot there is the tunnel.
+secret: Grafana's root URL becomes `https://grafana.<label>.<zone>`, it logs
+people in via Pocket ID with `admins` → server admin and everyone else a
+viewer, and **anonymous viewing goes off**. The admin password stays as the
+break-glass login. The homepage's Grafana and Loki links use the same name.
+Pocket ID itself stays public, and Grafana reaches it there to swap the code
+for a token, so the login works from any tailnet device.
 
 1. Pocket ID → *OIDC Clients* → *Add*: name `grafana`, callback URL
-   `https://grafana.<zone>/login/generic_oauth`, logout callback
-   `https://grafana.<zone>/login`, *Skip Consent Screen* on. Save, open it,
-   *Generate* the secret.
+   `https://grafana.<label>.<zone>/login/generic_oauth`, logout callback
+   `https://grafana.<label>.<zone>/login`, *Skip Consent Screen* on. Save,
+   open it, *Generate* the secret.
 2. Repository secrets `GRAFANA_OIDC_CLIENT_ID` and
    `GRAFANA_OIDC_CLIENT_SECRET`.
-3. Run **observability** first (Grafana restarts with its login on), then
-   **ingress** (the `grafana` route appears). In that order: the route is
-   keyed on the same secret, and a route in front of a Grafana that has not
-   restarted yet would serve the anonymous viewer to the internet for the
-   minutes in between.
-4. Proof: `https://grafana.<zone>` → *Sign in with Pocket ID* → passkey (or
-   nothing, if the homepage already signed you in) → your name top right,
-   *Server Admin*. `http://jwst.<tailnet>:3000` shows the same login page,
-   no anonymous dashboards.
+3. Run **observability** (Grafana restarts with its login on and the new
+   root URL), then **ingress** (the `grafana` route on the tailnet side).
+4. Proof: `https://grafana.<label>.<zone>` on the tailnet → *Sign in with
+   Pocket ID* → passkey → *Server Admin*. Off the tailnet the name does not
+   resolve, and `grafana.<zone>` has no record.
 
 ## Watching the tunnel
 
@@ -204,8 +205,9 @@ is untouched and remains the break-glass login.
 |---|---|
 | nothing listens on horizon | `ss -ltnp`: one published port, `127.0.0.1:2000`, for the local agent |
 | an unrouted hostname reaches no service | `home` and `grafana` answered 404 from Traefik until their routes existed; the tunnel's catch-all is `http_status:404` |
+| Grafana is not on the internet | after the move to the tailnet side: `dig grafana.<zone>` from a public resolver has no record, and `grafana.<label>.<zone>` resolves only on the tailnet |
 | nothing gets past the login | unauthenticated browser → 302 to Pocket ID; non-browser → 401; forged session cookie → 302; nginx on jwst logged zero requests during all of it |
-| the login works from the internet | a phone on LTE: `home.<zone>` → passkey → homepage; `grafana.<zone>` → silent, already signed in, Server Admin |
+| the login works from the internet | a phone on LTE: `home.<zone>` → passkey → homepage |
 | the tunnel alert pages | `docker compose stop cloudflared`: 530 on every public name within a minute, *Tunnel is down* delivered at +6 min 36 s, resolved 3 min after `start` |
 | the homepage watches the door | its *Pocket ID* row probes through Cloudflare every minute; the fire test showed it green on a dead tunnel until the probe named itself (Cloudflare answers a bare Python client with 403) |
 | the tailnet side is invisible outside | `dig home.lab.<zone>` answers horizon's address on the tailnet (any other name: REFUSED) and nothing from public resolvers |

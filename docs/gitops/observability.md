@@ -733,10 +733,11 @@ rejects Python's default User-Agent before the tunnel is consulted. The
 first tunnel fire test showed the *Pocket ID* row green while every public
 name was serving 530. The probe now sends `autolab-status/1.0`.
 
-**Anonymous viewing ends when Grafana goes public.** It was deliberate while
-the tailnet was the only way in. Once `GRAFANA_OIDC_CLIENT_ID` is set the
-ingress phase routes `grafana.<zone>` through the tunnel, and the same
-switch turns anonymous viewing off everywhere and turns Pocket ID login on.
+**Anonymous viewing ends when Grafana gets its login.** Once
+`GRAFANA_OIDC_CLIENT_ID` is set, the same switch turns anonymous viewing off
+everywhere, turns Pocket ID login on, and gives Grafana its internal name
+`grafana.<label>.<zone>`. Grafana stays on the tailnet; it has no public
+route.
 See [ingress](./ingress.md#grafana).
 
 **`noDataState` defaults to firing when healthy.** Grafana treats an empty

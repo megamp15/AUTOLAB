@@ -34,13 +34,12 @@ autolab_obs_retention_size: "2GB"
 
 # The public side, once the ingress phase is live. The workflow fills these
 # from the Cloudflare stack's outputs and from Grafana's OIDC client in
-# Pocket ID. Empty means Grafana stays as it was: tailnet-only, anonymous
-# viewer. Set, Grafana gets its public root URL, logs in via Pocket ID and
-# anonymous viewing goes off — a public route plus anonymous viewing would
-# be public dashboards. The homepage's links follow.
+# Pocket ID. Empty means Grafana stays as it was: raw tailnet address,
+# anonymous viewer. Set, Grafana logs in via Pocket ID, anonymous viewing goes
+# off, and its root URL becomes grafana.<label>.<zone> — tailnet-only, like
+# Prometheus. It has no public name. The homepage's links follow.
 autolab_obs_public_zone: ""
 autolab_obs_public_hosts:
-  grafana: grafana
   auth: auth
   home: home
 # The tailnet side of ingress: *.<label>.<zone> names with real certificates,
@@ -228,11 +227,13 @@ autolab_obs_alert_backup_max_age_hours: 26
 # link. Hosts are named by MagicDNS so the addresses follow the devices.
 autolab_obs_homepage_enabled: true
 autolab_obs_homepage_port: 8080
-# Grafana's address as people should open it: the public name once Grafana
-# logs people in itself (the same switch that gives it a public route), the
-# tailnet address until then. Also its root_url.
+# Grafana's address as people should open it, and its root_url: the internal
+# name once Grafana logs people in itself, the raw tailnet address until
+# then. Never a public name: dashboards, logs and the query API stay on the
+# tailnet, and the OIDC callback Pocket ID holds for Grafana is this URL plus
+# /login/generic_oauth.
 autolab_obs_grafana_public_url: >-
-  {{ 'https://' ~ autolab_obs_public_hosts.grafana ~ '.' ~ autolab_obs_public_zone
+  {{ autolab_obs_lab_url.format(name='grafana', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_obs_grafana_port)
      if autolab_obs_grafana_oidc_client_id | length > 0
      else 'http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_obs_grafana_port }}
 
