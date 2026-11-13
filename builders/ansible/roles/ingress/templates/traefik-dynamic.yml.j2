@@ -24,12 +24,13 @@ http:
 {% if tailnet_on %}
     # --- tailnet only, HTTPS with the wildcard certificate ------------------
 {%   for name, route in autolab_ingress_internal_routes.items() %}
-{%     if route.login != 'plugin' or plugin_on %}
+{%     if route.login not in ['plugin', 'admin'] or plugin_on %}
     lab-{{ name }}:
       rule: "Host(`{{ name }}.{{ lab }}`)"
       entryPoints: [tailnet-https]
-{%       if route.login == 'plugin' %}
-      middlewares: [oidc]
+{%       set chain = (['oidc'] if route.login == 'plugin' else ['oidc-admin'] if route.login == 'admin' else []) + (['lab-' ~ name ~ '-token'] if route.token_header is defined else []) %}
+{%       if chain %}
+      middlewares: {{ chain | to_json }}
 {%       endif %}
       service: lab-{{ name }}
       tls:
@@ -73,7 +74,7 @@ http:
           - url: "http://pocket-id:1411"
 {% if tailnet_on %}
 {%   for name, route in autolab_ingress_internal_routes.items() %}
-{%     if route.login != 'plugin' or plugin_on %}
+{%     if route.login not in ['plugin', 'admin'] or plugin_on %}
     lab-{{ name }}:
       loadBalancer:
 {%       if route.insecure_upstream | default(false) %}
@@ -123,6 +124,12 @@ http:
             AssertClaims:
               - Name: groups
                 AnyOf: {{ groups | to_json }}
+{% endfor %}
+{% for name, route in autolab_ingress_internal_routes.items() if route.token_header is defined %}
+    lab-{{ name }}-token:
+      headers:
+        customRequestHeaders:
+          {{ route.token_header }}: {{ route.token | to_json }}
 {% endfor %}
 {% if 'dockhand' in autolab_ingress_services %}
     dockhand-upstream:

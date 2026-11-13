@@ -11,6 +11,8 @@ on:
       - builders/ansible/roles/nas-projects/**
       - builders/ansible/roles/nas-management/**
       - builders/ansible/roles/dockhand-environment/**
+      - builders/ansible/roles/nas-photos/**
+      - apps/photo-jobs/**
       - scripts/test_nas_observability.py
       - scripts/test_nas_management.py
   workflow_dispatch:
@@ -18,7 +20,7 @@ on:
       action:
         description: Adopt definitions without recreating containers; lifecycle actions operate on existing applications
         type: choice
-        options: [inspect, adopt, telemetry, management, start, stop, restart]
+        options: [inspect, adopt, telemetry, management, photos, start, stop, restart]
         default: inspect
       project:
         description: Application for an explicit lifecycle action
@@ -66,6 +68,7 @@ jobs:
       NAS_MODE: ${{ inputs.confirm }}
       NAS_ACTION: ${{ inputs.action }}
       NAS_PROJECT: ${{ inputs.project }}
+      AUTOLAB_PHOTOS_TOKEN: ${{ secrets.PHOTO_JOBS_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/connect-tailscale

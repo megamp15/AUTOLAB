@@ -27,7 +27,8 @@ tailscale up --advertise-tags=tag:autolab-nas --ssh
 |---|---|---|
 | Immich | `/volume1/docker/immich` | Adopt Compose; retain `.env`, OAuth config, database and media paths |
 | Portainer (retired) | `/volume1/docker/portainer` | Container removed after Dockhand verification; data retained |
-| photo-sort | `/volume1/docker/photo-sort` | Import sorter and duplicate utility; explicit jobs only |
+| photo-jobs | `/volume1/docker/photo-jobs` | The photo service (below). Built from `apps/photo-jobs`; workflow 12 `photos` |
+| photo-sort (retired) | `/volume1/docker/photo-sort` | The old sorter. Replaced by photo-jobs; its container and `moves.log` history stay on the NAS |
 | immich-export | `/volume1/docker/immich-export` | Import the existing generated migration script; explicit jobs only |
 | autolab-observability | `/volume1/docker/autolab-observability` | Managed Alloy and cAdvisor project |
 
@@ -66,46 +67,35 @@ not inferred from a successful Alloy scrape.
 UGOS shows the agents under Containers. Its Projects list can omit a Compose
 project created over SSH; that does not prevent IaC from managing it.
 
-## What the photo scripts currently do
+## Photo Jobs
 
-The source was recovered from the NAS into
-`builders/ansible/roles/nas-projects/files/`. Neither job calls the Immich API.
+The photo workflow is a web app, `apps/photo-jobs`, running as one container on
+the NAS at <https://photos.lab.pmahir.space> (Pocket ID admins only). It
+replaced the old `sort.py` and `dupes.py` scripts, whose behaviour it carries
+over. See `apps/photo-jobs/README.md` for what it does.
 
-### photo-sort
+**Plan, review, apply, undo.** A scan returns the exact moves; each can be
+unticked; apply makes only the ticked ones and writes a run record; undo puts a
+run's files back. Nothing is deleted: duplicates are filed under `_duplicates/`
+beside the kept copy. A Live Photo's still and clip are dated, named and ticked
+as one. The Immich containers mount the media folder read-only; Photo Jobs is
+the only thing that moves files in it.
 
-`sort.py` reads recording dates with ExifTool and supports these modes:
+**Deploying it.** Workflow **12 - NAS**, `action=photos`, `confirm=check` then
+`apply`. It copies `apps/photo-jobs` to `/volume1/docker/photo-jobs`, builds the
+image there, and starts only that project. It requires the `PHOTO_JOBS_TOKEN`
+environment secret (the play stops without it), proves the API refuses a request
+without the token, and proves the Immich containers kept the same IDs and start
+times. Updating is the same run: the app changes in git, the run rebuilds the
+image, and a rerun with nothing changed reports no changes.
 
-| Mode | Current behavior |
-|---|---|
-| `plan` | Writes `plan.txt`; does not move media |
-| `apply` | Sorts loose files and events; writes undo commands to `moves.log` |
-| `dupes` | Calls `dupes.py` to write a byte-identical duplicate report |
-| `dupes-apply` | Applies the report's keep choices; defaults to moving extra copies into `_duplicates` |
-| `undo` | Executes NAS-local `undo.sh` once, then renames it |
+**Who can reach it.** Traefik on horizon routes `photos.lab.<zone>` to the NAS
+with the Pocket ID admin login in front, then adds the token as
+`X-Autolab-Photos-Token`. The service refuses `/api/*` without it, so reaching
+the NAS's port directly gets nothing. Run workflow 05 `ingress` after the secret
+exists; with no token there is no route at all.
 
-`_inbox/loose` is recursive: a folder uploaded there does not become an event.
-Each photo/video goes to `library/YYYY/MM`; undated files go to `_no_date`.
-Each directory directly under `_inbox/events` is one event. The event is placed
-as a group under its dominant recording month, or the previous month if that
-month contains at least half as many dated files. Existing event directories
-are merged without overwriting files. Dates, not event folder names, decide
-placement. The script also handles event directories directly inside a year.
-
-`dupes.py` compares file size, a partial SHA-1 and then the full SHA-1. It
-prefers copies in event folders, then loose dated library files. The generated
-`duplicates.csv` has editable keep choices. `DUPLICATES=delete` enables a
-separate permanent-deletion branch that rechecks a matching kept copy.
-Adoption does not execute it.
-
-The live Compose file was last set to `MODE=dupes-apply`. The managed default
-is now `${MODE:-plan}`. The stopped legacy container keeps its old environment
-until a new explicit job is created; generic lifecycle controls therefore
-never start that container.
-
-The current sorter treats photo and video files independently. It moves XMP
-sidecars, but does not track Immich asset IDs or Apple's Live Photo content
-identifiers. It cannot yet guarantee that a HEIC/JPEG and its MOV stay paired
-through collision renaming, duplicate selection or later deletion.
+State (scan plans and run records) is under `/volume1/docker/photo-jobs/state`.
 
 ### immich-export
 
@@ -125,39 +115,11 @@ for the replacement, not reasons to rerun the migration during adoption.
 
 ## Next photo workflow
 
-Immich's `/mnt/mahir-personal` mount remains read-only. A separate Photo Jobs
-service will own plan/review/run actions, durable job status and logs. It will
-replace editing a shared `MODE` value. The intended workflow is:
+Photo Jobs sorts the inbox and files duplicates. Still to do, in this order:
 
-1. Preview and run `_inbox` sorting with explicit event/loose semantics.
-2. Review duplicates in Immich or a generated report.
-3. Preview NAS cleanup from explicitly selected Immich trash assets.
-4. Resolve each asset's exact source path and linked Live Photo partner,
+1. Review duplicates against Immich, not only against the files.
+2. Preview NAS cleanup from explicitly selected Immich trash assets.
+3. Resolve each asset's exact source path and linked Live Photo partner,
    validate both against the allowed media root, and quarantine the selected
    originals with a reversible manifest. An absent API result is never a
    deletion instruction.
-
-This service and its deletion workflow are subsequent implementation work.
-The adoption phase does not enable automatic sorting or deletion.
-
-## Docker management and the UGOS desktop
-
-`action=management` deploys a token-authenticated Hawser agent on Singularity,
-registers it in the existing Dockhand on jwst, and tests the connection against
-the NAS engine. Only after that succeeds does it remove the Portainer
-container. Its bind-mount data stays under `/volume1/docker/portainer`.
-No Immich or photo container is recreated by this action.
-
-The manager opens at `https://dockhand.lab.pmahir.space`. Select `singularity`
-in its environment selector. Hawser only listens on the NAS Tailscale address;
-its Docker API requires the generated agent token. That token stays on the
-NAS and in Dockhand's protected connection settings.
-
-The separate `dockhand-launcher` container has no Docker socket. Its port 9000
-only redirects to the protected Dockhand URL. To add it to the UGOS desktop:
-Docker → Containers → `autolab-management-dockhand-launcher-1` → … → Desktop
-shortcut. Use name **Dockhand** and access port **9000**. Keep Tailscale enabled
-on the device opening it. This uses UGOS's supported shortcut mechanism,
-without editing its internal desktop configuration.
-
-Reference: [UGOS Docker desktop shortcuts](https://support.ugnas.com/detail/article/en-US/715).

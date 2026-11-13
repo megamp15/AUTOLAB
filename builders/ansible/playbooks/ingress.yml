@@ -27,10 +27,14 @@
       share:
         upstream: "http://{{ autolab_ingress_services_fqdn }}:{{ autolab_service_catalog['immich-share'].port }}"
 
-    autolab_ingress_extra_routes:
-      pihole:
-        upstream: "http://magnetosphere.{{ autolab_ingress_tailnet_domain }}:8053"
-        login: plugin
+    # Photo Jobs on the NAS: Pocket ID admins only, and only once the shared
+    # token exists, so the route never points at a service that would answer
+    # anyone who can reach its port.
+    autolab_ingress_extra_routes: >-
+      {{ {'pihole': {'upstream': 'http://magnetosphere.' ~ autolab_ingress_tailnet_domain ~ ':8053', 'login': 'plugin'}}
+         | combine({'photos': {'upstream': 'http://singularity.' ~ autolab_ingress_tailnet_domain ~ ':8099', 'login': 'admin',
+                               'token_header': 'X-Autolab-Photos-Token', 'token': autolab_ingress_photos_token}}
+                   if autolab_ingress_photos_token | length > 0 else {}) }}
 
     # The observability host by MagicDNS name: Traefik routes the homepage and
     # Grafana there. Found in the inventory the same way the backup playbook

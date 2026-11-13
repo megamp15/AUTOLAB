@@ -1,0 +1,25 @@
+# Managed by AUTOLAB (roles/nas-photos). Rebuilt from apps/photo-jobs whenever
+# workflow 12 runs the photos action; local edits are overwritten.
+name: {{ autolab_photos_project }}
+services:
+  photo-jobs:
+    build: .
+    image: autolab/photo-jobs:local
+    restart: unless-stopped
+    mem_limit: {{ autolab_photos_memory }}
+    env_file:
+      - .env
+    environment:
+      MEDIA_ROOT: /media
+      STATE_DIR: /state
+      PORT: "{{ autolab_photos_port }}"
+    volumes:
+      - {{ autolab_photos_media }}:/media
+      - {{ autolab_photos_root }}/state:/state
+    ports:
+      - "{{ autolab_photos_ip }}:{{ autolab_photos_port }}:{{ autolab_photos_port }}"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:{{ autolab_photos_port }}/')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

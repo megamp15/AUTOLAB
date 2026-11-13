@@ -5,9 +5,11 @@
   gather_facts: true
   vars:
     autolab_nas_action: inspect
+    # From the job's environment, never the command line (which lands in the process list).
+    autolab_photos_token: "{{ lookup('ansible.builtin.env', 'AUTOLAB_PHOTOS_TOKEN') }}"
   roles:
     - role: nas-projects
-      when: autolab_nas_action not in ['telemetry', 'management']
+      when: autolab_nas_action not in ['telemetry', 'management', 'photos']
       tags: [nas, projects]
     - role: nas-observability
       when: autolab_nas_action == 'telemetry'
@@ -15,3 +17,6 @@
     - role: nas-management
       when: autolab_nas_action == 'management'
       tags: [nas, management]
+    - role: nas-photos
+      when: autolab_nas_action == 'photos'
+      tags: [nas, photos]
