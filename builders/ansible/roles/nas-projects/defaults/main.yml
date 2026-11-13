@@ -12,5 +12,6 @@ autolab_nas_source_files:
   - photo-sort/docker-compose.yaml
   - photo-sort/sort.py
   - photo-sort/dupes.py
+  - photo-sort/pairs.py
   - immich-export/docker-compose.yaml
   - immich-export/export.sh

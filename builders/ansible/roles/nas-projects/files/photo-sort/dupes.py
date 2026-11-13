@@ -10,6 +10,8 @@ MODE=dupes-apply  reads duplicates.csv (edit its keep column first if you like) 
                   /job/moves.log next to the command that undoes it.
 """
 import collections, csv, hashlib, os, re, shlex, sys, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import pairs as live_photos
 
 ROOT = os.environ.get('ROOT', '/media')
 JOB = os.environ.get('JOB', '/job')
@@ -139,6 +141,15 @@ def apply():
         for r in csv.DictReader(f):
             groups[r['group']].append(r)
     st, done, skipped = os.stat(ROOT), 0, 0
+    # A Live Photo's still and clip are one photo. A half is only removed when its other half is
+    # removed too: filing the still of copy B while copy A's clip is the one kept would leave a
+    # clip with no still, or the reverse. Read once, before anything moves.
+    marked = {r['path']: r['keep'].strip().lower() in ('yes', 'y', 'keep', '1') for rs in groups.values() for r in rs}
+    other_half = {}
+    for path in marked:
+        mate = live_photos.partner(os.path.join(ROOT, path))
+        if mate:
+            other_half[path] = os.path.relpath(mate, ROOT)
     with open(os.path.join(JOB, 'moves.log'), 'a') as undo:
         for gid, rs in groups.items():
             keep = [r for r in rs if r['keep'].strip().lower() in ('yes', 'y', 'keep', '1')
@@ -157,6 +168,11 @@ def apply():
                     continue
                 src = os.path.join(ROOT, r['path'])
                 if not os.path.exists(src):
+                    continue
+                mate = other_half.get(r['path'])
+                if mate and marked.get(mate, True):   # kept, or not a duplicate at all
+                    log(f'group {gid}: {r["path"]} left alone, its Live Photo half {mate} is staying')
+                    skipped += 1
                     continue
                 if DELETE:   # identical to the kept copy, checked again right now
                     if digest(kept) != digest(src):

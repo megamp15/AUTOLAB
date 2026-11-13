@@ -15,6 +15,8 @@ MODE=plan   reads only; writes /job/plan.txt
 MODE=apply  moves
 """
 import collections, hashlib, json, os, re, shlex, subprocess, sys, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import pairs as live_photos
 
 ROOT = os.environ.get('ROOT', '/media')
 JOB = os.environ.get('JOB', '/job')
@@ -124,6 +126,17 @@ class Sorter:
         self.taken.add(c.lower())
         return c
 
+    def free_set(self, folder, stem, exts):
+        """Names for a still and its clip that are free for every one of them, with the same _N
+        suffix: IMG_1.HEIC clashing must send IMG_1.MOV to IMG_1_1.MOV too, not leave it behind."""
+        n = 0
+        while True:
+            names = [os.path.join(folder, f'{stem}{"_%d" % n if n else ""}{e}') for e in exts]
+            if not any(c.lower() in self.taken or os.path.lexists(c) for c in names):
+                self.taken.update(c.lower() for c in names)
+                return names
+            n += 1
+
     def move(self, src, dst, why):
         self.moves.append((os.path.relpath(src, ROOT), os.path.relpath(dst, ROOT), why))
         if not self.apply:
@@ -169,28 +182,47 @@ class Sorter:
         media = [p for p in files if is_media(p)]
         side = {p for p in files if p.lower().endswith('.xmp')}
         months = recording_months(media)
+        clip_of = live_photos.pairs(media)                 # clip -> still
+        clips = {still: clip for clip, still in clip_of.items()}
         for p in media:
-            dup = self.duplicate_of(p)
-            if dup:
-                dest = self.drop_duplicate(p, dup)
+            if p in clip_of:
+                continue   # sorted together with its still
+            members = [p] + ([clips[p]] if p in clips else [])
+            dups = [self.duplicate_of(m) for m in members]
+            if all(dups):   # every half is already sorted: each is filed beside its copy
+                dests = [self.drop_duplicate(m, d) for m, d in zip(members, dups)]
+            else:   # new, or a pair with a half that is new: the pair is never split
+                month = months.get(p) or next((months[m] for m in members if m in months), None)
+                if len(members) == 1:
+                    if month:
+                        y, mo = month.split('-')
+                        dests, why = [self.free(os.path.join(LIB, y, mo, os.path.basename(p)))], f'recorded {month}'
+                    else:
+                        dests, why = [self.free(os.path.join(ROOT, NODATE, os.path.relpath(p, ROOT)))], 'no recording time'
+                else:
+                    stem = os.path.splitext(os.path.basename(p))[0]
+                    exts = [os.path.splitext(m)[1] for m in members]
+                    if month:
+                        y, mo = month.split('-')
+                        folder, why = os.path.join(LIB, y, mo), f'recorded {month}'
+                    else:
+                        folder, why = os.path.join(ROOT, NODATE, os.path.relpath(os.path.dirname(p), ROOT)), 'no recording time'
+                    dests = self.free_set(folder, stem, exts)
+                    why += f'; Live Photo with {os.path.basename(members[1])}'
+                for m, dest in zip(members, dests):
+                    self.move(m, dest, why)
+            for m, dup, dest in zip(members, dups, dests):
                 if dest is None:
                     continue   # deleted; any sidecar of it stays where it is
-            else:
-                if p in months:
-                    y, m = months[p].split('-')
-                    dest, why = self.free(os.path.join(LIB, y, m, os.path.basename(p))), f'recorded {months[p]}'
-                else:
-                    dest, why = self.free(os.path.join(ROOT, NODATE, os.path.relpath(p, ROOT))), 'no recording time'
-                self.move(p, dest, why)
-            if not dup:   # later files in this run count it as sorted, at the path it now has
-                now = dest if self.apply else p
-                if now != p and p in self.hashes:
-                    self.hashes[now] = self.hashes.pop(p)
-                self.remember(now)
-            for sc in (p + '.xmp', os.path.splitext(p)[0] + '.xmp'):
-                if sc in side:
-                    side.discard(sc)
-                    self.move(sc, self.free(dest + '.xmp'), 'sidecar')
+                if not all(dups):   # later files in this run count it as sorted, at the path it now has
+                    now = dest if self.apply else m
+                    if now != m and m in self.hashes:
+                        self.hashes[now] = self.hashes.pop(m)
+                    self.remember(now)
+                for sc in (m + '.xmp', os.path.splitext(m)[0] + '.xmp'):
+                    if sc in side:
+                        side.discard(sc)
+                        self.move(sc, self.free(dest + '.xmp'), 'sidecar')
         return [p for p in files if not is_media(p) and (not p.lower().endswith('.xmp') or p in side)]
 
     def place_event(self, folder):
@@ -222,13 +254,26 @@ class Sorter:
             self.move(folder, dest, f'event {y}-{m} by {by} ({len(media)} photos; {mix})')
             return []
         left = []   # same event already in its month: merge file by file
+        clip_of = live_photos.pairs(media)
+        clips = {still: clip for clip, still in clip_of.items()}
         for p in files:
-            rel = os.path.relpath(p, folder)
-            dup = self.duplicate_of(p, ignore=folder + '/') if is_media(p) else None
-            if dup:
-                self.drop_duplicate(p, dup)
+            if p in clip_of:
+                continue   # merged together with its still
+            members = [p] + ([clips[p]] if p in clips else [])
+            dups = [self.duplicate_of(m, ignore=folder + '/') if is_media(m) else None for m in members]
+            if all(dups):
+                for m, d in zip(members, dups):
+                    self.drop_duplicate(m, d)
+                continue
+            why = f'merged into {os.path.relpath(dest, ROOT)}'
+            target = os.path.join(dest, os.path.relpath(p, folder))
+            if len(members) == 1:
+                self.move(p, self.free(target), why)
             else:
-                self.move(p, self.free(os.path.join(dest, rel)), f'merged into {os.path.relpath(dest, ROOT)}')
+                stem = os.path.splitext(os.path.basename(target))[0]
+                names = self.free_set(os.path.dirname(target), stem, [os.path.splitext(m)[1] for m in members])
+                for m, name in zip(members, names):
+                    self.move(m, name, why + '; Live Photo')
         return left
 
     def run(self):

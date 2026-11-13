@@ -102,10 +102,18 @@ is now `${MODE:-plan}`. The stopped legacy container keeps its old environment
 until a new explicit job is created; generic lifecycle controls therefore
 never start that container.
 
-The current sorter treats photo and video files independently. It moves XMP
-sidecars, but does not track Immich asset IDs or Apple's Live Photo content
-identifiers. It cannot yet guarantee that a HEIC/JPEG and its MOV stay paired
-through collision renaming, duplicate selection or later deletion.
+**Live Photos.** A HEIC/JPEG and the MOV beside it (same folder, same name apart
+from the extension) are one photo, and `pairs.py` is what both scripts use to
+see that. The still decides the month for both; a name clash renames both with
+the same `_N`; a pair counts as a duplicate only when both halves are; and
+`dupes-apply` removes a half only when its other half is being removed too,
+otherwise it logs that it left it alone. A pair whose halves were renamed apart,
+or a name with two stills, is not recognisable and is treated as separate files.
+The link is the name, not Apple's ContentIdentifier, which would need ExifTool
+to read and is not used yet. `scripts/test_photo_sort.py` runs the real scripts
+against a throwaway library with a stand-in ExifTool.
+
+The sorter also moves XMP sidecars, but does not track Immich asset IDs.
 
 ### immich-export
 
