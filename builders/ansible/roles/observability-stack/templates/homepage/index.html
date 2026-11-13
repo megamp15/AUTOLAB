@@ -60,10 +60,22 @@
   #rows { overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-width:none; }
   #rows::-webkit-scrollbar { display:none; }
   [data-sg-root].static #rows { overflow:visible; }
-  .tabs { display:flex; gap:24px; border-bottom:1px solid currentColor; }
+  /* Everything in the dashboard fades in with the flood, like the header and
+     the rows. The tabs and the panels' own copy once had no opacity of their
+     own, so they sat blurred over the black hole for the whole intro. */
+  .tabs, #rows > .ops, #rows > .arch { opacity:calc((var(--sg-flood) - 0.02) * 9); }
+  #bar { display:flex; align-items:center; gap:12px 40px; flex-wrap:wrap; }
+  #brand { flex:none; }
+  #clockbox { margin-left:auto; }
+  .tabs { display:flex; gap:28px; }
+  .tabs button { padding:6px 0 !important; }
   .tabs button { color:inherit; background:none; border:0; border-bottom:2px solid transparent; padding:12px 0; font:inherit; font-size:13px; cursor:pointer; }
   .tabs button[aria-selected="true"] { border-bottom-color:currentColor; }
-  :focus-visible { outline:2px solid currentColor; outline-offset:4px; }
+  :focus-visible { outline:1px dashed color-mix(in srgb,currentColor 60%,transparent); outline-offset:3px; }
+  /* Tabs show focus the way they show selection, by their underline; the
+     diagram's viewport and the panel never draw a ring around themselves. */
+  .tabs button:focus-visible { outline:none; border-bottom-style:dashed; border-bottom-color:currentColor; }
+  .a-zoom:focus, .a-zoom:focus-visible, #rows:focus, #rows:focus-visible { outline:none; }
   .access { font-size:11px; white-space:nowrap; opacity:.8; }
   .ops { font-size:13px; line-height:1.6; }
   .ops h2 { margin:0 0 8px; font-size:20px; font-weight:500; }
@@ -78,19 +90,183 @@
   .ops summary { cursor:pointer; }
   .ops details p { margin:10px 0 0; }
   .ops code { font:11px 'IBM Plex Mono',monospace; overflow-wrap:anywhere; }
-  .ops .table-scroll, .topology { overflow-x:auto; }
-  .topology svg { width:100%; min-width:650px; display:block; }
-  .topology svg text { fill:currentColor; font-family:'Space Grotesk',system-ui,sans-serif; }
-  .topology svg .vm { cursor:pointer; }
-  .topology svg .vm:hover rect, .topology svg .vm:focus-visible rect { fill:currentColor; fill-opacity:.1; }
-  #architecture-detail { margin:14px 0; min-height:48px; }
+  .ops .table-scroll { overflow-x:auto; }
+
+  /* Architecture. The panel widens past the list's 760px; everything is ink
+     on paper at different strengths, so it follows the flip and the flood
+     like the rest of the page. */
+  /* Services: each group's rows flow into as many columns as the screen
+     holds; one column on a phone. */
+  .group-rows { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); column-gap:44px; }
+  #rows { position:relative; }
+  /* The panel takes focus so the keyboard can scroll it; the browser's
+     outline around the whole thing said nothing a reader needed. */
+  #rows:focus-visible { outline:none; }
+  .a-pill { color:inherit; background:none; font-size:11px; padding:5px 11px; cursor:pointer; border-radius:999px;
+    border:1px solid color-mix(in srgb,currentColor 35%,transparent); }
+  .a-pill:hover, .a-pill[aria-pressed="true"] { background:color-mix(in srgb,currentColor 12%,transparent); border-color:currentColor; }
+  .arch { display:flex; flex-direction:column; gap:12px; }
+  .a-toolbar { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px 28px; }
+  .a-toolbar .a-legend { flex:1 1 auto; justify-content:center; }
+  .a-intro h2 { margin:0 0 2px; }
+  .a-intro p { margin:0; }
+  .a-live { font-size:10.5px; letter-spacing:.2em; }
+  .a-live::before { content:""; display:inline-block; width:6px; height:6px; border-radius:50%; background:currentColor; margin-right:8px; vertical-align:1px; animation:a-blink 2s ease-in-out infinite; }
+  @keyframes a-blink { 50% { opacity:.25; } }
+  .a-tools { display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; }
+  .a-toggle { font-size:12px; display:inline-flex; gap:6px; align-items:center; cursor:pointer; }
+  .a-zoomctl { display:inline-flex; align-items:center; border:1px solid color-mix(in srgb,currentColor 35%,transparent); border-radius:4px; font-size:11px; }
+  .a-zoomctl button { color:inherit; background:none; border:0; border-left:1px solid color-mix(in srgb,currentColor 20%,transparent); padding:5px 9px; font:inherit; cursor:pointer; }
+  .a-zoomctl button:first-child { border-left:0; }
+  .a-zoomctl button:hover:not(:disabled) { background:color-mix(in srgb,currentColor 12%,transparent); }
+  .a-zoomctl button:disabled { opacity:.4; cursor:default; }
+  .a-zoomval { min-width:46px; text-align:center; font-variant-numeric:tabular-nums; border-left:1px solid color-mix(in srgb,currentColor 20%,transparent); padding:5px 4px; }
+  .a-zoom { position:relative; }
+  .a-zoom.on { overflow:hidden; overflow:clip; cursor:grab; touch-action:none; overscroll-behavior:contain;
+    border:1px solid color-mix(in srgb,currentColor 18%,transparent); border-radius:6px; }
+  .a-zoom.on.dragging, .a-zoom.on.dragging * { cursor:grabbing; user-select:none; -webkit-user-select:none; }
+  .a-zoom.on .a-card, .a-zoom.on .a-access { cursor:auto; }
+  .a-zoom.on { background-image:radial-gradient(color-mix(in srgb,currentColor 13%,transparent) 1px, transparent 1.2px);
+    background-size:var(--a-grid-size,22px) var(--a-grid-size,22px); background-position:var(--a-grid-x,0px) var(--a-grid-y,0px); }
+  .a-zoom.on .a-canvas { background-image:none; }
+  .a-zoom.on .a-sizer { position:absolute; left:0; top:0; }
+  /* Hidden until the first fit, so nothing shows at the wrong size first. */
+  .a-zoom.on:not(.ready) .a-sizer { visibility:hidden; }
+  /* Landscape: the way in on the left, the machines in the middle, where the
+     data goes on the right. The rows dissolve so each card takes a cell. */
+  .a-canvas.a-land { display:grid; column-gap:96px; row-gap:30px; align-items:center; padding-bottom:16px !important;
+    grid-template-columns:minmax(300px,1fr) minmax(0,4.2fr) minmax(280px,1fr);
+    grid-template-areas:"cf nodes backups" "door nodes nas" "ts nodes obs" "gh nodes ." "access access access";
+    grid-template-rows:repeat(4, minmax(0,1fr)) auto; }
+  .a-land .a-row-edge, .a-land .a-row-door, .a-land .a-row-data { display:contents; }
+  .a-land .a-row-nodes { grid-area:nodes; margin:0; padding-top:48px; align-self:start; }
+  .a-land .a-card { z-index:1; }
+  .a-land [data-wire="cf"] { grid-area:cf; } .a-land [data-wire="ts"] { grid-area:ts; } .a-land [data-wire="gh"] { grid-area:gh; }
+  .a-land .a-door { grid-area:door; width:auto; }
+  .a-land [data-wire="backups"] { grid-area:backups; } .a-land [data-wire="nas"] { grid-area:nas; } .a-land [data-wire="obs"] { grid-area:obs; }
+  .a-land .a-access { grid-area:access; margin:56px 0 0; }
+  .a-zoom.on .a-canvas { padding:24px; box-sizing:border-box; }
+  .a-access { font-size:11.5px; line-height:1.6; opacity:.7; margin:22px 0 0; max-width:110ch; }
+  /* Hovering a legend entry: its wires stay, the rest step back. */
+  .a-canvas[data-focus] .a-wire, .a-canvas[data-focus] .a-packet { opacity:.12; transition:opacity .25s; }
+  .a-canvas[data-focus="public"] .a-public, .a-canvas[data-focus="public"] .a-p-public,
+  .a-canvas[data-focus="tailnet"] .a-tailnet, .a-canvas[data-focus="tailnet"] .a-p-tailnet,
+  .a-canvas[data-focus="backup"] .a-backup, .a-canvas[data-focus="backup"] .a-p-backup,
+  .a-canvas[data-focus="signal"] .a-signal, .a-canvas[data-focus="signal"] .a-signal-streak { opacity:1; }
+  .a-canvas { position:relative; padding:6px 2px 2px;
+    background-image:radial-gradient(color-mix(in srgb,currentColor 13%,transparent) 1px, transparent 1.2px); background-size:22px 22px; }
+  /* The scan line sweeps the diagram and stops at its edge: the canvas clips,
+     so it never makes the panel taller for the length of a sweep. */
+  .a-canvas { overflow:hidden; }
+  .a-canvas::after { content:""; position:absolute; left:0; right:0; top:-90px; height:90px; pointer-events:none; z-index:2;
+    background:linear-gradient(transparent, color-mix(in srgb,currentColor 5%,transparent), transparent); animation:a-scan 11s linear infinite; }
+  .a-wires { position:absolute; left:0; top:0; pointer-events:none; overflow:visible; z-index:0; }
+  .a-row { position:relative; z-index:1; display:grid; gap:14px; margin-bottom:64px; }
+  .a-row-edge, .a-row-data { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .a-row-data { margin-bottom:0; }
+  .a-row-door { justify-items:center; }
+  .a-door { width:min(600px,100%); text-align:center; }
+  .a-door .a-title { justify-content:center; }
+  .a-row-nodes { grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); align-items:start; }
+  .a-card { position:relative; border:1px solid color-mix(in srgb,currentColor 26%,transparent); border-radius:6px; padding:12px 14px;
+    background:color-mix(in srgb,var(--sg-bg) 90%,transparent); }
+  /* Corner brackets: the one ornament, and it is only a frame. */
+  .a-card::before { content:""; position:absolute; inset:-1px; border-radius:6px; pointer-events:none; opacity:.9;
+    background:
+      linear-gradient(currentColor,currentColor) top left/12px 1px no-repeat,
+      linear-gradient(currentColor,currentColor) top left/1px 12px no-repeat,
+      linear-gradient(currentColor,currentColor) bottom right/12px 1px no-repeat,
+      linear-gradient(currentColor,currentColor) bottom right/1px 12px no-repeat; }
+  .a-node { background:color-mix(in srgb,var(--sg-bg) 62%,transparent); }
+  .a-vm { padding:9px 10px; background:color-mix(in srgb,var(--sg-bg) 94%,transparent); }
+  .a-vm::before { display:none; }
+  .a-off { opacity:.5; }
+  .a-title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:500; letter-spacing:.02em; }
+  .a-node > .a-head .a-title, .a-door .a-title { font-size:17px; }
+  .a-sub { font-size:11px; opacity:.72; margin-top:2px; }
+  .a-spec { display:flex; flex-wrap:wrap; gap:3px 10px; font-size:10.5px; letter-spacing:.05em; opacity:.8; margin:8px 0 6px; }
+  .a-bar { display:grid; grid-template-columns:38px 1fr auto; align-items:center; gap:8px; font:10px 'IBM Plex Mono',monospace; margin:3px 0; }
+  .a-bar-label { opacity:.6; text-transform:uppercase; letter-spacing:.12em; }
+  .a-bar-track { height:3px; position:relative; overflow:hidden; background:color-mix(in srgb,currentColor 14%,transparent); }
+  .a-bar-track i { position:absolute; left:0; top:0; bottom:0; width:0; background:currentColor; transition:width 1.4s cubic-bezier(.2,.7,.2,1); }
+  .a-bar-track i::after { content:""; position:absolute; inset:0; width:40%;
+    background:linear-gradient(90deg, transparent, var(--sg-bg), transparent); opacity:.55; animation:a-sheen 3.2s ease-in-out infinite; }
+  .a-bar-val { opacity:.85; min-width:70px; text-align:right; font-variant-numeric:tabular-nums; }
+  .a-vms { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr)); gap:8px; margin-top:12px; align-items:start; }
+  .a-tenant { grid-column:1 / -1; border:1px dashed color-mix(in srgb,currentColor 32%,transparent); border-radius:5px; padding:8px; }
+  .a-tenant-label { font-size:10px; letter-spacing:.2em; text-transform:uppercase; opacity:.65; margin-bottom:6px; }
+  .a-tenant-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:6px; }
+  .a-ctrs { margin-top:8px; display:flex; flex-direction:column; gap:5px; border-top:1px solid color-mix(in srgb,currentColor 14%,transparent); padding-top:7px; }
+  .a-ctr-group { display:grid; grid-template-columns:58px 1fr; gap:6px; align-items:start; }
+  .a-ctr-label { font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; opacity:.55; padding-top:3px; }
+  .a-ctr-chips, .a-chips { display:flex; flex-wrap:wrap; gap:4px; }
+  .a-chips { margin-top:8px; }
+  .a-chip { font:10.5px 'IBM Plex Mono',monospace; padding:2px 6px; border:1px solid color-mix(in srgb,currentColor 24%,transparent); border-radius:3px; white-space:nowrap; }
+  .a-chip small { opacity:.55; font-size:9.5px; }
+  /* Links: the hand cursor and a firmer frame on hover; titles keep a faint
+     arrow so you can tell what opens before you point at it. */
+  .a-chip-link { cursor:pointer; transition:border-color .2s, background-color .2s; }
+  .a-chip-link:hover, .a-chip-link:focus-visible { border-color:currentColor; background:color-mix(in srgb,currentColor 12%,transparent); }
+  .a-title-link { display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+  .a-title-link .a-go { opacity:.3; transition:opacity .2s, transform .2s; }
+  .a-title-link:hover .a-go, .a-title-link:focus-visible .a-go { opacity:1; transform:translate(1px,-1px); }
+  .a-title-link:hover span { text-decoration:underline; text-underline-offset:3px; text-decoration-thickness:1px; }
+  a.a-line-link { display:flex; align-items:center; gap:4px; width:fit-content; cursor:pointer; }
+  a.a-line-link .a-go { opacity:.3; }
+  a.a-line-link:hover { opacity:1; text-decoration:underline; text-underline-offset:3px; }
+  a.a-line-link:hover .a-go { opacity:1; }
+  .a-chip-strong { border-color:currentColor; padding:4px 10px; font-size:11.5px; }
+  .a-line { font-size:10.5px; opacity:.75; margin-top:4px; letter-spacing:.03em; }
+  .a-flow { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:8px; margin:12px 0 8px; }
+  .a-arrow { opacity:.6; display:inline-block; animation:a-nudge 1.8s ease-in-out infinite; }
+  .a-dot { width:6px; height:6px; border-radius:50%; border:1px solid currentColor; flex:none; position:relative; }
+  .a-dot.on { background:currentColor; }
+  .a-dot.on::after { content:""; position:absolute; inset:-4px; border-radius:50%; border:1px solid currentColor; opacity:0; animation:a-ping 2.6s ease-out infinite; }
+  .a-foot { font-size:10px; opacity:.55; margin-top:8px; }
+  .a-wire { fill:none; stroke:currentColor; stroke-width:1; }
+  /* Four kinds of wire, told apart by shape, not by shade alone:
+     internet = thick solid with glowing packets; private = dashes;
+     backups = round dots; metrics = a faint line with a running streak. */
+  .a-public { stroke-opacity:.95; stroke-width:2; }
+  .a-tailnet { stroke-opacity:.7; stroke-width:1.1; stroke-dasharray:7 5; animation:a-flow 1.2s linear infinite; }
+  .a-backup { stroke-opacity:.6; stroke-width:2.6; stroke-dasharray:0.1 7; stroke-linecap:round; animation:a-flow-dots 2.4s linear infinite; }
+  .a-signal { stroke-opacity:.2; stroke-width:1; }
+  .a-signal-streak { stroke-opacity:.95; stroke-width:1.5; stroke-linecap:round; stroke-dasharray:8 70; animation:a-streak 2.2s linear infinite; }
+  .a-packet { fill:currentColor; }
+  .a-p-public { filter:drop-shadow(0 0 3px currentColor); }
+  .a-legend { display:flex; flex-wrap:wrap; gap:6px 22px; font-size:11px; }
+  .a-key { display:inline-flex; align-items:center; gap:8px; cursor:help; opacity:.85; padding:2px 0; }
+  .a-key:hover, .a-key:focus-visible { opacity:1; }
+  .a-key svg { overflow:visible; }
+  @keyframes a-flow { to { stroke-dashoffset:-24; } }
+  @keyframes a-flow-dots { to { stroke-dashoffset:-14.2; } }
+  @keyframes a-streak { from { stroke-dashoffset:78; } to { stroke-dashoffset:0; } }
+  @keyframes a-ping { 0% { transform:scale(.6); opacity:.7; } 100% { transform:scale(2.3); opacity:0; } }
+  @keyframes a-nudge { 50% { transform:translateX(3px); } }
+  @keyframes a-sheen { 0% { transform:translateX(-120%); } 60%, 100% { transform:translateX(320%); } }
+  @keyframes a-scan { from { top:-90px; } to { top:100%; } }
+  @media (prefers-reduced-motion: reduce) {
+    .a-signal-streak { display:none; }
+    .a-wire, .a-dot.on::after, .a-arrow, .a-canvas::after, .a-bar-track i::after { animation:none !important; }
+    .a-bar-track i { transition:none; }
+  }
+  /* Narrow: one column, and the wires go, because they would only run
+     through the cards stacked above their ends. */
+  [data-sg-root].static .a-zoomctl { display:none; }
+  @media (max-width:900px) {
+    .a-zoomctl { display:none; }
+    .a-row-edge, .a-row-data, .a-row-nodes { grid-template-columns:1fr !important; }
+    .a-vms { grid-template-columns:1fr; }
+    .a-wires { display:none; }
+    .a-row { margin-bottom:14px; }
+  }
   [hidden] { display:none !important; }
   @media (max-width:600px) {
     .row { flex-wrap:wrap; gap:8px 12px; }
     .row .name { flex-basis:45%; }
     .row .meta { font-size:11px; letter-spacing:0; }
     .row .access { margin-left:27px; order:5; width:100%; }
-    .tabs { gap:20px; }
+    .tabs { gap:20px; order:3; flex-basis:100%; }
   }
 </style>
 </head>
@@ -99,21 +275,23 @@
   <div class="scene" style="height:230vh;">
     <div class="stick" style="position:sticky; top:0; height:100vh; overflow:hidden;">
       <canvas data-sg-sky="1" style="position:absolute; inset:0; width:100%; height:100%; display:block;"></canvas>
-      <div id="stage" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:clamp(20px,5vw,64px); pointer-events:none;">
-        <div style="width:min(760px,100%); display:flex; flex-direction:column; gap:clamp(16px,2.6vh,26px); filter:blur(calc((1 - var(--sg-flood)) * 3px)); transform:scaleY(calc(0.82 + var(--sg-flood) * 0.18));">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; opacity:calc((var(--sg-flood) - 0.02) * 9);">
-            <span class="mono" style="font-size:11px; letter-spacing:.34em;">AUTOLAB</span>
-            <div style="display:flex; align-items:center; gap:14px;">
+      <div id="stage" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:clamp(14px,1.6vw,28px); pointer-events:none;">
+        <div id="content" style="width:100%; display:flex; flex-direction:column; gap:clamp(10px,1.6vh,18px); filter:blur(calc((1 - var(--sg-flood)) * 3px)); transform:scaleY(calc(0.82 + var(--sg-flood) * 0.18));">
+          <!-- One row on a desktop: wordmark, tabs, clock. On a phone the tabs
+               wrap onto their own line under the wordmark. -->
+          <div id="bar" style="opacity:calc((var(--sg-flood) - 0.02) * 9);">
+            <span class="mono" id="brand" style="font-size:11px; letter-spacing:.34em;">AUTOLAB</span>
+            <nav class="tabs" role="tablist" aria-label="Lab views">
+              <button type="button" id="tab-services" role="tab" aria-controls="rows" aria-selected="true" data-tab="services">Services</button>
+              <button type="button" id="tab-schedules" role="tab" aria-controls="rows" aria-selected="false" tabindex="-1" data-tab="schedules">Schedules</button>
+              <button type="button" id="tab-architecture" role="tab" aria-controls="rows" aria-selected="false" tabindex="-1" data-tab="architecture">Architecture</button>
+            </nav>
+            <div id="clockbox" style="display:flex; align-items:center; gap:14px;">
               <span id="clock" class="mono" style="font-size:11px; letter-spacing:.2em; font-variant-numeric:tabular-nums;">--:--</span>
               <button id="flip" type="button" style="width:30px; height:30px; padding:0; display:grid; place-items:center; cursor:pointer; background:transparent; color:var(--sg-fg); border:1px solid var(--sg-fg); border-radius:999px;"></button>
             </div>
           </div>
           <div style="height:1px; background:var(--sg-fg); transform:scaleX(min(1, calc(var(--sg-flood) * 1.6))); opacity:calc(var(--sg-flood) * 4);"></div>
-          <nav class="tabs" role="tablist" aria-label="Lab views">
-            <button type="button" id="tab-services" role="tab" aria-controls="rows" aria-selected="true" data-tab="services">Services</button>
-            <button type="button" id="tab-schedules" role="tab" aria-controls="rows" aria-selected="false" tabindex="-1" data-tab="schedules">Schedules</button>
-            <button type="button" id="tab-architecture" role="tab" aria-controls="rows" aria-selected="false" tabindex="-1" data-tab="architecture">Architecture</button>
-          </nav>
           <div id="rows" role="tabpanel" aria-labelledby="tab-services" tabindex="0" style="display:flex; flex-direction:column;"></div>
           <div id="feed" style="display:flex; flex-direction:column; gap:8px; opacity:calc((var(--sg-flood) - 0.66) * 8);"></div>
         </div>
@@ -158,6 +336,10 @@
   // ---- data --------------------------------------------------------------
   function render() {
     rowsEl.setAttribute('aria-labelledby', 'tab-' + state.tab);
+    if (state.tab !== 'architecture') arch.sig = '';
+    // The feed is the lab's news; it belongs with the services, not under
+    // the schedule table or the diagram, where it only took their room.
+    feedEl.hidden = state.tab !== 'services';
     document.querySelectorAll('[data-tab]').forEach(b => {
       const selected = b.dataset.tab === state.tab;
       b.setAttribute('aria-selected', String(selected));
@@ -168,18 +350,20 @@
     const out = [];
     const legend = el('p', 'Public links work outside Tailscale. Internal links require Tailscale; their login protection is shown on each row.', 'ops muted');
     out.push(legend);
-    let group = null;
+    let group = null, box = null;
     state.rows.forEach((r, i) => {
-      if (r.group && r.group !== group) {
+      if (!box || (r.group && r.group !== group)) {
         group = r.group;
         const h = document.createElement('div');
         h.className = 'head';
         h.innerHTML = '<span></span>';
-        h.firstChild.textContent = group;
+        h.firstChild.textContent = group || '';
         h.style.opacity = `calc((var(--sg-flood) - ${(0.04 + i * (0.5 / Math.max(1, state.rows.length - 1))).toFixed(3)}) * 9)`;
-        out.push(h);
+        box = document.createElement('div');
+        box.className = 'group-rows';
+        out.push(h, box);
       }
-      out.push(row(r, i));
+      box.append(row(r, i));
     });
     rowsEl.replaceChildren(...out);
     renderFeed();
@@ -282,63 +466,564 @@
     if ((op.errors || []).length) box.append(el('p', 'Some live sources could not be read: ' + op.errors.join('; ')));
     rowsEl.replaceChildren(box);
   }
+  // ---- architecture -------------------------------------------------------
+  // The lab as it is right now: hardware and placement from Proxmox, load
+  // from node_exporter and cAdvisor, reachability from the probes. Cards are
+  // HTML; the wires between them are one SVG measured off the cards, so the
+  // layout stays responsive. The structure is rebuilt only when the shape of
+  // the lab changes (a guest, a container, the toggle); every 30-second
+  // refresh otherwise just rewrites the numbers, so the wires keep flowing.
+  const ROLES = {
+    sputnik: 'disposable probe · pipeline canary',
+    jwst: 'observability + services',
+    ark: 'Proxmox Backup Server',
+    horizon: 'ingress · tunnel · Traefik · Pocket ID',
+    magnetosphere: 'edge DNS · Pi-hole',
+  };
+  const arch = { sig: '', showAll: false, wired: null };
+  const gib = b => (b || 0) / 1073741824;
+  const pct = v => Math.max(0, Math.min(100, (v || 0) * 100));
+  const fmtG = b => gib(b) >= 10 ? gib(b).toFixed(0) : gib(b).toFixed(1);
+  const fmtM = b => (b || 0) >= 1073741824 ? gib(b).toFixed(1) + 'G' : Math.round((b || 0) / 1048576) + 'M';
+  const fmtUp = s => !s ? '—' : s >= 86400 ? Math.floor(s / 86400) + 'd' : s >= 3600 ? Math.floor(s / 3600) + 'h' : Math.floor(s / 60) + 'm';
+  const tagsOf = g => String(g.tags || '').split(';').map(t => t.trim()).filter(Boolean);
+  const ctrName = n => n.replace(/^(observability|services|ingress|cadvisor)-/, '').replace(/-\d+$/, '');
+  const ctrGroup = n => (n.match(/^(observability|services|ingress)-/) || [, 'host'])[1];
+
+  function archModel() {
+    const op = state.operations;
+    const tel = op.telemetry || { hosts: [], containers: [] };
+    const hosts = Object.fromEntries((tel.hosts || []).map(h => [h.name, h]));
+    const ctrs = {};
+    (tel.containers || []).forEach(c => (ctrs[c.host] = ctrs[c.host] || []).push(c));
+    const rowBy = name => state.rows.find(r => r.name === name);
+    const temps = {};
+    state.rows.forEach(r => { const m = /^(\S+) · (\d+)°C/.exec(r.meta || ''); if (r.name === 'Proxmox VE' && m) temps[m[1]] = +m[2]; });
+    const labNames = [], publicNames = [];
+    state.rows.forEach(r => {
+      let host = ''; try { host = new URL(r.url).hostname; } catch (e) { return; }
+      if (/\.lab\./.test(host)) labNames.push(host.split('.')[0]);
+      else if (/^Public/.test(r.access || '')) publicNames.push(host.split('.')[0]);
+    });
+    const nodes = (op.nodes || []).map(n => {
+      const all = n.guests || [];
+      const mine = all.filter(g => !g.template && tagsOf(g).includes('autolab'));
+      const shown = arch.showAll ? all : mine;
+      return { ...n, own: shown.filter(g => !tagsOf(g).some(t => t.startsWith('tenant-'))),
+               tenants: shown.filter(g => tagsOf(g).some(t => t.startsWith('tenant-'))),
+               hidden: all.length - shown.length, extra: all.length - mine.length, temp: temps[n.name], host: hosts[n.name] };
+    });
+    // The page itself and the shared-link proxy are public names with no row.
+    publicNames.unshift('home');
+    if ((op.services || []).includes('immich-share')) publicNames.push('share');
+    // Where everything opens, from the rows' own links so nothing here names
+    // a domain: by row name (machines, Loki), by node name (Proxmox rows), and
+    // by a hostname's first label (grafana, pbs, dockhand, ...).
+    const byName = {}, byLabel = {};
+    let zone = '';
+    state.rows.forEach(r => {
+      let host = ''; try { host = new URL(r.url).hostname; } catch (e) { return; }
+      if (!byName[r.name]) byName[r.name] = r.url;
+      if (r.name === 'Proxmox VE') byName[(r.meta || '').split(' ')[0]] = r.url;
+      const label = host.split('.')[0];
+      if (!byLabel[label]) byLabel[label] = r.url;
+      const at = host.indexOf('.lab.');
+      if (at > 0 && !zone) zone = host.slice(at + 5);
+    });
+    const labUrl = label => byLabel[label] || (zone ? `https://${label}.lab.${zone}` : '');
+    const pubUrl = label => byLabel[label] || (zone ? `https://${label}.${zone}` : '');
+    // A container opens the app it serves; one with nothing to open stays text.
+    const CTR_APPS = { grafana: () => byName.Grafana, loki: () => byName.Loki, prometheus: () => labUrl('prometheus'),
+      homepage: () => pubUrl('home'), 'code-server': () => labUrl('code-server'), dockhand: () => labUrl('dockhand'),
+      registry: () => labUrl('registry-ui'), 'registry-ui': () => labUrl('registry-ui'), dash: () => labUrl('dash'),
+      qr: () => labUrl('qr'), cosmos: () => labUrl('cosmos'), pihole: () => byName['Pi-hole'], 'pocket-id': () => pubUrl('auth') };
+    const link = { byName, labUrl, pubUrl, ctr: name => (CTR_APPS[name] || (() => ''))() || '' };
+    return { op, nodes, hosts, ctrs, rowBy, link, labNames: [...new Set(labNames)], publicNames: [...new Set(publicNames)] };
+  }
+
+  function archSignature(m) {
+    return JSON.stringify([arch.showAll, m.nodes.map(n => [n.name, n.available, !!n.hardware, n.own.map(g => g.name + g.status), n.tenants.map(g => g.name + g.status)]),
+      Object.entries(m.ctrs).map(([h, cs]) => [h, cs.map(c => c.name)]), m.labNames, m.publicNames]);
+  }
+
+  // One small helper per kind of thing on the page. `live` marks a node whose
+  // text or width is rewritten on refresh without rebuilding anything.
+  function mk(tag, cls, text) { return el(tag, text, cls); }
+  function live(e, key) { e.dataset.live = key; return e; }
+  function bar(key, label) {
+    const wrap = mk('div', 'a-bar'); wrap.append(mk('span', 'a-bar-label', label));
+    const track = mk('span', 'a-bar-track'); const fill = live(mk('i'), key + ':w'); track.append(fill);
+    wrap.append(track, live(mk('span', 'a-bar-val'), key + ':t')); return wrap;
+  }
+  function dot(key) { return live(mk('span', 'a-dot'), key + ':dot'); }
+  // Anything with somewhere to go is a real link: a new tab, like the rows.
+  // The cursor says so, and titles carry a faint arrow that firms up on hover.
+  const ARROW = '<svg class="a-go" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 2h5v5M8 2L2 8" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
+  function anchor(url, cls, text) {
+    const a = mk('a', cls, text); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a;
+  }
+  function chip(text, cls, url) {
+    const c = 'a-chip' + (cls ? ' ' + cls : '');
+    if (!url) return mk('span', c, text);
+    const a = anchor(url, c + ' a-chip-link', text); a.title = 'Open ' + url.replace(/^https?:\/\//, ''); return a;
+  }
+  function lineOf(item) {
+    if (Array.isArray(item) && item[1]) { const a = anchor(item[1], 'a-line mono a-line-link', item[0]); a.insertAdjacentHTML('beforeend', ' ' + ARROW); return a; }
+    return mk('div', 'a-line mono', Array.isArray(item) ? item[0] : item);
+  }
+  function card(cls, wire) { const c = mk('div', 'a-card ' + (cls || '')); if (wire) c.dataset.wire = wire; return c; }
+  function cardHead(title, sub, key, url) {
+    const head = mk('div', 'a-head');
+    const t = mk('div', 'a-title'); if (key) t.append(dot(key));
+    const name = mk('span', undefined, title); name.dataset.final = title;
+    if (url) {
+      const a = anchor(url, 'a-title-link'); a.title = 'Open ' + url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      a.append(name); a.insertAdjacentHTML('beforeend', ARROW); t.append(a);
+    } else t.append(name);
+    head.append(t); if (sub) head.append(mk('div', 'a-sub', sub)); return head;
+  }
+
+  function vmCard(g, m) {
+    const c = card('a-vm' + (g.status === 'running' ? '' : ' a-off'), 'vm-' + g.name);
+    const key = 'vm-' + g.name;
+    c.append(cardHead(g.name, ROLES[g.name] || (tagsOf(g).find(t => t.startsWith('tenant-')) || tagsOf(g).join(' · ') || 'unmanaged').replace('tenant-', 'tenant · '), key, m.link.byName[g.name]));
+    const spec = mk('div', 'a-spec mono');
+    spec.append(mk('span', undefined, `${g.type || 'qemu'} ${g.vmid}`), mk('span', undefined, `${g.maxcpu || '?'} vCPU`), mk('span', undefined, `${fmtG(g.maxmem)} GiB`), live(mk('span'), key + ':up'));
+    c.append(spec);
+    if (g.status === 'running') c.append(bar(key + '-cpu', 'cpu'), bar(key + '-mem', 'mem'));
+    const ctrs = m.ctrs[g.name] || [];
+    if (ctrs.length) {
+      const groups = {};
+      ctrs.forEach(x => (groups[ctrGroup(x.name)] = groups[ctrGroup(x.name)] || []).push(x));
+      const box = mk('div', 'a-ctrs');
+      Object.entries(groups).forEach(([group, list]) => {
+        const row = mk('div', 'a-ctr-group');
+        row.append(mk('span', 'a-ctr-label mono', { host: 'agents', observability: 'stack', services: 'apps', ingress: 'ingress' }[group] || group));
+        const chips = mk('div', 'a-ctr-chips');
+        list.forEach(x => { const ch = chip(ctrName(x.name), '', m.link.ctr(ctrName(x.name))); ch.append(live(mk('small'), 'ctr-' + g.name + '-' + x.name)); chips.append(ch); });
+        row.append(chips); box.append(row);
+      });
+      c.append(box);
+    }
+    return c;
+  }
+
+  function nodeCard(n, m) {
+    const c = card('a-node', 'node-' + n.name);
+    const hw = n.hardware || {};
+    c.append(cardHead(n.name, n.available ? (hw.model ? hw.model.replace(/\(R\)|\(TM\)|CPU|@.*$/g, '').replace(/\s+/g, ' ').trim() : 'Proxmox VE') : 'node unavailable', 'node-' + n.name, m.link.byName[n.name]));
+    const spec = mk('div', 'a-spec mono');
+    spec.append(mk('span', undefined, `${hw.cpus || (n.host && n.host.cores) || '?'} threads`), mk('span', undefined, `${fmtG(hw.memory_total || (n.host && n.host.mem_total))} GiB`),
+      live(mk('span'), 'node-' + n.name + ':temp'), live(mk('span'), 'node-' + n.name + ':up'));
+    c.append(spec, bar('node-' + n.name + '-cpu', 'cpu'), bar('node-' + n.name + '-mem', 'mem'), bar('node-' + n.name + '-alloc', 'alloc'));
+    const vms = mk('div', 'a-vms');
+    n.own.forEach(g => vms.append(vmCard(g, m)));
+    if (n.tenants.length) {
+      const t = mk('div', 'a-tenant');
+      t.append(mk('div', 'a-tenant-label mono', 'tenant · ' + (tagsOf(n.tenants[0]).find(x => x.startsWith('tenant-')) || 'tenant-').slice(7) + ' · own tailnet'));
+      const grid = mk('div', 'a-tenant-grid');
+      n.tenants.forEach(g => grid.append(vmCard(g, m)));
+      t.append(grid); vms.append(t);
+    }
+    if (!n.own.length && !n.tenants.length) vms.append(mk('div', 'a-sub', 'No guests shown.'));
+    c.append(vms);
+    if (n.hidden) c.append(mk('div', 'a-foot mono', `+${n.hidden} templates / unmanaged`));
+    return c;
+  }
+
+  // lines: text, or [text, url]; chips: text, or [text, url].
+  function edgeCard(wire, title, sub, key, lines, chips, url) {
+    const c = card('a-edge', wire);
+    c.append(cardHead(title, sub, key, url));
+    if (lines) lines.forEach(l => c.append(lineOf(l)));
+    if (chips && chips.length) { const box = mk('div', 'a-chips'); chips.forEach(x => box.append(Array.isArray(x) ? chip(x[0], '', x[1]) : chip(x))); c.append(box); }
+    return c;
+  }
+
+  function buildArchitecture(m) {
+    const root = mk('div', 'arch');
+    const bar = mk('div', 'a-toolbar');
+    const intro = mk('div', 'a-intro ops');
+    intro.append(mk('p', 'muted a-live mono', 'LIVE · every 30 s'));
+    intro.title = 'Placement and hardware from Proxmox, load from node_exporter and cAdvisor, health from the homepage probes';
+    const tools = mk('div', 'a-tools');
+    // VM templates and guests AUTOLAB does not manage (the stopped q360 VMs on
+    // pve, say) are left off by default. The button names how many.
+    const extra = m.nodes.reduce((a, n) => a + n.extra, 0);
+    const controls = mk('button', 'a-pill mono', `${arch.showAll ? 'Hide' : 'Show'} ${extra} hidden VM${extra === 1 ? '' : 's'}`);
+    controls.type = 'button'; controls.setAttribute('aria-pressed', String(arch.showAll)); controls.hidden = !extra;
+    controls.title = 'VM templates and guests AUTOLAB does not manage, such as stopped VMs from other projects';
+    controls.addEventListener('click', () => { arch.showAll = !arch.showAll; arch.sig = ''; renderArchitecture(); });
+    const zoomBox = mk('div', 'a-zoomctl mono');
+    const btn = (label, title, fn) => { const b = mk('button', undefined, label); b.type = 'button'; b.title = title; b.setAttribute('aria-label', title); b.addEventListener('click', fn); return b; };
+    zoomBox.append(
+      btn('−', 'Zoom out', () => zoomBy(1 / 1.2)),
+      live(mk('span', 'a-zoomval'), 'zoom'),
+      btn('+', 'Zoom in', () => zoomBy(1.2)),
+      (() => { const b = btn('Reset', 'Back to the whole diagram, fitted to the window', () => setZoomMode('fit')); b.dataset.reset = '1'; return b; })());
+    tools.append(controls, zoomBox);
+    root.append(bar);
+
+    // The legend draws each kind of wire with the wire's own classes, so it
+    // is the same line, moving the same way. Hovering one picks out those
+    // wires on the diagram.
+    const legend = mk('div', 'a-legend mono');
+    [['public', 'Internet → tunnel', 'Someone outside your network: Cloudflare carries it down the tunnel to horizon'],
+     ['tailnet', 'Private network (Tailscale)', 'Your devices and the lab talking over encrypted WireGuard; invisible to the internet'],
+     ['backup', 'Nightly backups', 'Each node backs its VMs up to PBS around 02:00; PBS keeps them on the NAS'],
+     ['signal', 'Metrics & logs', 'Alloy on every host sends metrics and logs to jwst, which feeds Grafana and the alerts']].forEach(([k, label, hint]) => {
+      const item = mk('span', 'a-key'); item.dataset.kind = k; item.title = hint; item.tabIndex = 0;
+      item.innerHTML = `<svg width="44" height="10" viewBox="0 0 44 10" aria-hidden="true"><path id="a-key-${k}" class="a-wire a-${k}" d="M2 5 H42"/>` +
+        (k === 'signal' ? '<path class="a-wire a-signal-streak" d="M2 5 H42"/>' : '') +
+        (lessMotion.matches || k === 'backup' || k === 'signal' ? '' : `<circle class="a-packet a-p-${k}" r="${k === 'public' ? 2.4 : 1.8}"><animateMotion dur="1.8s" repeatCount="indefinite"><mpath href="#a-key-${k}"/></animateMotion></circle>`) + '</svg>';
+      item.append(document.createTextNode(label));
+      const on = () => root.querySelector('.a-canvas').dataset.focus = k, off = () => delete root.querySelector('.a-canvas').dataset.focus;
+      item.addEventListener('mouseenter', on); item.addEventListener('mouseleave', off);
+      item.addEventListener('focus', on); item.addEventListener('blur', off);
+      legend.append(item);
+    });
+    bar.append(intro, legend, tools);
+
+    const zoom = mk('div', 'a-zoom'); zoom.tabIndex = 0; zoom.setAttribute('aria-label', 'Architecture diagram. Ctrl or Cmd and drag to pan; drag text to select. Ctrl or Cmd and scroll, or pinch, to zoom.');
+    const sizer = mk('div', 'a-sizer');
+    const canvas = mk('div', 'a-canvas');
+    const wires = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); wires.classList.add('a-wires'); wires.setAttribute('aria-hidden', 'true');
+    canvas.append(wires);
+
+    // Edge: the ways in, and where the lab is driven from.
+    const gh = m.link.byName.GitHub || '';
+    const edge = mk('div', 'a-row a-row-edge');
+    edge.append(
+      edgeCard('cf', 'Cloudflare', 'DNS · tunnel · TLS at the edge', 'cf', ['zone pmahir.space', 'no ports open at home'],
+        m.publicNames.map(x => [x + '.', x === 'share' ? '' : m.link.pubUrl(x)]), 'https://dash.cloudflare.com/'),
+      edgeCard('ts', 'Tailscale', 'tailnet · MagicDNS · ACLs as code', 'ts', ['split DNS *.lab → horizon', 'Let’s Encrypt wildcard'],
+        m.labNames.slice(0, 16).map(x => [x + '.lab', m.link.labUrl(x)]), m.link.byName.Tailscale),
+      edgeCard('gh', 'GitHub', 'the source of truth', 'gh', [
+        ['Actions → OpenTofu → Proxmox API', gh && gh + '/actions'], ['Actions → Ansible over the tailnet', gh && gh + '/actions'],
+        ['Pull requests', gh && gh + '/pulls'], 'state in R2 · Renovate · Diun'], [], gh),
+    );
+    canvas.append(edge);
+
+    // The front door.
+    const door = card('a-door', 'horizon');
+    door.append(cardHead('horizon · front door', 'one compose · nothing published on the host', 'horizon', m.link.byName.horizon));
+    const flow = mk('div', 'a-flow mono');
+    ['cloudflared', 'Traefik', 'Pocket ID'].forEach((x, i) => { if (i) flow.append(mk('span', 'a-arrow', '→')); flow.append(chip(x, 'a-chip-strong', x === 'Pocket ID' ? m.link.pubUrl('auth') : '')); });
+    door.append(flow, mk('div', 'a-line mono', 'public: tunnel → Traefik :80 · tailnet: Traefik :443 on the tailnet IP · passkeys, one session for both'));
+    const doorRow = mk('div', 'a-row a-row-door'); doorRow.append(door); canvas.append(doorRow);
+
+    // Compute.
+    const nodesRow = mk('div', 'a-row a-row-nodes');
+    m.nodes.forEach(n => nodesRow.append(nodeCard(n, m)));
+    // A node with more guests gets a wider column, so on a wide layout its
+    // VMs sit side by side instead of making one column tall.
+    nodesRow.style.gridTemplateColumns = m.nodes.map(n => `minmax(0,${(1 + 0.6 * (n.own.length + n.tenants.length)).toFixed(1)}fr)`).join(' ');
+    canvas.append(nodesRow);
+
+    // Data and signals.
+    const bottom = mk('div', 'a-row a-row-data');
+    bottom.append(
+      edgeCard('backups', 'Backups', 'vzdump nightly → PBS on ark', 'backups', ['encrypted, deduplicated, verified', 'datastore on the NAS over SMB', 'restore-all proven'], [], m.link.byName['Backup Server']),
+      edgeCard('nas', 'singularity · NAS', 'UGOS · ZFS-backed shares', 'nas', ['PBS datastore · snapshots', ['Immich photos · app login', m.link.byName.Immich], 'shared links via share.'], [], m.link.byName.NAS),
+      edgeCard('obs', 'Signals', 'Alloy on every host → jwst', 'obs', [], [['Grafana', m.link.byName.Grafana], ['Prometheus', m.link.byName.Prometheus], ['Loki', m.link.byName.Loki], ['Alerts', m.link.byName.Grafana && m.link.byName.Grafana.replace(/\/$/, '') + '/alerting/list']], m.link.byName.Grafana),
+    );
+    canvas.append(bottom);
+    canvas.append(mk('p', 'a-access', 'Who can reach what: public names open through Cloudflare and always ask Pocket ID, except the sign-in page and shared photo links. *.lab names resolve only on the tailnet, with Pocket ID in front of browser admin routes; Immich and Grafana do their own Pocket ID login. Raw service ports are tailnet-only.'));
+    if ((state.operations.errors || []).length) canvas.append(mk('p', 'a-access a-errors', 'Some live sources could not be read: ' + state.operations.errors.join('; ')));
+    sizer.append(canvas); zoom.append(sizer); root.append(zoom);
+    wireZoom(zoom);
+    return root;
+  }
+
+  // The wires. Each route runs through the empty gutters between cards, in
+  // right angles with rounded corners, so no wire passes behind a card and
+  // every flow can be followed by eye. Shared stretches (the tailnet bus over
+  // the nodes, the backup and metrics buses under them) are drawn on top of
+  // each other on purpose: they read as one trunk that branches. Anchors are
+  // offsets inside the canvas, which the zoom transform does not change.
+  function roundedPath(pts, r = 14) {
+    const f = n => n.toFixed(1);
+    pts = pts.filter((q, i) => !i || q[0] !== pts[i - 1][0] || q[1] !== pts[i - 1][1]);
+    let d = `M${f(pts[0][0])} ${f(pts[0][1])}`;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const [px, py] = pts[i - 1], [x, y] = pts[i], [nx, ny] = pts[i + 1];
+      const l1 = Math.hypot(x - px, y - py), l2 = Math.hypot(nx - x, ny - y);
+      const rr = Math.min(r, l1 / 2, l2 / 2);
+      d += ` L${f(x + (px - x) / l1 * rr)} ${f(y + (py - y) / l1 * rr)} Q${f(x)} ${f(y)} ${f(x + (nx - x) / l2 * rr)} ${f(y + (ny - y) / l2 * rr)}`;
+    }
+    const [lx, ly] = pts[pts.length - 1];
+    return d + ` L${f(lx)} ${f(ly)}`;
+  }
+  function drawWires() {
+    const canvas = rowsEl.querySelector('.a-canvas'); if (!canvas) return;
+    const svg = canvas.querySelector('.a-wires');
+    if (getComputedStyle(svg).display === 'none') { svg.innerHTML = ''; arch.wires = ''; return; }
+    if (!svg.firstChild) arch.wires = '';
+    // Measure at 100%: offsets inside a zoomed element are not reported the
+    // same way by every browser. Restored before anything paints.
+    const zoomWas = canvas.style.zoom; if (zoomWas) canvas.style.zoom = '';
+    try { drawWiresAt(canvas, svg); } finally { if (zoomWas) canvas.style.zoom = zoomWas; }
+  }
+  function drawWiresAt(canvas, svg) {
+    const W = canvas.offsetWidth, H = canvas.offsetHeight;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
+    const pos = e => { let x = 0, y = 0, n = e; while (n && n !== canvas) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+      const w = e.offsetWidth, h = e.offsetHeight; return { x, y, w, h, r: x + w, b: y + h, cx: x + w / 2, cy: y + h / 2 }; };
+    const one = k => { const e = canvas.querySelector(`[data-wire="${k}"]`); return e && pos(e); };
+    const cf = one('cf'), ts = one('ts'), door = one('horizon'), bk = one('backups'), nas = one('nas'), obs = one('obs');
+    const nodes = [...canvas.querySelectorAll('[data-wire^="node-"]')].map(pos);
+    if (!cf || !ts || !door || !bk || !nas || !obs || !nodes.length) { svg.innerHTML = ''; arch.wires = ''; return; }
+    // Where the tailnet goes from horizon: the VMs it routes names to.
+    const targets = ['vm-jwst', 'vm-magnetosphere'].map(k => {
+      const v = canvas.querySelector(`[data-wire="${k}"]`); if (!v) return null;
+      return { v: pos(v), n: pos(v.closest('[data-wire^="node-"]')) };
+    }).filter(Boolean);
+    const nodesT = Math.min(...nodes.map(n => n.y)), nodesB = Math.max(...nodes.map(n => n.b));
+    const routes = [];
+    if (canvas.classList.contains('a-land')) {
+      const gL = (Math.max(cf.r, ts.r, door.r) + Math.min(...nodes.map(n => n.x))) / 2;
+      const gR = (Math.max(...nodes.map(n => n.r)) + Math.min(bk.x, nas.x, obs.x)) / 2;
+      const busTop = nodesT - 26, busB = nodesB + 22;
+      routes.push(['public', [[cf.cx - 24, cf.b], [cf.cx - 24, door.y]]]);
+      routes.push(['tailnet', [[ts.cx + 24, ts.y], [ts.cx + 24, door.b]]]);
+      targets.forEach(t => routes.push(['tailnet', [[door.r, door.cy], [gL, door.cy], [gL, busTop], [t.v.cx, busTop], [t.v.cx, t.n.y]]]));
+      nodes.forEach(n => {
+        routes.push(['backup', [[n.cx - 16, n.b], [n.cx - 16, busB], [gR - 12, busB], [gR - 12, bk.cy], [bk.x, bk.cy]]]);
+        routes.push(['signal', [[n.cx + 16, n.b], [n.cx + 16, busB + 18], [gR + 12, busB + 18], [gR + 12, obs.cy], [obs.x, obs.cy]]]);
+      });
+      routes.push(['backup', [[bk.cx, bk.b], [bk.cx, nas.y]]]);
+    } else {
+      const gap1 = (Math.max(cf.b, ts.b) + door.y) / 2;
+      const busN = (door.b + nodesT) / 2;
+      const dataT = Math.min(bk.y, nas.y, obs.y), busD = (nodesB + dataT) / 2;
+      routes.push(['public', [[cf.cx, cf.b], [cf.cx, gap1 - 6], [door.x + door.w * 0.3, gap1 - 6], [door.x + door.w * 0.3, door.y]]]);
+      routes.push(['tailnet', [[ts.cx, ts.b], [ts.cx, gap1 + 6], [door.x + door.w * 0.7, gap1 + 6], [door.x + door.w * 0.7, door.y]]]);
+      targets.forEach(t => routes.push(['tailnet', [[door.cx, door.b], [door.cx, busN], [t.v.cx, busN], [t.v.cx, t.n.y]]]));
+      nodes.forEach(n => {
+        routes.push(['backup', [[n.cx - 16, n.b], [n.cx - 16, busD - 9], [bk.cx, busD - 9], [bk.cx, bk.y]]]);
+        routes.push(['signal', [[n.cx + 16, n.b], [n.cx + 16, busD + 9], [obs.cx, busD + 9], [obs.cx, obs.y]]]);
+      });
+      routes.push(['backup', [[bk.r, bk.cy], [nas.x, nas.cy]]]);
+    }
+    const still = lessMotion.matches;
+    const html = routes.map(([kind, pts], i) => {
+      const d = roundedPath(pts), pid = 'a-w' + i;
+      let markup = `<path id="${pid}" class="a-wire a-${kind}" d="${d}"/>`;
+      if (kind === 'signal') markup += `<path class="a-wire a-signal-streak" d="${d}"/>`;
+      if (!still && (kind === 'public' || kind === 'tailnet'))
+        for (let k = 0; k < 2; k++)
+          markup += `<circle class="a-packet a-p-${kind}" r="${kind === 'public' ? 2.6 : 2}"><animateMotion dur="3s" begin="${(k * 1.5 + i * 0.37).toFixed(2)}s" repeatCount="indefinite"><mpath href="#${pid}"/></animateMotion></circle>`;
+      return markup;
+    }).join('');
+    // Same routes as last time: leave the SVG alone so the packets keep their
+    // place instead of restarting on every refresh.
+    if (html !== arch.wires) { arch.wires = html; svg.innerHTML = html; }
+  }
+  let wireTimer = 0;
+  const wireObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { cancelAnimationFrame(wireTimer); wireTimer = requestAnimationFrame(() => { if (!arch.applying) { applyZoom(); drawWires(); } }); }) : null;
+
+  function updateLive(m) {
+    const set = (key, text, width) => {
+      const t = rowsEl.querySelector(`[data-live="${key}:t"]`); if (t && text !== undefined) t.textContent = text;
+      const w = rowsEl.querySelector(`[data-live="${key}:w"]`); if (w && width !== undefined) w.style.width = width.toFixed(1) + '%';
+    };
+    const txt = (key, text) => { const e = rowsEl.querySelector(`[data-live="${key}"]`); if (e) e.textContent = text; };
+    const up = (key, ok) => { const e = rowsEl.querySelector(`[data-live="${key}:dot"]`); if (e) { e.classList.toggle('on', !!ok); e.title = ok ? 'up' : 'down'; } };
+    m.nodes.forEach(n => {
+      const hw = n.hardware || {}, k = 'node-' + n.name, host = n.host || {};
+      const memUsed = hw.memory_used || host.mem_used, memTotal = hw.memory_total || host.mem_total;
+      const cpu = hw.cpu !== undefined ? hw.cpu : host.cpu;
+      set(k + '-cpu', `${pct(cpu).toFixed(0)}%`, pct(cpu));
+      set(k + '-mem', `${fmtG(memUsed)}/${fmtG(memTotal)}G`, pct(memUsed / (memTotal || 1)));
+      const alloc = (n.guests || []).filter(g => g.status === 'running').reduce((a, g) => a + (g.maxmem || 0), 0);
+      set(k + '-alloc', `${fmtG(alloc)}G to VMs`, pct(alloc / (memTotal || 1)));
+      txt(k + ':temp', n.temp ? n.temp + '°C' : '');
+      txt(k + ':up', 'up ' + fmtUp(hw.uptime || host.uptime));
+      up(k, n.available);
+      [...n.own, ...n.tenants].forEach(g => {
+        const gk = 'vm-' + g.name, gh = m.hosts[g.name] || {};
+        const cpu = gh.cpu !== undefined ? gh.cpu : g.cpu;
+        const mem = gh.mem_used !== undefined ? gh.mem_used : g.mem;
+        set(gk + '-cpu', `${pct(cpu).toFixed(0)}%`, pct(cpu));
+        set(gk + '-mem', `${fmtG(mem)}/${fmtG(g.maxmem)}G`, pct(mem / (g.maxmem || 1)));
+        txt(gk + ':up', g.status === 'running' ? 'up ' + fmtUp(gh.uptime || g.uptime) : g.status);
+        up(gk, g.status === 'running');
+        (m.ctrs[g.name] || []).forEach(x => txt('ctr-' + g.name + '-' + x.name, ' ' + fmtM(x.mem)));
+      });
+    });
+    const row = n => m.rowBy(n);
+    up('cf', (row('Pocket ID') || {}).up);
+    up('ts', m.nodes.some(n => n.available));
+    up('gh', true);
+    up('horizon', (row('Pocket ID') || {}).up);
+    up('backups', (row('Backup Server') || {}).up);
+    up('obs', (row('Grafana') || {}).up && (row('Prometheus') || {}).up);
+    up('nas', (row('NAS') || {}).up);
+  }
+
+  // ---- zoom and pan --------------------------------------------------------
+  // On a desktop the diagram has two fixed layouts at set widths: landscape
+  // (left to right) for wide windows, stacked for narrower or taller ones.
+  // The window picks one; the view opens fitted and centred; from there it is
+  // a canvas: Ctrl/Cmd-drag or two-finger scroll to pan anywhere, Ctrl/Cmd-scroll or
+  // pinch to zoom, Reset to come back. A phone keeps the stacked, reflowing
+  // layout and none of this.
+  //
+  // The zoom is CSS `zoom`, not a scale transform: the browser lays the text
+  // out again at the new size, so it stays sharp at 300% instead of being a
+  // stretched picture of itself. The pan is a translate on the wrapper, inside
+  // a viewport that clips, so there is no scroll range for anything to leak
+  // into.
+  const CSS_ZOOM = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('zoom', '1.5');
+  arch.mode = arch.mode || 'fit'; arch.z = arch.z || 1; arch.tx = arch.tx || 0; arch.ty = arch.ty || 0;
+  const zoomable = () => !staticMode && window.innerWidth > 900;
+  const zEls = () => { const zoom = rowsEl.querySelector('.a-zoom'); return zoom && { zoom, sizer: zoom.firstElementChild, canvas: zoom.querySelector('.a-canvas') }; };
+  function layoutFor(vw, vh) {
+    const iw = window.innerWidth;
+    const land = vw / vh > 1.5;
+    return { land, w: land ? (iw >= 1800 ? 2200 : 2000) : (iw >= 1400 ? 1600 : 1400) };
+  }
+  function setScale(canvas, z) {
+    if (CSS_ZOOM) { canvas.style.zoom = z === 1 ? '' : String(z); canvas.style.transform = ''; }
+    else { canvas.style.transform = z === 1 ? '' : `scale(${z})`; canvas.style.transformOrigin = '0 0'; }
+  }
+  function applyZoom(z, ax, ay) {
+    if (arch.applying) return;
+    arch.applying = true;
+    try { applyZoomNow(z, ax, ay); } finally { arch.applying = false; }
+  }
+  function applyZoomNow(z, ax, ay) {
+    const e = zEls(); if (!e) return;
+    const on = zoomable();
+    e.zoom.classList.toggle('on', on);
+    if (!on) {
+      e.canvas.classList.remove('a-land'); e.canvas.style.width = ''; setScale(e.canvas, 1);
+      e.sizer.style.transform = ''; arch.layout = ''; e.zoom.classList.remove('ready'); return;
+    }
+    const vw = e.zoom.clientWidth, vh = e.zoom.clientHeight;
+    if (vw < 50 || vh < 50) return;              // not sized yet: stay hidden
+    const L = layoutFor(vw, vh), key = L.land + ':' + L.w, changed = key !== arch.layout;
+    if (changed) { arch.layout = key; e.canvas.classList.toggle('a-land', L.land); e.canvas.style.width = L.w + 'px'; }
+    // The diagram's own size, measured at 100% so the zoom cannot skew it.
+    setScale(e.canvas, 1);
+    const W = L.w, H = e.canvas.offsetHeight;
+    arch.h = H;
+    let tx, ty;
+    if (arch.mode === 'fit') {
+      z = Math.min(vw / W, vh / H);
+      tx = (vw - W * z) / 2; ty = (vh - H * z) / 2;
+    } else {
+      z = Math.max(0.15, Math.min(4, z || arch.z));
+      if (ax === undefined) { ax = vw / 2; ay = vh / 2; }
+      // Keep the point under the cursor (or the centre) where it is.
+      tx = ax - (ax - arch.tx) / arch.z * z; ty = ay - (ay - arch.ty) / arch.z * z;
+    }
+    arch.z = z;
+    placeView(e, tx, ty, W, H, vw, vh);
+    const val = rowsEl.querySelector('[data-live="zoom"]'); if (val) val.textContent = Math.round(z * 100) + '%';
+    const reset = rowsEl.querySelector('.a-zoomctl [data-reset]'); if (reset) reset.disabled = arch.mode === 'fit';
+    e.zoom.classList.add('ready');
+    if (changed) requestAnimationFrame(drawWires);
+  }
+  // Free movement, with one rule: some of the diagram always stays in view.
+  function placeView(e, tx, ty, W, H, vw, vh) {
+    const keep = 60, z = arch.z;
+    arch.tx = Math.min(vw - keep, Math.max(keep - W * z, tx));
+    arch.ty = Math.min(vh - keep, Math.max(keep - H * z, ty));
+    setScale(e.canvas, z);
+    e.sizer.style.transform = `translate(${arch.tx.toFixed(1)}px, ${arch.ty.toFixed(1)}px)`;
+    e.zoom.style.setProperty('--a-grid-size', (22 * z).toFixed(2) + 'px');
+    e.zoom.style.setProperty('--a-grid-x', arch.tx.toFixed(1) + 'px');
+    e.zoom.style.setProperty('--a-grid-y', arch.ty.toFixed(1) + 'px');
+  }
+  function panBy(dx, dy) {
+    const e = zEls(); if (!e || !zoomable()) return;
+    arch.mode = 'manual';
+    // The diagram's height at 100% is cached by applyZoom: under CSS zoom,
+    // offsetHeight means different things in different browsers.
+    placeView(e, arch.tx + dx, arch.ty + dy, parseFloat(e.canvas.style.width) || 1, arch.h || 1, e.zoom.clientWidth, e.zoom.clientHeight);
+    const reset = rowsEl.querySelector('.a-zoomctl [data-reset]'); if (reset) reset.disabled = false;
+  }
+  function setZoomMode(mode, z) { arch.mode = mode; applyZoom(z); }
+  function zoomBy(f, ax, ay) { arch.mode = 'manual'; applyZoom(arch.z * f, ax, ay); }
+  function wireZoom(zoom) {
+    zoom.addEventListener('wheel', e => {
+      if (!zoomable()) return;
+      e.preventDefault();
+      const r = zoom.getBoundingClientRect();
+      // Pinch arrives as a wheel with ctrlKey; Cmd-scroll zooms too. Any
+      // other scroll (two fingers, a mouse wheel) pans.
+      if (e.ctrlKey || e.metaKey) zoomBy(Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
+      else panBy(-(e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX), -(e.shiftKey && !e.deltaX ? 0 : e.deltaY));
+    }, { passive: false });
+    let drag = null, suppressClick = false;
+    zoom.setAttribute('aria-description', 'Ctrl or Command plus drag to pan. Drag text to select it. Scroll to pan, Ctrl or Command plus scroll to zoom.');
+    zoom.addEventListener('pointerdown', e => {
+      if (!zoomable() || e.button !== 0) return;
+      suppressClick = false;
+      const modified = e.ctrlKey || e.metaKey;
+      // Text and links retain their normal behaviour unless pan is requested.
+      if (!modified && e.target.closest('.a-card,.a-access,a,button,input,label,select,textarea')) return;
+      e.preventDefault();
+      drag = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      zoom.classList.add('dragging'); try { zoom.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    zoom.addEventListener('pointermove', e => {
+      if (!drag || e.pointerId !== drag.id) return;
+      e.preventDefault();
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (dx || dy) suppressClick = true;
+      panBy(dx, dy); drag.x = e.clientX; drag.y = e.clientY;
+    });
+    const stop = () => {
+      const id = drag && drag.id;
+      drag = null; zoom.classList.remove('dragging');
+      if (id !== null && zoom.hasPointerCapture(id)) zoom.releasePointerCapture(id);
+    };
+    zoom.addEventListener('pointerup', stop); zoom.addEventListener('pointercancel', stop);
+    zoom.addEventListener('lostpointercapture', stop);
+    zoom.addEventListener('click', e => {
+      if (!suppressClick) return;
+      e.preventDefault(); e.stopPropagation(); suppressClick = false;
+    }, true);
+    zoom.addEventListener('keydown', e => {
+      const step = 60;
+      if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(1.2); }
+      else if (e.key === '-') { e.preventDefault(); zoomBy(1 / 1.2); }
+      else if (e.key === '0' || e.key === 'Escape') { e.preventDefault(); setZoomMode('fit'); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); panBy(step, 0); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); panBy(-step, 0); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); panBy(0, step); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); panBy(0, -step); }
+    });
+  }
+  // The viewport fills whatever height the page leaves it, like the list.
+  function sizeZoom(room) {
+    const e = zEls(); if (!e) return;
+    if (!zoomable()) { if (e.zoom.style.height) e.zoom.style.height = ''; return; }
+    const hgt = Math.max(240, Math.floor(room - e.zoom.offsetTop - 2)) + 'px';
+    if (e.zoom.style.height !== hgt) { e.zoom.style.height = hgt; applyZoom(); }
+  }
+
   function renderArchitecture() {
     const op = state.operations;
-    const box = section('Current architecture', 'Guest placement and power state come from Proxmox. Select a machine for its resources. The paths below describe the configured lab; application health is shown in Services.');
     if (!(op.nodes || []).length) {
-      box.append(el('p', 'Topology data is unavailable. The collector refreshes every minute.'));
+      arch.sig = '';
+      const box = section('Current architecture', 'Topology data is unavailable. The collector refreshes every minute.');
       rowsEl.replaceChildren(box); return;
     }
-    const controls = el('label'); const show = el('input'); show.type = 'checkbox';
-    controls.append(show, document.createTextNode(' Include templates and unmanaged guests'));
-    box.append(controls);
-    const diagram = el('div', undefined, 'topology');
-    const detail = el('div', 'Select a VM in the diagram.', 'muted'); detail.id = 'architecture-detail'; detail.setAttribute('aria-live', 'polite');
-    function draw() {
-      const ns = 'http://www.w3.org/2000/svg';
-      const svg = document.createElementNS(ns, 'svg');
-      const nodes = op.nodes;
-      const guests = nodes.map(n => (n.guests || []).filter(g => show.checked || (!g.template && String(g.tags || '').split(';').includes('autolab'))));
-      const height = 260 + Math.max(1, ...guests.map(g => g.length)) * 58;
-      svg.setAttribute('viewBox', `0 0 ${nodes.length * 240} ${height}`);
-      svg.setAttribute('role', 'group'); svg.setAttribute('aria-label', 'Proxmox hosts and their current guests, with ingress and backup paths');
-      function shape(tag, attrs, parent = svg) { const e = document.createElementNS(ns, tag); Object.entries(attrs).forEach(([k,v]) => e.setAttribute(k,v)); parent.append(e); return e; }
-      function text(x,y,value,size=12,parent=svg) { const t=shape('text',{x,y,'font-size':size},parent); t.textContent=value; return t; }
-      function line(d) { shape('path',{d,fill:'none',stroke:'currentColor','stroke-width':1,opacity:.75}); }
-      const width = nodes.length * 240;
-      text(12,24,'Internet → Cloudflare Tunnel → horizon / Traefik → Pocket ID',13);
-      text(12,48,'Tailscale → horizon / HTTPS → Pocket ID → internal browser routes',12);
-      line(`M12 64 H${width - 12}`);
-      nodes.forEach((node,i) => {
-        const x=i*240+8;
-        shape('rect',{x,y:90,width:224,height:height-190,rx:5,fill:'none',stroke:'currentColor','stroke-opacity':.35});
-        text(x+12,114,node.name,16);
-        text(x+12,134,node.available ? `${guests[i].length} guests shown` : 'Node unavailable',11);
-        line(`M${x+112} 64 V90`);
-        guests[i].forEach((g,j) => {
-          const y=152+j*58;
-          const group=shape('g',{class:'vm',tabindex:0,role:'button','aria-label':`${g.name}, ${g.status}, on ${node.name}`});
-          shape('rect',{x:x+10,y,width:204,height:48,rx:3,fill:'none',stroke:'currentColor','stroke-opacity':.25},group);
-          shape('circle',{cx:x+22,cy:y+16,r:3,fill:g.status==='running'?'currentColor':'none',stroke:'currentColor'},group);
-          text(x+32,y+20,g.name,12,group);
-          text(x+20,y+37,`${g.type} ${g.vmid} · ${g.status}${g.template ? ' · template' : ''}`,10,group);
-          const select=() => { detail.replaceChildren(el('strong',g.name),document.createTextNode(` on ${node.name}: ${g.maxcpu || '?'} vCPU, ${((g.maxmem || 0)/1073741824).toFixed(1)} GiB RAM. ${g.status}.`));
-            if (g.name==='jwst') detail.append(el('p','Declared services: '+(op.services || []).join(', ')));
-          };
-          group.addEventListener('click',select); group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select();}});
-        });
-        line(`M${x+112} ${height-100} V${height-78} H${width/2}`);
-      });
-      text(12,height-48,'All nodes → ark / PBS → singularity / NAS · encrypted nightly backups',12);
-      text(12,height-24,'Hosts → Alloy → jwst / Prometheus + Loki + Grafana → ntfy alerts',12);
-      diagram.replaceChildren(svg);
+    const m = archModel();
+    const sig = archSignature(m);
+    if (sig !== arch.sig || !rowsEl.querySelector('.arch')) {
+      const scroll = rowsEl.scrollTop;
+      arch.sig = sig;
+      rowsEl.replaceChildren(buildArchitecture(m));
+      rowsEl.scrollTop = scroll;
+      if (wireObserver) { wireObserver.disconnect(); wireObserver.observe(rowsEl.querySelector('.a-canvas')); wireObserver.observe(rowsEl.querySelector('.a-zoom')); }
+      arch.wires = ''; arch.layout = '';
+      applyZoom(); drawWires();
     }
-    show.addEventListener('change',draw); draw();
-    box.append(diagram,detail);
-    box.append(el('h3','Access boundaries'));
-    box.append(el('p','Public: home and Grafana require Pocket ID; auth is the sign-in service. Immich shared links are intentionally public. Internal: *.lab names require Tailscale, with Pocket ID on browser admin routes. Immich authenticates in the app so its mobile API keeps working. Raw service and API ports are separate access paths, governed by tailnet policy and application authentication.'));
-    if ((op.errors || []).length) box.append(el('p','Some live sources could not be read: '+op.errors.join('; ')));
-    rowsEl.replaceChildren(box);
+    updateLive(m);
   }
   document.querySelector('.tabs').addEventListener('click', event => {
     const tab = event.target.closest('[data-tab]'); if (!tab) return;
@@ -454,8 +1139,10 @@
     const others = content.offsetHeight - rowsEl.offsetHeight;
     const room = Math.max(160, Math.floor(window.innerHeight - pad - others));
     if (rowsEl.style.maxHeight !== room + 'px') rowsEl.style.maxHeight = room + 'px';
+    if (state.tab === 'architecture') sizeZoom(room);
   }
   function unfitRows() {
+    if (state.tab === 'architecture') sizeZoom(0);
     if (rowsEl.style.maxHeight) rowsEl.style.maxHeight = '';
   }
 
@@ -612,7 +1299,7 @@
   root.style.cursor = 'grab';
   root.addEventListener('contextmenu', (e) => e.preventDefault());
   root.addEventListener('pointerdown', (e) => {
-    if (e.target.closest && e.target.closest('a,button,input,label,summary,.ops')) return;
+    if (e.target.closest && e.target.closest('a,button,input,label,summary,.ops,.arch')) return;
     e.preventDefault(); S.drag = { x: e.clientX, y: e.clientY }; root.style.cursor = 'grabbing';
     try { root.setPointerCapture(e.pointerId); } catch (err) {}
   });

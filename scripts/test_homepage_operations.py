@@ -15,7 +15,7 @@ from unittest.mock import patch, mock_open
 
 SOURCE = Path(__file__).resolve().parents[1] / 'builders/ansible/roles/observability-stack/templates/autolab-obs-digest.py.j2'
 TREE = ast.parse(SOURCE.read_text())
-FUNCTIONS = ast.Module(body=[n for n in TREE.body if isinstance(n, ast.FunctionDef) and n.name in ('operations', 'link_access', 'probe', 'write_metrics', 'complete_snapshots')], type_ignores=[])
+FUNCTIONS = ast.Module(body=[n for n in TREE.body if isinstance(n, ast.FunctionDef) and n.name in ('operations', 'link_access', 'probe', 'write_metrics', 'complete_snapshots', 'telemetry')], type_ignores=[])
 
 
 class HomepageOperationsTest(unittest.TestCase):
@@ -42,6 +42,28 @@ class HomepageOperationsTest(unittest.TestCase):
         self.assertFalse(result['nodes'][1]['available'])
         self.assertIn('offline: OSError', result['errors'])
         self.assertNotIn('secret', json.dumps(result))
+
+    def test_telemetry_groups_hosts_and_containers_and_a_failure_stays_local(self):
+        def prom(query):
+            if 'node_cpu_seconds_total{mode="idle"})' in query and query.startswith('count'):
+                return [{'metric': {'instance': 'jwst'}, 'value': [0, '4']}]
+            if 'container_memory_working_set_bytes' in query:
+                return [{'metric': {'instance': 'jwst', 'name': 'services-code-server-1'}, 'value': [0, '1048576']},
+                        {'metric': {'instance': 'jwst'}, 'value': [0, '1']}]
+            return []
+        self.scope['prom'] = prom
+        result = self.scope['telemetry']()
+        self.assertEqual(result['hosts'], [{'name': 'jwst', 'cores': 4.0}])
+        self.assertEqual(result['containers'], [{'host': 'jwst', 'name': 'services-code-server-1', 'mem': 1048576.0}])
+
+        def broken(query):
+            raise OSError('prometheus down')
+        self.scope['prom'] = broken
+        self.scope['pve'] = lambda node, path: [] if 'resources' in path or 'backup' in path else {}
+        with patch.object(subprocess, 'check_output', return_value='[]'):
+            result = self.scope['operations']({})
+        self.assertIn('telemetry: OSError', result['errors'])
+        self.assertEqual(len(result['nodes']), 2)
 
     def test_in_progress_snapshot_does_not_clear_missing_backup_metrics(self):
         self.scope.update({
