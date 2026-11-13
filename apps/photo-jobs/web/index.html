@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AUTOLAB · Photos</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230A0A0A'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%23F4F4F5' stroke-width='1.6'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#08080A">
+<!--
+  Photo Jobs. The page is the design of home.lab.pmahir.space (Space Grotesk and IBM Plex Mono,
+  thin borders, ink on paper, the black hole behind everything) carrying a tool instead of a
+  list. Plain HTML and JS, no framework: the server serves this one file and answers /api/*.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#08080A; --fg:#F4F4F5; --ok:#7BC47F; --warn:#E3B341; --bad:#E5645C;
+          --line:color-mix(in srgb,var(--fg) 22%,transparent); --soft:color-mix(in srgb,var(--fg) 8%,transparent);
+          --dim:color-mix(in srgb,var(--fg) 62%,transparent); --panel:color-mix(in srgb,var(--bg) 82%,transparent); }
+  :root.light { --bg:#FFFFFF; --fg:#0A0A0A; --ok:#2E7D32; --warn:#9A6B00; --bad:#B3261E; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--fg); }
+  body { font-family:'Space Grotesk',system-ui,sans-serif; font-size:14px; line-height:1.5; min-height:100dvh; }
+  a { color:inherit; }
+  .mono { font-family:'IBM Plex Mono',monospace; }
+  canvas#sky { position:fixed; inset:0; width:100%; height:100%; display:block; z-index:0; pointer-events:none; }
+  #app { position:relative; z-index:1; max-width:1500px; margin:0 auto; padding:clamp(14px,2vw,28px) clamp(14px,2vw,28px) 90px; display:flex; flex-direction:column; gap:14px; min-height:100dvh; }
+  :focus-visible { outline:1px dashed var(--dim); outline-offset:3px; }
+
+  /* header: wordmark, tabs, clock — the same row as home */
+  #bar { display:flex; align-items:center; gap:12px 40px; flex-wrap:wrap; }
+  #brand { font-size:11px; letter-spacing:.34em; }
+  #brand span { opacity:.6; }
+  .tabs { display:flex; gap:28px; }
+  .tabs button { color:inherit; background:none; border:0; border-bottom:2px solid transparent; padding:6px 0; font:inherit; font-size:13px; cursor:pointer; }
+  .tabs button[aria-selected="true"] { border-bottom-color:currentColor; }
+  .tabs button:focus-visible { outline:none; border-bottom-style:dashed; border-bottom-color:currentColor; }
+  .tabs small { opacity:.6; margin-left:6px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; }
+  #right { margin-left:auto; display:flex; align-items:center; gap:14px; }
+  #clock { font-size:11px; letter-spacing:.2em; font-variant-numeric:tabular-nums; }
+  #flip { width:30px; height:30px; padding:0; display:grid; place-items:center; cursor:pointer; background:transparent; color:var(--fg); border:1px solid var(--fg); border-radius:999px; }
+  hr.rule { border:0; height:1px; background:var(--fg); margin:0; width:100%; transform-origin:left; animation:rule 1s .15s both cubic-bezier(.2,.7,.2,1); }
+  @keyframes rule { from { transform:scaleX(0); } }
+
+  /* panels, headings, buttons */
+  .panel { border:1px solid var(--line); border-radius:6px; background:var(--panel); backdrop-filter:blur(6px); padding:16px 18px; position:relative; }
+  .head { font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.3em; text-transform:uppercase; margin:0 0 12px; }
+  .head span { opacity:.75; }
+  h2 { margin:0 0 4px; font-size:20px; font-weight:500; }
+  p.muted, .muted { color:var(--dim); margin:0; }
+  .btn { color:inherit; background:none; border:1px solid var(--fg); border-radius:4px; padding:8px 16px; font:inherit; font-size:13px; cursor:pointer; letter-spacing:.02em; transition:background-color .2s, color .2s; }
+  .btn:hover:not(:disabled) { background:var(--fg); color:var(--bg); }
+  .btn.primary { background:var(--fg); color:var(--bg); }
+  .btn.primary:hover:not(:disabled) { background:transparent; color:var(--fg); }
+  .btn.small { padding:4px 10px; font-size:11.5px; }
+  .btn:disabled { opacity:.35; cursor:default; }
+  .btn.quiet { border-color:var(--line); }
+  .btn.quiet:hover:not(:disabled) { border-color:var(--fg); }
+  .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .grow { flex:1 1 auto; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .tile { border:1px solid var(--line); border-radius:5px; padding:12px 14px; }
+  .tile b { display:block; font-size:26px; font-weight:500; letter-spacing:.01em; font-variant-numeric:tabular-nums; }
+  .tile small { font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); }
+  .tile.kind { cursor:pointer; text-align:left; color:inherit; background:none; font:inherit; transition:border-color .2s, opacity .2s; }
+  .tile.kind:hover { border-color:var(--fg); }
+  .tile.kind.off { opacity:.4; }
+  .tile.kind.off b { text-decoration:line-through; }
+
+  /* custom checkbox and radio: a thin square, filled when on */
+  .tick { appearance:none; -webkit-appearance:none; width:16px; height:16px; border:1px solid var(--dim); border-radius:3px; margin:0; display:inline-grid; place-items:center; cursor:pointer; flex:none; background:transparent; transition:border-color .15s, background-color .15s; }
+  .tick:hover { border-color:var(--fg); }
+  .tick:checked { background:var(--fg); border-color:var(--fg); }
+  .tick:checked::after { content:""; width:8px; height:4px; border:solid var(--bg); border-width:0 0 1.6px 1.6px; transform:translateY(-1px) rotate(-45deg); }
+  .tick.radio { border-radius:50%; }
+  .tick.radio:checked::after { width:6px; height:6px; border:0; border-radius:50%; background:var(--bg); transform:none; }
+
+  /* a progress line that sweeps while the total is unknown */
+  .progress { height:2px; background:var(--soft); position:relative; overflow:hidden; margin-top:10px; }
+  .progress i { position:absolute; left:0; top:0; bottom:0; background:var(--fg); transition:width .4s; }
+  .progress.unknown i { width:30% !important; animation:sweep 1.4s ease-in-out infinite; }
+  @keyframes sweep { from { transform:translateX(-100%); } to { transform:translateX(340%); } }
+  .dot { width:7px; height:7px; border-radius:50%; border:1px solid currentColor; display:inline-block; flex:none; }
+  .dot.on { background:currentColor; animation:ping 2.2s ease-out infinite; }
+  @keyframes ping { 0% { box-shadow:0 0 0 0 color-mix(in srgb,currentColor 50%,transparent); } 100% { box-shadow:0 0 0 8px transparent; } }
+
+  /* lists */
+  .list { display:flex; flex-direction:column; }
+  .item { display:grid; grid-template-columns:auto 84px minmax(0,1fr); gap:6px 14px; align-items:start; padding:9px 2px; border-bottom:1px solid var(--soft); transition:padding-left .2s; }
+  .item:hover { padding-left:8px; }
+  .item.off { opacity:.4; }
+  .tag { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em; text-transform:uppercase; border:1px solid var(--line); border-radius:3px; padding:2px 6px; text-align:center; align-self:start; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .path { font-family:'IBM Plex Mono',monospace; font-size:11.5px; overflow-wrap:anywhere; }
+  .path .arrow { opacity:.5; margin:0 6px; }
+  .path .to { opacity:.95; }
+  .why { color:var(--dim); font-size:11.5px; margin-top:2px; }
+  .live { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; border:1px solid var(--line); border-radius:3px; padding:0 5px; margin-left:8px; color:var(--dim); }
+  .bar { position:sticky; bottom:12px; z-index:3; display:flex; align-items:center; gap:14px; flex-wrap:wrap; border:1px solid var(--fg); border-radius:6px; background:color-mix(in srgb,var(--bg) 92%,transparent); backdrop-filter:blur(8px); padding:12px 16px; }
+  input.search { background:transparent; color:inherit; border:1px solid var(--line); border-radius:4px; padding:6px 10px; font:inherit; font-size:12.5px; min-width:220px; }
+  input.search:focus { border-color:var(--fg); outline:none; }
+
+  .group { border:1px solid var(--line); border-radius:5px; padding:10px 14px; margin-bottom:10px; }
+  .group.off { opacity:.45; }
+  .group header { display:flex; align-items:center; gap:12px; margin-bottom:6px; font-size:12px; color:var(--dim); }
+  .copy { display:flex; align-items:flex-start; gap:10px; padding:4px 0; cursor:pointer; }
+  .copy .path { flex:1 1 auto; }
+  .copy .keep { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--ok); }
+  .note { border-left:2px solid var(--warn); padding:2px 12px; margin:6px 0; color:var(--dim); font-size:12.5px; }
+  .empty { padding:36px 12px; text-align:center; color:var(--dim); }
+  .status-ok { color:var(--ok); } .status-bad { color:var(--bad); } .status-warn { color:var(--warn); }
+  dialog { background:var(--bg); color:var(--fg); border:1px solid var(--fg); border-radius:6px; padding:22px 24px; max-width:480px; }
+  dialog::backdrop { background:rgba(0,0,0,.6); backdrop-filter:blur(3px); }
+  dialog h2 { margin-bottom:10px; }
+  dialog ul { margin:10px 0 18px; padding-left:18px; color:var(--dim); }
+  .runs { display:grid; grid-template-columns:1fr auto; gap:6px 16px; padding:12px 2px; border-bottom:1px solid var(--soft); align-items:center; }
+  .fade-in { animation:fade .5s both; } @keyframes fade { from { opacity:0; transform:translateY(6px); } }
+  @media (max-width:700px) {
+    .item { grid-template-columns:auto 1fr; } .item .tag { grid-column:2; width:max-content; } .item > div:last-child { grid-column:1 / -1; }
+    .tabs { gap:20px; order:3; flex-basis:100%; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+</style>
+</head>
+<body>
+<canvas id="sky" aria-hidden="true"></canvas>
+<div id="app">
+  <div id="bar">
+    <span id="brand" class="mono">AUTOLAB <span>/ PHOTOS</span></span>
+    <nav class="tabs" role="tablist" aria-label="Photo jobs">
+      <button type="button" role="tab" data-tab="inbox" aria-selected="true">Inbox</button>
+      <button type="button" role="tab" data-tab="duplicates" aria-selected="false">Duplicates</button>
+      <button type="button" role="tab" data-tab="history" aria-selected="false">History<small id="runs-count"></small></button>
+    </nav>
+    <div id="right">
+      <span id="jobchip" class="mono muted" style="font-size:11px; letter-spacing:.14em;" hidden></span>
+      <span id="clock" class="mono">--:--</span>
+      <button id="flip" type="button" aria-label="Switch theme"></button>
+    </div>
+  </div>
+  <hr class="rule">
+  <main id="main" class="fade-in"></main>
+</div>
+<dialog id="confirm"></dialog>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const clamp = v => v < 0 ? 0 : v > 1 ? 1 : v;
+  const KIND_LABEL = { sorted: 'dated', 'no date': 'no date', event: 'event', merged: 'merged', duplicate: 'duplicate', sidecar: 'sidecar' };
+  const fmtGiB = b => b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GiB' : b >= 1048576 ? (b / 1048576).toFixed(b >= 1.05e7 ? 0 : 1) + ' MiB' : Math.max(1, Math.round(b / 1024)) + ' KiB';
+  const ago = t => { const s = Date.now() / 1000 - t; return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : new Date(t * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' }); };
+
+  const state = { tab: location.hash.slice(1) || 'inbox', status: null, job: null, dark: true,
+                  sort: { plan: null, moves: null, kind: '', q: '', offset: 0, done: null },
+                  dupes: { plan: null, groups: null, q: '', offset: 0, done: null }, runs: [] };
+  if (!['inbox', 'duplicates', 'history'].includes(state.tab)) state.tab = 'inbox';
+  try { state.dark = localStorage.getItem('photos-dark') !== '0'; } catch (e) {}
+
+  async function api(path, opts = {}) {
+    const res = await fetch('/api' + path, { ...opts, headers: { 'Content-Type': 'application/json' }, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    const doc = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(doc.error || res.statusText);
+    return doc;
+  }
+  const fail = e => alert(e.message || e);
+
+  // ---- theme, clock ---------------------------------------------------------------------------
+  const SUN = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+  const MOON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>';
+  function paintTheme() {
+    document.documentElement.classList.toggle('light', !state.dark);
+    $('#flip').innerHTML = state.dark ? SUN : MOON;
+    document.querySelector('meta[name=theme-color]').content = state.dark ? '#08080A' : '#FFFFFF';
+    skyDirty = true;
+  }
+  $('#flip').addEventListener('click', () => { state.dark = !state.dark; try { localStorage.setItem('photos-dark', state.dark ? '1' : '0'); } catch (e) {} paintTheme(); });
+  const pad = n => String(n).padStart(2, '0');
+  const tick = () => { const d = new Date(); $('#clock').textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+  tick(); setInterval(tick, 1000);
+
+  // ---- the job: one at a time, polled while it runs --------------------------------------------
+  let poller = 0;
+  function watchJob(job) {
+    state.job = job; renderChip(); clearInterval(poller);
+    poller = setInterval(async () => {
+      try {
+        const { job: j } = await api('/job');
+        state.job = j; renderChip(); renderProgress();
+        if (j && j.state !== 'running') { clearInterval(poller); await jobFinished(j); }
+      } catch (e) { clearInterval(poller); }
+    }, 700);
+    renderProgress();
+  }
+  async function jobFinished(j) {
+    if (j.state === 'error') { renderProgress(); return; }
+    if (j.kind === 'plan-sort') { await loadSort(j.result.plan); }
+    else if (j.kind === 'plan-duplicates') { await loadDupes(j.result.plan); }
+    else if (j.kind === 'apply') {
+      const side = j.plan === (state.sort.plan && state.sort.plan.id) ? state.sort : state.dupes;
+      side.done = j.result.run; side.plan = null; side.moves = side.groups = null;
+    }
+    await refresh();
+    render();
+  }
+  function renderChip() {
+    const chip = $('#jobchip'), j = state.job;
+    chip.hidden = !j || j.state !== 'running';
+    if (!chip.hidden) chip.innerHTML = '<span class="dot on"></span> ' + (j.message || j.kind).toUpperCase();
+  }
+  function progressBlock() {
+    const j = state.job, box = el('div', 'panel fade-in'); box.id = 'progress';
+    if (!j) return null;
+    if (j.state === 'error') { box.append(el('p', 'status-bad', 'The job failed: ' + j.error)); return box; }
+    if (j.state !== 'running') return null;
+    const line = el('div', 'row'); line.append(el('span', 'dot on'), el('span', 'mono', j.message), el('span', 'muted mono', j.total ? `${j.done} / ${j.total}` : ''));
+    const bar = el('div', 'progress' + (j.total ? '' : ' unknown')); const i = el('i'); i.style.width = (j.total ? Math.round(100 * j.done / j.total) : 30) + '%'; bar.append(i);
+    box.append(line, bar); return box;
+  }
+  function renderProgress() { const old = $('#progress'), nu = progressBlock(); if (old && nu) old.replaceWith(nu); else if (old) old.remove(); else if (nu) $('#main').prepend(nu); }
+  const busy = () => state.job && state.job.state === 'running';
+
+  // ---- loading ----------------------------------------------------------------------------------
+  async function refresh() {
+    state.status = await api('/status');
+    state.runs = (await api('/runs')).runs;
+    const c = $('#runs-count'); c.textContent = state.runs.length ? state.runs.length : '';
+  }
+  async function loadSort(id) {
+    state.sort.plan = await api('/plans/' + id); state.sort.offset = 0; state.sort.done = null;
+    await loadMoves();
+  }
+  async function loadMoves() {
+    const s = state.sort, q = new URLSearchParams({ offset: s.offset, limit: 100, kind: s.kind, q: s.q });
+    s.moves = await api(`/plans/${s.plan.id}/moves?` + q);
+  }
+  async function loadDupes(id) {
+    state.dupes.plan = await api('/plans/' + id); state.dupes.offset = 0; state.dupes.done = null;
+    await loadGroups();
+  }
+  async function loadGroups() {
+    const d = state.dupes, q = new URLSearchParams({ offset: d.offset, limit: 40, q: d.q });
+    d.groups = await api(`/plans/${d.plan.id}/groups?` + q);
+  }
+  async function resume() {
+    const { plans } = await api('/plans');
+    for (const kind of ['sort', 'duplicates']) {
+      const p = plans.find(x => x.kind === kind && !x.applied);
+      if (p) await (kind === 'sort' ? loadSort(p.id) : loadDupes(p.id));
+    }
+  }
+
+  // ---- views ------------------------------------------------------------------------------------
+  const main = $('#main');
+  function render() {
+    document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
+    main.replaceChildren();
+    ({ inbox: viewInbox, duplicates: viewDupes, history: viewHistory })[state.tab]();
+    const p = progressBlock(); if (p) main.prepend(p);
+    main.classList.remove('fade-in'); void main.offsetWidth; main.classList.add('fade-in');
+  }
+  document.querySelector('.tabs').addEventListener('click', e => {
+    const t = e.target.closest('[data-tab]'); if (!t) return;
+    state.tab = t.dataset.tab; history.replaceState(null, '', '#' + state.tab); render();
+  });
+
+  addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['inbox', 'duplicates', 'history'].includes(t) && t !== state.tab) { state.tab = t; render(); } });
+
+  function doneBanner(side, kindWord) {
+    if (!side.done) return null;
+    const run = state.runs.find(r => r.id === side.done);
+    const box = el('div', 'panel'); box.style.marginBottom = '14px';
+    const row = el('div', 'row');
+    const msg = run ? `${run.counts.moved} ${kindWord} moved${run.counts.skipped ? `, ${run.counts.skipped} skipped because they had changed` : ''}${run.counts.error ? `, ${run.counts.error} failed` : ''}.` : 'Done.';
+    row.append(el('span', 'status-ok', '●'), el('span', 'grow', msg));
+    if (run && !run.undone) { const u = el('button', 'btn small', 'Undo'); u.onclick = () => undo(run.id); row.append(u); }
+    box.append(row); return box;
+  }
+
+  function viewInbox() {
+    const s = state.sort, st = state.status;
+    const head = el('div', 'panel');
+    const top = el('div', 'row');
+    const t = el('div', 'grow'); t.append(el('h2', null, 'Inbox'), el('p', 'muted', 'Photos dropped in _inbox/loose are dated one by one; each folder in _inbox/events moves whole. Nothing moves until you apply.'));
+    const scan = el('button', 'btn primary', s.plan ? 'Scan again' : 'Scan inbox'); scan.disabled = busy();
+    scan.onclick = async () => { try { s.plan = null; s.moves = null; watchJob((await api('/plans', { method: 'POST', body: { kind: 'sort' } })).job); render(); } catch (e) { fail(e); } };
+    top.append(t, scan); head.append(top);
+    if (st) {
+      const tiles = el('div', 'tiles'); tiles.style.marginTop = '14px';
+      [['loose photos', st.inbox.loose], ['in events', st.inbox.events], ['no date filed', st.inbox.no_date], ['duplicates filed', st.inbox.duplicates]].forEach(([k, v]) => {
+        const tile = el('div', 'tile'); tile.append(el('b', null, v.toLocaleString()), el('small', null, k)); tiles.append(tile);
+      });
+      head.append(tiles);
+    }
+    main.append(head);
+    const done = doneBanner(s, 'files'); if (done) { done.style.marginTop = '14px'; main.append(done); }
+    if (!s.plan) { if (!busy() && !done) { const e = el('div', 'empty', 'Scan the inbox to see exactly what would move.'); main.append(e); } return; }
+    const p = s.plan, wrap = el('div'); wrap.style.cssText = 'display:flex;flex-direction:column;gap:14px;margin-top:14px';
+    const sum = el('div', 'panel');
+    sum.append(el('p', 'head', 'Plan'));
+    const tiles = el('div', 'tiles');
+    Object.entries(p.stats.kinds).sort((a, b) => b[1] - a[1]).forEach(([k, n]) => {
+      const off = (p.excluded_kinds || []).includes(k);
+      const tile = el('button', 'tile kind' + (off ? ' off' : '')); tile.type = 'button'; tile.title = off ? 'Include these moves again' : 'Leave these moves out';
+      tile.append(el('b', null, n.toLocaleString()), el('small', null, KIND_LABEL[k] || k));
+      tile.onclick = () => patch({ kind: k, selected: off }, s, loadMoves);
+      tiles.append(tile);
+    });
+    if (p.stats.pairs) { const t2 = el('div', 'tile'); t2.append(el('b', null, p.stats.pairs.toLocaleString()), el('small', null, 'live photos kept whole')); tiles.append(t2); }
+    sum.append(tiles);
+    (p.notes || []).forEach(n => sum.append(el('div', 'note', n)));
+    if (p.stats.left) sum.append(el('div', 'note', `${p.stats.left} other files stay where they are (not photos or videos).`));
+    wrap.append(sum);
+
+    const listPanel = el('div', 'panel');
+    const filters = el('div', 'row'); filters.style.marginBottom = '8px';
+    const q = el('input', 'search'); q.placeholder = 'Filter by name or reason'; q.value = s.q;
+    let timer = 0; q.oninput = () => { clearTimeout(timer); timer = setTimeout(async () => { s.q = q.value; s.offset = 0; await loadMoves(); renderList(); }, 250); };
+    const allOn = el('button', 'btn small quiet', 'Tick all'), allOff = el('button', 'btn small quiet', 'Untick all');
+    allOn.onclick = () => patch({ all: true }, s, loadMoves); allOff.onclick = () => patch({ all: false }, s, loadMoves);
+    filters.append(q, el('span', 'grow'), allOn, allOff);
+    const list = el('div', 'list'); list.id = 'moves';
+    listPanel.append(el('p', 'head', 'Moves'), filters, list); wrap.append(listPanel);
+    main.append(wrap);
+    renderList();
+    const bar = el('div', 'bar'); bar.id = 'applybar';
+    const info = el('span', 'grow'); info.innerHTML = `<b>${p.selected.toLocaleString()}</b> of ${p.moves.toLocaleString()} moves ticked`;
+    const apply = el('button', 'btn primary', 'Apply ' + p.selected.toLocaleString() + ' moves'); apply.disabled = busy() || !p.selected;
+    apply.onclick = () => confirmApply(p, 'files will move');
+    bar.append(info, apply); main.append(bar);
+  }
+  function renderList() {
+    const s = state.sort, list = $('#moves'); if (!list || !s.moves) return;
+    list.replaceChildren();
+    if (!s.moves.moves.length) list.append(el('div', 'empty', s.q ? 'Nothing matches.' : 'Nothing to move.'));
+    s.moves.moves.forEach(m => {
+      const row = el('div', 'item' + (m.selected ? '' : ' off'));
+      const box = el('input', 'tick'); box.type = 'checkbox'; box.checked = m.selected; box.setAttribute('aria-label', 'Include this move');
+      box.onchange = () => patch({ groups: [m.group || 'm' + m.id], selected: box.checked }, s, loadMoves);
+      const body = el('div'), path = el('div', 'path');
+      path.append(el('span', null, m.src), el('span', 'arrow', '→'), el('span', 'to', m.dst));
+      if ((m.group || '').startsWith('pair:')) path.append(el('span', 'live', 'LIVE PHOTO'));
+      body.append(path, el('div', 'why', m.why));
+      row.append(box, el('span', 'tag', KIND_LABEL[m.kind] || m.kind), body); list.append(row);
+    });
+    const pager = pagerFor(s.moves, 100, async o => { s.offset = o; await loadMoves(); renderList(); });
+    if (pager) list.append(pager);
+  }
+  function pagerFor(page, size, go) {
+    if (page.total <= size) return null;
+    const r = el('div', 'row'); r.style.cssText = 'justify-content:center;padding:12px 0';
+    const prev = el('button', 'btn small quiet', 'Previous'), next = el('button', 'btn small quiet', 'Next');
+    prev.disabled = page.offset === 0; next.disabled = page.offset + size >= page.total;
+    prev.onclick = () => go(Math.max(0, page.offset - size)); next.onclick = () => go(page.offset + size);
+    r.append(prev, el('span', 'mono muted', `${page.offset + 1}–${Math.min(page.offset + size, page.total)} of ${page.total.toLocaleString()}`), next);
+    return r;
+  }
+  async function patch(body, side, reload) {
+    try {
+      await api('/plans/' + side.plan.id, { method: 'PATCH', body });
+      side.plan = await api('/plans/' + side.plan.id);
+      await reload(); render();
+    } catch (e) { fail(e); }
+  }
+
+  function viewDupes() {
+    const d = state.dupes;
+    const head = el('div', 'panel'), top = el('div', 'row');
+    const t = el('div', 'grow'); t.append(el('h2', null, 'Duplicates'), el('p', 'muted', 'Byte-identical photos and videos. The best copy is kept; the others are filed under _duplicates beside it, never deleted.'));
+    const scan = el('button', 'btn primary', d.plan ? 'Scan again' : 'Find duplicates'); scan.disabled = busy();
+    scan.onclick = async () => { try { d.plan = null; d.groups = null; watchJob((await api('/plans', { method: 'POST', body: { kind: 'duplicates' } })).job); render(); } catch (e) { fail(e); } };
+    top.append(t, scan); head.append(top); main.append(head);
+    const done = doneBanner(d, 'copies'); if (done) { done.style.marginTop = '14px'; main.append(done); }
+    if (!d.plan) { if (!busy() && !done) main.append(el('div', 'empty', 'Scan to find copies of the same photo anywhere in the library.')); return; }
+    const p = d.plan, wrap = el('div'); wrap.style.cssText = 'display:flex;flex-direction:column;gap:14px;margin-top:14px';
+    const sum = el('div', 'panel'), tiles = el('div', 'tiles');
+    [[p.stats.groups, 'groups'], [p.stats.extra, 'extra copies'], [fmtGiB(p.stats.extra_bytes), 'they use'], [p.preview.moves, 'will be filed']].forEach(([v, k]) => {
+      const tile = el('div', 'tile'); tile.append(el('b', null, typeof v === 'number' ? v.toLocaleString() : v), el('small', null, k)); tiles.append(tile);
+    });
+    sum.append(el('p', 'head', 'Result'), tiles);
+    if (p.preview.protected_count) {
+      sum.append(el('div', 'note', `${p.preview.protected_count} copies are left alone because their Live Photo half is staying; moving one half would split the photo.`));
+    }
+    wrap.append(sum);
+    const panel = el('div', 'panel'); panel.append(el('p', 'head', 'Pick the copy to keep'));
+    const filter = el('div', 'row'); filter.style.marginBottom = '10px';
+    const q = el('input', 'search'); q.placeholder = 'Filter by path'; q.value = d.q;
+    let timer = 0; q.oninput = () => { clearTimeout(timer); timer = setTimeout(async () => { d.q = q.value; d.offset = 0; await loadGroups(); renderGroups(); }, 250); };
+    filter.append(q); panel.append(filter);
+    const holder = el('div'); holder.id = 'groups'; panel.append(holder); wrap.append(panel); main.append(wrap);
+    renderGroups();
+    const bar = el('div', 'bar'), info = el('span', 'grow');
+    info.innerHTML = `<b>${p.preview.moves.toLocaleString()}</b> copies will be filed`;
+    const apply = el('button', 'btn primary', 'File ' + p.preview.moves.toLocaleString() + ' copies'); apply.disabled = busy() || !p.preview.moves;
+    apply.onclick = () => confirmApply(p, 'copies will be filed under _duplicates');
+    bar.append(info, apply); main.append(bar);
+  }
+  function renderGroups() {
+    const d = state.dupes, holder = $('#groups'); if (!holder || !d.groups) return;
+    holder.replaceChildren();
+    if (!d.groups.groups.length) holder.append(el('div', 'empty', d.q ? 'Nothing matches.' : 'No duplicates. Nice.'));
+    d.groups.groups.forEach(g => {
+      const card = el('div', 'group' + (g.selected ? '' : ' off'));
+      const hd = el('header'), on = el('input', 'tick'); on.type = 'checkbox'; on.checked = g.selected; on.setAttribute('aria-label', 'File the extra copies of this photo');
+      on.onchange = () => patch({ groups: [g.id], selected: on.checked }, d, loadGroups);
+      hd.append(on, el('span', 'mono', `${g.files.length} copies · ${fmtGiB(g.size)} each`), el('span', 'grow'));
+      card.append(hd);
+      g.files.forEach(f => {
+        const row = el('label', 'copy'), r = el('input', 'tick radio'); r.type = 'radio'; r.name = g.id; r.checked = f === g.keep;
+        r.onchange = () => patch({ keep: { [g.id]: f } }, d, loadGroups);
+        const path = el('span', 'path', f); row.append(r, path);
+        if (f === g.keep) row.append(el('span', 'keep', 'keep'));
+        card.append(row);
+      });
+      holder.append(card);
+    });
+    const pager = pagerFor(d.groups, 40, async o => { d.offset = o; await loadGroups(); renderGroups(); });
+    if (pager) holder.append(pager);
+  }
+
+  function viewHistory() {
+    const panel = el('div', 'panel'); panel.append(el('h2', null, 'History'), el('p', 'muted', 'Every apply is recorded. Undo puts that run’s files back, skipping anything that has changed since.'));
+    const list = el('div', 'list'); list.style.marginTop = '12px';
+    if (!state.runs.length) list.append(el('div', 'empty', 'Nothing has been applied yet.'));
+    state.runs.forEach(r => {
+      const row = el('div', 'runs'), left = el('div');
+      const what = r.kind === 'duplicates' ? 'Duplicates filed' : 'Inbox sorted';
+      left.append(el('div', null, `${what} · ${ago(r.started)}`));
+      const bits = [`${r.counts.moved} moved`, r.counts.skipped && `${r.counts.skipped} skipped`, r.counts.error && `${r.counts.error} failed`].filter(Boolean).join(' · ');
+      left.append(el('div', 'why mono', bits));
+      row.append(left);
+      if (r.undone) row.append(el('span', 'tag', 'undone')); else { const u = el('button', 'btn small', 'Undo'); u.disabled = busy(); u.onclick = () => undo(r.id); row.append(u); }
+      list.append(row);
+    });
+    panel.append(list); main.append(panel);
+  }
+
+  // ---- doing things ------------------------------------------------------------------------------
+  const dlg = $('#confirm');
+  function confirmApply(plan, what) {
+    const n = plan.kind === 'duplicates' ? plan.preview.moves : plan.selected;
+    dlg.replaceChildren();
+    dlg.append(el('h2', null, `Apply ${n.toLocaleString()} moves?`));
+    const ul = el('ul'); ['Only the moves you left ticked are made.', 'Each move is skipped if its file has changed since the scan.', 'Nothing is overwritten or deleted. Undo is in History.'].forEach(t => ul.append(el('li', null, t)));
+    const row = el('div', 'row'); row.style.justifyContent = 'flex-end';
+    const cancel = el('button', 'btn quiet', 'Cancel'), go = el('button', 'btn primary', 'Apply'); cancel.onclick = () => dlg.close();
+    go.onclick = async () => { dlg.close(); try { watchJob((await api(`/plans/${plan.id}/apply`, { method: 'POST' })).job); render(); } catch (e) { fail(e); } };
+    row.append(cancel, go); dlg.append(ul, row); dlg.showModal();
+  }
+  async function undo(id) {
+    if (!confirm('Put this run’s files back where they were?')) return;
+    try { watchJob((await api(`/runs/${id}/undo`, { method: 'POST' })).job); render(); } catch (e) { fail(e); }
+  }
+
+  // ---- the black hole: the design's own code, calmer, behind the work --------------------------------
+  const sky = $('#sky'), reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const S = { parts: null, spin: 0 };
+  let skyDirty = true, dpr = 1, W = 1, H = 1, intro = performance.now(), lastT = 0;
+  const toRGB = hex => { const n = hex.replace('#', ''); const v = parseInt(n.length === 3 ? n.split('').map(x => x + x).join('') : n, 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; };
+  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${Math.max(0, Math.min(1, a)).toFixed(3)})`;
+  function seed() { S.parts = []; for (let k = 0; k < 520; k++) { const u = Math.pow(Math.random(), .8); S.parts.push({ r: 1.08 + u * 2.5, a: Math.random() * 6.2832, b: .35 + Math.random() * .65, t: Math.random() * .9 + .3 }); } }
+  function arc(ctx, cx, cy, s, tilt, fg) { ctx.strokeStyle = rgba(fg, s[3]); ctx.lineWidth = .6 + s[4] * 1.5; ctx.beginPath(); ctx.ellipse(cx, cy, s[0], s[0] * tilt, 0, s[1], s[1] + s[2]); ctx.stroke(); }
+  function paint(T, enter) {
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    const r = sky.getBoundingClientRect(); W = r.width; H = r.height;
+    const pw = Math.round(W * dpr), ph = Math.round(H * dpr);
+    if (sky.width !== pw || sky.height !== ph) { sky.width = pw; sky.height = ph; }
+    if (!S.parts) seed();
+    const ctx = sky.getContext('2d'), fg = toRGB(state.dark ? '#F4F4F5' : '#0A0A0A'), bg = state.dark ? '#08080A' : '#FFFFFF';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    // The hole sits at the right edge and stays small once the intro is over, so it frames the work
+    // instead of competing with it. During the intro it grows to the home page's size and settles.
+    const cx = W * (.5 + .33 * (1 - enter)), cy = H * (.5 - .12 * (1 - enter)), dim = .55 + .45 * enter;
+    const R = Math.min(W, H) * (.09 + .05 * enter) * (1 + enter * enter * 3.5), tilt = Math.max(.04, .19 + enter * .1);
+    const stretch = 1 + enter * enter * 14, breathe = 1 + .02 * Math.sin(T * .7);
+    const hr = R * 3.4 * breathe, halo = ctx.createRadialGradient(cx, cy, R * .85, cx, cy, hr);
+    halo.addColorStop(0, rgba(fg, .1 * dim)); halo.addColorStop(.18, rgba(fg, .05 * dim)); halo.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(cx, cy, hr, 0, 6.2832); ctx.fill();
+    const lens = (1 - enter * .85) * dim * .8;
+    for (let k = 0; k < 22; k++) { const u = k / 22; ctx.strokeStyle = rgba(fg, (.085 - u * .075) * lens); ctx.lineWidth = 1 + (1 - u) * 1.4;
+      ctx.beginPath(); ctx.ellipse(cx, cy, R * (1.06 + u * .5), R * (1.42 + u * .85) * (1 + .012 * Math.sin(T * 1.2 + k)), 0, 0, 6.2832); ctx.stroke(); }
+    const front = [];
+    for (const p of S.parts) {
+      const rad = R * p.r * (1 - enter * .18), spd = .9 / Math.pow(p.r, 1.4), ang = p.a + S.spin * spd;
+      const dA = (.03 + p.t * .09) * (1 + stretch * .5) / p.r, dop = Math.cos(ang) < 0 ? 1.7 : .5;
+      const seg = [rad, ang, dA, .1 * p.b * dop * dim * (1 + enter * .5), p.t];
+      if (Math.sin(ang) > 0) front.push(seg); else arc(ctx, cx, cy, seg, tilt, fg);
+    }
+    ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(cx, cy, R * .995, 0, 6.2832); ctx.fill();
+    ctx.strokeStyle = rgba(fg, (.45 + .18 * Math.sin(T * 2.1) + .1 * Math.sin(T * 5.3)) * dim); ctx.lineWidth = 1.2 + .5 * Math.sin(T * 1.7);
+    ctx.beginPath(); ctx.arc(cx, cy, R * 1.008, 0, 6.2832); ctx.stroke();
+    ctx.strokeStyle = rgba(fg, .12 * dim); ctx.lineWidth = 6 + 3 * Math.sin(T * .9); ctx.beginPath(); ctx.arc(cx, cy, R * 1.05, 0, 6.2832); ctx.stroke();
+    front.forEach(s => arc(ctx, cx, cy, s, tilt, fg));
+  }
+  function loop(now) {
+    const T = now / 1000, dt = Math.min(.05, Math.max(0, T - (lastT || T))); lastT = T;
+    const e = reduced.matches ? 0 : 1 - clamp((now - intro) / 2600);   // 1 → 0, easing out
+    const enter = e * e * (3 - 2 * e);
+    S.spin += dt * (.55 + enter * 3.4);
+    paint(T, enter);
+    if (!reduced.matches || skyDirty) requestAnimationFrame(loop);
+    skyDirty = false;
+  }
+  addEventListener('resize', () => { if (reduced.matches) { skyDirty = true; requestAnimationFrame(loop); } });
+  reduced.addEventListener('change', () => { skyDirty = true; requestAnimationFrame(loop); });
+
+  // ---- go ------------------------------------------------------------------------------------------
+  paintTheme();
+  requestAnimationFrame(loop);
+  (async () => {
+    try {
+      await refresh();
+      if (state.status.job && state.status.job.state === 'running') watchJob(state.status.job);
+      await resume();
+    } catch (e) { main.append(el('div', 'panel status-bad', 'Cannot reach the photo service: ' + e.message)); return; }
+    render();
+  })();
+})();
+</script>
+</body>
+</html>
