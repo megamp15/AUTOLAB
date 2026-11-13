@@ -91,8 +91,15 @@
      holds; one column on a phone. */
   .group-rows { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); column-gap:44px; }
   #rows { position:relative; }
+  /* The panel takes focus so the keyboard can scroll it; the browser's
+     outline around the whole thing said nothing a reader needed. */
+  #rows:focus-visible { outline:none; }
+  .a-pill { color:inherit; background:none; font-size:11px; padding:5px 11px; cursor:pointer; border-radius:999px;
+    border:1px solid color-mix(in srgb,currentColor 35%,transparent); }
+  .a-pill:hover, .a-pill[aria-pressed="true"] { background:color-mix(in srgb,currentColor 12%,transparent); border-color:currentColor; }
   .arch { display:flex; flex-direction:column; gap:12px; }
-  .a-toolbar { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-end; gap:12px 24px; }
+  .a-toolbar { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px 28px; }
+  .a-toolbar .a-legend { flex:1 1 auto; justify-content:center; }
   .a-intro h2 { margin:0 0 2px; }
   .a-intro p { margin:0; }
   .a-tools { display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; }
@@ -107,6 +114,18 @@
     border:1px solid color-mix(in srgb,currentColor 18%,transparent); border-radius:6px; }
   .a-zoom.on.dragging { cursor:grabbing; user-select:none; }
   .a-zoom.on .a-sizer { margin:0 auto; }
+  /* Landscape: the way in on the left, the machines in the middle, where the
+     data goes on the right. The rows dissolve so each card takes a cell. */
+  .a-canvas.a-land { display:grid; column-gap:90px; row-gap:40px; align-items:center;
+    grid-template-columns:minmax(300px,1fr) minmax(0,4.2fr) minmax(280px,1fr);
+    grid-template-areas:"cf nodes backups" "door nodes nas" "ts nodes obs" "gh nodes ." "access access access"; }
+  .a-land .a-row-edge, .a-land .a-row-door, .a-land .a-row-data { display:contents; }
+  .a-land .a-row-nodes { grid-area:nodes; margin:0; }
+  .a-land .a-card { z-index:1; }
+  .a-land [data-wire="cf"] { grid-area:cf; } .a-land [data-wire="ts"] { grid-area:ts; } .a-land [data-wire="gh"] { grid-area:gh; }
+  .a-land .a-door { grid-area:door; width:auto; }
+  .a-land [data-wire="backups"] { grid-area:backups; } .a-land [data-wire="nas"] { grid-area:nas; } .a-land [data-wire="obs"] { grid-area:obs; }
+  .a-land .a-access { grid-area:access; margin:0; }
   .a-zoom.on .a-canvas { transform-origin:0 0; padding:24px; box-sizing:border-box; }
   .a-access { font-size:11.5px; line-height:1.6; opacity:.7; margin:22px 0 0; max-width:110ch; }
   /* Hovering a legend entry: its wires stay, the rest step back. */
@@ -151,8 +170,8 @@
   .a-bar-track i::after { content:""; position:absolute; inset:0; width:40%;
     background:linear-gradient(90deg, transparent, var(--sg-bg), transparent); opacity:.55; animation:a-sheen 3.2s ease-in-out infinite; }
   .a-bar-val { opacity:.85; min-width:70px; text-align:right; font-variant-numeric:tabular-nums; }
-  .a-vms { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
-  .a-tenant { border:1px dashed color-mix(in srgb,currentColor 32%,transparent); border-radius:5px; padding:8px; }
+  .a-vms { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr)); gap:8px; margin-top:12px; align-items:start; }
+  .a-tenant { grid-column:1 / -1; border:1px dashed color-mix(in srgb,currentColor 32%,transparent); border-radius:5px; padding:8px; }
   .a-tenant-label { font-size:10px; letter-spacing:.2em; text-transform:uppercase; opacity:.65; margin-bottom:6px; }
   .a-tenant-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:6px; }
   .a-ctrs { margin-top:8px; display:flex; flex-direction:column; gap:5px; border-top:1px solid color-mix(in srgb,currentColor 14%,transparent); padding-top:7px; }
@@ -214,7 +233,8 @@
   [data-sg-root].static .a-zoomctl { display:none; }
   @media (max-width:900px) {
     .a-zoomctl { display:none; }
-    .a-row-edge, .a-row-data { grid-template-columns:1fr; }
+    .a-row-edge, .a-row-data, .a-row-nodes { grid-template-columns:1fr !important; }
+    .a-vms { grid-template-columns:1fr; }
     .a-wires { display:none; }
     .a-row { margin-bottom:14px; }
   }
@@ -467,7 +487,7 @@
       const shown = arch.showAll ? all : mine;
       return { ...n, own: shown.filter(g => !tagsOf(g).some(t => t.startsWith('tenant-'))),
                tenants: shown.filter(g => tagsOf(g).some(t => t.startsWith('tenant-'))),
-               hidden: all.length - shown.length, temp: temps[n.name], host: hosts[n.name] };
+               hidden: all.length - shown.length, extra: all.length - mine.length, temp: temps[n.name], host: hosts[n.name] };
     });
     // The page itself and the shared-link proxy are public names with no row.
     publicNames.unshift('home');
@@ -602,20 +622,22 @@
     const intro = mk('div', 'a-intro ops');
     intro.append(mk('h2', undefined, 'Current architecture'), mk('p', 'muted', 'Live from Proxmox, node_exporter, cAdvisor and the probes · every 30 s'));
     const tools = mk('div', 'a-tools');
-    const controls = mk('label', 'a-toggle'); const show = el('input'); show.type = 'checkbox'; show.checked = arch.showAll;
-    show.addEventListener('change', () => { arch.showAll = show.checked; arch.sig = ''; renderArchitecture(); });
-    controls.append(show, document.createTextNode(' Templates & unmanaged'));
+    // VM templates and guests AUTOLAB does not manage (the stopped q360 VMs on
+    // pve, say) are left off by default. The button names how many.
+    const extra = m.nodes.reduce((a, n) => a + n.extra, 0);
+    const controls = mk('button', 'a-pill mono', `${arch.showAll ? 'Hide' : 'Show'} ${extra} hidden VM${extra === 1 ? '' : 's'}`);
+    controls.type = 'button'; controls.setAttribute('aria-pressed', String(arch.showAll)); controls.hidden = !extra;
+    controls.title = 'VM templates and guests AUTOLAB does not manage, such as stopped VMs from other projects';
+    controls.addEventListener('click', () => { arch.showAll = !arch.showAll; arch.sig = ''; renderArchitecture(); });
     const zoomBox = mk('div', 'a-zoomctl mono');
     const btn = (label, title, fn) => { const b = mk('button', undefined, label); b.type = 'button'; b.title = title; b.setAttribute('aria-label', title); b.addEventListener('click', fn); return b; };
     zoomBox.append(
       btn('−', 'Zoom out', () => zoomBy(1 / 1.2)),
       live(mk('span', 'a-zoomval'), 'zoom'),
       btn('+', 'Zoom in', () => zoomBy(1.2)),
-      btn('Fit', 'Fit the whole diagram', () => setZoomMode('page')),
-      btn('Width', 'Fit the width', () => setZoomMode('width')),
+      btn('Fit', 'Fit to the window: the layout reshapes to fill it', () => setZoomMode('fit')),
       btn('1:1', 'Actual size', () => setZoomMode('manual', 1)));
     tools.append(controls, zoomBox);
-    bar.append(intro, tools);
     root.append(bar);
 
     // The legend draws each kind of wire with the wire's own classes, so it
@@ -636,7 +658,7 @@
       item.addEventListener('focus', on); item.addEventListener('blur', off);
       legend.append(item);
     });
-    root.append(legend);
+    bar.append(intro, legend, tools);
 
     const zoom = mk('div', 'a-zoom'); zoom.tabIndex = 0; zoom.setAttribute('aria-label', 'Architecture diagram. Drag to pan; Ctrl or Cmd and scroll, or pinch, to zoom.');
     const sizer = mk('div', 'a-sizer');
@@ -669,6 +691,9 @@
     // Compute.
     const nodesRow = mk('div', 'a-row a-row-nodes');
     m.nodes.forEach(n => nodesRow.append(nodeCard(n, m)));
+    // A node with more guests gets a wider column, so on a wide layout its
+    // VMs sit side by side instead of making one column tall.
+    nodesRow.style.gridTemplateColumns = m.nodes.map(n => `minmax(0,${(1 + 0.6 * (n.own.length + n.tenants.length)).toFixed(1)}fr)`).join(' ');
     canvas.append(nodesRow);
 
     // Data and signals.
@@ -710,14 +735,28 @@
     WIRES.forEach(([from, to, kind]) => {
       find(from).forEach(a => find(to).forEach(b => {
         const A = pos(a), B = pos(b);
-        let x1 = A.x + A.w / 2, y1 = A.y + A.h, x2 = B.x + B.w / 2, y2 = B.y;
-        if (B.y < A.y + A.h) { y1 = A.y; y2 = B.y + B.h; }      // b sits above a
-        if (Math.abs(y2 - y1) < 8) return;                     // stacked side by side: no wire
-        // Spread several wires out of one card so they do not overlap.
-        x1 += Math.max(-A.w / 3, Math.min(A.w / 3, (x2 - x1) * 0.25));
-        x2 += Math.max(-B.w / 3, Math.min(B.w / 3, (x1 - x2) * 0.2));
-        const my = (y1 + y2) / 2;
-        const d = `M${x1.toFixed(1)} ${y1.toFixed(1)} C${x1.toFixed(1)} ${my.toFixed(1)} ${x2.toFixed(1)} ${my.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+        const f = n => n.toFixed(1);
+        let d;
+        const right = B.x >= A.x + A.w - 4, left = B.x + B.w <= A.x + 4;
+        if (right || left) {
+          // Next to each other (the landscape layout): leave by the facing
+          // side, at the height the two cards share, or the nearest to it.
+          const top = Math.max(A.y, B.y), bot = Math.min(A.y + A.h, B.y + B.h);
+          const yA = top < bot ? (top + bot) / 2 : Math.min(Math.max(B.y + B.h / 2, A.y + 20), A.y + A.h - 20);
+          const yB = top < bot ? (top + bot) / 2 + Math.max(-B.h / 3, Math.min(B.h / 3, (A.y + A.h / 2 - (top + bot) / 2) * 0.3)) : B.y + B.h / 2;
+          const x1 = right ? A.x + A.w : A.x, x2 = right ? B.x : B.x + B.w;
+          const mx = (x1 + x2) / 2;
+          d = `M${f(x1)} ${f(yA)} C${f(mx)} ${f(yA)} ${f(mx)} ${f(yB)} ${f(x2)} ${f(yB)}`;
+        } else {
+          let x1 = A.x + A.w / 2, y1 = A.y + A.h, x2 = B.x + B.w / 2, y2 = B.y;
+          if (B.y < A.y + A.h) { y1 = A.y; y2 = B.y + B.h; }      // b sits above a
+          if (Math.abs(y2 - y1) < 8) return;
+          // Spread several wires out of one card so they do not overlap.
+          x1 += Math.max(-A.w / 3, Math.min(A.w / 3, (x2 - x1) * 0.25));
+          x2 += Math.max(-B.w / 3, Math.min(B.w / 3, (x1 - x2) * 0.2));
+          const my = (y1 + y2) / 2;
+          d = `M${f(x1)} ${f(y1)} C${f(x1)} ${f(my)} ${f(x2)} ${f(my)} ${f(x2)} ${f(y2)}`;
+        }
         const pid = 'a-w' + (id++);
         let markup = `<path id="${pid}" class="a-wire a-${kind}" d="${d}"/>`;
         if (kind === 'signal') markup += `<path class="a-wire a-signal-streak" d="${d}"/>`;
@@ -779,31 +818,59 @@
   // in the canvas's own coordinates, scale with it. A phone keeps the
   // stacked, reflowing layout and none of this.
   const DESIGN_W = 1480;
-  arch.mode = arch.mode || 'width'; arch.z = arch.z || 1;
+  arch.mode = arch.mode || 'fit'; arch.z = arch.z || 1; arch.w = arch.w || DESIGN_W;
   const zoomable = () => !staticMode && window.innerWidth > 900;
   const zEls = () => { const zoom = rowsEl.querySelector('.a-zoom'); return zoom && { zoom, sizer: zoom.firstElementChild, canvas: zoom.querySelector('.a-canvas') }; };
   function applyZoom(z, ax, ay) {
     const e = zEls(); if (!e) return;
     const on = zoomable();
     e.zoom.classList.toggle('on', on);
-    if (!on) { e.canvas.style.transform = ''; e.canvas.style.width = ''; e.sizer.style.width = e.sizer.style.height = ''; return; }
-    e.canvas.style.width = DESIGN_W + 'px';
-    const W = DESIGN_W, H = e.canvas.offsetHeight, vw = e.zoom.clientWidth, vh = e.zoom.clientHeight;
-    if (arch.mode === 'width') z = vw / W;
-    else if (arch.mode === 'page') z = Math.min(vw / W, vh / H);
-    z = Math.max(0.25, Math.min(2.5, z || arch.z));
+    if (!on) { e.canvas.classList.remove('a-land'); e.canvas.style.transform = ''; e.canvas.style.width = ''; e.sizer.style.width = e.sizer.style.height = ''; e.sizer.style.marginTop = ''; return; }
+    const vw = e.zoom.clientWidth, vh = e.zoom.clientHeight;
+    const before = arch.w;
+    if (arch.mode === 'fit') {
+      // Fit reshapes, then scales. The layout reflows at whatever width
+      // gives it the window's proportions — wider means VMs side by side
+      // and a shorter diagram — and is then scaled to fill. Never wider than
+      // the window at 115%, so a big screen gets more layout rather than
+      // bigger letters.
+      // Two shapes are tried: stacked (top to bottom) and landscape (left to
+      // right), each at its best width; the one that ends up bigger wins.
+      const heightAt = w => { e.canvas.style.width = w + 'px'; return e.canvas.offsetHeight; };
+      const best = land => {
+        e.canvas.classList.toggle('a-land', land);
+        let lo = Math.max(land ? 1400 : 1000, Math.round(vw / 1.15)), hi = Math.max(lo, 4200), w = lo;
+        if (heightAt(lo) / lo > vh / vw) {
+          for (let k = 0; k < 12 && hi - lo > 8; k++) {
+            const mid = Math.round((lo + hi) / 2);
+            if (heightAt(mid) / mid > vh / vw) lo = mid; else hi = mid;
+          }
+          w = hi;
+        }
+        return { land, w, z: Math.min(vw / w, vh / heightAt(w)) };
+      };
+      const a = best(false), b = best(true), pick = b.z > a.z * 1.03 ? b : a;
+      e.canvas.classList.toggle('a-land', pick.land);
+      arch.land = pick.land; arch.w = pick.w;
+      e.canvas.style.width = arch.w + 'px';
+    } else { e.canvas.classList.toggle('a-land', !!arch.land); e.canvas.style.width = arch.w + 'px'; }
+    const W = arch.w, H = e.canvas.offsetHeight;
+    if (arch.mode === 'fit') z = Math.min(vw / W, vh / H);
+    z = Math.max(0.2, Math.min(2.5, z || arch.z));
     // Keep the point under the cursor where it was. A button zoom keeps the
     // centre; a fit keeps the top-left corner, so it never opens mid-way.
-    const fit = arch.mode !== 'manual';
+    const fit = arch.mode === 'fit';
     if (ax === undefined) { ax = fit ? 0 : vw / 2; ay = fit ? 0 : vh / 2; }
     const cx = (e.zoom.scrollLeft + ax) / arch.z, cy = (e.zoom.scrollTop + ay) / arch.z;
     arch.z = z;
     e.canvas.style.transform = `scale(${z})`;
     e.sizer.style.width = Math.ceil(W * z) + 'px'; e.sizer.style.height = Math.ceil(H * z) + 'px';
+    e.sizer.style.marginTop = Math.max(0, Math.floor((vh - H * z) / 2)) + 'px';
     e.zoom.scrollLeft = cx * z - ax; e.zoom.scrollTop = cy * z - ay;
     const val = rowsEl.querySelector('[data-live="zoom"]'); if (val) val.textContent = Math.round(z * 100) + '%';
     rowsEl.querySelectorAll('.a-zoomctl button').forEach(b => b.setAttribute('aria-pressed', String(
-      (b.textContent === 'Fit' && arch.mode === 'page') || (b.textContent === 'Width' && arch.mode === 'width'))));
+      b.textContent === 'Fit' && arch.mode === 'fit')));
+    if (arch.w !== before) requestAnimationFrame(drawWires);
   }
   function setZoomMode(mode, z) { arch.mode = mode; applyZoom(z); }
   function zoomBy(f, ax, ay) { arch.mode = 'manual'; applyZoom(arch.z * f, ax, ay); }
@@ -826,7 +893,7 @@
     zoom.addEventListener('keydown', e => {
       if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(1.2); }
       else if (e.key === '-') { e.preventDefault(); zoomBy(1 / 1.2); }
-      else if (e.key === '0') { e.preventDefault(); setZoomMode('page'); }
+      else if (e.key === '0') { e.preventDefault(); setZoomMode('fit'); }
     });
   }
   // The viewport fills whatever height the page leaves it, like the list.
