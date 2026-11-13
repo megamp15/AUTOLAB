@@ -162,6 +162,18 @@
   .a-chips { margin-top:8px; }
   .a-chip { font:10.5px 'IBM Plex Mono',monospace; padding:2px 6px; border:1px solid color-mix(in srgb,currentColor 24%,transparent); border-radius:3px; white-space:nowrap; }
   .a-chip small { opacity:.55; font-size:9.5px; }
+  /* Links: the hand cursor and a firmer frame on hover; titles keep a faint
+     arrow so you can tell what opens before you point at it. */
+  .a-chip-link { cursor:pointer; transition:border-color .2s, background-color .2s; }
+  .a-chip-link:hover, .a-chip-link:focus-visible { border-color:currentColor; background:color-mix(in srgb,currentColor 12%,transparent); }
+  .a-title-link { display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+  .a-title-link .a-go { opacity:.3; transition:opacity .2s, transform .2s; }
+  .a-title-link:hover .a-go, .a-title-link:focus-visible .a-go { opacity:1; transform:translate(1px,-1px); }
+  .a-title-link:hover span { text-decoration:underline; text-underline-offset:3px; text-decoration-thickness:1px; }
+  a.a-line-link { display:flex; align-items:center; gap:4px; width:fit-content; cursor:pointer; }
+  a.a-line-link .a-go { opacity:.3; }
+  a.a-line-link:hover { opacity:1; text-decoration:underline; text-underline-offset:3px; }
+  a.a-line-link:hover .a-go { opacity:1; }
   .a-chip-strong { border-color:currentColor; padding:4px 10px; font-size:11.5px; }
   .a-line { font-size:10.5px; opacity:.75; margin-top:4px; letter-spacing:.03em; }
   .a-flow { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:8px; margin:12px 0 8px; }
@@ -460,7 +472,29 @@
     // The page itself and the shared-link proxy are public names with no row.
     publicNames.unshift('home');
     if ((op.services || []).includes('immich-share')) publicNames.push('share');
-    return { op, nodes, hosts, ctrs, rowBy, labNames: [...new Set(labNames)], publicNames: [...new Set(publicNames)] };
+    // Where everything opens, from the rows' own links so nothing here names
+    // a domain: by row name (machines, Loki), by node name (Proxmox rows), and
+    // by a hostname's first label (grafana, pbs, dockhand, ...).
+    const byName = {}, byLabel = {};
+    let zone = '';
+    state.rows.forEach(r => {
+      let host = ''; try { host = new URL(r.url).hostname; } catch (e) { return; }
+      if (!byName[r.name]) byName[r.name] = r.url;
+      if (r.name === 'Proxmox VE') byName[(r.meta || '').split(' ')[0]] = r.url;
+      const label = host.split('.')[0];
+      if (!byLabel[label]) byLabel[label] = r.url;
+      const at = host.indexOf('.lab.');
+      if (at > 0 && !zone) zone = host.slice(at + 5);
+    });
+    const labUrl = label => byLabel[label] || (zone ? `https://${label}.lab.${zone}` : '');
+    const pubUrl = label => byLabel[label] || (zone ? `https://${label}.${zone}` : '');
+    // A container opens the app it serves; one with nothing to open stays text.
+    const CTR_APPS = { grafana: () => byName.Grafana, loki: () => byName.Loki, prometheus: () => labUrl('prometheus'),
+      homepage: () => pubUrl('home'), 'code-server': () => labUrl('code-server'), dockhand: () => labUrl('dockhand'),
+      registry: () => labUrl('registry-ui'), 'registry-ui': () => labUrl('registry-ui'), dash: () => labUrl('dash'),
+      qr: () => labUrl('qr'), cosmos: () => labUrl('cosmos'), pihole: () => byName['Pi-hole'], 'pocket-id': () => pubUrl('auth') };
+    const link = { byName, labUrl, pubUrl, ctr: name => (CTR_APPS[name] || (() => ''))() || '' };
+    return { op, nodes, hosts, ctrs, rowBy, link, labNames: [...new Set(labNames)], publicNames: [...new Set(publicNames)] };
   }
 
   function archSignature(m) {
@@ -478,18 +512,37 @@
     wrap.append(track, live(mk('span', 'a-bar-val'), key + ':t')); return wrap;
   }
   function dot(key) { return live(mk('span', 'a-dot'), key + ':dot'); }
-  function chip(text, cls) { return mk('span', 'a-chip' + (cls ? ' ' + cls : ''), text); }
+  // Anything with somewhere to go is a real link: a new tab, like the rows.
+  // The cursor says so, and titles carry a faint arrow that firms up on hover.
+  const ARROW = '<svg class="a-go" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 2h5v5M8 2L2 8" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
+  function anchor(url, cls, text) {
+    const a = mk('a', cls, text); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a;
+  }
+  function chip(text, cls, url) {
+    const c = 'a-chip' + (cls ? ' ' + cls : '');
+    if (!url) return mk('span', c, text);
+    const a = anchor(url, c + ' a-chip-link', text); a.title = 'Open ' + url.replace(/^https?:\/\//, ''); return a;
+  }
+  function lineOf(item) {
+    if (Array.isArray(item) && item[1]) { const a = anchor(item[1], 'a-line mono a-line-link', item[0]); a.insertAdjacentHTML('beforeend', ' ' + ARROW); return a; }
+    return mk('div', 'a-line mono', Array.isArray(item) ? item[0] : item);
+  }
   function card(cls, wire) { const c = mk('div', 'a-card ' + (cls || '')); if (wire) c.dataset.wire = wire; return c; }
-  function cardHead(title, sub, key) {
+  function cardHead(title, sub, key, url) {
     const head = mk('div', 'a-head');
-    const t = mk('div', 'a-title'); if (key) t.append(dot(key)); const name = mk('span', undefined, title); name.dataset.final = title; t.append(name);
+    const t = mk('div', 'a-title'); if (key) t.append(dot(key));
+    const name = mk('span', undefined, title); name.dataset.final = title;
+    if (url) {
+      const a = anchor(url, 'a-title-link'); a.title = 'Open ' + url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      a.append(name); a.insertAdjacentHTML('beforeend', ARROW); t.append(a);
+    } else t.append(name);
     head.append(t); if (sub) head.append(mk('div', 'a-sub', sub)); return head;
   }
 
   function vmCard(g, m) {
     const c = card('a-vm' + (g.status === 'running' ? '' : ' a-off'), 'vm-' + g.name);
     const key = 'vm-' + g.name;
-    c.append(cardHead(g.name, ROLES[g.name] || (tagsOf(g).find(t => t.startsWith('tenant-')) || tagsOf(g).join(' · ') || 'unmanaged').replace('tenant-', 'tenant · '), key));
+    c.append(cardHead(g.name, ROLES[g.name] || (tagsOf(g).find(t => t.startsWith('tenant-')) || tagsOf(g).join(' · ') || 'unmanaged').replace('tenant-', 'tenant · '), key, m.link.byName[g.name]));
     const spec = mk('div', 'a-spec mono');
     spec.append(mk('span', undefined, `${g.type || 'qemu'} ${g.vmid}`), mk('span', undefined, `${g.maxcpu || '?'} vCPU`), mk('span', undefined, `${fmtG(g.maxmem)} GiB`), live(mk('span'), key + ':up'));
     c.append(spec);
@@ -503,7 +556,7 @@
         const row = mk('div', 'a-ctr-group');
         row.append(mk('span', 'a-ctr-label mono', { host: 'agents', observability: 'stack', services: 'apps', ingress: 'ingress' }[group] || group));
         const chips = mk('div', 'a-ctr-chips');
-        list.forEach(x => { const ch = chip(ctrName(x.name)); ch.append(live(mk('small'), 'ctr-' + g.name + '-' + x.name)); chips.append(ch); });
+        list.forEach(x => { const ch = chip(ctrName(x.name), '', m.link.ctr(ctrName(x.name))); ch.append(live(mk('small'), 'ctr-' + g.name + '-' + x.name)); chips.append(ch); });
         row.append(chips); box.append(row);
       });
       c.append(box);
@@ -514,7 +567,7 @@
   function nodeCard(n, m) {
     const c = card('a-node', 'node-' + n.name);
     const hw = n.hardware || {};
-    c.append(cardHead(n.name, n.available ? (hw.model ? hw.model.replace(/\(R\)|\(TM\)|CPU|@.*$/g, '').replace(/\s+/g, ' ').trim() : 'Proxmox VE') : 'node unavailable', 'node-' + n.name));
+    c.append(cardHead(n.name, n.available ? (hw.model ? hw.model.replace(/\(R\)|\(TM\)|CPU|@.*$/g, '').replace(/\s+/g, ' ').trim() : 'Proxmox VE') : 'node unavailable', 'node-' + n.name, m.link.byName[n.name]));
     const spec = mk('div', 'a-spec mono');
     spec.append(mk('span', undefined, `${hw.cpus || (n.host && n.host.cores) || '?'} threads`), mk('span', undefined, `${fmtG(hw.memory_total || (n.host && n.host.mem_total))} GiB`),
       live(mk('span'), 'node-' + n.name + ':temp'), live(mk('span'), 'node-' + n.name + ':up'));
@@ -534,11 +587,12 @@
     return c;
   }
 
-  function edgeCard(wire, title, sub, key, lines, chips) {
+  // lines: text, or [text, url]; chips: text, or [text, url].
+  function edgeCard(wire, title, sub, key, lines, chips, url) {
     const c = card('a-edge', wire);
-    c.append(cardHead(title, sub, key));
-    if (lines) lines.forEach(l => c.append(mk('div', 'a-line mono', l)));
-    if (chips && chips.length) { const box = mk('div', 'a-chips'); chips.forEach(x => box.append(chip(x))); c.append(box); }
+    c.append(cardHead(title, sub, key, url));
+    if (lines) lines.forEach(l => c.append(lineOf(l)));
+    if (chips && chips.length) { const box = mk('div', 'a-chips'); chips.forEach(x => box.append(Array.isArray(x) ? chip(x[0], '', x[1]) : chip(x))); c.append(box); }
     return c;
   }
 
@@ -591,19 +645,24 @@
     canvas.append(wires);
 
     // Edge: the ways in, and where the lab is driven from.
+    const gh = m.link.byName.GitHub || '';
     const edge = mk('div', 'a-row a-row-edge');
     edge.append(
-      edgeCard('cf', 'Cloudflare', 'DNS · tunnel · TLS at the edge', 'cf', ['zone pmahir.space', 'no ports open at home'], m.publicNames.map(x => x + '.')),
-      edgeCard('ts', 'Tailscale', 'tailnet · MagicDNS · ACLs as code', 'ts', ['split DNS *.lab → horizon', 'Let’s Encrypt wildcard'], m.labNames.slice(0, 14).map(x => x + '.lab')),
-      edgeCard('gh', 'GitHub', 'the source of truth', 'gh', ['Actions → OpenTofu → Proxmox API', 'Actions → Ansible over the tailnet', 'state in R2 · Renovate · Diun'], []),
+      edgeCard('cf', 'Cloudflare', 'DNS · tunnel · TLS at the edge', 'cf', ['zone pmahir.space', 'no ports open at home'],
+        m.publicNames.map(x => [x + '.', x === 'share' ? '' : m.link.pubUrl(x)]), 'https://dash.cloudflare.com/'),
+      edgeCard('ts', 'Tailscale', 'tailnet · MagicDNS · ACLs as code', 'ts', ['split DNS *.lab → horizon', 'Let’s Encrypt wildcard'],
+        m.labNames.slice(0, 16).map(x => [x + '.lab', m.link.labUrl(x)]), m.link.byName.Tailscale),
+      edgeCard('gh', 'GitHub', 'the source of truth', 'gh', [
+        ['Actions → OpenTofu → Proxmox API', gh && gh + '/actions'], ['Actions → Ansible over the tailnet', gh && gh + '/actions'],
+        ['Pull requests', gh && gh + '/pulls'], 'state in R2 · Renovate · Diun'], [], gh),
     );
     canvas.append(edge);
 
     // The front door.
     const door = card('a-door', 'horizon');
-    door.append(cardHead('horizon · front door', 'one compose · nothing published on the host', 'horizon'));
+    door.append(cardHead('horizon · front door', 'one compose · nothing published on the host', 'horizon', m.link.byName.horizon));
     const flow = mk('div', 'a-flow mono');
-    ['cloudflared', 'Traefik', 'Pocket ID'].forEach((x, i) => { if (i) flow.append(mk('span', 'a-arrow', '→')); flow.append(chip(x, 'a-chip-strong')); });
+    ['cloudflared', 'Traefik', 'Pocket ID'].forEach((x, i) => { if (i) flow.append(mk('span', 'a-arrow', '→')); flow.append(chip(x, 'a-chip-strong', x === 'Pocket ID' ? m.link.pubUrl('auth') : '')); });
     door.append(flow, mk('div', 'a-line mono', 'public: tunnel → Traefik :80 · tailnet: Traefik :443 on the tailnet IP · passkeys, one session for both'));
     const doorRow = mk('div', 'a-row a-row-door'); doorRow.append(door); canvas.append(doorRow);
 
@@ -615,9 +674,9 @@
     // Data and signals.
     const bottom = mk('div', 'a-row a-row-data');
     bottom.append(
-      edgeCard('backups', 'Backups', 'vzdump nightly → PBS on ark', 'backups', ['encrypted, deduplicated, verified', 'datastore on the NAS over SMB', 'restore-all proven']),
-      edgeCard('obs', 'Signals', 'Alloy on every host → jwst', 'obs', ['Prometheus · Loki · Grafana', 'alert rules → ntfy on the phone', 'morning digest · this page']),
-      edgeCard('nas', 'singularity · NAS', 'UGOS · ZFS-backed shares', 'nas', ['PBS datastore · snapshots', 'Immich photos · app login', 'shared links via share.']),
+      edgeCard('backups', 'Backups', 'vzdump nightly → PBS on ark', 'backups', ['encrypted, deduplicated, verified', 'datastore on the NAS over SMB', 'restore-all proven'], [], m.link.byName['Backup Server']),
+      edgeCard('obs', 'Signals', 'Alloy on every host → jwst', 'obs', [], [['Grafana', m.link.byName.Grafana], ['Prometheus', m.link.byName.Prometheus], ['Loki', m.link.byName.Loki], ['Alerts', m.link.byName.Grafana && m.link.byName.Grafana.replace(/\/$/, '') + '/alerting/list']], m.link.byName.Grafana),
+      edgeCard('nas', 'singularity · NAS', 'UGOS · ZFS-backed shares', 'nas', ['PBS datastore · snapshots', ['Immich photos · app login', m.link.byName.Immich], 'shared links via share.'], [], m.link.byName.NAS),
     );
     canvas.append(bottom);
     canvas.append(mk('p', 'a-access', 'Who can reach what: public names open through Cloudflare and always ask Pocket ID, except the sign-in page and shared photo links. *.lab names resolve only on the tailnet, with Pocket ID in front of browser admin routes; Immich and Grafana do their own Pocket ID login. Raw service ports are tailnet-only.'));
