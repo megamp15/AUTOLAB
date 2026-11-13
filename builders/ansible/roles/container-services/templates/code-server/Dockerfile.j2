@@ -38,6 +38,12 @@ RUN curl -fsSLo /tmp/node.tar.xz \
       --exclude=CHANGELOG.md --exclude=LICENSE --exclude=README.md \
  && rm /tmp/node.tar.xz
 
+RUN curl -fsSLo /tmp/mcp-grafana.tar.gz \
+      https://github.com/grafana/mcp-grafana/releases/download/v{{ autolab_services_code_server_mcp_grafana.version }}/mcp-grafana_Linux_x86_64.tar.gz \
+ && echo "{{ autolab_services_code_server_mcp_grafana.sha256 }}  /tmp/mcp-grafana.tar.gz" | sha256sum -c - \
+ && tar -xzf /tmp/mcp-grafana.tar.gz -C /usr/local/bin mcp-grafana \
+ && rm /tmp/mcp-grafana.tar.gz
+
 RUN npm install --global \
 {% for package in autolab_services_code_server_npm %}
       {{ package }} \

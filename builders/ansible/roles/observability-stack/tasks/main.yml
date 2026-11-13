@@ -455,6 +455,82 @@
         mode: "0600"
       notify: Send a digest
 
+# The same again for agents: a Viewer service account whose token sits in
+# /etc/autolab/grafana-agent.env with GRAFANA_URL, which the editor's
+# container (container-services, code-server) reads as its environment for
+# mcp-grafana. Viewer reads dashboards, queries Prometheus and Loki through
+# Grafana and sees alert state; it cannot change anything, and dashboards are
+# changed in git anyway. A separate account from the digest's so either can be
+# revoked alone. Rotating: delete the file and the token in Grafana, rerun.
+- name: See whether agents already have a Grafana token
+  ansible.builtin.stat:
+    path: /etc/autolab/grafana-agent.env
+  register: autolab_obs_agent_token_file
+
+- name: Give agents a read-only Grafana login
+  when:
+    - autolab_obs_pve_nodes | length > 0
+    - autolab_obs_grafana_oidc_client_id | length > 0
+    - autolab_obs_grafana_admin_password | length > 0
+    - not autolab_obs_agent_token_file.stat.exists
+    - not ansible_check_mode
+  no_log: true
+  block:
+    - name: Look for the agents' service account
+      ansible.builtin.uri:
+        url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}/api/serviceaccounts/search?query=autolab-agent"
+        user: admin
+        password: "{{ autolab_obs_grafana_admin_password }}"
+        force_basic_auth: true
+      register: autolab_obs_agent_sa_search
+
+    - name: Create the agents' service account
+      ansible.builtin.uri:
+        url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}/api/serviceaccounts"
+        method: POST
+        user: admin
+        password: "{{ autolab_obs_grafana_admin_password }}"
+        force_basic_auth: true
+        body_format: json
+        body:
+          name: autolab-agent
+          role: Viewer
+        status_code: [201]
+      register: autolab_obs_agent_sa_created
+      when: autolab_obs_agent_sa_search.json.totalCount | int == 0
+
+    - name: Note the agents' service account id
+      ansible.builtin.set_fact:
+        autolab_obs_agent_sa_id: >-
+          {{ autolab_obs_agent_sa_created.json.id if autolab_obs_agent_sa_created is not skipped
+             else autolab_obs_agent_sa_search.json.serviceAccounts[0].id }}
+
+    - name: Make the agents' token
+      ansible.builtin.uri:
+        url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_grafana_port }}/api/serviceaccounts/{{ autolab_obs_agent_sa_id }}/tokens"
+        method: POST
+        user: admin
+        password: "{{ autolab_obs_grafana_admin_password }}"
+        force_basic_auth: true
+        body_format: json
+        body:
+          name: "agent-{{ ansible_date_time.epoch }}"
+        status_code: [200]
+      register: autolab_obs_agent_token
+
+    # The raw tailnet address, not the internal name: the container resolves
+    # MagicDNS through the host, but the *.lab split DNS is a client-side
+    # setting this host may not carry.
+    - name: Keep the token where the editor reads it
+      ansible.builtin.copy:
+        content: |
+          GRAFANA_URL=http://{{ autolab_tailscale_fqdn }}:{{ autolab_obs_grafana_port }}
+          GRAFANA_SERVICE_ACCOUNT_TOKEN={{ autolab_obs_agent_token.json.key }}
+        dest: /etc/autolab/grafana-agent.env
+        owner: root
+        group: root
+        mode: "0600"
+
 - name: Wait for Prometheus to accept writes
   ansible.builtin.uri:
     url: "http://{{ autolab_tailscale_ip }}:{{ autolab_obs_prometheus_port }}/-/ready"

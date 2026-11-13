@@ -28,7 +28,7 @@ autolab_services_images:
   diun: "crazymax/diun:4.33.0"
   # The base only: the editor runs an image built on the host from this, with
   # the tools below baked in. See templates/code-server/Dockerfile.j2.
-  code_server: "codercom/code-server:4.138.0"
+  code_server: "codercom/code-server:4.145.2"
   immich_share: "alangrainger/immich-public-proxy:4.1.2"
   dash: "ghcr.io/gethomepage/homepage:v2.4.0"
   # The connector for the Paradigm Prints tunnel, pinned with the same
@@ -131,21 +131,32 @@ autolab_services_code_server_extensions:
 # changes the image's tag, which is what makes the next run build it. The
 # sums are the publishers' own, for linux amd64: jwst's architecture.
 autolab_services_code_server_gh:
-  version: "2.101.0"
-  sha256: 9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8
+  version: "2.104.0"
+  sha256: 98cb101ad87dbbd3f6b2f2bfcbd43197ccd07643140121d8a9cfaa91eadbc24e
 autolab_services_code_server_node:
-  version: "24.21.0"
-  sha256: fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6
+  version: "24.22.3"
+  sha256: 4f2b175a6d53a5c617a80dba2676238a0688cef28c6da4eba35c7d844e66fcfb
+# Grafana's MCP server, so an agent in the editor can search dashboards, run
+# PromQL and LogQL, and read alert state. It reads GRAFANA_URL and
+# GRAFANA_SERVICE_ACCOUNT_TOKEN from the environment; the observability role
+# writes both to /etc/autolab/grafana-agent.env on the host that runs Grafana.
+autolab_services_code_server_mcp_grafana:
+  version: "2.3.0"
+  sha256: f808ea13d236e549a9fffa14b28398d30b5393623141307c916e26f5e7746671
 autolab_services_code_server_npm:
-  - "@anthropic-ai/claude-code@2.1.283"
-  - "@openai/codex@0.157.1"
-  - "opencode-ai@1.18.32"
+  - "@anthropic-ai/claude-code@2.1.323"
+  - "@openai/codex@0.167.2"
+  - "opencode-ai@1.19.5"
   - "@mariozechner/pi-coding-agent@0.73.1"
 
-# jwst is also the observability host, on 6 GB. A browser, four agents and a
-# language server each are enough to push Prometheus into swap; capped, the
-# editor is what gets killed instead of the thing that says why.
-autolab_services_code_server_memory: 2g
+# jwst is also the observability host: 4 vCPU and 7.5 GB, of which the
+# observability stack and the other services use about 2 GB. A browser, four
+# agents and a language server each are enough to starve Prometheus; capped,
+# the editor is what gets killed or slowed instead of the thing that says why.
+# 2 GB ran at ~1.6 GB with an agent and an extension install going, so 3 GB.
+# Three of the four cores, so one is always left for Grafana and Prometheus.
+autolab_services_code_server_memory: 3g
+autolab_services_code_server_cpus: 3
 
 # What the registry answers to. The tailnet is the boundary, as it is for
 # Prometheus and Loki: reaching this address at all means passing the tailnet
