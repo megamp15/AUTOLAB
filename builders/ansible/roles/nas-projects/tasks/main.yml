@@ -49,7 +49,7 @@
 
 - name: Require explicit photo job execution outside lifecycle controls
   ansible.builtin.assert:
-    that: autolab_nas_selected_project in ['immich', 'portainer']
+    that: autolab_nas_selected_project == 'immich'
     fail_msg: Photo jobs can move files. Use their reviewed plan/apply workflow, not a generic start or restart.
   when: autolab_nas_action in ['start', 'stop', 'restart']
 

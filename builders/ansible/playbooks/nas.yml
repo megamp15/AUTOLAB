@@ -7,8 +7,11 @@
     autolab_nas_action: inspect
   roles:
     - role: nas-projects
-      when: autolab_nas_action != 'telemetry'
+      when: autolab_nas_action not in ['telemetry', 'management']
       tags: [nas, projects]
     - role: nas-observability
       when: autolab_nas_action == 'telemetry'
       tags: [nas, observability]
+    - role: nas-management
+      when: autolab_nas_action == 'management'
+      tags: [nas, management]

@@ -5,12 +5,10 @@ autolab_nas_action: inspect
 autolab_nas_selected_project: immich
 autolab_nas_projects:
   - immich
-  - portainer
   - photo-sort
   - immich-export
 autolab_nas_source_files:
   - immich/docker-compose.yaml
-  - portainer/docker-compose.yaml
   - photo-sort/docker-compose.yaml
   - photo-sort/sort.py
   - photo-sort/dupes.py

@@ -18,7 +18,7 @@ continue to deny root. Apply the policy before assigning the NAS tag:
 
 ```sh
 # After the policy PR is merged and workflow 06 succeeds, on the NAS:
-tailscale set --advertise-tags=tag:autolab-nas
+tailscale up --advertise-tags=tag:autolab-nas --ssh
 ```
 
 ## Existing projects
@@ -26,7 +26,7 @@ tailscale set --advertise-tags=tag:autolab-nas
 | Project | Existing location | Management |
 |---|---|---|
 | Immich | `/volume1/docker/immich` | Adopt Compose; retain `.env`, OAuth config, database and media paths |
-| Portainer | `/volume1/docker/portainer` | Adopt Compose; retain existing data and identity |
+| Portainer (retired) | `/volume1/docker/portainer` | Container removed after Dockhand verification; data retained |
 | photo-sort | `/volume1/docker/photo-sort` | Import sorter and duplicate utility; explicit jobs only |
 | immich-export | `/volume1/docker/immich-export` | Import the existing generated migration script; explicit jobs only |
 | autolab-observability | `/volume1/docker/autolab-observability` | Managed Alloy and cAdvisor project |
@@ -44,7 +44,7 @@ gh workflow run 12_nas.yml --ref main -f action=telemetry -f confirm=apply
 ```
 
 Explicit `start`, `stop` and `restart` actions use Compose's commands for
-existing Immich or Portainer containers. They never use `up` or `down`.
+existing Immich containers. They never use `up` or `down`.
 Photo jobs are excluded because starting them can modify files.
 
 ## Observability
@@ -139,3 +139,25 @@ replace editing a shared `MODE` value. The intended workflow is:
 
 This service and its deletion workflow are subsequent implementation work.
 The adoption phase does not enable automatic sorting or deletion.
+
+## Docker management and the UGOS desktop
+
+`action=management` deploys a token-authenticated Hawser agent on Singularity,
+registers it in the existing Dockhand on jwst, and tests the connection against
+the NAS engine. Only after that succeeds does it remove the Portainer
+container. Its bind-mount data stays under `/volume1/docker/portainer`.
+No Immich or photo container is recreated by this action.
+
+The manager opens at `https://dockhand.lab.pmahir.space`. Select `singularity`
+in its environment selector. Hawser only listens on the NAS Tailscale address;
+its Docker API requires the generated agent token. That token stays on the
+NAS and in Dockhand's protected connection settings.
+
+The separate `dockhand-launcher` container has no Docker socket. Its port 9000
+only redirects to the protected Dockhand URL. To add it to the UGOS desktop:
+Docker → Containers → `autolab-management-dockhand-launcher-1` → … → Desktop
+shortcut. Use name **Dockhand** and access port **9000**. Keep Tailscale enabled
+on the device opening it. This uses UGOS's supported shortcut mechanism,
+without editing its internal desktop configuration.
+
+Reference: [UGOS Docker desktop shortcuts](https://support.ugnas.com/detail/article/en-US/715).

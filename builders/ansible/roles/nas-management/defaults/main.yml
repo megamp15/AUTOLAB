@@ -1,0 +1,10 @@
+---
+autolab_nas_management_root: /volume1/docker/autolab-management
+autolab_nas_management_project: autolab-management
+autolab_nas_hawser_image: ghcr.io/finsys/hawser:0.2.53
+autolab_nas_hawser_port: 2376
+autolab_nas_launcher_image: nginx:1.31.6-alpine
+autolab_nas_launcher_port: 9000
+autolab_nas_dockhand_manager: jwst
+autolab_nas_dockhand_api: http://jwst:9000
+autolab_nas_dockhand_browser: https://dockhand.lab.pmahir.space
