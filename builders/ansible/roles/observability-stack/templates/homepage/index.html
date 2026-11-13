@@ -118,7 +118,8 @@
   .a-zoomctl { display:inline-flex; align-items:center; border:1px solid color-mix(in srgb,currentColor 35%,transparent); border-radius:4px; font-size:11px; }
   .a-zoomctl button { color:inherit; background:none; border:0; border-left:1px solid color-mix(in srgb,currentColor 20%,transparent); padding:5px 9px; font:inherit; cursor:pointer; }
   .a-zoomctl button:first-child { border-left:0; }
-  .a-zoomctl button:hover, .a-zoomctl button[aria-pressed="true"] { background:color-mix(in srgb,currentColor 12%,transparent); }
+  .a-zoomctl button:hover:not(:disabled) { background:color-mix(in srgb,currentColor 12%,transparent); }
+  .a-zoomctl button:disabled { opacity:.4; cursor:default; }
   .a-zoomval { min-width:46px; text-align:center; font-variant-numeric:tabular-nums; border-left:1px solid color-mix(in srgb,currentColor 20%,transparent); padding:5px 4px; }
   .a-zoom { position:relative; }
   .a-zoom.on { overflow:auto; overscroll-behavior:contain; cursor:grab; scrollbar-width:thin;
@@ -127,17 +128,17 @@
   .a-zoom.on .a-sizer { margin:0 auto; }
   /* Landscape: the way in on the left, the machines in the middle, where the
      data goes on the right. The rows dissolve so each card takes a cell. */
-  .a-canvas.a-land { display:grid; column-gap:90px; row-gap:40px; align-items:center;
+  .a-canvas.a-land { display:grid; column-gap:96px; row-gap:30px; align-items:center; padding-bottom:16px !important;
     grid-template-columns:minmax(300px,1fr) minmax(0,4.2fr) minmax(280px,1fr);
     grid-template-areas:"cf nodes backups" "door nodes nas" "ts nodes obs" "gh nodes ." "access access access";
     grid-template-rows:repeat(4, minmax(0,1fr)) auto; }
   .a-land .a-row-edge, .a-land .a-row-door, .a-land .a-row-data { display:contents; }
-  .a-land .a-row-nodes { grid-area:nodes; margin:0; }
+  .a-land .a-row-nodes { grid-area:nodes; margin:0; padding-top:48px; align-self:start; }
   .a-land .a-card { z-index:1; }
   .a-land [data-wire="cf"] { grid-area:cf; } .a-land [data-wire="ts"] { grid-area:ts; } .a-land [data-wire="gh"] { grid-area:gh; }
   .a-land .a-door { grid-area:door; width:auto; }
   .a-land [data-wire="backups"] { grid-area:backups; } .a-land [data-wire="nas"] { grid-area:nas; } .a-land [data-wire="obs"] { grid-area:obs; }
-  .a-land .a-access { grid-area:access; margin:0; }
+  .a-land .a-access { grid-area:access; margin:56px 0 0; }
   .a-zoom.on .a-canvas { transform-origin:0 0; padding:24px; box-sizing:border-box; }
   .a-access { font-size:11.5px; line-height:1.6; opacity:.7; margin:22px 0 0; max-width:110ch; }
   /* Hovering a legend entry: its wires stay, the rest step back. */
@@ -151,7 +152,7 @@
   .a-canvas::after { content:""; position:absolute; left:0; right:0; top:0; height:90px; pointer-events:none; z-index:2;
     background:linear-gradient(transparent, color-mix(in srgb,currentColor 5%,transparent), transparent); animation:a-scan 11s linear infinite; }
   .a-wires { position:absolute; left:0; top:0; pointer-events:none; overflow:visible; z-index:0; }
-  .a-row { position:relative; z-index:1; display:grid; gap:14px; margin-bottom:52px; }
+  .a-row { position:relative; z-index:1; display:grid; gap:14px; margin-bottom:64px; }
   .a-row-edge, .a-row-data { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .a-row-data { margin-bottom:0; }
   .a-row-door { justify-items:center; }
@@ -650,8 +651,7 @@
       btn('−', 'Zoom out', () => zoomBy(1 / 1.2)),
       live(mk('span', 'a-zoomval'), 'zoom'),
       btn('+', 'Zoom in', () => zoomBy(1.2)),
-      btn('Fit', 'Fit to the window: the layout reshapes to fill it', () => setZoomMode('fit')),
-      btn('1:1', 'Actual size', () => setZoomMode('manual', 1)));
+      (() => { const b = btn('Reset', 'Back to the whole diagram, fitted to the window', () => setZoomMode('fit')); b.dataset.reset = '1'; return b; })());
     tools.append(controls, zoomBox);
     root.append(bar);
 
@@ -715,8 +715,8 @@
     const bottom = mk('div', 'a-row a-row-data');
     bottom.append(
       edgeCard('backups', 'Backups', 'vzdump nightly → PBS on ark', 'backups', ['encrypted, deduplicated, verified', 'datastore on the NAS over SMB', 'restore-all proven'], [], m.link.byName['Backup Server']),
-      edgeCard('obs', 'Signals', 'Alloy on every host → jwst', 'obs', [], [['Grafana', m.link.byName.Grafana], ['Prometheus', m.link.byName.Prometheus], ['Loki', m.link.byName.Loki], ['Alerts', m.link.byName.Grafana && m.link.byName.Grafana.replace(/\/$/, '') + '/alerting/list']], m.link.byName.Grafana),
       edgeCard('nas', 'singularity · NAS', 'UGOS · ZFS-backed shares', 'nas', ['PBS datastore · snapshots', ['Immich photos · app login', m.link.byName.Immich], 'shared links via share.'], [], m.link.byName.NAS),
+      edgeCard('obs', 'Signals', 'Alloy on every host → jwst', 'obs', [], [['Grafana', m.link.byName.Grafana], ['Prometheus', m.link.byName.Prometheus], ['Loki', m.link.byName.Loki], ['Alerts', m.link.byName.Grafana && m.link.byName.Grafana.replace(/\/$/, '') + '/alerting/list']], m.link.byName.Grafana),
     );
     canvas.append(bottom);
     canvas.append(mk('p', 'a-access', 'Who can reach what: public names open through Cloudflare and always ask Pocket ID, except the sign-in page and shared photo links. *.lab names resolve only on the tailnet, with Pocket ID in front of browser admin routes; Immich and Grafana do their own Pocket ID login. Raw service ports are tailnet-only.'));
@@ -726,64 +726,79 @@
     return root;
   }
 
-  // The wires. Anchors are each card's offset inside the canvas, which a
-  // transform does not change, so the intro's scaling leaves them alone.
-  // Only the paths worth following: a wire per route that crosses a whole
-  // card says less than the legend does.
-  const WIRES = [
-    ['cf', 'horizon', 'public'], ['ts', 'horizon', 'tailnet'],
-    ['horizon', 'vm-jwst', 'tailnet'], ['horizon', 'vm-magnetosphere', 'tailnet'],
-    ['node-*', 'backups', 'backup'], ['backups', 'nas', 'backup'],
-    ['node-*', 'obs', 'signal'],
-  ];
+  // The wires. Each route runs through the empty gutters between cards, in
+  // right angles with rounded corners, so no wire passes behind a card and
+  // every flow can be followed by eye. Shared stretches (the tailnet bus over
+  // the nodes, the backup and metrics buses under them) are drawn on top of
+  // each other on purpose: they read as one trunk that branches. Anchors are
+  // offsets inside the canvas, which the zoom transform does not change.
+  function roundedPath(pts, r = 14) {
+    const f = n => n.toFixed(1);
+    pts = pts.filter((q, i) => !i || q[0] !== pts[i - 1][0] || q[1] !== pts[i - 1][1]);
+    let d = `M${f(pts[0][0])} ${f(pts[0][1])}`;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const [px, py] = pts[i - 1], [x, y] = pts[i], [nx, ny] = pts[i + 1];
+      const l1 = Math.hypot(x - px, y - py), l2 = Math.hypot(nx - x, ny - y);
+      const rr = Math.min(r, l1 / 2, l2 / 2);
+      d += ` L${f(x + (px - x) / l1 * rr)} ${f(y + (py - y) / l1 * rr)} Q${f(x)} ${f(y)} ${f(x + (nx - x) / l2 * rr)} ${f(y + (ny - y) / l2 * rr)}`;
+    }
+    const [lx, ly] = pts[pts.length - 1];
+    return d + ` L${f(lx)} ${f(ly)}`;
+  }
   function drawWires() {
     const canvas = rowsEl.querySelector('.a-canvas'); if (!canvas) return;
     const svg = canvas.querySelector('.a-wires');
-    const ns = 'http://www.w3.org/2000/svg';
+    if (getComputedStyle(svg).display === 'none') { svg.innerHTML = ''; return; }
     const W = canvas.offsetWidth, H = canvas.offsetHeight;
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
-    const pos = e => { let x = 0, y = 0, n = e; while (n && n !== canvas) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; } return { x, y, w: e.offsetWidth, h: e.offsetHeight }; };
-    const find = k => k.endsWith('*') ? [...canvas.querySelectorAll(`[data-wire^="${k.slice(0, -1)}"]`)] : [...canvas.querySelectorAll(`[data-wire="${k}"]`)];
+    const pos = e => { let x = 0, y = 0, n = e; while (n && n !== canvas) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+      const w = e.offsetWidth, h = e.offsetHeight; return { x, y, w, h, r: x + w, b: y + h, cx: x + w / 2, cy: y + h / 2 }; };
+    const one = k => { const e = canvas.querySelector(`[data-wire="${k}"]`); return e && pos(e); };
+    const cf = one('cf'), ts = one('ts'), door = one('horizon'), bk = one('backups'), nas = one('nas'), obs = one('obs');
+    const nodes = [...canvas.querySelectorAll('[data-wire^="node-"]')].map(pos);
+    if (!cf || !ts || !door || !bk || !nas || !obs || !nodes.length) { svg.innerHTML = ''; return; }
+    // Where the tailnet goes from horizon: the VMs it routes names to.
+    const targets = ['vm-jwst', 'vm-magnetosphere'].map(k => {
+      const v = canvas.querySelector(`[data-wire="${k}"]`); if (!v) return null;
+      return { v: pos(v), n: pos(v.closest('[data-wire^="node-"]')) };
+    }).filter(Boolean);
+    const nodesT = Math.min(...nodes.map(n => n.y)), nodesB = Math.max(...nodes.map(n => n.b));
+    const routes = [];
+    if (canvas.classList.contains('a-land')) {
+      const gL = (Math.max(cf.r, ts.r, door.r) + Math.min(...nodes.map(n => n.x))) / 2;
+      const gR = (Math.max(...nodes.map(n => n.r)) + Math.min(bk.x, nas.x, obs.x)) / 2;
+      const busTop = nodesT - 26, busB = nodesB + 22;
+      routes.push(['public', [[cf.cx - 24, cf.b], [cf.cx - 24, door.y]]]);
+      routes.push(['tailnet', [[ts.cx + 24, ts.y], [ts.cx + 24, door.b]]]);
+      targets.forEach(t => routes.push(['tailnet', [[door.r, door.cy], [gL, door.cy], [gL, busTop], [t.v.cx, busTop], [t.v.cx, t.n.y]]]));
+      nodes.forEach(n => {
+        routes.push(['backup', [[n.cx - 16, n.b], [n.cx - 16, busB], [gR - 12, busB], [gR - 12, bk.cy], [bk.x, bk.cy]]]);
+        routes.push(['signal', [[n.cx + 16, n.b], [n.cx + 16, busB + 18], [gR + 12, busB + 18], [gR + 12, obs.cy], [obs.x, obs.cy]]]);
+      });
+      routes.push(['backup', [[bk.cx, bk.b], [bk.cx, nas.y]]]);
+    } else {
+      const gap1 = (Math.max(cf.b, ts.b) + door.y) / 2;
+      const busN = (door.b + nodesT) / 2;
+      const dataT = Math.min(bk.y, nas.y, obs.y), busD = (nodesB + dataT) / 2;
+      routes.push(['public', [[cf.cx, cf.b], [cf.cx, gap1 - 6], [door.x + door.w * 0.3, gap1 - 6], [door.x + door.w * 0.3, door.y]]]);
+      routes.push(['tailnet', [[ts.cx, ts.b], [ts.cx, gap1 + 6], [door.x + door.w * 0.7, gap1 + 6], [door.x + door.w * 0.7, door.y]]]);
+      targets.forEach(t => routes.push(['tailnet', [[door.cx, door.b], [door.cx, busN], [t.v.cx, busN], [t.v.cx, t.n.y]]]));
+      nodes.forEach(n => {
+        routes.push(['backup', [[n.cx - 16, n.b], [n.cx - 16, busD - 9], [bk.cx, busD - 9], [bk.cx, bk.y]]]);
+        routes.push(['signal', [[n.cx + 16, n.b], [n.cx + 16, busD + 9], [obs.cx, busD + 9], [obs.cx, obs.y]]]);
+      });
+      routes.push(['backup', [[bk.r, bk.cy], [nas.x, nas.cy]]]);
+    }
     const still = lessMotion.matches;
-    const out = [];
-    let id = 0;
-    WIRES.forEach(([from, to, kind]) => {
-      find(from).forEach(a => find(to).forEach(b => {
-        const A = pos(a), B = pos(b);
-        const f = n => n.toFixed(1);
-        let d;
-        const right = B.x >= A.x + A.w - 4, left = B.x + B.w <= A.x + 4;
-        if (right || left) {
-          // Next to each other (the landscape layout): leave by the facing
-          // side, at the height the two cards share, or the nearest to it.
-          const top = Math.max(A.y, B.y), bot = Math.min(A.y + A.h, B.y + B.h);
-          const yA = top < bot ? (top + bot) / 2 : Math.min(Math.max(B.y + B.h / 2, A.y + 20), A.y + A.h - 20);
-          const yB = top < bot ? (top + bot) / 2 + Math.max(-B.h / 3, Math.min(B.h / 3, (A.y + A.h / 2 - (top + bot) / 2) * 0.3)) : B.y + B.h / 2;
-          const x1 = right ? A.x + A.w : A.x, x2 = right ? B.x : B.x + B.w;
-          const mx = (x1 + x2) / 2;
-          d = `M${f(x1)} ${f(yA)} C${f(mx)} ${f(yA)} ${f(mx)} ${f(yB)} ${f(x2)} ${f(yB)}`;
-        } else {
-          let x1 = A.x + A.w / 2, y1 = A.y + A.h, x2 = B.x + B.w / 2, y2 = B.y;
-          if (B.y < A.y + A.h) { y1 = A.y; y2 = B.y + B.h; }      // b sits above a
-          if (Math.abs(y2 - y1) < 8) return;
-          // Spread several wires out of one card so they do not overlap.
-          x1 += Math.max(-A.w / 3, Math.min(A.w / 3, (x2 - x1) * 0.25));
-          x2 += Math.max(-B.w / 3, Math.min(B.w / 3, (x1 - x2) * 0.2));
-          const my = (y1 + y2) / 2;
-          d = `M${f(x1)} ${f(y1)} C${f(x1)} ${f(my)} ${f(x2)} ${f(my)} ${f(x2)} ${f(y2)}`;
-        }
-        const pid = 'a-w' + (id++);
-        let markup = `<path id="${pid}" class="a-wire a-${kind}" d="${d}"/>`;
-        if (kind === 'signal') markup += `<path class="a-wire a-signal-streak" d="${d}"/>`;
-        if (!still && kind !== 'signal' && kind !== 'backup') {
-          const dur = kind === 'backup' ? 6 : kind === 'signal' ? 3.2 : 2.6;
-          for (let k = 0; k < (kind === 'backup' ? 1 : 2); k++)
-            markup += `<circle class="a-packet a-p-${kind}" r="${kind === 'public' ? 2.6 : 2}"><animateMotion dur="${dur}s" begin="${(k * dur / 2 + id * 0.37).toFixed(2)}s" repeatCount="indefinite" rotate="auto"><mpath href="#${pid}"/></animateMotion></circle>`;
-        }
-        out.push(markup);
-      }));
-    });
-    svg.innerHTML = out.join('');
+    svg.innerHTML = routes.map(([kind, pts], i) => {
+      const d = roundedPath(pts), pid = 'a-w' + i;
+      let markup = `<path id="${pid}" class="a-wire a-${kind}" d="${d}"/>`;
+      if (kind === 'signal') markup += `<path class="a-wire a-signal-streak" d="${d}"/>`;
+      if (!still && (kind === 'public' || kind === 'tailnet'))
+        for (let k = 0; k < 2; k++)
+          markup += `<circle class="a-packet a-p-${kind}" r="${kind === 'public' ? 2.6 : 2}"><animateMotion dur="3s" begin="${(k * 1.5 + i * 0.37).toFixed(2)}s" repeatCount="indefinite"><mpath href="#${pid}"/></animateMotion></circle>`;
+      return markup;
+    }).join('');
   }
   let wireTimer = 0;
   const wireObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { cancelAnimationFrame(wireTimer); wireTimer = requestAnimationFrame(() => { if (!arch.applying) { applyZoom(); drawWires(); } }); }) : null;
@@ -828,14 +843,20 @@
   }
 
   // ---- zoom and pan --------------------------------------------------------
-  // On a desktop the diagram is laid out once at a fixed design width and
-  // scaled as a picture: zooming never reflows it, and the wires, measured
-  // in the canvas's own coordinates, scale with it. A phone keeps the
+  // On a desktop the diagram has two fixed layouts at set widths: landscape
+  // (left to right) for wide windows, stacked for narrower or taller ones.
+  // Nothing is searched for or reshaped on the fly: the window picks one of
+  // four sizes, the view is scaled to fit it, and from there it is a picture
+  // to zoom and pan. Reset returns to the fitted view. A phone keeps the
   // stacked, reflowing layout and none of this.
-  const DESIGN_W = 1480;
-  arch.mode = arch.mode || 'fit'; arch.z = arch.z || 1; arch.w = arch.w || DESIGN_W;
+  arch.mode = arch.mode || 'fit'; arch.z = arch.z || 1;
   const zoomable = () => !staticMode && window.innerWidth > 900;
   const zEls = () => { const zoom = rowsEl.querySelector('.a-zoom'); return zoom && { zoom, sizer: zoom.firstElementChild, canvas: zoom.querySelector('.a-canvas') }; };
+  function layoutFor(vw, vh) {
+    const iw = window.innerWidth;
+    const land = vw / vh > 1.5;
+    return { land, w: land ? (iw >= 1800 ? 2200 : 2000) : (iw >= 1400 ? 1600 : 1400) };
+  }
   function applyZoom(z, ax, ay) {
     if (arch.applying) return;
     arch.applying = true;
@@ -845,46 +866,15 @@
     const e = zEls(); if (!e) return;
     const on = zoomable();
     e.zoom.classList.toggle('on', on);
-    if (!on) { e.canvas.classList.remove('a-land'); e.canvas.style.transform = ''; e.canvas.style.width = ''; e.sizer.style.width = e.sizer.style.height = ''; e.sizer.style.marginTop = ''; return; }
+    if (!on) { e.canvas.classList.remove('a-land'); e.canvas.style.transform = ''; e.canvas.style.width = ''; e.sizer.style.width = e.sizer.style.height = ''; e.sizer.style.marginTop = ''; arch.layout = ''; return; }
     const vw = e.zoom.clientWidth, vh = e.zoom.clientHeight;
-    const before = arch.w;
-    const fitKey = [vw, vh, arch.sig].join('|');
-    if (arch.mode === 'fit' && arch.fitKey === fitKey) {
-      // Same window, same lab: keep the shape. A refresh that changes a
-      // number must never re-pick the layout under the reader.
-      e.canvas.classList.toggle('a-land', !!arch.land); e.canvas.style.width = arch.w + 'px';
-    } else if (arch.mode === 'fit') {
-      arch.fitKey = fitKey;
-      // Fit reshapes, then scales. The layout reflows at whatever width
-      // gives it the window's proportions — wider means VMs side by side
-      // and a shorter diagram — and is then scaled to fill. Never wider than
-      // the window at 115%, so a big screen gets more layout rather than
-      // bigger letters.
-      // Two shapes are tried: stacked (top to bottom) and landscape (left to
-      // right), each at its best width; the one that ends up bigger wins.
-      const heightAt = w => { e.canvas.style.width = w + 'px'; return e.canvas.offsetHeight; };
-      const best = land => {
-        e.canvas.classList.toggle('a-land', land);
-        let lo = Math.max(land ? 1400 : 1000, Math.round(vw / 1.15)), hi = Math.max(lo, 4200), w = lo;
-        if (heightAt(lo) / lo > vh / vw) {
-          for (let k = 0; k < 12 && hi - lo > 8; k++) {
-            const mid = Math.round((lo + hi) / 2);
-            if (heightAt(mid) / mid > vh / vw) lo = mid; else hi = mid;
-          }
-          w = hi;
-        }
-        return { land, w, z: Math.min(vw / w, vh / heightAt(w)) };
-      };
-      const a = best(false), b = best(true), pick = b.z > a.z * 1.03 ? b : a;
-      e.canvas.classList.toggle('a-land', pick.land);
-      arch.land = pick.land; arch.w = pick.w;
-      e.canvas.style.width = arch.w + 'px';
-    } else { e.canvas.classList.toggle('a-land', !!arch.land); e.canvas.style.width = arch.w + 'px'; }
-    const W = arch.w, H = e.canvas.offsetHeight;
+    const L = layoutFor(vw, vh), key = L.land + ':' + L.w, changed = key !== arch.layout;
+    if (changed) { arch.layout = key; e.canvas.classList.toggle('a-land', L.land); e.canvas.style.width = L.w + 'px'; }
+    const W = L.w, H = e.canvas.offsetHeight;
     if (arch.mode === 'fit') z = Math.min(vw / W, vh / H);
-    z = Math.max(0.2, Math.min(2.5, z || arch.z));
+    z = Math.max(0.2, Math.min(3, z || arch.z));
     // Keep the point under the cursor where it was. A button zoom keeps the
-    // centre; a fit keeps the top-left corner, so it never opens mid-way.
+    // centre; the fitted view starts at the top-left corner.
     const fit = arch.mode === 'fit';
     if (ax === undefined) { ax = fit ? 0 : vw / 2; ay = fit ? 0 : vh / 2; }
     const cx = (e.zoom.scrollLeft + ax) / arch.z, cy = (e.zoom.scrollTop + ay) / arch.z;
@@ -892,13 +882,12 @@
     e.canvas.style.transform = `scale(${z})`;
     e.sizer.style.width = Math.floor(W * z) + 'px'; e.sizer.style.height = Math.floor(H * z) + 'px';
     e.sizer.style.marginTop = Math.max(0, Math.floor((vh - H * z) / 2)) + 'px';
-    e.zoom.scrollLeft = cx * z - ax; e.zoom.scrollTop = cy * z - ay;
+    e.zoom.scrollLeft = fit ? 0 : cx * z - ax; e.zoom.scrollTop = fit ? 0 : cy * z - ay;
     const val = rowsEl.querySelector('[data-live="zoom"]'); if (val) val.textContent = Math.round(z * 100) + '%';
-    rowsEl.querySelectorAll('.a-zoomctl button').forEach(b => b.setAttribute('aria-pressed', String(
-      b.textContent === 'Fit' && arch.mode === 'fit')));
-    if (arch.w !== before) requestAnimationFrame(drawWires);
+    const reset = rowsEl.querySelector('.a-zoomctl [data-reset]'); if (reset) reset.disabled = fit;
+    if (changed) requestAnimationFrame(drawWires);
   }
-  function setZoomMode(mode, z) { arch.mode = mode; arch.fitKey = ''; applyZoom(z); }
+  function setZoomMode(mode, z) { arch.mode = mode; applyZoom(z); }
   function zoomBy(f, ax, ay) { arch.mode = 'manual'; applyZoom(arch.z * f, ax, ay); }
   function wireZoom(zoom) {
     zoom.addEventListener('wheel', e => {
@@ -919,7 +908,7 @@
     zoom.addEventListener('keydown', e => {
       if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(1.2); }
       else if (e.key === '-') { e.preventDefault(); zoomBy(1 / 1.2); }
-      else if (e.key === '0') { e.preventDefault(); setZoomMode('fit'); }
+      else if (e.key === '0' || e.key === 'Escape') { e.preventDefault(); setZoomMode('fit'); }
     });
   }
   // The viewport fills whatever height the page leaves it, like the list.
