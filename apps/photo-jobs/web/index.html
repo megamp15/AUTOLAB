@@ -244,14 +244,14 @@
   const TABS = ['inbox', 'duplicates', 'nodate', 'albums', 'immich', 'history'];
   const state = { tab: location.hash.slice(1) || 'inbox', status: null, job: null, dark: true, runs: [], immichInfo: null, activity: [], loading: {},
                   sort: { plan: null, rows: [], total: 0, shown: 0, filter: { kind: '', pair: false, q: '' }, done: null },
-                  dupes: { plan: null, groups: [], total: 0, q: '', done: null },
+                  dupes: { plan: null, groups: [], total: 0, q: '', scope: '', done: null },
                   nodate: { files: null, checked: new Set(), q: '', date: '', time: '12:00', done: null, failed: [] },
                   immich: { plan: null, rows: [], total: 0, selected: 0, selectable: 0, filter: { status: '', live: false, q: '' }, done: null },
                   albums: null, albumChecked: new Set(), albumConfigured: false, albumResult: '', albumResultKind: 'ok' };
   if (!TABS.includes(state.tab)) state.tab = 'inbox';
   // What you were looking at: the filters and search boxes survive a reload. (The scans themselves are saved by the service.)
   const savedUI = (() => { try { return JSON.parse(localStorage.getItem('photos-ui')) || {}; } catch (e) { return {}; } })();
-  const saveUI = () => { try { localStorage.setItem('photos-ui', JSON.stringify({ sort: state.sort.filter, dupesQ: state.dupes.q, immich: state.immich.filter,
+  const saveUI = () => { try { localStorage.setItem('photos-ui', JSON.stringify({ sort: state.sort.filter, dupesQ: state.dupes.q, dupesScope: state.dupes.scope, immich: state.immich.filter,
     nodate: { q: state.nodate.q, date: state.nodate.date, time: state.nodate.time } })); } catch (e) {} };
   Object.assign(state.nodate, savedUI.nodate || {});
   addEventListener('pagehide', () => saveUI());                              // filters change without a redraw, so save on the way out
@@ -409,11 +409,11 @@
     return page.moves;
   }
   async function loadDupes(id, resumed) {
-    const d = state.dupes; d.plan = await api('/plans/' + id); d.done = null; d.q = resumed ? savedUI.dupesQ || '' : '';
+    const d = state.dupes; d.plan = await api('/plans/' + id); d.done = null; d.q = resumed ? savedUI.dupesQ || '' : ''; d.scope = resumed && ['library', 'outside', 'multi'].includes(savedUI.dupesScope) ? savedUI.dupesScope : '';
     await fetchGroups(false);
   }
   async function fetchGroups(append) {
-    const d = state.dupes, q = new URLSearchParams({ offset: append ? d.groups.length : 0, limit: 40, q: d.q });
+    const d = state.dupes, q = new URLSearchParams({ offset: append ? d.groups.length : 0, limit: 40, q: d.q, scope: d.scope });
     const page = await api(`/plans/${d.plan.id}/groups?` + q);
     d.total = page.total; d.shown = page.selected; d.groups = append ? d.groups.concat(page.groups) : page.groups;
     return page.groups;
@@ -683,30 +683,41 @@
     const bulk = el('div', 'toolbar bulk'), headBox = el('input', 'tick'); headBox.type = 'checkbox'; headBox.title = 'Handle or skip every group shown';
     const shown = el('span', 'muted shown'); const where = el('input', 'search wide'); where.placeholder = 'Keep the copy in…  e.g. /Trip/ or 2025/06/Backup';
     const keepBtn = el('button', 'btn small', 'Keep copies there'), resetBtn = el('button', 'btn small quiet', 'Reset keepers'), msg = el('span', 'muted');
-    keepBtn.title = 'In every group shown that has a copy there, keep that copy and treat the others as the extras'; resetBtn.title = 'Back to the best copy of each group';
+    keepBtn.title = 'In every group shown that has a copy there, keep that copy and treat the others as the extras'; resetBtn.title = 'Back to the best copy of each group: a copy in the library first, then by folder and name';
     headBox.onchange = async () => {
       d.groups.forEach(g => { g.selected = headBox.checked; }); d.shown = headBox.checked ? d.total : 0; dupeUI.list.querySelectorAll('.group').forEach(c => { c.classList.toggle('off', !headBox.checked); c.querySelector('header .tick').checked = headBox.checked; });
-      await dupePatch({ filter: { q: d.q }, selected: headBox.checked });
+      await dupePatch({ filter: { q: d.q, scope: d.scope }, selected: headBox.checked });
     };
     const bulkKeep = async body => {
       try { const res = await api('/plans/' + d.plan.id, { method: 'PATCH', body }); msg.textContent = `Keeper changed in ${res.changed} group${res.changed === 1 ? '' : 's'}.`;
         const top = dupeUI.list.scrollTop; await fetchGroups(false); dupeUI.list.replaceChildren(); d.groups.forEach(addGroup); dupeUI.list.scrollTop = top; await refreshPlan(d); paintDupes(); } catch (e) { fail(e); }
     };
-    keepBtn.onclick = () => { if (!where.value.trim()) { where.focus(); return; } bulkKeep({ keep_where: { contains: where.value.trim(), q: d.q } }); };
-    resetBtn.onclick = () => bulkKeep({ keep_reset: { q: d.q } });
+    keepBtn.onclick = () => { if (!where.value.trim()) { where.focus(); return; } bulkKeep({ keep_where: { contains: where.value.trim(), q: d.q, scope: d.scope } }); };
+    resetBtn.onclick = () => bulkKeep({ keep_reset: { q: d.q, scope: d.scope } });
     bulk.append(headBox, shown, spacer(), where, keepBtn, resetBtn, msg);
     const list = el('div', 'tbody groups'); nearEnd(list, async () => { if (!d.loading && d.groups.length < d.total) { d.loading = true; try { (await fetchGroups(true)).forEach(addGroup); } finally { d.loading = false; } } });
     if (scanningDupes()) { bulk.querySelectorAll('input,button').forEach(x => { x.disabled = true; }); modes.querySelectorAll('button').forEach(x => { x.disabled = true; }); }
-    panel.append(tools, scanNote, warn, bulk, list); main.append(panel);
+    const chips = el('div', 'chips'), scopeNote = el('div', 'note'); scopeNote.hidden = true; chips.style.marginBottom = '10px';
+    panel.append(chips, tools, scopeNote, scanNote, warn, bulk, list); main.append(panel);
     const bar = el('div', 'bar'), info = el('span', 'grow'), apply = el('button', 'btn primary');
     apply.onclick = () => confirmApply(d.plan); bar.append(info, apply); main.append(bar);
-    dupeUI = { stats, list, info, apply, headBox, shown }; d.groups.forEach(addGroup); paintDupes();
+    dupeUI = { stats, list, info, apply, headBox, shown, chips, scopeNote }; d.groups.forEach(addGroup); paintDupes();
   }
   function paintDupes() {
     const p = state.dupes.plan, u = dupeUI, del = p.mode === 'delete';
     u.stats.replaceChildren(...[[p.stats.groups, 'groups'], [p.stats.extra, 'extra copies'], [fmtGiB(p.stats.extra_bytes), 'they use'], [p.preview.moves, del ? 'to delete' : 'to file']].map(([v, k]) => {
       const s = el('div', 'stat'); s.append(el('b', null, typeof v === 'number' ? v.toLocaleString() : v), el('small', null, k)); return s; }));
-    const d = state.dupes; u.headBox.checked = d.total > 0 && d.shown === d.total; u.headBox.indeterminate = d.shown > 0 && d.shown < d.total;
+    const d = state.dupes, sc = p.scopes || {};
+    const reshow = async v => { d.scope = v; await fetchGroups(false); u.list.replaceChildren(); d.groups.forEach(addGroup); u.list.scrollTop = 0; paintDupes(); };
+    u.chips.replaceChildren(...[['', 'All', sc.all, 'Every group of identical files'],
+      ['library', 'A copy is in the library', sc.library, 'At least one copy is in the library; by default that copy is the one kept'],
+      ['outside', 'None in the library', sc.outside, 'Copies that are only in other folders of the media folder (old uploads, backups, the inbox)'],
+      ['multi', 'Several in the library', sc.multi, 'More than one copy inside the library: look at these before choosing']]
+      .map(([v, label, n, hint]) => chip(label, n || 0, d.scope === v, () => reshow(v), hint)));
+    u.scopeNote.textContent = d.scope === 'outside' ? 'None of these copies is in the library. Pick the one to keep; the others are filed under _duplicates. The keeper stays where it is until you sort it into the library.'
+      : d.scope === 'multi' ? 'More than one copy of each of these is inside the library, so “keep the library copy” cannot decide. Compare them side by side before you choose.' : '';
+    u.scopeNote.hidden = !u.scopeNote.textContent;
+    u.headBox.checked = d.total > 0 && d.shown === d.total; u.headBox.indeterminate = d.shown > 0 && d.shown < d.total;
     u.shown.textContent = `${d.total.toLocaleString()} group${d.total === 1 ? '' : 's'} shown · ${d.shown.toLocaleString()} handled`;
     const n = p.preview.moves;
     u.info.innerHTML = `<b>${n.toLocaleString()}</b> copies will be ${del ? 'deleted for good' : 'filed'}` + (p.preview.protected_count ? ` <span class="muted">· ${p.preview.protected_count} left alone because their Live Photo half is staying</span>` : '');
