@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from . import core
+from .immich import Immich, ImmichError
 from .jobs import Busy, Jobs, Missing
 
 WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'web')
@@ -29,9 +30,39 @@ def inbox_counts(cfg):
             'duplicates': count(core.DUPS)}
 
 
+def group_key(move):
+    return move.get('group') or f'm{move["id"]}'
+
+
+def matching(plan, cfg, kind='', pair=False, text=''):
+    """The plan's moves that pass a filter: a kind, Live Photos only, and/or text in a path or reason."""
+    moves = core.duplicate_moves(cfg, plan)[0] if plan['kind'] == 'duplicates' else plan['moves']
+    text = text.lower()
+    return [m for m in moves if (not kind or m['kind'] == kind)
+            and (not pair or (m.get('group') or '').startswith('pair:'))
+            and (not text or text in m['src'].lower() or text in m['dst'].lower() or text in m['why'].lower())]
+
+
+def matching_groups(plan, text=''):
+    """The duplicate groups with a file whose path contains the text (all of them for no text)."""
+    text = text.lower()
+    return [g for g in plan['groups'] if not text or any(text in f.lower() for f in g['files'])]
+
+
+def item_on(plan, item):
+    return f'immich:{item["id"]}' not in set(plan.get('excluded', []))
+
+
+def matching_items(plan, status='', live=False, text=''):
+    text = text.lower()
+    return [i for i in plan['items'] if (not status or i['status'] == status) and (not live or i['clip'])
+            and (not text or text in (i['name'] or '').lower() or text in (i['immich_path'] or '').lower())]
+
+
 class App:
-    def __init__(self, cfg, token=''):
-        self.cfg, self.token, self.jobs = cfg, token, Jobs(cfg)
+    def __init__(self, cfg, token='', immich=None):
+        self.cfg, self.token, self.immich = cfg, token, immich
+        self.jobs = Jobs(cfg, immich)
         self.started = time.time()
 
     # Each route returns (status, document).
@@ -39,6 +70,13 @@ class App:
         j, cfg = self.jobs, self.cfg
         if method == 'GET' and path == '/api/status':
             return 200, {'root': cfg.root, 'library': cfg.library, 'inbox': inbox_counts(cfg), 'job': j.status()}
+        if method == 'GET' and path == '/api/immich':
+            if not (self.immich and self.immich.configured):
+                return 200, {'configured': False}
+            try:
+                return 200, {'configured': True, 'connected': True, **self.immich.check()}
+            except ImmichError as e:
+                return 200, {'configured': True, 'connected': False, 'error': str(e)}
         if method == 'GET' and path == '/api/job':
             return 200, {'job': j.status()}
         if method == 'GET' and path == '/api/plans':
@@ -49,36 +87,50 @@ class App:
         if m and method == 'GET':
             plan = j.plan(m.group(1))
             out = j.summary(plan)
+            if plan['kind'] == 'immich':
+                out['selected_items'] = sum(1 for i in plan['items'] if i['status'] == 'file' and item_on(plan, i))
             if plan['kind'] == 'duplicates':
                 moves, protected = core.duplicate_moves(cfg, plan)
                 out['preview'] = {'moves': len(moves), 'protected': protected[:50], 'protected_count': len(protected)}
-            else:
+            elif plan['kind'] == 'sort':
                 out['notes'] = plan['notes']
                 out['left'] = plan['left'][:200]
+            else:
+                out['notes'] = plan['notes']
             out['selected'] = len(core.selected_moves(plan, cfg))
             return 200, out
         m = re.fullmatch(r'/api/plans/([\w-]+)/moves', path)
         if m and method == 'GET':
             plan = j.plan(m.group(1))
-            moves = core.duplicate_moves(cfg, plan)[0] if plan['kind'] == 'duplicates' else plan['moves']
-            kind, text = query.get('kind', [''])[0], query.get('q', [''])[0].lower()
-            rows = [x for x in moves if (not kind or x['kind'] == kind)
-                    and (not text or text in x['src'].lower() or text in x['dst'].lower() or text in x['why'].lower())]
-            off, lim = int(query.get('offset', ['0'])[0]), min(int(query.get('limit', ['100'])[0]), 500)
+            one = lambda k: query.get(k, [''])[0]
+            rows = matching(plan, cfg, one('kind'), one('pair') == '1', one('q'))
+            off, lim = int(one('offset') or 0), min(int(one('limit') or 100), 500)
             excluded, kinds = set(plan.get('excluded', [])), set(plan.get('excluded_kinds', []))
-            page = [{**x, 'selected': (x.get('group') or f'm{x["id"]}') not in excluded and x['kind'] not in kinds}
-                    for x in rows[off:off + lim]]
-            return 200, {'total': len(rows), 'offset': off, 'moves': page}
+            on = lambda x: group_key(x) not in excluded and x['kind'] not in kinds
+            return 200, {'total': len(rows), 'selected': sum(1 for x in rows if on(x)), 'offset': off,
+                         'moves': [{**x, 'selected': on(x)} for x in rows[off:off + lim]]}
+        m = re.fullmatch(r'/api/plans/([\w-]+)/items', path)
+        if m and method == 'GET':
+            plan = j.plan(m.group(1))
+            if plan['kind'] != 'immich':
+                return 404, {'error': 'only Immich plans have items'}
+            one = lambda k: query.get(k, [''])[0]
+            rows = matching_items(plan, one('status'), one('live') == '1', one('q'))
+            off, lim = int(one('offset') or 0), min(int(one('limit') or 100), 500)
+            return 200, {'total': len(rows), 'offset': off,
+                         'selected': sum(1 for i in rows if i['status'] == 'file' and item_on(plan, i)),
+                         'selectable': sum(1 for i in rows if i['status'] == 'file'),
+                         'items': [{**i, 'selected': item_on(plan, i)} for i in rows[off:off + lim]]}
         m = re.fullmatch(r'/api/plans/([\w-]+)/groups', path)
         if m and method == 'GET':
             plan = j.plan(m.group(1))
             if plan['kind'] != 'duplicates':
                 return 404, {'error': 'only duplicate plans have groups'}
-            text = query.get('q', [''])[0].lower()
-            rows = [g for g in plan['groups'] if not text or any(text in f.lower() for f in g['files'])]
+            rows = matching_groups(plan, query.get('q', [''])[0])
             off, lim = int(query.get('offset', ['0'])[0]), min(int(query.get('limit', ['50'])[0]), 200)
             excluded = set(plan.get('excluded', []))
             return 200, {'total': len(rows), 'offset': off,
+                         'selected': sum(1 for g in rows if g['id'] not in excluded),
                          'groups': [{**g, 'selected': g['id'] not in excluded} for g in rows[off:off + lim]]}
         m = re.fullmatch(r'/api/plans/([\w-]+)', path)
         if m and method == 'PATCH':
@@ -89,22 +141,53 @@ class App:
             kinds = set(plan.get('excluded_kinds', []))
             for key in body.get('groups', []):
                 (excluded.discard if body.get('selected') else excluded.add)(key)
+            if 'filter' in body:   # everything that passes the filter, not only what the page has loaded
+                f = body['filter']
+                keys = ([f'immich:{i["id"]}' for i in matching_items(plan, f.get('status', ''), bool(f.get('live')), f.get('q', ''))]
+                        if plan['kind'] == 'immich' else
+                        [g['id'] for g in matching_groups(plan, f.get('q', ''))] if plan['kind'] == 'duplicates' else
+                        [group_key(x) for x in matching(plan, cfg, f.get('kind', ''), bool(f.get('pair')), f.get('q', ''))])
+                for key in keys:
+                    (excluded.discard if body.get('selected') else excluded.add)(key)
             if 'kind' in body:
                 (kinds.discard if body.get('selected') else kinds.add)(body['kind'])
             if body.get('all') is not None:
                 excluded.clear(); kinds.clear()
                 if not body['all']:
-                    kinds.update({x['kind'] for x in plan['moves']} if plan['kind'] == 'sort' else {'duplicate'})
+                    if plan['kind'] == 'immich':
+                        excluded.update(f'immich:{i["id"]}' for i in plan['items'])
+                    else:
+                        kinds.update({x['kind'] for x in plan['moves']} if plan['kind'] == 'sort' else {'duplicate'})
+            if 'mode' in body:
+                if plan['kind'] not in ('duplicates', 'immich') or body['mode'] not in ('file', 'delete'):
+                    return 400, {'error': 'mode is "file" or "delete", and only for duplicates or Immich plans'}
+                plan['mode'] = body['mode']
             if 'keep' in body and plan['kind'] == 'duplicates':
                 for gid, rel in body['keep'].items():
                     g = next((x for x in plan['groups'] if x['id'] == gid), None)
                     if g and rel in g['files']:
                         g['keep'] = rel
+            changed = 0
+            if plan['kind'] == 'duplicates' and ('keep_where' in body or 'keep_reset' in body):
+                # Bulk keepers, over the groups the search box is showing. Files in a group are
+                # listed best copy first, so "the best copy in this folder" is the first that matches.
+                rule = body.get('keep_where') or body.get('keep_reset') or {}
+                frag = (body.get('keep_where') or {}).get('contains', '').strip().lower()
+                if 'keep_where' in body and not frag:
+                    return 400, {'error': 'say which folder or path to keep copies in'}
+                for g in matching_groups(plan, rule.get('q', '')):
+                    pick = next((f for f in g['files'] if frag in f.lower()), None) if frag else g['files'][0]
+                    if pick and pick != g['keep']:
+                        g['keep'] = pick
+                        changed += 1
             plan['excluded'], plan['excluded_kinds'] = sorted(excluded), sorted(kinds)
             j.save_plan(plan)
-            return 200, {'ok': True}
+            return 200, {'ok': True, 'changed': changed}
         m = re.fullmatch(r'/api/plans/([\w-]+)/apply', path)
         if m and method == 'POST':
+            plan = j.plan(m.group(1))
+            if plan.get('mode') == 'delete' and body.get('confirm') != 'DELETE':
+                return 400, {'error': 'deleting needs confirm: "DELETE"; it cannot be undone'}
             return 202, {'job': j.start_apply(m.group(1))}
         if method == 'GET' and path == '/api/runs':
             return 200, {'runs': j.runs()}
@@ -176,8 +259,9 @@ def handler(app):
 
 def main():
     cfg = core.Config(os.environ.get('MEDIA_ROOT', '/media'), os.environ.get('STATE_DIR', '/state'),
-                      os.environ.get('LIBRARY', 'library'))
-    app = App(cfg, os.environ.get('PHOTO_JOBS_TOKEN', ''))
+                      os.environ.get('LIBRARY', 'library'), os.environ.get('IMMICH_MEDIA_PREFIX', '/mnt/mahir-personal'))
+    immich = Immich(os.environ.get('IMMICH_URL', ''), os.environ.get('IMMICH_API_KEY', ''))
+    app = App(cfg, os.environ.get('PHOTO_JOBS_TOKEN', ''), immich)
     host, port = os.environ.get('BIND', '0.0.0.0'), int(os.environ.get('PORT', '8099'))
     srv = ThreadingHTTPServer((host, port), handler(app))
     print(f'photo-jobs on {host}:{port}, media {cfg.root}, state {cfg.state}', flush=True)

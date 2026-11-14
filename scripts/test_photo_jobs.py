@@ -5,6 +5,8 @@ The stand-in reads recording months from a JSON map (path -> YYYY-MM), so each t
 every file claims to be, and needs no real photos. Planning, applying, undoing and the HTTP routes
 are the real code.
 """
+import base64
+import hashlib
 import json
 import os
 import shutil
@@ -19,7 +21,10 @@ from pathlib import Path
 APP = Path(__file__).resolve().parents[1] / 'apps/photo-jobs'
 sys.path.insert(0, str(APP))
 
-from photo_jobs import core, jobs, pairs, server  # noqa: E402
+sys.path.insert(0, str(APP / 'dev'))
+
+from fake_immich import FakeImmich, sha1b64  # noqa: E402
+from photo_jobs import core, immich, jobs, pairs, server  # noqa: E402
 
 FAKE_EXIFTOOL = (APP / 'dev/fake_exiftool.py').read_text()
 
@@ -311,6 +316,343 @@ class Duplicates(Library):
         self.put('library/2025/06/IMG_1.JPG.xmp', 'same')
         self.put('library/2025/06/IMG_2.JPG.xmp', 'same')
         self.assertEqual(self.plan()['groups'], [])
+
+
+class DeletingDuplicates(Library):
+    def plan(self, mode='delete'):
+        plan = core.plan_duplicates(self.cfg)
+        plan.update(excluded=[], excluded_kinds=[], mode=mode)
+        return plan
+
+    def test_deleting_removes_only_the_extra_copies_and_keeps_the_best_one(self):
+        self.put('library/2025/06/Trip/IMG_1.JPG', 'same')
+        self.put('library/2025/06/IMG_1.JPG', 'same')
+        self.put('_duplicates/2025/06/IMG_1.JPG', 'same')
+        self.put('library/2025/06/other.JPG', 'different')
+        run = core.apply_moves(self.cfg, core.selected_moves(self.plan(), self.cfg))
+        self.assertEqual(self.tree(), ['library/2025/06/Trip/IMG_1.JPG', 'library/2025/06/other.JPG'])
+        self.assertEqual([m['status'] for m in run['moves']], ['deleted', 'deleted'])
+        self.assertTrue(all(m['sha1'] and m['keep'] == 'library/2025/06/Trip/IMG_1.JPG' for m in run['moves']))
+
+    def test_the_default_mode_still_only_files_them(self):
+        self.put('library/2025/06/A/IMG_1.JPG', 'same')
+        self.put('library/2025/06/B/IMG_1.JPG', 'same')
+        core.apply_moves(self.cfg, core.selected_moves(self.plan('file'), self.cfg))
+        self.assertEqual(len(self.tree()), 2)
+
+    def test_nothing_is_deleted_if_the_kept_copy_changed_since_the_scan(self):
+        keeper = self.put('library/2025/06/A/IMG_1.JPG', 'same')
+        extra = self.put('library/2025/06/B/IMG_1.JPG', 'same')
+        plan = self.plan()
+        self.assertEqual(plan['groups'][0]['keep'], 'library/2025/06/A/IMG_1.JPG')
+        keeper.write_text('edited since the scan')
+        run = core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
+        self.assertEqual(run['moves'][0]['status'], 'skipped')
+        self.assertTrue(extra.exists())
+
+    def test_nothing_is_deleted_if_the_kept_copy_is_gone(self):
+        keeper = self.put('library/2025/06/A/IMG_1.JPG', 'same')
+        extra = self.put('library/2025/06/B/IMG_1.JPG', 'same')
+        plan = self.plan()
+        keeper.unlink()
+        core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
+        self.assertTrue(extra.exists())
+
+    def test_a_live_photo_half_is_never_deleted_while_its_partner_stays(self):
+        self.put('library/2025/06/A/IMG_1.HEIC', 'same still')
+        self.put('library/2025/06/A/IMG_1.MOV', 'clip A')
+        self.put('library/2025/06/B/IMG_1.HEIC', 'same still')
+        self.put('library/2025/06/B/IMG_1.MOV', 'a different clip')
+        self.assertEqual(core.selected_moves(self.plan(), self.cfg), [])
+
+    def test_undo_says_what_cannot_be_put_back(self):
+        self.put('library/2025/06/A/IMG_1.JPG', 'same')
+        self.put('library/2025/06/B/IMG_1.JPG', 'same')
+        run = core.apply_moves(self.cfg, core.selected_moves(self.plan(), self.cfg))
+        result = core.undo_run(self.cfg, run)
+        self.assertEqual((result['restored'], result['not_restorable']), (0, 1))
+        self.assertEqual(len(self.tree()), 1)
+
+    def test_the_api_wants_the_word_DELETE_and_will_not_delete_without_it(self):
+        self.put('library/2025/06/A/IMG_1.JPG', 'same')
+        self.put('library/2025/06/B/IMG_1.JPG', 'same')
+        app = server.App(self.cfg)
+        app.route('POST', '/api/plans', {}, {'kind': 'duplicates'})
+        for _ in range(200):
+            job = app.jobs.status()
+            if job['state'] != 'running':
+                break
+            time.sleep(0.02)
+        pid = job['result']['plan']
+        self.assertEqual(app.route('PATCH', f'/api/plans/{pid}', {}, {'mode': 'nonsense'})[0], 400)
+        app.route('PATCH', f'/api/plans/{pid}', {}, {'mode': 'delete'})
+        self.assertEqual(app.route('GET', f'/api/plans/{pid}', {}, {})[1]['mode'], 'delete')
+        self.assertEqual(app.route('POST', f'/api/plans/{pid}/apply', {}, {})[0], 400)
+        self.assertEqual(app.route('POST', f'/api/plans/{pid}/apply', {}, {'confirm': 'delete'})[0], 400)
+        self.assertEqual(len(self.tree()), 2)
+        self.assertEqual(app.route('POST', f'/api/plans/{pid}/apply', {}, {'confirm': 'DELETE'})[0], 202)
+        for _ in range(200):
+            if app.jobs.status()['state'] != 'running':
+                break
+            time.sleep(0.02)
+        self.assertEqual(len(self.tree()), 1)
+
+
+class ImmichBase(Library):
+    PREFIX = '/mnt/mahir-personal/'
+
+    def asset(self, id_, rel, content='', **extra):
+        return {'id': id_, 'originalPath': self.PREFIX + rel, 'originalFileName': os.path.basename(rel), 'isTrashed': True,
+                'type': 'IMAGE', 'checksum': sha1b64(content), **extra}
+
+    def connect(self, assets, **kw):
+        self.fake = FakeImmich(assets, **kw)
+        self.addCleanup(self.fake.stop)
+        return immich.Immich(self.fake.url, 'k3y')
+
+    def plan(self, assets, mode='file', **kw):
+        plan = core.plan_immich(self.cfg, self.connect(assets, **kw))
+        plan.update(excluded=[], excluded_kinds=[], mode=mode)
+        return plan
+
+
+class ImmichTrash(ImmichBase):
+    def test_each_trashed_asset_is_found_in_the_library_or_reported_missing_or_outside(self):
+        self.put('library/2025/06/a.jpg', 'A')
+        plan = self.plan([self.asset('1', 'library/2025/06/a.jpg', 'A'),
+                          self.asset('2', 'library/2025/06/gone.jpg', 'x'),
+                          {**self.asset('3', 'x'), 'originalPath': '/data/upload/abc/def.jpg'}])
+        by = {i['id']: i for i in plan['items']}
+        self.assertEqual((by['1']['status'], by['1']['rel'], by['1']['size']), ('file', 'library/2025/06/a.jpg', 1))
+        self.assertEqual((by['2']['status'], by['3']['status']), ('missing', 'outside'))
+        self.assertEqual(plan['stats']['kinds'], {'file': 1, 'missing': 1, 'outside': 1})
+
+    def test_only_assets_immich_says_are_trashed_are_listed(self):
+        self.put('library/2025/06/a.jpg', 'A')
+        self.put('library/2025/06/b.jpg', 'B')
+        plan = self.plan([self.asset('1', 'library/2025/06/a.jpg', 'A'),
+                          self.asset('2', 'library/2025/06/b.jpg', 'B', isTrashed=False)])
+        self.assertEqual([i['id'] for i in plan['items']], ['1'])
+
+    def test_an_older_immich_that_rejects_the_current_search_is_still_read(self):
+        self.put('library/2025/06/a.jpg', 'A')
+        plan = self.plan([self.asset('1', 'library/2025/06/a.jpg', 'A')], legacy=True)
+        self.assertEqual(len(plan['items']), 1)
+        bodies = [c[2] for c in self.fake.calls if c[1] == '/api/search/metadata']
+        self.assertIn('filter', bodies[0])
+        self.assertTrue(bodies[-1]['withDeleted'])
+
+    def test_every_page_of_the_trash_is_read_and_the_key_is_sent(self):
+        self.fake = FakeImmich([self.asset(str(i), f'library/2025/06/p{i}.jpg') for i in range(7)])
+        self.addCleanup(self.fake.stop)
+        client = immich.Immich(self.fake.url, 'k3y')
+        old, immich.PAGE = immich.PAGE, 3
+        try:
+            self.assertEqual(len(client.trashed()), 7)
+        finally:
+            immich.PAGE = old
+        self.assertTrue(all(c[3] == 'k3y' for c in self.fake.calls))
+
+    def test_a_wrong_key_is_a_clear_error_not_an_empty_trash(self):
+        self.fake = FakeImmich([], key='right')
+        self.addCleanup(self.fake.stop)
+        with self.assertRaises(immich.ImmichError) as ctx:
+            immich.Immich(self.fake.url, 'wrong').trashed()
+        self.assertIn('401', str(ctx.exception))
+
+    def test_a_live_photo_clip_comes_with_its_still_whichever_way_it_is_linked(self):
+        self.put('library/2025/06/IMG_1.HEIC', 'still1')
+        self.put('library/2025/06/IMG_1.MOV', 'clip1')
+        self.put('library/2025/06/IMG_2.HEIC', 'still2')
+        self.put('library/2025/06/IMG_2.MOV', 'clip2')
+        plan = self.plan([
+            self.asset('s1', 'library/2025/06/IMG_1.HEIC', 'still1', livePhotoVideoId='c1'),
+            self.asset('c1', 'library/2025/06/IMG_1.MOV', 'clip1', type='VIDEO'),     # linked by Immich
+            self.asset('s2', 'library/2025/06/IMG_2.HEIC', 'still2')])                  # found by name
+        self.assertEqual([i['id'] for i in plan['items']], ['s1', 's2'])
+        self.assertEqual([i['clip']['rel'] for i in plan['items']], ['library/2025/06/IMG_1.MOV', 'library/2025/06/IMG_2.MOV'])
+        self.assertEqual(plan['stats']['live'], 2)
+
+    def test_removing_files_moves_them_aside_and_undo_puts_them_back(self):
+        self.put('library/2025/06/IMG_1.HEIC', 'still1')
+        self.put('library/2025/06/IMG_1.MOV', 'clip1')
+        before = self.tree()
+        plan = self.plan([self.asset('s1', 'library/2025/06/IMG_1.HEIC', 'still1', livePhotoVideoId='c1'),
+                          self.asset('c1', 'library/2025/06/IMG_1.MOV', 'clip1', type='VIDEO')])
+        run = core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
+        self.assertEqual(self.tree(), ['_removed/library/2025/06/IMG_1.HEIC', '_removed/library/2025/06/IMG_1.MOV'])
+        self.assertEqual(core.undo_run(self.cfg, run)['restored'], 2)
+        self.assertEqual(self.tree(), before)
+
+    def test_deleting_removes_the_still_and_its_clip_for_good(self):
+        self.put('library/2025/06/IMG_1.HEIC', 'still1')
+        self.put('library/2025/06/IMG_1.MOV', 'clip1')
+        plan = self.plan([self.asset('s1', 'library/2025/06/IMG_1.HEIC', 'still1', livePhotoVideoId='c1'),
+                          self.asset('c1', 'library/2025/06/IMG_1.MOV', 'clip1', type='VIDEO')], mode='delete')
+        run = core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
+        self.assertEqual(self.tree(), [])
+        self.assertEqual(sorted(m['status'] for m in run['moves']), ['deleted', 'deleted'])
+        self.assertEqual(core.undo_run(self.cfg, run)['not_restorable'], 2)
+
+    def test_a_file_that_is_no_longer_the_one_immich_trashed_is_not_deleted(self):
+        path = self.put('library/2025/06/a.jpg', 'what immich trashed')
+        plan = self.plan([self.asset('1', 'library/2025/06/a.jpg', 'what immich trashed')], mode='delete')
+        path.write_text('a different photo now at the same path')
+        run = core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
+        self.assertEqual(run['moves'][0]['status'], 'skipped')
+        self.assertTrue(path.exists())
+
+    def test_a_symlink_is_never_followed_or_deleted(self):
+        target = self.put('elsewhere/real.jpg', 'precious')
+        link = self.root / 'library/2025/06/a.jpg'
+        link.parent.mkdir(parents=True)
+        link.symlink_to(target)
+        plan = self.plan([self.asset('1', 'library/2025/06/a.jpg', 'precious')], mode='delete')
+        self.assertEqual(plan['items'][0]['status'], 'symlink')
+        self.assertEqual(core.selected_moves(plan, self.cfg), [])
+        self.assertTrue(target.exists())
+
+    def test_a_file_swapped_for_a_symlink_after_the_scan_is_not_deleted(self):
+        path = self.put('library/2025/06/a.jpg', 'same bytes')
+        target = self.put('elsewhere/real.jpg', 'same bytes')       # identical content: only the link check can stop this
+        plan = self.plan([self.asset('1', 'library/2025/06/a.jpg', 'same bytes')], mode='delete')
+        path.unlink()
+        path.symlink_to(target)
+        run = core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
+        self.assertEqual(run['moves'][0]['status'], 'skipped')
+        self.assertTrue(path.is_symlink() and target.exists())
+
+    def test_a_path_that_climbs_out_of_the_media_folder_is_refused(self):
+        plan = self.plan([self.asset('1', '../../etc/passwd', 'x')])
+        self.assertEqual(plan['items'][0]['status'], 'outside')
+        self.assertEqual(core.selected_moves(plan, self.cfg), [])
+
+    def test_unticked_items_are_left_alone(self):
+        self.put('library/2025/06/a.jpg', 'A')
+        self.put('library/2025/06/b.jpg', 'B')
+        plan = self.plan([self.asset('1', 'library/2025/06/a.jpg', 'A'), self.asset('2', 'library/2025/06/b.jpg', 'B')])
+        plan['excluded'] = ['immich:2']
+        core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
+        self.assertEqual(self.tree(), ['_removed/library/2025/06/a.jpg', 'library/2025/06/b.jpg'])
+
+
+class ImmichApi(ImmichBase):
+    def setUp(self):
+        super().setUp()
+        self.put('library/2025/06/a.jpg', 'A')
+        self.put('library/2025/06/b.jpg', 'B')
+        self.client = self.connect([self.asset('1', 'library/2025/06/a.jpg', 'A'), self.asset('2', 'library/2025/06/b.jpg', 'B'),
+                                    self.asset('3', 'library/2025/06/gone.jpg', 'x')])
+        self.app = server.App(self.cfg, immich=self.client)
+
+    def run_job(self, body):
+        self.app.route('POST', '/api/plans', {}, body)
+        for _ in range(300):
+            job = self.app.jobs.status()
+            if job['state'] != 'running':
+                return job
+            time.sleep(0.02)
+        self.fail('job did not finish')
+
+    def test_the_connection_is_reported_and_a_missing_key_is_not_an_error(self):
+        self.assertEqual(self.app.route('GET', '/api/immich', {}, {})[1],
+                         {'configured': True, 'connected': True, 'user': 'me@example.com', 'version': 'v3.4.1'})
+        self.assertEqual(server.App(self.cfg).route('GET', '/api/immich', {}, {})[1], {'configured': False})
+        bad = server.App(self.cfg, immich=immich.Immich(self.fake.url, 'wrong'))
+        self.assertFalse(bad.route('GET', '/api/immich', {}, {})[1]['connected'])
+
+    def test_without_immich_a_trash_plan_is_refused_clearly(self):
+        with self.assertRaises(ValueError):
+            server.App(self.cfg).route('POST', '/api/plans', {}, {'kind': 'immich'})
+
+    def test_review_filter_bulk_untick_and_apply(self):
+        job = self.run_job({'kind': 'immich'})
+        self.assertEqual(job['state'], 'done', job)
+        pid = job['result']['plan']
+        _, plan = self.app.route('GET', f'/api/plans/{pid}', {}, {})
+        self.assertEqual((plan['items'], plan['selected_items']), (3, 2))
+        _, page = self.app.route('GET', f'/api/plans/{pid}/items', {'status': ['missing']}, {})
+        self.assertEqual([i['id'] for i in page['items']], ['3'])
+        _, page = self.app.route('GET', f'/api/plans/{pid}/items', {'q': ['b.jpg']}, {})
+        self.assertEqual([i['id'] for i in page['items']], ['2'])
+        self.app.route('PATCH', f'/api/plans/{pid}', {}, {'filter': {'q': 'b.jpg'}, 'selected': False})
+        self.assertEqual(self.app.route('GET', f'/api/plans/{pid}', {}, {})[1]['selected_items'], 1)
+        self.app.route('PATCH', f'/api/plans/{pid}', {}, {'mode': 'delete'})
+        self.assertEqual(self.app.route('POST', f'/api/plans/{pid}/apply', {}, {})[0], 400)   # needs DELETE
+        self.assertEqual(self.app.route('POST', f'/api/plans/{pid}/apply', {}, {'confirm': 'DELETE'})[0], 202)
+        for _ in range(300):
+            if self.app.jobs.status()['state'] != 'running':
+                break
+            time.sleep(0.02)
+        self.assertEqual(self.tree(), ['library/2025/06/b.jpg'])
+
+
+class BulkDuplicateChoices(Library):
+    def setUp(self):
+        super().setUp()
+        for month in ('05', '06', '07'):    # three groups, each a copy in Trip/ and a copy in Backup/
+            self.put(f'library/2025/{month}/Trip/IMG_{month}.JPG', f'photo {month}')
+            self.put(f'library/2025/{month}/Backup/IMG_{month}.JPG', f'photo {month}')
+        self.put('library/2025/08/Solo/IMG_8.JPG', 'eight')
+        self.put('library/2025/08/Other/IMG_8.JPG', 'eight')
+        self.app = server.App(self.cfg)
+        self.app.route('POST', '/api/plans', {}, {'kind': 'duplicates'})
+        for _ in range(300):
+            job = self.app.jobs.status()
+            if job['state'] != 'running':
+                break
+            time.sleep(0.02)
+        self.pid = job['result']['plan']
+
+    def patch(self, body):
+        return self.app.route('PATCH', f'/api/plans/{self.pid}', {}, body)
+
+    def plan(self):
+        return self.app.jobs.plan(self.pid)
+
+    def keeps(self):
+        return sorted(g['keep'] for g in self.plan()['groups'])
+
+    def test_keep_the_copy_in_a_folder_moves_the_keeper_in_every_group_that_has_one(self):
+        self.patch({'keep_reset': {}})
+        august_before = [k for k in self.keeps() if '/2025/08/' in k]
+        status, res = self.patch({'keep_where': {'contains': '/Backup/'}})
+        self.assertEqual((status, res['changed']), (200, 3))
+        keeps = self.keeps()
+        self.assertEqual([k for k in keeps if '/Backup/' in k], [f'library/2025/0{m}/Backup/IMG_0{m}.JPG' for m in (5, 6, 7)])
+        # the August group has no Backup copy: left exactly as it was
+        self.assertEqual([k for k in keeps if '/2025/08/' in k], august_before)
+
+    def test_it_only_touches_the_groups_the_search_is_showing(self):
+        self.patch({'keep_reset': {}})
+        self.patch({'keep_where': {'contains': '/Backup/', 'q': '2025/06'}})
+        backups = [k for k in self.keeps() if '/Backup/' in k]
+        self.assertEqual(backups, ['library/2025/06/Backup/IMG_06.JPG'])
+
+    def test_reset_puts_the_default_best_copy_back(self):
+        default = self.keeps()
+        self.patch({'keep_where': {'contains': '/Backup/'}})
+        self.assertNotEqual(self.keeps(), default)
+        self.patch({'keep_reset': {}})
+        self.assertEqual(self.keeps(), default)
+
+    def test_a_keep_rule_with_no_folder_is_refused(self):
+        self.assertEqual(self.patch({'keep_where': {'contains': '  '}})[0], 400)
+
+    def test_ticking_groups_in_bulk_follows_the_search(self):
+        self.patch({'filter': {'q': '2025/0'}, 'selected': False})       # the 05, 06, 07 and 08 groups: all of them
+        self.assertEqual(len(self.plan()['excluded']), 4)
+        self.patch({'filter': {'q': '2025/06'}, 'selected': True})
+        self.assertEqual(len(self.plan()['excluded']), 3)
+        _, page = self.app.route('GET', f'/api/plans/{self.pid}/groups', {'q': ['2025/0']}, {})
+        self.assertEqual((page['total'], page['selected']), (4, 1))
+
+    def test_the_moves_follow_the_chosen_keepers(self):
+        self.patch({'keep_where': {'contains': '/Backup/'}})
+        moves = core.selected_moves(self.plan(), self.cfg)
+        removed = {m['src'] for m in moves}
+        self.assertNotIn('library/2025/06/Backup/IMG_06.JPG', removed)    # the one chosen to keep is not touched
+        self.assertIn('library/2025/06/Trip/IMG_06.JPG', removed)         # the other copy is the extra
 
 
 class Pairs(unittest.TestCase):

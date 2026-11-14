@@ -76,8 +76,10 @@ over. See `apps/photo-jobs/README.md` for what it does.
 
 **Plan, review, apply, undo.** A scan returns the exact moves; each can be
 unticked; apply makes only the ticked ones and writes a run record; undo puts a
-run's files back. Nothing is deleted: duplicates are filed under `_duplicates/`
-beside the kept copy. A Live Photo's still and clip are dated, named and ticked
+run's moved files back. Duplicates are filed under `_duplicates/` beside the kept
+copy. Deleting is a separate mode you switch on and confirm by typing `DELETE`,
+and each file is re-checked (still identical to the copy kept, or still the exact
+file Immich trashed) just before it is removed; deletions cannot be undone. A Live Photo's still and clip are dated, named and ticked
 as one. The Immich containers mount the media folder read-only; Photo Jobs is
 the only thing that moves files in it.
 
@@ -94,6 +96,15 @@ with the Pocket ID admin login in front, then adds the token as
 `X-Autolab-Photos-Token`. The service refuses `/api/*` without it, so reaching
 the NAS's port directly gets nothing. Run workflow 05 `ingress` after the secret
 exists; with no token there is no route at all.
+
+**Immich's trash.** The *Immich trash* tab lists photos deleted in Immich (which
+leaves their files on disk), shows where each file is in the library, and moves
+them to `_removed/` or deletes them. It needs an Immich API key with only the
+`asset.read` permission, saved as the `IMMICH_API_KEY` environment secret and
+picked up by the next `photos` run; without it the tab says it is not connected
+and nothing else is affected. The play reports whether Immich answered. Nothing
+in Immich is changed; an asset whose file is removed shows as offline in Immich
+until its trash is emptied there.
 
 State (scan plans and run records) is under `/volume1/docker/photo-jobs/state`.
 
@@ -115,11 +126,12 @@ for the replacement, not reasons to rerun the migration during adoption.
 
 ## Next photo workflow
 
-Photo Jobs sorts the inbox and files duplicates. Still to do, in this order:
+Photo Jobs sorts the inbox, handles duplicates and removes what Immich trashed.
+Still to do:
 
 1. Review duplicates against Immich, not only against the files.
-2. Preview NAS cleanup from explicitly selected Immich trash assets.
-3. Resolve each asset's exact source path and linked Live Photo partner,
-   validate both against the allowed media root, and quarantine the selected
-   originals with a reversible manifest. An absent API result is never a
-   deletion instruction.
+2. An optional step to empty Immich's trash after the files are gone, so its
+   records do not linger as offline assets (needs a key with `asset.delete`).
+
+An absent Immich result is never a deletion instruction: only assets Immich
+reports as trashed are listed, and only files that still match are removed.

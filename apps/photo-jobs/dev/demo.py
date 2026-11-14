@@ -5,7 +5,8 @@
 
 Builds a library under `folder` (default: a temp dir) with Live Photos, events, duplicates, an
 event whose name disagrees with its photos and a few photos with no date, then serves the page.
-Dates come from the stand-in exiftool, so no real photos or ExifTool are needed. Run it again on
+Dates come from the stand-in exiftool and the Immich trash from a stand-in Immich, so no real photos,
+ExifTool or Immich are needed. Run it again on
 the same folder to start from where you left off; delete the folder to start over.
 """
 import json
@@ -45,6 +46,12 @@ if not dates_file.exists():
         put(f'library/{y}/{mo}/{name}.HEIC', blob(name), m)
     put('library/2025/06/Lake_weekend/IMG_2100.JPG', b'lake-photo' * 300, '2025-06')
     put('library/2025/06/IMG_2100.JPG', b'lake-photo' * 300, '2025-06')   # the same photo, loose
+    # the same photos kept twice: once in a Trip folder, once in a Backup folder (bulk choices)
+    for m in range(1, 7):
+        for i in range(2):
+            data = blob(f'twice{m}{i}')
+            put(f'library/2024/{m:02d}/Trip_{m}/IMG_{m}{i}.JPG', data, f'2024-{m:02d}')
+            put(f'library/2024/{m:02d}/Backup/IMG_{m}{i}.JPG', data, f'2024-{m:02d}')
     # loose uploads
     n = 3100
     for m in ('2025-06', '2025-06', '2025-07', '2025-07', '2025-07', '2025-08', '2025-09', '2025-09'):
@@ -73,12 +80,34 @@ if not dates_file.exists():
         put(f'_inbox/events/2025-03 Birthday/IMG_{6000 + i}.JPG', blob(f'bday{i}'), '2025-04')
     put('_inbox/events/Receipts/r1.jpg', blob('r1'))   # an event with nothing to date it by
     dates_file.write_text(json.dumps(dates))
+    # photos "deleted in Immich": files still in the library, one Live Photo, one already gone
+    trashed = []
+    for i, (rel, data) in enumerate([('library/2025/03/IMG_1001.JPG', b'march-a'), ('library/2025/03/IMG_1002.JPG', b'march-b'),
+                                     ('library/2025/04/IMG_1100.HEIC', b'live-still'), ('library/2025/04/IMG_1100.MOV', b'live-clip'),
+                                     ('library/2025/02/screenshot.png', b'shot')]):
+        (media / rel).parent.mkdir(parents=True, exist_ok=True)
+        (media / rel).write_bytes(data)
+    (root / 'trashed.json').write_text(json.dumps([
+        ('1', 'library/2025/03/IMG_1001.JPG', 'march-a', {}), ('2', 'library/2025/03/IMG_1002.JPG', 'march-b', {}),
+        ('3', 'library/2025/04/IMG_1100.HEIC', 'live-still', {'livePhotoVideoId': '4'}),
+        ('4', 'library/2025/04/IMG_1100.MOV', 'live-clip', {'type': 'VIDEO'}),
+        ('5', 'library/2025/02/screenshot.png', 'shot', {}), ('6', 'library/2024/12/already_gone.jpg', 'x', {}),
+        ('7', None, 'x', {'originalPath': '/data/upload/ab/cd/uploaded-in-immich.jpg', 'originalFileName': 'uploaded-in-immich.jpg'})]))
+
+sys.path.insert(0, str(HERE))
+from fake_immich import FakeImmich, sha1b64  # noqa: E402
+assets = []
+for id_, rel, content, extra in json.loads((root / 'trashed.json').read_text()):
+    path = '/mnt/mahir-personal/' + rel if rel else extra['originalPath']
+    assets.append({'id': id_, 'originalPath': path, 'originalFileName': os.path.basename(path), 'isTrashed': True,
+                   'type': 'IMAGE', 'checksum': sha1b64(content), **extra})
+immich = FakeImmich(assets, key='demo-key')
 
 shim = tools / 'exiftool'
 shim.write_text((HERE / 'fake_exiftool.py').read_text())
 shim.chmod(shim.stat().st_mode | stat.S_IEXEC)
 os.environ.update(PATH=f'{tools}:{os.environ["PATH"]}', FAKE_DATES=str(dates_file), ROOT=str(media),
-                  MEDIA_ROOT=str(media), STATE_DIR=str(state), PORT=port, BIND='127.0.0.1')
+                  MEDIA_ROOT=str(media), STATE_DIR=str(state), PORT=port, BIND='127.0.0.1', IMMICH_URL=immich.url, IMMICH_API_KEY='demo-key')
 print(f'demo library in {root}')
 print(f'http://127.0.0.1:{port}/')
 from photo_jobs import server  # noqa: E402

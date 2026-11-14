@@ -69,6 +69,7 @@ jobs:
       NAS_ACTION: ${{ inputs.action }}
       NAS_PROJECT: ${{ inputs.project }}
       AUTOLAB_PHOTOS_TOKEN: ${{ secrets.PHOTO_JOBS_TOKEN }}
+      AUTOLAB_IMMICH_API_KEY: ${{ secrets.IMMICH_API_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/connect-tailscale

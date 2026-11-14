@@ -21,8 +21,8 @@ class Missing(Exception):
 
 
 class Jobs:
-    def __init__(self, cfg):
-        self.cfg = cfg
+    def __init__(self, cfg, immich=None):
+        self.cfg, self.immich = cfg, immich
         self.lock = threading.Lock()
         self.job = None            # the current or most recent job
         self.cache = {}            # plan id -> plan
@@ -73,14 +73,15 @@ class Jobs:
         return [self.summary(p) for p in self._list('plans')]
 
     def summary(self, plan):
-        out = {k: v for k, v in plan.items() if k not in ('moves', 'groups', 'left')}
+        out = {k: v for k, v in plan.items() if k not in ('moves', 'groups', 'left', 'items')}
         out['moves'] = len(plan['moves']) if plan['kind'] == 'sort' else None
         out['groups'] = len(plan['groups']) if plan['kind'] == 'duplicates' else None
+        out['items'] = len(plan['items']) if plan['kind'] == 'immich' else None
         return out
 
     def runs(self):
         return [{k: v for k, v in r.items() if k != 'moves'} | {
-            'counts': {s: sum(1 for m in r['moves'] if m['status'] == s) for s in ('moved', 'skipped', 'error')}}
+            'counts': {s: sum(1 for m in r['moves'] if m['status'] == s) for s in ('moved', 'deleted', 'skipped', 'error')}}
             for r in self._list('runs')]
 
     def run(self, id_):
@@ -121,11 +122,15 @@ class Jobs:
 
     # -- the three things a person does
     def start_plan(self, kind):
-        if kind not in ('sort', 'duplicates'):
+        if kind not in ('sort', 'duplicates', 'immich'):
             raise ValueError(f'unknown plan kind {kind}')
+        if kind == 'immich' and not (self.immich and self.immich.configured):
+            raise ValueError('Immich is not connected: set IMMICH_URL and IMMICH_API_KEY')
 
         def work(progress):
-            plan = core.plan_sort(self.cfg, progress) if kind == 'sort' else core.plan_duplicates(self.cfg, progress)
+            plan = (core.plan_sort(self.cfg, progress) if kind == 'sort' else
+                    core.plan_duplicates(self.cfg, progress) if kind == 'duplicates' else
+                    core.plan_immich(self.cfg, self.immich, progress))
             plan.update(id=uuid.uuid4().hex[:12], created=time.time(), excluded=[], excluded_kinds=[], applied=None)
             self.save_plan(plan)
             return {'plan': plan['id']}

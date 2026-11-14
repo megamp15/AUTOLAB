@@ -38,6 +38,23 @@ class NasCompose(unittest.TestCase):
         env_task = next(t for t in tasks if t.get('name', '').startswith('Render the compose'))
         self.assertEqual(next(i for i in env_task['loop'] if i['dest'] == '.env')['mode'], '0600')
 
+    def test_immich_is_connected_only_when_a_key_exists(self):
+        env = lambda **kw: render('roles/nas-photos/templates/env.j2', **{**self.role, **kw})
+        self.assertNotIn('IMMICH', env(autolab_photos_immich_key=''))
+        with_key = env(autolab_photos_immich_key='immich-key')
+        self.assertIn('IMMICH_API_KEY=immich-key', with_key)
+        self.assertIn('IMMICH_URL=http://{{ autolab_photos_ip }}:2283', with_key)   # Ansible fills in the address
+        self.assertEqual(self.role['autolab_photos_immich_url'], 'http://{{ autolab_photos_ip }}:2283')
+        self.assertIn('IMMICH_MEDIA_PREFIX=/mnt/mahir-personal', with_key)
+        play = (ANSIBLE / 'playbooks/nas.yml').read_text()
+        self.assertIn("lookup('ansible.builtin.env', 'AUTOLAB_IMMICH_API_KEY')", play)   # never the command line
+
+    def test_a_missing_or_wrong_immich_key_never_fails_the_deploy(self):
+        tasks = yaml.safe_load((ANSIBLE / 'roles/nas-photos/tasks/main.yml').read_text())
+        check = next(t for t in tasks if t.get('name') == 'Say whether the service can reach Immich')
+        self.assertIs(check['failed_when'], False)
+        self.assertTrue(check['no_log'])
+
     def test_it_listens_on_the_tailnet_address_only(self):
         self.assertEqual(self.service['ports'], ['100.64.0.9:8099:8099'])
 

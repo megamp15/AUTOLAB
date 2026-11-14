@@ -16,5 +16,12 @@ autolab_photos_source: "{{ playbook_dir }}/../../../apps/photo-jobs"
 # to Traefik, which adds it after Pocket ID has let an admin in. Comes from the
 # PHOTO_JOBS_TOKEN secret; the play stops without it.
 autolab_photos_token: ""
+# Immich's trash tab. The key needs only the asset.read permission and changes nothing in
+# Immich. Optional: with no key the tab says it is not connected. Immich's port is the
+# one its own compose project publishes (the same one Traefik routes immich.lab to).
+autolab_photos_immich_key: ""
+autolab_photos_immich_url: "http://{{ autolab_photos_ip }}:2283"
+# Where the media folder appears inside Immich's container, so an asset's path can be found here.
+autolab_photos_immich_prefix: /mnt/mahir-personal
 # Containers that must come out of this exactly as they went in.
 autolab_photos_protected: [immich_server, immich_machine_learning, immich_postgres, immich_redis]
