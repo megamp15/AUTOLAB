@@ -30,6 +30,21 @@
     mode: "0755"
   loop: ["", config, textfile]
 
+- name: Resolve the stack host while the NAS can (Tailscale DNS is up in this shell)
+  ansible.builtin.command: "getent ahostsv4 {{ autolab_nas_stack_host }}"
+  register: autolab_nas_stack_lookup
+  changed_when: false
+  check_mode: false
+
+- name: Send telemetry to the stack host's tailnet address, not its name
+  ansible.builtin.set_fact:
+    autolab_nas_stack_addr: "{{ autolab_nas_stack_lookup.stdout_lines[0].split()[0] }}"
+
+- name: Require an IPv4 address for the stack host
+  ansible.builtin.assert:
+    that: autolab_nas_stack_addr is match('^[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+$')
+    fail_msg: "{{ autolab_nas_stack_host }} did not resolve on the NAS, so Alloy would have nowhere to send telemetry."
+
 - name: Render NAS Alloy configuration
   ansible.builtin.template:
     src: config.alloy.j2

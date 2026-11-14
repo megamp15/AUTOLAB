@@ -53,6 +53,17 @@ class NasObservabilityTest(unittest.TestCase):
         deploy = next(task["community.docker.docker_compose_v2"] for task in tasks if "community.docker.docker_compose_v2" in task)
         self.assertFalse(deploy["remove_orphans"])
 
+    def test_alloy_dials_the_resolved_tailnet_address_not_a_name(self):
+        # A container started at boot inherits a resolver that cannot resolve tailnet names.
+        defaults = yaml.safe_load((ROLE / "defaults/main.yml").read_text())
+        self.assertIn("autolab_nas_stack_addr", defaults["autolab_nas_metrics_endpoint"])
+        self.assertIn("autolab_nas_stack_addr", defaults["autolab_nas_logs_endpoint"])
+        tasks = yaml.safe_load((ROLE / "tasks/main.yml").read_text())
+        names = [t["name"] for t in tasks]
+        lookup = next(i for i, t in enumerate(tasks) if "getent ahostsv4" in str(t.get("ansible.builtin.command", "")))
+        self.assertLess(lookup, names.index("Render NAS Alloy configuration"))
+        self.assertIn("autolab_nas_stack_addr", next(t for t in tasks if "ansible.builtin.set_fact" in t)["ansible.builtin.set_fact"])
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

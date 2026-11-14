@@ -7,7 +7,12 @@ autolab_nas_alloy_image: grafana/alloy:v1.22.0
 autolab_nas_cadvisor_image: gcr.io/cadvisor/cadvisor:v0.55.1
 autolab_nas_cadvisor_port: 19081
 autolab_nas_stack_host: jwst
-autolab_nas_metrics_endpoint: "http://{{ autolab_nas_stack_host }}:9090/api/v1/write"
-autolab_nas_logs_endpoint: "http://{{ autolab_nas_stack_host }}:3100/loki/api/v1/push"
+# What Alloy actually dials. The play replaces this with the stack host's tailnet IP, looked up
+# on the NAS at deploy time: a container started at boot inherits whatever resolver the NAS had
+# before Tailscale took over, and then cannot resolve tailnet names (it dropped all NAS
+# telemetry for hours that way).
+autolab_nas_stack_addr: "{{ autolab_nas_stack_host }}"
+autolab_nas_metrics_endpoint: "http://{{ autolab_nas_stack_addr }}:9090/api/v1/write"
+autolab_nas_logs_endpoint: "http://{{ autolab_nas_stack_addr }}:3100/loki/api/v1/push"
 autolab_nas_docker_root: /var/lib/docker
 autolab_nas_scrape_interval: 15s
