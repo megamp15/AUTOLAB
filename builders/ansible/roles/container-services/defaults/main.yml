@@ -200,6 +200,8 @@ autolab_services_airtrail_public_url: "https://airtrail.{{ autolab_services_dash
 autolab_services_linkace_public_url: "https://linkace.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
 autolab_services_sure_public_url: "https://sure.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
 autolab_services_oidc_issuer: "https://auth.{{ autolab_services_dash_zone }}"
+autolab_services_pocketid_api_key: ""
+autolab_services_pocketid_group: admins
 autolab_services_tandoor_oidc_client_id: ""
 autolab_services_tandoor_oidc_client_secret: ""
 autolab_services_airtrail_oidc_client_id: ""
@@ -268,9 +270,9 @@ autolab_services_credential_specs:
 # below, and the callback registered in Pocket ID is
 # <this>/accounts/oidc/<provider id>/login/callback/.
 autolab_services_adventurelog_public_url: "https://adventurelog.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
-# Pocket ID's client for AdventureLog (GitHub secrets
-# ADVENTURELOG_OIDC_CLIENT_ID and _SECRET). Both empty = password login only,
-# which is how a first deploy proves the app before the client exists.
+# The optional Immich secret configures the administrator account. Pocket ID
+# credentials are managed on the host when its API key is supplied; external
+# client credentials remain supported when managed provisioning is disabled.
 autolab_services_adventurelog_immich_api_key: ""
 autolab_services_adventurelog_immich_url: "http://singularity:2283/api"
 autolab_services_adventurelog_oidc_client_id: ""

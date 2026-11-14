@@ -44,19 +44,12 @@ reading Forgejo's notes on rotating it.
 
 ## Setting it up
 
-1. Pocket ID → *OIDC Clients* → *Add*: name `forgejo`, callback URL
-   `https://forgejo.lab.<zone>/user/oauth2/PocketID/callback` (the source is
-   registered as `PocketID`; that name is in the URL, so keep it). Allowed
-   groups as you like. Generate the secret.
-2. Secrets `FORGEJO_OIDC_CLIENT_ID`, `FORGEJO_OIDC_CLIENT_SECRET`; the variable
-   `APPS_ADMIN_EMAIL` (the email of your Pocket ID user) is shared by every app.
-3. Workflow **05**, environment `edge`, playbook `services`. It starts Forgejo,
-   makes a break-glass administrator `forgejo-admin`, registers Pocket ID,
-   **opens the sign-in URL and fails if it does not reach Pocket ID**, makes
-   the orgs, the mirrors and the forks. Then playbook `ingress` on `lab` for the
-   route.
-4. Sign in with Pocket ID. Anyone in Pocket ID's `admins` group is a Forgejo
-   site administrator on sign-in; everyone else an ordinary user.
+The edge `services` playbook creates a Pocket ID client for Forgejo with the
+callback `https://forgejo.lab.<zone>/user/oauth2/PocketID/callback`, restricted
+to the `admins` group, and configures the provider. Client credentials live in
+root-only state on nebula; see [AdventureLog](adventurelog.md#setting-it-up).
+After the first successful Pocket ID sign-in, local password login can be
+disabled separately. The playbook also creates the organizations and mirrors.
 
 The break-glass password:
 `ssh megamp15@nebula sudo grep FORGEJO_ADMIN_PASSWORD /etc/autolab/forgejo.env`.

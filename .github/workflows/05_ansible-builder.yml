@@ -395,6 +395,7 @@ jobs:
           # account that exists from its first boot (your Pocket ID email, so
           # the first sign-in attaches to it). Only matter on a machine whose
           # services list has adventurelog.
+          AUTOLAB_SERVICES_POCKETID_API_KEY: ${{ inputs.environment == 'edge' && inputs.playbook == 'services' && secrets.POCKETID_API_KEY || '' }}
           AUTOLAB_ADVENTURELOG_IMMICH_API_KEY: ${{ secrets.ADVENTURELOG_IMMICH_API_KEY }}
           AUTOLAB_ADVENTURELOG_OIDC_CLIENT_ID: ${{ secrets.ADVENTURELOG_OIDC_CLIENT_ID }}
           AUTOLAB_ADVENTURELOG_OIDC_CLIENT_SECRET: ${{ secrets.ADVENTURELOG_OIDC_CLIENT_SECRET }}
@@ -428,7 +429,7 @@ jobs:
                   pve_nodes.append({"name": name, "host": f"{name}.{tailnet}", "token_secret": secret})
               else:
                   print(f"No exporter secret for node {name}; it is left out of monitoring.", file=sys.stderr)
-          json.dump({
+          values = {
               # The public half of the identity installed above, so the gitops
               # account accepts the next run over the management plane. An empty
               # list is authoritative too: it removes any key installed before.
@@ -463,7 +464,15 @@ jobs:
               "autolab_services_sure_oidc_client_id": os.environ.get("AUTOLAB_SURE_OIDC_CLIENT_ID", ""),
               "autolab_services_sure_oidc_client_secret": os.environ.get("AUTOLAB_SURE_OIDC_CLIENT_SECRET", ""),
               "autolab_services_admin_email": os.environ.get("AUTOLAB_APPS_ADMIN_EMAIL", ""),
-          }, open(sys.argv[1], "w"))
+              "autolab_services_pocketid_api_key": os.environ.get("AUTOLAB_SERVICES_POCKETID_API_KEY", ""),
+          }
+          # Empty values must not override the protected host-managed client facts.
+          for app in ("adventurelog", "forgejo", "tandoor", "airtrail", "linkace", "sure"):
+              for field in ("id", "secret"):
+                  name = f"autolab_services_{app}_oidc_client_{field}"
+                  if not values[name]:
+                      del values[name]
+          json.dump(values, open(sys.argv[1], "w"))
           PY
           if [ -n "${AUTOLAB_BUILDER_SSH_PUBLIC_KEY}" ]; then
             echo "Builder public key will be installed for the gitops account."
@@ -490,7 +499,9 @@ jobs:
           else
             echo "No Grafana admin password; the existing login is left as-is."
           fi
-          if [ -n "${AUTOLAB_ADVENTURELOG_OIDC_CLIENT_ID}" ]; then
+          if [ -n "${AUTOLAB_SERVICES_POCKETID_API_KEY}" ]; then
+            echo "Pocket ID clients will be reconciled from protected host state."
+          elif [ -n "${AUTOLAB_ADVENTURELOG_OIDC_CLIENT_ID}" ]; then
             echo "AdventureLog's Pocket ID client supplied; the login is registered in the app."
           else
             echo "No ADVENTURELOG_OIDC_CLIENT_ID; AdventureLog keeps its password login only."

@@ -37,24 +37,17 @@ are not in GitHub and not in the log. To read the break-glass password:
 
 ## Setting it up
 
-One-time, by hand, because Pocket ID is signed into with a passkey:
+The edge `services` playbook creates the Pocket ID client and restricts it to
+`admins`. It registers the callback and configures the app, then checks the
+redirect to Pocket ID. `APPS_ADMIN_EMAIL` identifies the existing local admin;
+the first Pocket ID sign-in with the same email attaches to that account.
 
-1. Pocket ID → *OIDC Clients* → *Add*: name `adventurelog`, callback URL
-   `https://adventurelog.lab.<zone>/accounts/oidc/pocketid/login/callback/`
-   (trailing slash included). Under *Allowed User Groups* choose who may sign
-   in. Save, open it, *Generate* the secret.
-2. Repository secrets `ADVENTURELOG_OIDC_CLIENT_ID` and
-   `ADVENTURELOG_OIDC_CLIENT_SECRET`; repository variable
-   `APPS_ADMIN_EMAIL`, **the email of your Pocket ID user**. The app
-   makes its administrator from it on the first boot, and a Pocket ID sign-in
-   with the same email is attached to that account rather than creating a
-   second one. It is read once; later it is changed in the Django admin.
-3. Workflow **05**, playbook `services` (check, then `confirm: apply`). The
-   first run takes several minutes: migrations, then the world's regions. The
-   playbook then registers Pocket ID as a login inside the app and **opens the
-   sign-in URL**, failing if the app cannot reach Pocket ID's discovery
-   document. Then playbook `ingress`, so Traefik has the route.
-4. Open `https://adventurelog.lab.<zone>` → *Pocket ID*.
+The Pocket ID API key stays in GitHub Actions secrets. Generated client IDs and
+secrets are stored on nebula in `/etc/autolab/managed-pocketid-clients.json`,
+owned by root and mode 0600, and are included in the VM backup. Keep that state
+when rebuilding nebula: the provisioner refuses to adopt or duplicate an
+existing named client if its state is lost. Local password login stays enabled
+until a Pocket ID sign-in succeeds.
 
 Pocket ID is registered in the app by `files/adventurelog/pocketid_provider.py`,
 because AdventureLog keeps login providers in its database and has no
@@ -78,7 +71,7 @@ own API key.
 
 1. Immich → *Account Settings* → *API Keys* → *New API Key*, with permissions
    `asset.read`, `asset.view`, `album.read`, `library.read`, `user.read`.
-2. For the administrator account, run `gh secret set ADVENTURELOG_IMMICH_API_KEY`
+2. For the administrator account, run `gh secret set ADVENTURELOG_IMMICH_API_KEY --env edge --repo megamp15/AUTOLAB`
    from the repository and enter the key at the prompt. Workflow **05** on edge,
    playbook `services`, validates the key's account email against `APPS_ADMIN_EMAIL`
    and creates the connection. It refuses to replace another server's integration.
