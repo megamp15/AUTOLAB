@@ -9,7 +9,7 @@ import threading
 import time
 import uuid
 
-from . import albums, core, nodate
+from . import albums, core, metadata, nodate
 from .immich import ImmichError
 
 
@@ -114,7 +114,7 @@ class Jobs:
 
     def runs(self):
         return [{k: v for k, v in r.items() if k != 'moves'} | {
-            'counts': {s: sum(1 for m in r['moves'] if m['status'] == s) for s in ('moved', 'deleted', 'skipped', 'error')}}
+            'counts': {s: sum(1 for m in r['moves'] if m['status'] == s) for s in ('moved', 'deleted', 'skipped', 'error', 'edited')}}
             for r in self._list('runs')]
 
     def run(self, id_):
@@ -266,7 +266,7 @@ class Jobs:
             raise ValueError('this run was already undone')
 
         def work(progress):
-            result = core.undo_run(self.cfg, run, progress)
+            result = (metadata.undo if run.get('kind') == 'metadata' else core.undo_run)(self.cfg, run, progress)
             run['undone'] = {'at': time.time(), **result}
             self._save('runs', run)
             return result
@@ -293,3 +293,55 @@ class Jobs:
             return {'run': run_id, 'failed': [{'src': m['src'], 'note': m['note']} for m in run['moves'] if m['status'] == 'error'][:50]}
 
         return self.start('set-date', work)
+
+    def start_meta_edit(self, rels, body):
+        """Write a date, a location and/or a description into these files, or copy them from a reference photo."""
+        if not isinstance(rels, list) or not rels or len(rels) > metadata.MAX_FILES:
+            raise ValueError(f'choose between 1 and {metadata.MAX_FILES} photos')
+        for rel in rels:
+            if not core.is_media(rel) or not os.path.isfile(self.cfg.abs(rel)):
+                raise ValueError(f'not a photo or video here: {rel}')
+        spec = {}
+        if body.get('date'):
+            nodate.stamp(str(body['date']), str(body.get('time') or ''))        # validates both
+            spec.update(day=str(body['date']), time=str(body.get('time') or ''), day_only=bool(body.get('day_only')))
+        if str(body.get('location') or '').strip():
+            spec['lat'], spec['lon'] = metadata.parse_location(body['location'])
+        if body.get('description') is not None and str(body['description']).strip():
+            spec['description'] = str(body['description']).strip()[:2000]
+        ref = str(body.get('copy_from') or '')
+        if ref:
+            copy = set(body.get('copy') or [])
+            if not core.is_media(ref) or not os.path.isfile(self.cfg.abs(ref)):
+                raise ValueError('the reference photo is not there')
+            source = metadata.read(self.cfg, [ref])[0]
+            if 'location' in copy:
+                if source['lat'] is None:
+                    raise ValueError('the reference photo has no location to copy')
+                spec['lat'], spec['lon'] = source['lat'], source['lon']
+            if 'date' in copy:
+                if not source['taken']:
+                    raise ValueError('the reference photo has no date to copy')
+                spec.update(day=source['taken'][:10], time=source['taken'][11:16], day_only=bool(body.get('day_only')))
+            if 'description' in copy and source['description']:
+                spec['description'] = source['description']
+        if not spec:
+            raise ValueError('say what to change: a date, a location or a description')
+
+        def work(progress):
+            run_id = uuid.uuid4().hex[:12]
+
+            def record(run):
+                self._save('runs', {'id': run_id, 'plan': None, 'kind': 'metadata', **run})
+
+            run = metadata.edit(self.cfg, rels, spec, progress, record)
+            if any(m['status'] == 'edited' for m in run['moves']) and self.immich and self.immich.configured:
+                try:
+                    run['immich_scan'] = {'status': 'queued', 'library': albums.scan_external_library(self.cfg, self.immich)['name']}
+                except (ImmichError, ValueError) as e:
+                    run['immich_scan'] = {'status': 'failed', 'error': str(e)}
+                record(run)
+            return {'run': run_id, 'immich_scan': run.get('immich_scan'),
+                    'failed': [{'src': m['src'], 'note': m['note']} for m in run['moves'] if m['status'] == 'error'][:50]}
+
+        return self.start('meta-edit', work)

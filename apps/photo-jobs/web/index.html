@@ -188,6 +188,14 @@
   .shot .name { font-size:12px; overflow-wrap:anywhere; }
   .shot .meta { font:10.5px 'IBM Plex Mono',monospace; color:var(--dim); }
   .last { font:11px 'IBM Plex Mono',monospace; color:var(--dim); margin-top:8px; letter-spacing:.02em; }
+  .metaform { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; padding:8px 2px; border-top:1px solid var(--soft); font-size:12.5px; }
+  .metaform .lab { font:10.5px 'IBM Plex Mono',monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); min-width:92px; }
+  .metaform input.field { min-width:0; }
+  .metaform label { display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+  .refchip { display:inline-flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:5px; padding:3px 10px 3px 3px; max-width:420px; }
+  .refchip .thumb { width:40px; height:40px; }
+  .shot .where { font:10.5px 'IBM Plex Mono',monospace; color:var(--dim); overflow-wrap:anywhere; }
+  .shot .facts2 { font:11px 'IBM Plex Mono',monospace; }
   .stat.link { cursor:pointer; text-decoration:underline dotted; text-underline-offset:4px; }
   input.field { background:transparent; color:inherit; border:1px solid var(--line); border-radius:4px; padding:6px 10px; font:inherit; font-size:12.5px; color-scheme:dark; }
   :root.light input.field { color-scheme:light; }
@@ -214,6 +222,7 @@
       <button type="button" role="tab" data-tab="inbox" aria-selected="true">Inbox</button>
       <button type="button" role="tab" data-tab="duplicates" aria-selected="false">Duplicates</button>
       <button type="button" role="tab" data-tab="nodate" aria-selected="false">No date<small id="nodate-count"></small></button>
+      <button type="button" role="tab" data-tab="meta" aria-selected="false">Find &amp; edit</button>
       <button type="button" role="tab" data-tab="albums" aria-selected="false">Albums</button>
       <button type="button" role="tab" data-tab="immich" aria-selected="false">Immich trash</button>
       <button type="button" role="tab" data-tab="history" aria-selected="false">History<small id="runs-count"></small></button>
@@ -241,19 +250,21 @@
   const fmtGiB = b => b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GiB' : b >= 1048576 ? (b / 1048576).toFixed(b >= 1.05e7 ? 0 : 1) + ' MiB' : Math.max(1, Math.round(b / 1024)) + ' KiB';
   const ago = t => { const s = Date.now() / 1000 - t; return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : new Date(t * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' }); };
 
-  const TABS = ['inbox', 'duplicates', 'nodate', 'albums', 'immich', 'history'];
+  const TABS = ['inbox', 'duplicates', 'nodate', 'meta', 'albums', 'immich', 'history'];
   const state = { tab: location.hash.slice(1) || 'inbox', status: null, job: null, dark: true, runs: [], immichInfo: null, activity: [], loading: {},
                   sort: { plan: null, rows: [], total: 0, shown: 0, filter: { kind: '', pair: false, q: '' }, done: null },
                   dupes: { plan: null, groups: [], total: 0, q: '', scope: '', done: null },
                   nodate: { files: null, checked: new Set(), q: '', date: '', time: '12:00', done: null, failed: [] },
+                  meta: { q: '', folder: '', kind: '', files: null, total: 0, folders: [], info: {}, checked: new Set(), ref: null, done: null, failed: [],
+                          form: { date: '', time: '', loc: '', desc: '', dayOnly: true, copyLoc: true, copyDate: false, copyDesc: false } },
                   immich: { plan: null, rows: [], total: 0, selected: 0, selectable: 0, filter: { status: '', live: false, q: '' }, done: null },
                   albums: null, albumChecked: new Set(), albumConfigured: false, albumResult: '', albumResultKind: 'ok' };
   if (!TABS.includes(state.tab)) state.tab = 'inbox';
   // What you were looking at: the filters and search boxes survive a reload. (The scans themselves are saved by the service.)
   const savedUI = (() => { try { return JSON.parse(localStorage.getItem('photos-ui')) || {}; } catch (e) { return {}; } })();
   const saveUI = () => { try { localStorage.setItem('photos-ui', JSON.stringify({ sort: state.sort.filter, dupesQ: state.dupes.q, dupesScope: state.dupes.scope, immich: state.immich.filter,
-    nodate: { q: state.nodate.q, date: state.nodate.date, time: state.nodate.time } })); } catch (e) {} };
-  Object.assign(state.nodate, savedUI.nodate || {});
+    nodate: { q: state.nodate.q, date: state.nodate.date, time: state.nodate.time }, meta: { q: state.meta.q, folder: state.meta.folder, kind: state.meta.kind } })); } catch (e) {} };
+  Object.assign(state.nodate, savedUI.nodate || {}); Object.assign(state.meta, savedUI.meta || {});
   addEventListener('pagehide', () => saveUI());                              // filters change without a redraw, so save on the way out
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveUI(); });
   try { state.dark = localStorage.getItem('photos-dark') !== '0'; } catch (e) {}
@@ -319,6 +330,7 @@
     if (j.kind === 'plan-sort') { await loadSort(j.result.plan); }
     else if (j.kind === 'plan-duplicates') { await loadDupes(j.result.plan); }
     else if (j.kind === 'plan-immich') { await loadImmich(j.result.plan); }
+    else if (j.kind === 'meta-edit') { Object.assign(state.meta, { done: j.result.run, failed: j.result.failed || [], info: {} }); }
     else if (j.kind === 'set-date') { Object.assign(state.nodate, { done: j.result.run, failed: j.result.failed || [], files: null }); state.nodate.checked.clear(); }
     else if (j.kind === 'apply') {
       const side = [state.sort, state.dupes, state.immich].find(x => x.plan && x.plan.id === j.plan) || state.sort;
@@ -332,8 +344,8 @@
     chip.hidden = !j || j.state !== 'running';
     if (!chip.hidden) chip.innerHTML = '<span class="dot on"></span> ' + (j.message || j.kind).toUpperCase();
   }
-  const JOB_NOW = { 'plan-sort': 'the Inbox scan', 'plan-duplicates': 'the duplicates scan', 'plan-immich': 'reading Immich’s trash', apply: 'applying a plan', undo: 'undoing a run', 'set-date': 'writing dates' };
-  const JOB_DID = { 'plan-sort': 'Scanned the inbox', 'plan-duplicates': 'Scanned for duplicates', 'plan-immich': 'Read Immich’s trash', apply: 'Applied a plan', undo: 'Undid a run', 'set-date': 'Wrote dates' };
+  const JOB_NOW = { 'meta-edit': 'writing metadata', 'plan-sort': 'the Inbox scan', 'plan-duplicates': 'the duplicates scan', 'plan-immich': 'reading Immich’s trash', apply: 'applying a plan', undo: 'undoing a run', 'set-date': 'writing dates' };
+  const JOB_DID = { 'meta-edit': 'Edited metadata', 'plan-sort': 'Scanned the inbox', 'plan-duplicates': 'Scanned for duplicates', 'plan-immich': 'Read Immich’s trash', apply: 'Applied a plan', undo: 'Undid a run', 'set-date': 'Wrote dates' };
   const n0 = v => (v || 0).toLocaleString();
   function found(a) {
     const st = a.stats || {};
@@ -454,7 +466,7 @@
     fit(false);
     document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
     main.replaceChildren();
-    ({ inbox: viewInbox, duplicates: viewDupes, nodate: viewNoDate, albums: viewAlbums, immich: viewImmich, history: viewHistory })[state.tab]();
+    ({ inbox: viewInbox, duplicates: viewDupes, nodate: viewNoDate, meta: viewMeta, albums: viewAlbums, immich: viewImmich, history: viewHistory })[state.tab]();
     const p = progressBlock(); if (p) main.prepend(p);
     saveUI();
   }
@@ -471,14 +483,14 @@
     let msg = 'Done.';
     if (run) {
       const c = run.counts;
-      msg = [c.moved && `${c.moved.toLocaleString()} moved`, c.deleted && `${c.deleted.toLocaleString()} deleted for good`,
+      msg = [c.edited && `${c.edited.toLocaleString()} edited`, c.moved && `${c.moved.toLocaleString()} moved`, c.deleted && `${c.deleted.toLocaleString()} deleted for good`,
              c.skipped && `${c.skipped.toLocaleString()} skipped because they had changed`, c.error && `${c.error} failed`].filter(Boolean).join(' · ') + '.';
       if (run.kind === 'set-date') msg = msg.replace(' moved', ' dated and moved to the Inbox') + ' Scan the Inbox to file them.';
       if (run.immich_scan?.status === 'queued') msg += ` Immich scan queued for ${run.immich_scan.library}; wait for it to finish before creating albums.`;
       else if (run.immich_scan?.status === 'failed') msg += ` Immich scan could not be queued: ${run.immich_scan.error}. Start a scan in Albums before creating albums.`;
     }
     row.append(el('span', 'status-ok', '●'), el('span', 'grow', msg));
-    if (run && run.counts.moved && !run.undone) { const u = el('button', 'btn small', 'Undo'); u.onclick = () => undo(run.id); row.append(u); }
+    if (run && (run.counts.moved || run.counts.edited) && !run.undone) { const u = el('button', 'btn small', 'Undo'); u.onclick = () => undo(run.id); row.append(u); }
     box.append(row); return box;
   }
 
@@ -806,6 +818,120 @@
     row.append(cancel, go); dlg.append(ul, row); dlg.showModal();
   }
 
+  // ---- Find & edit ----------------------------------------------------------------------------------
+  const fmtLoc = m => m.lat == null ? 'no location' : `${m.lat.toFixed(4)}, ${m.lon.toFixed(4)}`;
+  const mapLink = (lat, lon) => { const a = el('a', 'muted', 'open in a map'); a.href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=15/${lat}/${lon}`; a.target = '_blank'; a.rel = 'noopener'; return a; };
+  const parseLoc = t => { const n = (t || '').match(/[-+]?\d+(?:\.\d+)?/g); if (!n || n.length < 2) return null; const lat = +n[0], lon = +n[1]; return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180 ? { lat, lon } : null; };
+  function viewMeta() {
+    const M = state.meta, f = M.form;
+    main.append(headPanel({
+      title: 'Find & edit', text: 'Search every photo and video in the media folder, then change what is stored inside them: when they were taken, where, and a description. The change is written into the file (and its .xmp sidecar), so it lasts and Immich picks it up on its next scan. Undo is in History.',
+      label: 'Search again', action: () => { M.files = null; render(); } }));
+    const done = doneBanner(M); if (done) { done.style.marginTop = '12px'; main.append(done); }
+    if (M.done && M.failed.length) {
+      const bad = el('div', 'note bad'); bad.append(el('div', null, `${M.failed.length} could not be changed, and were left as they were:`), ...M.failed.slice(0, 8).map(x => el('div', 'mono', `${x.src.split('/').pop()}: ${x.note}`)));
+      main.append(bad);
+    }
+    const panel = el('div', 'panel table-panel'), tools = el('div', 'toolbar');
+    panel.style.marginTop = '12px';
+    const q = el('input', 'search wide'); q.placeholder = 'Search by name or folder, e.g. peru img_34'; q.value = M.q; q.setAttribute('aria-label', 'Search the media folder');
+    const folder = el('select', 'field'); folder.setAttribute('aria-label', 'Folder'); folder.append(new Option('everywhere', ''), ...M.folders.map(n => new Option(n, n))); folder.value = M.folder;
+    const kinds = el('div', 'chips'), all = el('input', 'tick'), count = el('span', 'muted');
+    all.type = 'checkbox'; all.title = 'Tick or untick what is shown';
+    let timer = 0; q.oninput = () => { clearTimeout(timer); timer = setTimeout(() => { M.q = q.value; search(); }, 300); };
+    folder.onchange = () => { M.folder = folder.value; search(); };
+    tools.append(all, count, spacer(), q, folder, kinds);
+    // -- set values on what is ticked
+    const set = el('div', 'metaform'), date = el('input', 'field'), time = el('input', 'field'), loc = el('input', 'field'), desc = el('input', 'field'), setBtn = el('button', 'btn primary');
+    date.type = 'date'; time.type = 'time'; date.value = f.date; time.value = f.time; loc.placeholder = 'Location: 30.6280, -96.3344'; loc.value = f.loc; loc.size = 24; desc.placeholder = 'Description'; desc.value = f.desc; desc.size = 22;
+    date.max = new Date().toISOString().slice(0, 10); time.title = 'Time of day. Blank with “keep each file’s own time” ticked keeps what each photo has.';
+    const dayOnly = el('input'); dayOnly.type = 'checkbox'; dayOnly.checked = f.dayOnly; const dayLab = el('label', null); dayLab.append(dayOnly, document.createTextNode('keep each file’s own time of day')); dayLab.title = 'Change only the day; every photo keeps the hour and minute it already has';
+    const locHint = el('span', 'muted');
+    set.append(el('span', 'lab', 'Set on ticked'), date, time, dayLab, loc, locHint, desc, setBtn);
+    // -- copy from a reference photo
+    const copy = el('div', 'metaform'), refBox = el('span'), cLoc = el('input'), cDate = el('input'), cDesc = el('input'), copyBtn = el('button', 'btn');
+    [cLoc, cDate, cDesc].forEach(c => { c.type = 'checkbox'; });
+    cLoc.checked = f.copyLoc; cDate.checked = f.copyDate; cDesc.checked = f.copyDesc;
+    const lab = (box, text) => { const l = el('label', null); l.append(box, document.createTextNode(text)); return l; };
+    copy.append(el('span', 'lab', 'Copy from one'), refBox, lab(cLoc, 'location'), lab(cDate, 'date'), lab(cDesc, 'description'), copyBtn);
+    const body = el('div', 'tbody'); const grid = el('div', 'shots'); body.append(grid); nearEnd(body, loadMore);
+    panel.append(tools, set, copy, body); main.append(panel); fit(true);
+    const cards = new Map();
+    const ticked = () => [...M.checked];
+    const paint = () => {
+      const shown = M.files || [], on = shown.filter(x => M.checked.has(x.path)).length;
+      all.checked = shown.length > 0 && on === shown.length; all.indeterminate = on > 0 && on < shown.length;
+      count.textContent = M.files === null ? 'Searching…' : `${M.total.toLocaleString()} found · ${M.checked.size.toLocaleString()} ticked${M.checked.size > 500 ? ' (500 at most are changed at once)' : ''}`;
+      cards.forEach((c, path) => { c.card.classList.toggle('on', M.checked.has(path)); c.box.checked = M.checked.has(path); });
+      kinds.replaceChildren(...[['', 'All'], ['photo', 'Photos'], ['video', 'Videos']].map(([v, l]) => { const c = el('button', 'chip' + (M.kind === v ? ' on' : ''), l); c.type = 'button'; c.onclick = () => { M.kind = v; search(); }; return c; }));
+      const n = Math.min(M.checked.size, 500), place = parseLoc(f.loc);
+      locHint.replaceChildren(); if (f.loc.trim()) { if (place) locHint.append(mapLink(place.lat, place.lon)); else locHint.textContent = 'not a location yet'; }
+      const something = f.date || place || f.desc.trim();
+      setBtn.textContent = n ? `Apply to ${n.toLocaleString()}` : 'Apply'; setBtn.disabled = busy() || !n || !something || (f.loc.trim() && !place);
+      const ref = M.ref && M.info[M.ref], want = cLoc.checked || cDate.checked || cDesc.checked;
+      refBox.replaceChildren();
+      if (M.ref) { const chipEl = el('span', 'refchip'); chipEl.append(thumb(M.ref, () => openViewer([{ path: M.ref, label: 'Reference' }], 'Reference photo')), el('span', 'facts2', ref ? `${ref.taken ? ref.taken.slice(0, 10) : 'no date'} · ${fmtLoc(ref)}` : 'reading…')); refBox.append(chipEl); }
+      else refBox.append(el('span', 'muted', 'choose one with “Use as reference” on a photo'));
+      copyBtn.textContent = n ? `Copy to ${n.toLocaleString()}` : 'Copy';
+      copyBtn.disabled = busy() || !n || !ref || !want || (cLoc.checked && ref.lat == null && !cDate.checked && !cDesc.checked);
+      copyBtn.title = ref && cLoc.checked && ref.lat == null ? 'The reference photo has no location' : '';
+    };
+    const fill = c => { const m = M.info[c.f.path]; if (!m) return; c.meta.replaceChildren(el('div', null, m.taken ? m.taken.slice(0, 16) : 'no date'), el('div', m.lat == null ? 'muted' : null, fmtLoc(m)), ...(m.description ? [el('div', 'muted', m.description.slice(0, 60))] : [])); };
+    async function loadInfo(files) {
+      const need = files.map(x => x.path).filter(p => !M.info[p]);
+      for (let i = 0; i < need.length; i += 60) {
+        try { (await api('/meta/read', { method: 'POST', body: { paths: need.slice(i, i + 60) } })).files.forEach(m => { M.info[m.path] = m; }); } catch (e) { return; }
+        files.forEach(x => { const c = cards.get(x.path); if (c) fill(c); }); paint();
+      }
+    }
+    const addCards = files => files.forEach(x => {
+      const card = el('div', 'shot'), box = el('input', 'tick'), meta = el('div', 'facts2'); box.type = 'checkbox';
+      box.onchange = () => { (box.checked ? M.checked.add(x.path) : M.checked.delete(x.path)); paint(); };
+      const ref = el('button', 'chip', 'Use as reference'); ref.type = 'button'; ref.onclick = () => { M.ref = x.path; loadInfo([x]).then(paint); paint(); };
+      card.append(box, thumb(x.path, () => openViewer([{ path: x.path, label: '' }], x.name), { w: 640 }), el('div', 'name', x.name), el('div', 'where', x.path.slice(0, x.path.length - x.name.length - 1)), meta, ref);
+      const c = { card, box, meta, f: x }; cards.set(x.path, c); grid.append(card); fill(c);
+    });
+    async function search() {
+      M.files = null; cards.clear(); grid.replaceChildren(); body.scrollTop = 0; paint();
+      try {
+        const r = await api('/find?' + qs({ q: M.q, folder: M.folder, kind: M.kind, offset: 0, limit: 60 }));
+        M.files = r.files; M.total = r.total; M.folders = r.folders;
+        if (folder.options.length === 1) { folder.append(...r.folders.map(n => new Option(n, n))); folder.value = M.folder; }
+        if (!r.files.length) grid.append(el('div', 'empty', 'No photo or video matches.'));
+        addCards(r.files); paint(); loadInfo(r.files);
+      } catch (e) { M.files = []; M.total = 0; grid.append(el('div', 'empty', e.message)); paint(); }
+    }
+    async function loadMore() {
+      if (M.loadingMore || M.files === null || M.files.length >= M.total) return;
+      M.loadingMore = true;
+      try { const r = await api('/find?' + qs({ q: M.q, folder: M.folder, kind: M.kind, offset: M.files.length, limit: 60 })); M.files = M.files.concat(r.files); addCards(r.files); paint(); loadInfo(r.files); } finally { M.loadingMore = false; }
+    }
+    all.onchange = () => { (M.files || []).forEach(x => (all.checked ? M.checked.add(x.path) : M.checked.delete(x.path))); paint(); };
+    const read = () => { f.date = date.value; f.time = time.value; f.loc = loc.value; f.desc = desc.value; f.dayOnly = dayOnly.checked; f.copyLoc = cLoc.checked; f.copyDate = cDate.checked; f.copyDesc = cDesc.checked; paint(); };
+    [date, time, loc, desc, dayOnly, cLoc, cDate, cDesc].forEach(x => { x.oninput = read; x.onchange = read; });
+    setBtn.onclick = () => confirmMeta(ticked().slice(0, 500), { date: f.date, time: f.time, day_only: f.dayOnly, location: f.loc.trim(), description: f.desc.trim() });
+    copyBtn.onclick = () => confirmMeta(ticked().slice(0, 500), { copy_from: M.ref, copy: [cLoc.checked && 'location', cDate.checked && 'date', cDesc.checked && 'description'].filter(Boolean), day_only: f.dayOnly });
+    if (M.files === null) search(); else { addCards(M.files); paint(); loadInfo(M.files); }
+  }
+  function confirmMeta(paths, body) {
+    const M = state.meta, ref = M.ref && M.info[M.ref], lines = [];
+    if (body.copy_from) {
+      if (body.copy.includes('location') && ref) lines.push(`Location ${fmtLoc(ref)}, copied from the reference photo.`);
+      if (body.copy.includes('date') && ref) lines.push(`Date ${ref.taken.slice(0, 10)}${body.day_only ? ' (each photo keeps its own time of day)' : ' ' + ref.taken.slice(11, 16)}, copied from the reference.`);
+      if (body.copy.includes('description') && ref) lines.push('The reference photo’s description.');
+    } else {
+      if (body.date) lines.push(`Date ${body.date}${body.day_only ? ' (each photo keeps its own time of day)' : ' ' + (body.time || '12:00')}.`);
+      if (body.location) lines.push(`Location ${body.location}.`);
+      if (body.description) lines.push(`Description “${body.description}”.`);
+    }
+    dlg.replaceChildren(el('h2', null, `Change ${paths.length.toLocaleString()} file${paths.length === 1 ? '' : 's'}?`));
+    const ul = el('ul'); [...lines, 'The change is written into each file and its .xmp sidecar, replacing what is there now.', 'What was there is recorded: Undo in History puts it back.', 'Immich is asked to rescan afterwards. A file that cannot hold the change is left as it was and reported.'].forEach(t => ul.append(el('li', null, t)));
+    const row = el('div', 'row'); row.style.justifyContent = 'flex-end';
+    const cancel = el('button', 'btn quiet', 'Cancel'), go = el('button', 'btn primary', 'Write the changes'); cancel.onclick = () => dlg.close();
+    go.onclick = async () => { dlg.close(); try { watchJob((await api('/meta/edit', { method: 'POST', body: { paths, ...body } })).job); render(); } catch (e) { fail(e); } };
+    row.append(cancel, go); dlg.append(ul, row); dlg.showModal();
+  }
+
   // ---- album inbox ----------------------------------------------------------------------------------
   let albumUI = null;
   async function loadAlbums() {
@@ -980,14 +1106,14 @@
     const panel = el('div', 'panel'); panel.append(el('h2', null, 'History'), el('p', 'muted', 'Every apply is recorded. Undo puts that run’s moved files back, skipping anything that has changed since. Deleted files cannot be put back.'));
     const list = el('div', 'list'); list.style.marginTop = '12px';
     if (!state.runs.length) list.append(el('div', 'empty', 'Nothing has been applied yet.'));
-    const WHAT = { duplicates: 'Duplicates handled', immich: 'Immich trash removed', sort: 'Inbox sorted', 'set-date': 'Dates written' };
+    const WHAT = { duplicates: 'Duplicates handled', immich: 'Immich trash removed', sort: 'Inbox sorted', 'set-date': 'Dates written', metadata: 'Metadata edited' };
     state.runs.forEach(r => {
       const row = el('div', 'runs'), left = el('div'), c = r.counts;
       left.append(el('div', null, `${WHAT[r.kind] || 'Run'} · ${ago(r.started)}`));
-      left.append(el('div', 'why mono', [c.moved && `${c.moved} moved`, c.deleted && `${c.deleted} deleted for good`, c.skipped && `${c.skipped} skipped`, c.error && `${c.error} failed`].filter(Boolean).join(' · ')));
+      left.append(el('div', 'why mono', [c.edited && `${c.edited} edited`, c.moved && `${c.moved} moved`, c.deleted && `${c.deleted} deleted for good`, c.skipped && `${c.skipped} skipped`, c.error && `${c.error} failed`].filter(Boolean).join(' · ')));
       row.append(left);
       if (r.undone) row.append(el('span', 'tag', 'undone'));
-      else if (!c.moved) row.append(el('span', 'tag', c.deleted ? 'deleted' : 'nothing to undo'));
+      else if (!c.moved && !c.edited) row.append(el('span', 'tag', c.deleted ? 'deleted' : 'nothing to undo'));
       else { const u = el('button', 'btn small', 'Undo'); u.disabled = busy(); u.onclick = () => undo(r.id); row.append(u); }
       list.append(row);
     });

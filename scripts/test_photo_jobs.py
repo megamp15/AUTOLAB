@@ -25,7 +25,7 @@ sys.path.insert(0, str(APP))
 sys.path.insert(0, str(APP / 'dev'))
 
 from fake_immich import FakeImmich, sha1b64  # noqa: E402
-from photo_jobs import core, immich, jobs, nodate, pairs, previews, server  # noqa: E402
+from photo_jobs import core, immich, jobs, metadata, nodate, pairs, previews, server  # noqa: E402
 
 FAKE_EXIFTOOL = (APP / 'dev/fake_exiftool.py').read_text()
 
@@ -783,7 +783,7 @@ class NoDate(Library):
         self.assertEqual(job['result']['failed'], [])
         self.assertEqual(self.tree(), ['_inbox/loose/a.jpg', '_inbox/loose/b.jpg', '_inbox/loose/b_1.jpg'])
         written = json.loads((self.tmp / 'dates.json').read_text())
-        self.assertEqual(written['_no_date/_inbox/loose/a.jpg'], '2023-06')
+        self.assertEqual(written['_no_date/_inbox/loose/a.jpg'], '2023:06:14 10:00:00')       # the whole moment, as ExifTool stores it
         # the stand-in keeps dates by path, a real file carries its date along: follow the moves
         self.dates.update({'_inbox/loose/a.jpg': written['_no_date/_inbox/loose/a.jpg'],
                            '_inbox/loose/b_1.jpg': written['_no_date/_inbox/loose/Scans/b.jpg']})
@@ -1186,6 +1186,151 @@ class LibraryFirst(Library):
         self.app.route('PATCH', '/api/plans/p1', {}, {'keep_reset': {}})
         again = self.app.jobs.plan('p1')
         self.assertEqual(next(x for x in again['groups'] if x['id'] == g['id'])['keep'], 'library/2025/06/Trip/in_event.jpg')
+
+
+class FindAndEdit(Library):
+    """Search the whole media folder, edit what is inside a photo, copy it from a reference, and undo it."""
+
+    def setUp(self):
+        super().setUp()
+        self.app = server.App(self.cfg)
+        metadata.forget_listing()
+        self.put('library/2025/06/Lake/IMG_1.jpg', 'one', '2025:06:14 10:00:00')
+        self.put('library/2025/06/Lake/IMG_2.jpg', 'two')
+        self.put('library/2025/07/Beach/IMG_3.jpg', 'three')
+        self.put('_no_date/_inbox/loose/scan.jpg', 'scan')
+        self.put('old_upload/clip.mov', 'video')
+        self.put('notes.txt', 'not media')
+        self.sync_dates()
+
+    def wait(self):
+        for _ in range(300):
+            job = self.app.jobs.status()
+            if job['state'] != 'running':
+                return job
+            time.sleep(0.02)
+        self.fail('the job never finished')
+
+    def meta(self, rel):
+        return metadata.read(self.cfg, [rel])[0]
+
+    def edit(self, rels, **body):
+        self.app.jobs.start_meta_edit(rels, body)
+        job = self.wait()
+        self.assertEqual(job['state'], 'done', job)
+        return job
+
+    # -- finding
+    def test_search_matches_every_word_in_any_folder_and_pages(self):
+        self.assertEqual(metadata.find(self.cfg)['total'], 5)                           # media only, not notes.txt
+        self.assertEqual([f['name'] for f in metadata.find(self.cfg, 'lake img')['files']], ['IMG_1.jpg', 'IMG_2.jpg'])
+        self.assertEqual(metadata.find(self.cfg, '', 'old_upload')['total'], 1)
+        self.assertEqual(metadata.find(self.cfg, '', '', 'video')['total'], 1)
+        self.assertEqual(metadata.find(self.cfg, '', '', 'photo')['total'], 4)
+        page = metadata.find(self.cfg, '', '', '', 2, 2)
+        self.assertEqual((page['total'], len(page['files'])), (5, 2))
+        self.assertEqual(metadata.find(self.cfg, 'nothing like this')['total'], 0)
+
+    def test_locations_are_read_from_the_forms_people_copy(self):
+        for text in ('30.6280, -96.3344', '30.6280 -96.3344', ' 30.628,-96.3344 '):
+            self.assertEqual(metadata.parse_location(text), (30.628, -96.3344))
+        for bad in ('nowhere', '30.6', '91, 10', '10, 181'):
+            with self.assertRaises(ValueError):
+                metadata.parse_location(bad)
+
+    # -- editing
+    def test_a_date_a_location_and_a_description_are_written_into_the_file_and_read_back(self):
+        self.edit(['library/2025/06/Lake/IMG_2.jpg'], date='2023-06-14', time='09:30', location='30.628, -96.3344', description='At the lake')
+        got = self.meta('library/2025/06/Lake/IMG_2.jpg')
+        self.assertEqual((got['taken'], got['lat'], got['lon'], got['description']), ('2023-06-14 09:30:00', 30.628, -96.3344, 'At the lake'))
+
+    def test_a_day_only_edit_keeps_each_files_own_time_of_day(self):
+        self.edit(['library/2025/06/Lake/IMG_1.jpg'], date='2024-01-02', time='08:15')       # IMG_1 gets a full moment first
+        self.edit(['library/2025/06/Lake/IMG_1.jpg', 'library/2025/06/Lake/IMG_2.jpg'], date='2023-06-14', time='17:45', day_only=True)
+        self.assertEqual(self.meta('library/2025/06/Lake/IMG_1.jpg')['taken'], '2023-06-14 08:15:00')   # its own time kept
+        self.assertEqual(self.meta('library/2025/06/Lake/IMG_2.jpg')['taken'], '2023-06-14 17:45:00')   # had none: the given time
+
+    def test_the_sidecar_is_edited_too_because_immich_trusts_it_over_the_photo(self):
+        photo = self.put('library/2025/06/Lake/IMG_5.jpg', 'five')
+        self.put('library/2025/06/Lake/IMG_5.jpg.xmp', '<xmp/>')
+        self.edit(['library/2025/06/Lake/IMG_5.jpg'], location='10, 20')
+        meta = json.loads((self.tmp / 'dates.json.meta').read_text())
+        self.assertEqual((meta['library/2025/06/Lake/IMG_5.jpg']['lat'], meta['library/2025/06/Lake/IMG_5.jpg.xmp']['lat']), (10.0, 10.0))
+
+    def test_a_southern_and_western_location_keeps_its_signs(self):
+        self.edit(['library/2025/06/Lake/IMG_2.jpg'], location='-33.8688, 151.2093')
+        got = self.meta('library/2025/06/Lake/IMG_2.jpg')
+        self.assertEqual((got['lat'], got['lon']), (-33.8688, 151.2093))
+
+    def test_a_file_that_cannot_hold_the_change_is_reported_and_left_as_it_was(self):
+        self.put('library/2025/06/Lake/anim.gif', 'gif')
+        os.environ['FAKE_CANNOT_WRITE'] = '.gif'
+        job = self.edit(['library/2025/06/Lake/IMG_2.jpg', 'library/2025/06/Lake/anim.gif'], location='10, 20')
+        self.assertEqual([f['src'] for f in job['result']['failed']], ['library/2025/06/Lake/anim.gif'])
+        self.assertIsNone(self.meta('library/2025/06/Lake/anim.gif')['lat'])
+        self.assertEqual(self.meta('library/2025/06/Lake/IMG_2.jpg')['lat'], 10.0)
+
+    # -- copying from a reference
+    def test_location_and_day_can_be_copied_from_a_reference_photo_to_many(self):
+        self.edit(['library/2025/06/Lake/IMG_1.jpg'], date='2023-08-09', time='13:20', location='45.5, -122.6')      # the reference
+        targets = ['library/2025/06/Lake/IMG_2.jpg', 'library/2025/07/Beach/IMG_3.jpg']
+        self.edit(targets, copy_from='library/2025/06/Lake/IMG_1.jpg', copy=['location', 'date'], day_only=True)
+        for t in targets:
+            got = self.meta(t)
+            self.assertEqual((got['lat'], got['lon'], got['taken'][:10]), (45.5, -122.6, '2023-08-09'))
+        self.assertEqual(self.meta('library/2025/06/Lake/IMG_1.jpg')['taken'], '2023-08-09 13:20:00')    # the reference is untouched
+
+    def test_copying_something_the_reference_does_not_have_is_refused_before_anything_changes(self):
+        with self.assertRaises(ValueError):
+            self.app.jobs.start_meta_edit(['library/2025/06/Lake/IMG_2.jpg'], {'copy_from': 'library/2025/07/Beach/IMG_3.jpg', 'copy': ['location']})
+        with self.assertRaises(ValueError):
+            self.app.jobs.start_meta_edit(['library/2025/06/Lake/IMG_2.jpg'], {})            # nothing to change
+        self.assertIsNone(self.app.jobs.status())
+
+    def test_only_photos_and_videos_in_the_media_folder_can_be_edited(self):
+        for rels in (['notes.txt'], ['../outside.jpg'], ['missing.jpg'], []):
+            with self.assertRaises(ValueError):
+                self.app.jobs.start_meta_edit(rels, {'location': '1, 2'})
+        with self.assertRaises(ValueError):
+            self.app.jobs.start_meta_edit(['library/2025/06/Lake/IMG_2.jpg'], {'location': '1, 2'} | {'date': '2023-02-30'})
+
+    # -- undo
+    def test_undo_puts_back_what_the_edit_replaced_including_removing_what_was_not_there(self):
+        rel = 'library/2025/06/Lake/IMG_1.jpg'                          # had a date, no location
+        before = self.meta(rel)
+        job = self.edit([rel], date='2020-01-01', location='1, 2', description='changed')
+        self.assertEqual(self.meta(rel)['lat'], 1.0)
+        self.app.jobs.start_undo(job['result']['run'])
+        self.assertEqual(self.wait()['state'], 'done')
+        after = self.meta(rel)
+        self.assertEqual((after['taken'][:7], after['lat'], after['description']), (before['taken'][:7], None, ''))
+        self.assertTrue(self.app.jobs.run(job['result']['run'])['undone'])
+
+    def test_the_run_is_in_history_as_an_edit_with_its_count(self):
+        job = self.edit(['library/2025/06/Lake/IMG_2.jpg', 'library/2025/07/Beach/IMG_3.jpg'], location='1, 2')
+        run = next(r for r in self.app.jobs.runs() if r['id'] == job['result']['run'])
+        self.assertEqual((run['kind'], run['counts']['edited']), ('metadata', 2))
+
+    def test_undoing_a_video_puts_back_its_location_in_the_video_tag_too(self):
+        before = {'DateTimeOriginal': '2022:02:20 05:52:40', 'lat': 46.7562, 'lon': -122.0799, 'description': ''}
+        photo, video, none = (metadata._restore_args(before, False), metadata._restore_args(before, False, True),
+                              metadata._restore_args({**before, 'lat': None, 'lon': None}, False, True))
+        self.assertNotIn('-GPSCoordinates=46.7562, -122.0799', photo)
+        self.assertIn('-GPSCoordinates=46.7562, -122.0799', video)       # real exiftool: a MOV keeps it there, found when undoing
+        self.assertIn('-GPSCoordinates=', none)                          # no location before: the tag is cleared
+
+    # -- the routes
+    def test_the_routes_find_read_and_edit(self):
+        got = self.app.route('GET', '/api/find', {'q': ['beach']}, {})[1]
+        self.assertEqual((got['total'], 'library' in got['folders']), (1, True))
+        rows = self.app.route('POST', '/api/meta/read', {}, {'paths': ['library/2025/06/Lake/IMG_1.jpg']})[1]['files']
+        self.assertEqual((rows[0]['taken'][:7], rows[0]['lat']), ('2025-06', None))
+        self.assertNotIn('raw', rows[0])
+        status, doc = self.app.route('POST', '/api/meta/edit', {}, {'paths': ['library/2025/06/Lake/IMG_2.jpg'], 'location': '5, 6'})
+        self.assertEqual(status, 202)
+        self.assertEqual(self.wait()['state'], 'done')
+        with self.assertRaises(ValueError):
+            self.app.route('POST', '/api/meta/read', {}, {'paths': ['notes.txt']})
 
 
 class Pairs(unittest.TestCase):
