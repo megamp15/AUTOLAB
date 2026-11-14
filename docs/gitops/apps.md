@@ -33,21 +33,18 @@ being silent.
 
 ## Pocket ID clients
 
-One client per app, created by hand in Pocket ID (a passkey is needed, so the
-playbook cannot), *Generate* the secret, then repository secrets
-`<APP>_OIDC_CLIENT_ID` and `<APP>_OIDC_CLIENT_SECRET`. The shared variable
-`APPS_ADMIN_EMAIL` is the email of your Pocket ID user.
+The edge `services` playbook creates a client for each app with the callback
+URLs below, restricts sign-in to Pocket ID's `admins` group, and configures the
+apps. Generated client credentials are stored in root-only state on nebula;
+see [AdventureLog](adventurelog.md#setting-it-up) for recovery and backup notes.
+Local password login remains available until SSO is verified.
 
-| app | callback URL | notes |
-|---|---|---|
-| tandoor | `https://tandoor.lab.<zone>/accounts/oidc/pocketid/login/callback/` | provider id is `pocketid` |
-| airtrail | `https://airtrail.lab.<zone>/login` | per AirTrail's docs and Pocket ID's guide; see below |
-| linkace | `https://linkace.lab.<zone>/auth/sso/oidc/callback` | |
-| sure | `https://sure.lab.<zone>/auth/openid_connect/callback` | |
-
-Then workflow **05**, environment `edge`, playbook `services`, then `ingress` on
-`lab`. Without a client an app keeps only its password login: that is how a
-first deploy proves it.
+| app | callback URL |
+|---|---|
+| tandoor | `https://tandoor.lab.<zone>/accounts/oidc/pocketid/login/callback/` |
+| airtrail | `https://airtrail.lab.<zone>/login` |
+| linkace | `https://linkace.lab.<zone>/auth/sso/oidc/callback` |
+| sure | `https://sure.lab.<zone>/auth/openid_connect/callback` |
 
 ## First administrators
 

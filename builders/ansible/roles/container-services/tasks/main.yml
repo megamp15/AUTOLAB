@@ -198,6 +198,84 @@
   notify: Restart the services stack
   when: "'paradigm-tunnel' in autolab_services_enabled"
 
+# Pocket ID's API key is supplied only for the edge services workflow. The
+# generated client secrets remain in a root-only file on this host; an
+# interrupted creation stops rather than replacing an unknown secret.
+- name: Refuse to mix managed and externally supplied Pocket ID clients
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.vars', 'autolab_services_' ~ item ~ '_oidc_client_id') | length == 0
+      - lookup('ansible.builtin.vars', 'autolab_services_' ~ item ~ '_oidc_client_secret') | length == 0
+    fail_msg: Managed Pocket ID clients cannot be mixed with externally supplied client credentials.
+  loop: "{{ autolab_services_enabled | intersect(['adventurelog', 'forgejo', 'tandoor', 'airtrail', 'linkace', 'sure']) }}"
+  no_log: true
+  when:
+    - autolab_services_pocketid_api_key | length > 0
+    - not ansible_check_mode
+
+- name: Create protected Pocket ID state directory
+  ansible.builtin.file:
+    path: /etc/autolab
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - autolab_services_pocketid_api_key | length > 0
+    - not ansible_check_mode
+
+- name: Install managed Pocket ID client provisioning
+  ansible.builtin.copy:
+    src: managed_pocketid_clients.py
+    dest: /usr/local/sbin/autolab-pocketid-clients
+    owner: root
+    group: root
+    mode: "0700"
+  when:
+    - autolab_services_pocketid_api_key | length > 0
+    - not ansible_check_mode
+
+- name: Declare managed Pocket ID clients
+  ansible.builtin.template:
+    src: managed-pocketid-policy.json.j2
+    dest: /etc/autolab/managed-pocketid-policy.json
+    owner: root
+    group: root
+    mode: "0600"
+  when:
+    - autolab_services_pocketid_api_key | length > 0
+    - not ansible_check_mode
+
+- name: Reconcile restricted Pocket ID clients
+  ansible.builtin.command: /usr/bin/python3 /usr/local/sbin/autolab-pocketid-clients
+  environment:
+    AUTOLAB_POCKETID_API_KEY: "{{ autolab_services_pocketid_api_key }}"
+  register: autolab_managed_pocketid
+  changed_when: autolab_managed_pocketid.stdout == 'CHANGED'
+  no_log: true
+  when:
+    - autolab_services_pocketid_api_key | length > 0
+    - not ansible_check_mode
+
+- name: Read protected managed Pocket ID credentials
+  ansible.builtin.slurp:
+    src: /etc/autolab/managed-pocketid-clients.json
+  register: autolab_managed_pocketid_state
+  no_log: true
+  when:
+    - autolab_services_pocketid_api_key | length > 0
+    - not ansible_check_mode
+
+- name: Use managed Pocket ID client credentials
+  ansible.builtin.set_fact:
+    "autolab_services_{{ item.key }}_oidc_client_id": "{{ item.value.id }}"
+    "autolab_services_{{ item.key }}_oidc_client_secret": "{{ item.value.secret }}"
+  loop: "{{ (autolab_managed_pocketid_state.content | default('e30=') | b64decode | from_json | dict2items) }}"
+  no_log: true
+  when:
+    - autolab_services_pocketid_api_key | length > 0
+    - not ansible_check_mode
+
 # The account that exists from the app's first boot, and whose email a Pocket ID
 # sign-in is matched to. Refused empty rather than defaulted: the app reads it
 # once, at the first boot, and a wrong one is only fixable by hand afterwards.
