@@ -187,6 +187,7 @@
   .shot .tick { position:absolute; top:14px; left:14px; z-index:1; background:var(--bg); }
   .shot .name { font-size:12px; overflow-wrap:anywhere; }
   .shot .meta { font:10.5px 'IBM Plex Mono',monospace; color:var(--dim); }
+  .last { font:11px 'IBM Plex Mono',monospace; color:var(--dim); margin-top:8px; letter-spacing:.02em; }
   .stat.link { cursor:pointer; text-decoration:underline dotted; text-underline-offset:4px; }
   input.field { background:transparent; color:inherit; border:1px solid var(--line); border-radius:4px; padding:6px 10px; font:inherit; font-size:12.5px; color-scheme:dark; }
   :root.light input.field { color-scheme:light; }
@@ -240,7 +241,7 @@
   const ago = t => { const s = Date.now() / 1000 - t; return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : new Date(t * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' }); };
 
   const TABS = ['inbox', 'duplicates', 'nodate', 'albums', 'immich', 'history'];
-  const state = { tab: location.hash.slice(1) || 'inbox', status: null, job: null, dark: true, runs: [], immichInfo: null,
+  const state = { tab: location.hash.slice(1) || 'inbox', status: null, job: null, dark: true, runs: [], immichInfo: null, activity: [],
                   sort: { plan: null, rows: [], total: 0, shown: 0, filter: { kind: '', pair: false, q: '' }, done: null },
                   dupes: { plan: null, groups: [], total: 0, q: '', done: null },
                   nodate: { files: null, checked: new Set(), q: '', date: '', time: '12:00', done: null, failed: [] },
@@ -279,13 +280,33 @@
       try {
         const { job: j } = await api('/job');
         state.job = j; renderChip(); renderProgress();
+        if (j && j.state === 'running') pollPartial(j);
         if (j && j.state !== 'running') { clearInterval(poller); await jobFinished(j); }
       } catch (e) { clearInterval(poller); }
     }, 700);
     renderProgress();
   }
+  // While duplicates are being found, show them: each group is complete the moment it is found.
+  let partialBusy = false;
+  async function pollPartial(j) {
+    if (j.kind !== 'plan-duplicates' || !j.plan || partialBusy) return;
+    partialBusy = true;
+    try {
+      const d = state.dupes, was = d.plan && d.plan.id === j.plan ? d.plan.stats.groups : -1;
+      let plan; try { plan = await api('/plans/' + j.plan); } catch (e) { return; }   // nothing found yet
+      if (plan.stats.groups === was) return;
+      d.plan = plan; d.done = null; await fetchGroups(false);
+      if (state.tab !== 'duplicates') return;
+      if (was === -1 || !dupeUI) render();
+      else { const top = dupeUI.list.scrollTop; dupeUI.list.replaceChildren(); d.groups.forEach(addGroup); dupeUI.list.scrollTop = top; paintDupes(); }
+    } finally { partialBusy = false; }
+  }
   async function jobFinished(j) {
-    if (j.state === 'error') { renderProgress(); return; }
+    if (j.state === 'error') { await refresh(); renderProgress(); return; }
+    if (j.state !== 'done') {   // stopped, or the service restarted: keep what a duplicates scan had found
+      if (j.kind === 'plan-duplicates' && j.plan) { try { await loadDupes(j.plan); } catch (e) { /* nothing was saved */ } }
+      await refresh(); render(); return;
+    }
     if (j.kind === 'plan-sort') { await loadSort(j.result.plan); }
     else if (j.kind === 'plan-duplicates') { await loadDupes(j.result.plan); }
     else if (j.kind === 'plan-immich') { await loadImmich(j.result.plan); }
@@ -302,12 +323,43 @@
     chip.hidden = !j || j.state !== 'running';
     if (!chip.hidden) chip.innerHTML = '<span class="dot on"></span> ' + (j.message || j.kind).toUpperCase();
   }
+  const JOB_NOW = { 'plan-sort': 'the Inbox scan', 'plan-duplicates': 'the duplicates scan', 'plan-immich': 'reading Immich’s trash', apply: 'applying a plan', undo: 'undoing a run', 'set-date': 'writing dates' };
+  const JOB_DID = { 'plan-sort': 'Scanned the inbox', 'plan-duplicates': 'Scanned for duplicates', 'plan-immich': 'Read Immich’s trash', apply: 'Applied a plan', undo: 'Undid a run', 'set-date': 'Wrote dates' };
+  const n0 = v => (v || 0).toLocaleString();
+  function found(a) {
+    const st = a.stats || {};
+    return a.kind === 'plan-sort' ? `${n0(st.moves)} moves found` : a.kind === 'plan-duplicates' ? `${n0(st.groups)} group${st.groups === 1 ? '' : 's'} of copies, ${n0(st.extra)} extra file${st.extra === 1 ? '' : 's'}` : a.kind === 'plan-immich' ? `${n0(st.assets)} photos in Immich’s trash` : '';
+  }
+  // What became of a job, in words.
+  function outcome(a) {
+    if (a.state === 'running') return `running · ${a.message || ''}`;
+    if (a.state === 'interrupted') return 'cut short: the photo service restarted while this was running';
+    if (a.state === 'cancelled') return 'stopped' + (a.partial && a.stats ? `; kept the ${found(a)} found before it stopped` : '');
+    if (a.state === 'error') return 'failed: ' + a.error;
+    const bits = [found(a)].filter(Boolean);
+    if (a.kind.startsWith('plan-')) bits.push(a.plan_gone ? 'plan discarded' : a.applied ? 'applied' : 'not applied yet');
+    return bits.join(' · ') || 'done';
+  }
+  // The line under a tab's title: when it was last scanned and what it found.
+  function lastScan(kind) {
+    if (busy() && state.job.kind === 'plan-' + kind) return 'Scanning now…';
+    const rows = state.activity.filter(a => a.kind === 'plan-' + kind && a.state !== 'running');
+    if (!rows.length) return 'Never scanned.';
+    const [latest] = rows, good = rows.find(a => a.state === 'done');
+    if (latest.state === 'done') return `Last scan ${ago(latest.finished)} · ${outcome(latest)}`;
+    return `Last attempt ${ago(latest.finished)}: ${outcome(latest)}` + (good ? ` · last complete scan ${ago(good.finished)}, ${outcome(good)}` : '');
+  }
   function progressBlock() {
     const j = state.job, box = el('div', 'panel'); box.id = 'progress';
     if (!j) return null;
     if (j.state === 'error') { box.append(el('p', 'status-bad', 'The job failed: ' + j.error)); return box; }
     if (j.state !== 'running') return null;
     const line = el('div', 'row'); line.append(el('span', 'dot on'), el('span', 'mono', j.message), el('span', 'muted mono', j.total ? `${j.done} / ${j.total}` : ''));
+    if (j.kind.startsWith('plan-')) {
+      const stop = el('button', 'btn small quiet', 'Stop'); stop.type = 'button'; stop.title = 'Stop this scan. A duplicates scan keeps what it has found.';
+      stop.onclick = async () => { stop.disabled = true; try { await api('/job/cancel', { method: 'POST', body: {} }); } catch (e) { fail(e); } };
+      line.append(stop);
+    }
     const bar = el('div', 'progress' + (j.total ? '' : ' unknown')); const i = el('i'); i.style.width = (j.total ? Math.round(100 * j.done / j.total) : 30) + '%'; bar.append(i);
     box.append(line, bar); return box;
   }
@@ -329,6 +381,7 @@
   async function refresh() {
     state.status = await api('/status');
     state.runs = (await api('/runs')).runs;
+    state.activity = (await api('/activity')).activity;
     const c = $('#runs-count'); c.textContent = state.runs.length ? state.runs.length : '';
     const nd = $('#nodate-count'); nd.textContent = state.status.inbox.no_date || '';
   }
@@ -411,10 +464,12 @@
   }
 
   // The top panel every tab shares: what this is, the one big action, and a few numbers.
-  function headPanel({ title, text, label, action, stats, extra }) {
+  function headPanel({ title, text, label, action, stats, extra, last }) {
     const head = el('div', 'panel compact'), top = el('div', 'row');
     const t = el('div', 'grow'); t.append(el('h2', null, title), el('p', 'muted', text));
+    if (last) t.append(el('div', 'last', last()));
     const go = el('button', 'btn primary', label); go.disabled = busy(); go.onclick = action;
+    if (busy()) { const why = `Waiting for ${JOB_NOW[state.job.kind] || 'another job'} to finish: one job runs at a time.`; go.title = why; t.append(el('div', 'last', why)); }
     top.append(t, go); head.append(top);
     if (stats) {
       const row = el('div', 'stats');
@@ -511,7 +566,7 @@
     const s = state.sort, st = state.status;
     main.append(headPanel({
       title: 'Inbox', text: 'Photos dropped in _inbox/loose are dated one by one; each folder in _inbox/events moves whole. Nothing moves until you apply.',
-      label: s.plan ? 'Scan again' : 'Scan inbox', action: () => startPlan('sort', s, x => { x.plan = null; x.rows = []; }),
+      last: () => lastScan('sort'), label: s.plan ? 'Scan again' : 'Scan inbox', action: () => startPlan('sort', s, x => { x.plan = null; x.rows = []; }),
       stats: st && [[st.inbox.loose, 'loose · waiting', 'Photos in _inbox/loose, not sorted yet'], [st.inbox.events, 'in events · waiting', 'Photos in _inbox/events folders, not placed yet'],
                     [st.inbox.no_date, 'no date · set aside', 'Put aside in _no_date by an earlier run because no date is stored inside them. Click to look at them and give them a date.', 'nodate'],
                     [st.inbox.duplicates, 'duplicates · set aside', 'Put aside in _duplicates by an earlier run']] }));
@@ -582,13 +637,14 @@
 
   // ---- Duplicates -----------------------------------------------------------------------------------
   let dupeUI = null;
+  const scanningDupes = () => busy() && state.job.kind === 'plan-duplicates' && (!state.dupes.plan || state.job.plan === state.dupes.plan.id);
   function viewDupes() {
     const d = state.dupes;
     main.append(headPanel({
       title: 'Duplicates', text: 'Byte-identical photos and videos. The best copy is kept; pick a different one if you prefer. The extras are filed under _duplicates, or deleted if you choose.',
-      label: d.plan ? 'Scan again' : 'Find duplicates', action: () => startPlan('duplicates', d, x => { x.plan = null; x.groups = []; }) }));
+      last: () => lastScan('duplicates'), label: d.plan ? 'Scan again' : 'Find duplicates', action: () => startPlan('duplicates', d, x => { x.plan = null; x.groups = []; }) }));
     const done = doneBanner(d); if (done) { done.style.marginTop = '12px'; main.append(done); }
-    if (!d.plan) { if (!busy() && !done) main.append(el('div', 'empty', 'Scan to find copies of the same photo anywhere in the library.')); return; }
+    if (!d.plan) { if (!busy() && !done) main.append(el('div', 'empty', 'Scan to find copies of the same photo anywhere in the library.')); else if (scanningDupes()) main.append(el('div', 'empty', 'Copies appear here as they are found.')); return; }
     fit(true);
     const panel = el('div', 'panel table-panel'), tools = el('div', 'toolbar'), stats = el('div', 'stats inline');
     const modes = segmented([['file', 'File under _duplicates', 'Move the extra copies to _duplicates; undo puts them back'],
@@ -596,6 +652,11 @@
       try { await api('/plans/' + d.plan.id, { method: 'PATCH', body: { mode: v } }); await refreshPlan(d); render(); } catch (e) { fail(e); }
     });
     tools.append(stats, spacer(), modes, searchBox(d.q, async v => { d.q = v; await fetchGroups(false); dupeUI.list.replaceChildren(); d.groups.forEach(addGroup); }));
+    const scanNote = el('div', 'note');
+    if (d.plan.partial) scanNote.textContent = scanningDupes()
+      ? `The scan is still running: ${n0(d.plan.stats.groups)} group${d.plan.stats.groups === 1 ? '' : 's'} of copies found so far. Look through them and use Compare side by side now; choices open when it finishes.`
+      : `This scan did not finish (it was stopped or the service restarted), so these are only the copies found before it stopped. They are real and safe to act on; scan again to find the rest.`;
+    scanNote.hidden = !d.plan.partial;
     const warn = el('div', 'note bad', 'Delete removes the extra copies for good. Each one is checked to still be identical to the copy you keep, just before it is removed. This cannot be undone.');
     warn.hidden = d.plan.mode !== 'delete';
     // Choices for many groups at once. They apply to the groups the search box is showing.
@@ -615,7 +676,8 @@
     resetBtn.onclick = () => bulkKeep({ keep_reset: { q: d.q } });
     bulk.append(headBox, shown, spacer(), where, keepBtn, resetBtn, msg);
     const list = el('div', 'tbody groups'); nearEnd(list, async () => { if (!d.loading && d.groups.length < d.total) { d.loading = true; try { (await fetchGroups(true)).forEach(addGroup); } finally { d.loading = false; } } });
-    panel.append(tools, warn, bulk, list); main.append(panel);
+    if (scanningDupes()) { bulk.querySelectorAll('input,button').forEach(x => { x.disabled = true; }); modes.querySelectorAll('button').forEach(x => { x.disabled = true; }); }
+    panel.append(tools, scanNote, warn, bulk, list); main.append(panel);
     const bar = el('div', 'bar'), info = el('span', 'grow'), apply = el('button', 'btn primary');
     apply.onclick = () => confirmApply(d.plan); bar.append(info, apply); main.append(bar);
     dupeUI = { stats, list, info, apply, headBox, shown }; d.groups.forEach(addGroup); paintDupes();
@@ -636,9 +698,10 @@
     on.onchange = async () => { g.selected = on.checked; card.classList.toggle('off', !g.selected); d.shown += g.selected ? 1 : -1; await dupePatch({ groups: [g.id], selected: g.selected }); };
     const cmp = el('button', 'btn small quiet', 'Compare side by side'); cmp.type = 'button';
     cmp.onclick = () => openViewer(g.files.map(f => ({ path: f, label: f === g.keep ? 'Keep' : 'Extra copy' })), `${g.files.length} copies of the same photo`);
+    on.disabled = scanningDupes();
     hd.append(on, el('span', 'mono', `${g.files.length} copies · ${fmtGiB(g.size)} each`), cmp); card.append(hd);
     g.files.forEach(f => {
-      const row = el('label', 'copy'), r = el('input', 'tick radio'); r.type = 'radio'; r.name = g.id; r.checked = f === g.keep;
+      const row = el('label', 'copy'), r = el('input', 'tick radio'); r.type = 'radio'; r.name = g.id; r.checked = f === g.keep; r.disabled = scanningDupes();
       r.onchange = async () => { g.keep = f; card.replaceWith(groupCard(g)); await dupePatch({ keep: { [g.id]: f } }); };
       row.append(r, thumb(f, () => openViewer(g.files.map(x => ({ path: x, label: x === g.keep ? 'Keep' : 'Extra copy' })), `${g.files.length} copies of the same photo`)), el('span', 'path', f)); if (f === g.keep) row.append(el('span', 'keep', 'keep')); card.append(row);
     });
@@ -816,7 +879,7 @@
     else { status.classList.add('status-ok'); status.append(el('span', 'dot on'), document.createTextNode(` connected to Immich ${info.version}${info.user ? ' as ' + info.user : ''}`)); }
     const st = m.plan && m.plan.stats;
     main.append(headPanel({
-      title: 'Immich trash', label: m.plan ? 'Read again' : 'Read Immich’s trash',
+      title: 'Immich trash', last: () => lastScan('immich'), label: m.plan ? 'Read again' : 'Read Immich’s trash',
       text: 'Photos you delete in Immich stay on disk, because Immich only reads this folder and never deletes its files. Review them here, with each file’s place in the library, and remove them.',
       action: () => startPlan('immich', m, x => { x.plan = null; x.rows = []; }), extra: status,
       stats: st && [[st.assets, 'in Immich’s trash'], [st.kinds.file || 0, 'files here', 'Files found in this library'], [st.live, 'live photos', 'A still with its clip'], [fmtGiB(st.bytes), 'on disk']] }));
@@ -895,6 +958,18 @@
       list.append(row);
     });
     panel.append(list); main.append(panel);
+    const act = el('div', 'panel'); act.style.marginTop = '12px';
+    act.append(el('h2', null, 'Activity'), el('p', 'muted', 'Every scan and apply the service has run, and what became of it, so nothing disappears without a trace.'));
+    const alist = el('div', 'list'); alist.style.marginTop = '12px';
+    if (!state.activity.length) alist.append(el('div', 'empty', 'Nothing has run yet.'));
+    state.activity.slice(0, 40).forEach(a => {
+      const row = el('div', 'runs'), left = el('div');
+      const took = a.finished ? `${Math.max(1, Math.round(a.finished - a.started))} s` : '';
+      left.append(el('div', null, `${JOB_DID[a.kind] || a.kind} · ${ago(a.started)}${took ? ' · took ' + took : ''}`));
+      left.append(el('div', 'why mono' + (['error', 'interrupted'].includes(a.state) ? ' status-bad' : ''), outcome(a)));
+      row.append(left); alist.append(row);
+    });
+    act.append(alist); main.append(act);
   }
 
   // ---- doing things ------------------------------------------------------------------------------

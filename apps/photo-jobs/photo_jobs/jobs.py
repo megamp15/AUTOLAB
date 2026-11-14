@@ -21,14 +21,24 @@ class Missing(Exception):
     pass
 
 
+class Cancelled(Exception):
+    pass
+
+
 class Jobs:
     def __init__(self, cfg, immich=None):
         self.cfg, self.immich = cfg, immich
         self.lock = threading.Lock()
         self.job = None            # the current or most recent job
         self.cache = {}            # plan id -> plan
-        for d in ('plans', 'runs'):
+        for d in ('plans', 'runs', 'jobs'):
             os.makedirs(os.path.join(cfg.state, d), exist_ok=True)
+        # A job lives in a thread, so a restart ends it without a word. Say so in the log.
+        for old in self._list('jobs'):
+            if old.get('state') == 'running':
+                old.update(state='interrupted', finished=time.time(),
+                           error='the service restarted while this was running')
+                self._save('jobs', old)
 
     # -- files
     def _path(self, kind, id_):
@@ -59,6 +69,15 @@ class Jobs:
                 except (Missing, ValueError):
                     pass
         return sorted(out, key=lambda x: -x.get('created', x.get('started', 0)))
+
+    KEEP_JOBS = 200
+
+    def _prune_jobs(self):
+        try:
+            for old in self._list('jobs')[self.KEEP_JOBS:]:
+                os.remove(self._path('jobs', old['id']))
+        except OSError:
+            pass   # tidying the log is never worth failing a job over
 
     # -- plans
     def plan(self, id_):
@@ -92,6 +111,36 @@ class Jobs:
     def status(self):
         return dict(self.job) if self.job else None
 
+    def cancel(self):
+        """Ask the running scan to stop. Only scans can be stopped: an apply that stops half way
+        leaves a half-done run, which is worse than waiting."""
+        job = self.job
+        if not job or job['state'] != 'running':
+            raise ValueError('nothing is running')
+        if not job['kind'].startswith('plan-'):
+            raise ValueError(f'a {job["kind"]} job cannot be stopped; wait for it to finish')
+        job['cancel'] = True
+        job['message'] = 'stopping'
+        return dict(job)
+
+    def activity(self, limit=60):
+        """What the service has done lately, newest first: scans, applies, undos, and what became of each."""
+        out = []
+        for j in self._list('jobs')[:limit]:
+            row = {k: j.get(k) for k in ('id', 'kind', 'state', 'started', 'finished', 'message', 'error', 'done', 'total')}
+            res = j.get('result') or {}
+            pid = res.get('plan') or j.get('plan')
+            if j['kind'].startswith('plan-') and pid:
+                try:
+                    plan = self.plan(pid)
+                    row.update(plan=pid, stats=plan.get('stats', {}), applied=plan.get('applied'), partial=bool(plan.get('partial')))
+                except Missing:
+                    row['plan_gone'] = True
+            if res.get('run'):
+                row['run'] = res['run']
+            out.append(row)
+        return out
+
     def start(self, kind, work, **info):
         """Run work(job) in a thread. Only one job runs at a time."""
         with self.lock:
@@ -100,8 +149,11 @@ class Jobs:
             job = {'id': uuid.uuid4().hex[:12], 'kind': kind, 'state': 'running', 'started': time.time(),
                    'done': 0, 'total': 0, 'message': 'starting', 'result': None, 'error': None, **info}
             self.job = job
+        self._save('jobs', job)
 
         def progress(done=None, total=None, message=None):
+            if job.get('cancel'):
+                raise Cancelled()
             if done is not None:
                 job['done'] = done
             if total is not None:
@@ -111,12 +163,15 @@ class Jobs:
 
         def target():
             try:
-                job['result'] = work(progress)
-                job['state'] = 'done'
-                job['message'] = 'done'
+                outcome = {'result': work(progress), 'state': 'done', 'message': 'done'}
+            except Cancelled:
+                outcome = {'state': 'cancelled', 'message': 'stopped'}
             except Exception as e:   # noqa: BLE001 — a job's failure is data for the page, not a crash
-                job['state'], job['error'] = 'error', f'{type(e).__name__}: {e}'
-            job['finished'] = time.time()
+                outcome = {'state': 'error', 'error': f'{type(e).__name__}: {e}'}
+            outcome = {'finished': time.time(), **outcome}
+            self._save('jobs', {**job, **outcome})    # on disk before anyone can see it finished
+            job.update(outcome)
+            self._prune_jobs()
 
         threading.Thread(target=target, daemon=True).start()
         return dict(job)
@@ -128,15 +183,21 @@ class Jobs:
         if kind == 'immich' and not (self.immich and self.immich.configured):
             raise ValueError('Immich is not connected: set IMMICH_URL and IMMICH_API_KEY')
 
-        def work(progress):
-            plan = (core.plan_sort(self.cfg, progress) if kind == 'sort' else
-                    core.plan_duplicates(self.cfg, progress) if kind == 'duplicates' else
-                    core.plan_immich(self.cfg, self.immich, progress))
-            plan.update(id=uuid.uuid4().hex[:12], created=time.time(), excluded=[], excluded_kinds=[], applied=None)
-            self.save_plan(plan)
-            return {'plan': plan['id']}
+        plan_id, created = uuid.uuid4().hex[:12], time.time()
 
-        return self.start('plan-' + kind, work)
+        def keep(plan, partial):
+            plan.update(id=plan_id, created=created, excluded=[], excluded_kinds=[], applied=None, partial=partial)
+            self.save_plan(plan)
+
+        def work(progress):
+            if kind == 'duplicates':   # saved as it goes, so what is found can be looked at while it runs
+                plan = core.plan_duplicates(self.cfg, progress, checkpoint=lambda p: keep(p, True))
+            else:
+                plan = (core.plan_sort(self.cfg, progress) if kind == 'sort' else core.plan_immich(self.cfg, self.immich, progress))
+            keep(plan, False)
+            return {'plan': plan_id}
+
+        return self.start('plan-' + kind, work, plan=plan_id)
 
     def start_apply(self, plan_id):
         plan = self.plan(plan_id)

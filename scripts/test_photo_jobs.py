@@ -856,6 +856,111 @@ class PreviewRoutes(Library):
         self.assertEqual(self.get('/api/same?a=a.jpg&b=notes.txt')[0], 400)
 
 
+class ActivityLog(Library):
+    """What the service did, kept on disk: so a restart, a stop or a failure leaves a trace."""
+
+    def setUp(self):
+        super().setUp()
+        self.app = server.App(self.cfg)
+
+    def wait(self, app=None):
+        app = app or self.app
+        for _ in range(300):
+            job = app.jobs.status()
+            if job['state'] != 'running':
+                return job
+            time.sleep(0.02)
+        self.fail('the job never finished')
+
+    def test_a_finished_scan_is_logged_with_what_it_found_and_that_it_is_not_applied(self):
+        self.put('_inbox/loose/a.jpg', 'A', '2025-06')
+        self.sync_dates()
+        self.app.jobs.start_plan('sort')
+        self.wait()
+        row = self.app.jobs.activity()[0]
+        self.assertEqual((row['kind'], row['state'], row['stats']['moves'], row['applied']), ('plan-sort', 'done', 1, None))
+        self.assertTrue(row['finished'] >= row['started'])
+        # it survives a restart: a new service reads the same log
+        again = server.App(self.cfg)
+        self.assertEqual(again.jobs.activity()[0]['id'], row['id'])
+
+    def test_a_job_that_a_restart_cut_short_is_logged_as_interrupted(self):
+        gate = threading.Event()
+        self.app.jobs.start('plan-duplicates', lambda progress: gate.wait(5))
+        restarted = server.App(self.cfg)       # the old service is gone, the new one starts up
+        row = restarted.jobs.activity()[0]
+        self.assertEqual(row['state'], 'interrupted')
+        self.assertIn('restarted', row['error'])
+        gate.set()
+        self.wait()           # the old service's thread ends before the folder is removed
+
+    def test_a_failing_job_is_logged_with_its_error(self):
+        def boom(progress):
+            raise RuntimeError('disk on fire')
+        self.app.jobs.start('plan-sort', boom)
+        self.wait()
+        row = self.app.jobs.activity()[0]
+        self.assertEqual(row['state'], 'error')
+        self.assertIn('disk on fire', row['error'])
+
+    def test_a_scan_can_be_stopped_but_an_apply_cannot(self):
+        gate = threading.Event()
+
+        def scan(progress):
+            gate.wait(5)
+            progress(1, 2, 'next')          # the stop is noticed the next time it reports
+        self.app.jobs.start('plan-duplicates', scan)
+        self.assertEqual(self.app.route('POST', '/api/job/cancel', {}, {})[0], 200)
+        gate.set()
+        self.assertEqual(self.wait()['state'], 'cancelled')
+        self.app.jobs.start('apply', lambda progress: gate.wait(0.3))
+        with self.assertRaises(ValueError):
+            self.app.jobs.cancel()
+        self.wait()
+        with self.assertRaises(ValueError):
+            self.app.jobs.cancel()          # nothing is running now
+
+    def test_the_duplicates_found_so_far_are_saved_while_the_scan_runs(self):
+        for i in range(3):
+            self.put(f'library/2025/06/a{i}.jpg', f'identical-{i}')
+            self.put(f'library/2025/07/b{i}.jpg', f'identical-{i}')
+        seen = []
+        real = core.plan_duplicates
+
+        def spy(cfg, progress=core._noop, checkpoint=None):
+            # ask for a checkpoint after every size bucket, and look at the plan the page would load
+            def look(plan):
+                job = self.app.jobs.status()
+                checkpoint(plan)
+                seen.append((self.app.jobs.plan(job['plan'])['partial'], self.app.jobs.plan(job['plan'])['stats']['groups']))
+            return real(cfg, progress, look)
+        orig_time = time.time
+        try:
+            core.plan_duplicates = spy
+            core.time = type('T', (), {'time': staticmethod(lambda c=iter(range(0, 10000, 10)): next(c))})
+            self.app.jobs.start_plan('duplicates')
+            job = self.wait()
+        finally:
+            core.plan_duplicates = real
+            core.time = time
+        self.assertEqual(job['state'], 'done', job)
+        self.assertTrue(seen and all(partial for partial, _ in seen))
+        final = self.app.jobs.plan(job['result']['plan'])
+        self.assertFalse(final['partial'])
+        self.assertEqual(final['stats']['groups'], 3)
+        self.assertEqual(self.app.jobs.activity()[0]['stats']['groups'], 3)
+
+    def test_choices_are_refused_while_their_scan_is_still_running(self):
+        gate = threading.Event()
+        plan = {'id': 'p1', 'kind': 'duplicates', 'groups': [], 'moves': [], 'excluded': [], 'excluded_kinds': [], 'applied': None}
+        self.app.jobs.save_plan(plan)
+        self.app.jobs.start('plan-duplicates', lambda progress: gate.wait(5), plan='p1')
+        self.assertEqual(self.app.route('PATCH', '/api/plans/p1', {}, {'all': True})[0], 409)
+        gate.set()
+        self.wait()
+        self.assertEqual(self.app.route('PATCH', '/api/plans/p1', {}, {'all': True})[0], 200)
+
+
 class Pairs(unittest.TestCase):
     def test_pairing_is_by_folder_and_name(self):
         self.assertEqual(pairs.pairs(['/a/IMG_1.HEIC', '/a/IMG_1.MOV', '/b/IMG_1.MOV', '/a/IMG_2.MOV']),

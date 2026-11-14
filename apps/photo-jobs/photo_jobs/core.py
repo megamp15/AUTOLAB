@@ -370,7 +370,7 @@ def _digest(path, limit=None):
     return h.hexdigest()
 
 
-def plan_duplicates(cfg, progress=_noop):
+def plan_duplicates(cfg, progress=_noop, checkpoint=None):
     """Groups of byte-identical photos and videos across the whole media folder, best copy first.
     Sidecars are left out: those of different photos are often identical, each belongs to its own."""
     by_size, n = collections.defaultdict(list), 0
@@ -388,7 +388,7 @@ def plan_duplicates(cfg, progress=_noop):
                 by_size[size].append(p)
                 n += 1
     candidates = [ps for ps in by_size.values() if len(ps) > 1]
-    total, done, found = sum(map(len, candidates)), 0, []
+    total, done, found, last = sum(map(len, candidates)), 0, [], time.time()
     progress(0, total, f'{n} files; comparing the {total} that share a size with another')
     for ps in candidates:
         heads = collections.defaultdict(list)
@@ -402,7 +402,16 @@ def plan_duplicates(cfg, progress=_noop):
                 full[_digest(p)].append(p)
             found += [(h, g) for h, g in full.items() if len(g) > 1]
         done += len(ps)
-        progress(done, total, 'comparing files')
+        progress(done, total, f'comparing files · {len(found)} groups of copies found so far')
+        # Every few seconds, hand over what has been found: a group is complete the moment it is
+        # found (all files of its size were compared), so it can be looked at before the scan ends.
+        if checkpoint and found and time.time() - last > 5:
+            checkpoint(_duplicate_plan(cfg, found, n))
+            last = time.time()
+    return _duplicate_plan(cfg, found, n)
+
+
+def _duplicate_plan(cfg, found, scanned):
     groups, extra, extra_bytes = [], 0, 0
     for i, (h, g) in enumerate(sorted(found, key=lambda x: -os.path.getsize(x[1][0])), 1):
         rels = sorted((cfg.rel(p) for p in g), key=lambda r: _rank(cfg, r))
@@ -411,7 +420,7 @@ def plan_duplicates(cfg, progress=_noop):
         extra += len(rels) - 1
         extra_bytes += size * (len(rels) - 1)
     return {'kind': 'duplicates', 'mode': 'file', 'groups': groups, 'moves': [], 'notes': [],
-            'stats': {'scanned': n, 'groups': len(groups), 'extra': extra, 'extra_bytes': extra_bytes}}
+            'stats': {'scanned': scanned, 'groups': len(groups), 'extra': extra, 'extra_bytes': extra_bytes}}
 
 
 def duplicate_moves(cfg, plan):

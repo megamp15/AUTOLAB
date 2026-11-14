@@ -27,3 +27,6 @@ autolab_photos_immich_url: "http://{{ autolab_photos_ip }}:2283"
 autolab_photos_immich_prefix: /mnt/mahir-personal
 # Containers that must come out of this exactly as they went in.
 autolab_photos_protected: [immich_server, immich_machine_learning, immich_postgres, immich_redis]
+# Deploying replaces the container, which ends a running scan. The play refuses while a job runs;
+# set this only to replace the service anyway.
+autolab_photos_force: false
