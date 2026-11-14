@@ -50,7 +50,7 @@ Local password login remains available until SSO is verified.
 
 | app | account that exists from the start | after the first Pocket ID sign-in |
 |---|---|---|
-| tandoor | `admin`, password `DJANGO_SUPERUSER_PASSWORD` in `/etc/autolab/tandoor.env` | signing in with the same email attaches to it |
+| tandoor | `admin`, password `DJANGO_SUPERUSER_PASSWORD` in `/etc/autolab/tandoor.env` | attaches by email only if Pocket ID reports the email verified; otherwise link it by hand |
 | airtrail | none: the **first account created is the owner** | sign in once, then `docker exec services-airtrail-1 airtrail-admin grant-admin <user>` if you are not the owner |
 | linkace | `admin`, password `LINKACE_ADMIN_PASSWORD` in `/etc/autolab/linkace.env` | SSO users are created on first sign-in as ordinary users; promote in its UI |
 | sure | none: the first user becomes super admin on a new install | sign in once; then Settings → Self-Hosting → Onboarding → Closed |
@@ -61,6 +61,22 @@ When a Pocket ID sign-in works for an app, set
 `autolab_services_<app>_password_login: false` in the role defaults, in a pull
 request, to remove the password form (for Sure that sets
 `AUTH_LOCAL_LOGIN_ENABLED=false`).
+
+## Verified emails
+
+Several apps trust an email only if the identity provider says it is verified:
+AdventureLog and Tandoor attach a first Pocket ID sign-in to an existing account
+by email only then, and LinkAce (`SSO_REQUIRE_VERIFIED_EMAIL=true`) and Sure
+refuse a sign-in whose email is not. **Pocket ID reports emails as unverified by
+default.** Either:
+
+- turn on Pocket ID's *Emails Verified* setting (Application Configuration):
+  reasonable here, since sign-up is closed and every email is one you entered, or
+- link a specific account by hand (what was done for AdventureLog: tie that one
+  Pocket ID subject to the existing user), leaving the policy strict.
+
+Without one of the two, a first sign-in to LinkAce or Sure is refused and one to
+AdventureLog or Tandoor lands on a sign-up form instead of your account.
 
 ## What the playbook checks, and what it cannot
 

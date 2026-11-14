@@ -40,7 +40,11 @@ are not in GitHub and not in the log. To read the break-glass password:
 The edge `services` playbook creates the Pocket ID client and restricts it to
 `admins`. It registers the callback and configures the app, then checks the
 redirect to Pocket ID. `APPS_ADMIN_EMAIL` identifies the existing local admin;
-the first Pocket ID sign-in with the same email attaches to that account.
+automatic email-based linking requires Pocket ID to report the email as verified.
+If it is unverified, sign in to the existing local account and connect Pocket ID
+from its account settings, or explicitly link the verified Pocket ID subject to
+that user. Do not trust all unverified emails. Social account links live in
+AdventureLog's database and are included in its database dumps.
 
 The Pocket ID API key stays in GitHub Actions secrets. Generated client IDs and
 secrets are stored on nebula in `/etc/autolab/managed-pocketid-clients.json`,
@@ -52,8 +56,9 @@ until a Pocket ID sign-in succeeds.
 Pocket ID is registered in the app by `files/adventurelog/pocketid_provider.py`,
 because AdventureLog keeps login providers in its database and has no
 environment variable for them. It is idempotent and reports `CHANGED` only when
-something differed, so rotating the client secret is: change the GitHub secret,
-rerun `services`.
+something differed. Managed client secret rotation requires a coordinated
+change in Pocket ID, root-only client state and the application; changing a
+GitHub secret alone does not rotate a managed client.
 
 ### Pocket ID only
 
