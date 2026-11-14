@@ -38,6 +38,12 @@ controls under it act on exactly those: the checkbox handles or skips every grou
 `2025/06/Backup`) in every group shown that has one, and **Reset keepers** goes back to the
 best copy of each. A group with no copy there is left as it was.
 
+**A scan outlives an apply.** Applying part of a duplicates scan (or an Immich trash read) only
+removes what was dealt with; the groups you left unticked stay open, with your choices, to carry on
+from. The scan is only closed when nothing is left to do. **Scan for new duplicates** reads only the
+files that are new or changed since the files were last read (the hash cache), so it is quick;
+**Full rescan** reads every file again.
+
 ## Deleting, and what makes it safe
 
 Nothing is deleted unless you switch a plan to **Delete** and type `DELETE` in the

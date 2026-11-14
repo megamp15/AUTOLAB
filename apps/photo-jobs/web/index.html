@@ -518,7 +518,11 @@
     else if (j.kind === 'set-date') { Object.assign(state.nodate, { done: j.result.run, failed: j.result.failed || [], files: null }); state.nodate.checked.clear(); }
     else if (j.kind === 'apply') {
       const side = [state.sort, state.dupes, state.immich].find(x => x.plan && x.plan.id === j.plan) || state.sort;
-      side.done = j.result.run; side.plan = null; side.rows = []; side.groups = [];
+      const load = side === state.dupes ? loadDupes : side === state.immich ? loadImmich : null;
+      side.plan = null; side.rows = []; side.groups = [];
+      // What the run did not deal with is still open: the scan stays, with the handled files gone.
+      try { const open = (await api('/plans')).plans.find(x => x.id === j.plan && !x.applied); if (open && load) await load(j.plan, true); } catch (e) { /* the next scan starts fresh */ }
+      side.done = j.result.run;
     }
     await refresh();
     render();
@@ -543,7 +547,7 @@
     if (a.state === 'cancelled') return 'stopped' + (a.partial && a.stats ? `; kept the ${found(a)} found before it stopped` : '');
     if (a.state === 'error') return 'failed: ' + a.error;
     const bits = [found(a)].filter(Boolean);
-    if (a.kind.startsWith('plan-')) bits.push(a.plan_gone ? 'plan discarded' : a.applied ? 'applied' : 'not applied yet');
+    if (a.kind.startsWith('plan-')) bits.push(a.plan_gone ? 'plan discarded' : a.applied ? 'applied' : a.runs ? 'partly applied, the rest is still open' : 'not applied yet');
     return bits.join(' · ') || 'done';
   }
   // The line under a tab's title: when it was last scanned and what it found.
@@ -680,13 +684,14 @@
   }
 
   // The top panel every tab shares: what this is, the one big action, and a few numbers.
-  function headPanel({ title, text, label, action, stats, extra, last }) {
+  function headPanel({ title, text, label, action, stats, extra, last, second }) {
     const head = el('div', 'panel compact'), top = el('div', 'row');
     const t = el('div', 'grow'); t.append(el('h2', null, title), el('p', 'muted', text));
     if (last) t.append(el('div', 'last', last()));
     const go = el('button', 'btn primary', label); go.disabled = busy(); go.onclick = action;
     if (busy()) { const why = `Waiting for ${JOB_NOW[state.job.kind] || 'another job'} to finish: one job runs at a time.`; go.title = why; t.append(el('div', 'last', why)); }
-    top.append(t, go); head.append(top);
+    const side = el('div', 'row'); if (second) { const b = el('button', 'btn quiet', second.label); b.title = second.title; b.disabled = busy(); b.onclick = second.action; side.append(b); }
+    side.append(go); top.append(t, side); head.append(top);
     if (stats) {
       const row = el('div', 'stats');
       stats.forEach(([v, k, hint, tab]) => { const s = el('div', 'stat' + (tab ? ' link' : '')); s.title = hint || '';
@@ -697,8 +702,8 @@
     if (extra) head.append(extra);
     return head;
   }
-  const startPlan = async (kind, side, reset) => {
-    try { reset(side); watchJob((await api('/plans', { method: 'POST', body: { kind } })).job); render(); } catch (e) { fail(e); }
+  const startPlan = async (kind, side, reset, more = {}) => {
+    try { reset(side); watchJob((await api('/plans', { method: 'POST', body: { kind, ...more } })).job); render(); } catch (e) { fail(e); }
   };
   function nearEnd(body, more) { body.addEventListener('scroll', () => { if (body.scrollTop + body.clientHeight > body.scrollHeight - 320) more(); }); }
   function chip(label, n, active, onclick, hint) {
@@ -861,7 +866,9 @@
     const d = state.dupes;
     main.append(headPanel({
       title: 'Duplicates', text: 'Byte-identical photos and videos. The best copy is kept; pick a different one if you prefer. The extras are filed under _duplicates, or deleted if you choose.',
-      last: () => lastScan('duplicates'), label: d.plan ? 'Scan again' : 'Find duplicates', action: () => startPlan('duplicates', d, x => { x.plan = null; x.groups = []; }) }));
+      last: () => lastScan('duplicates'), label: d.plan ? 'Scan for new duplicates' : 'Find duplicates', action: () => startPlan('duplicates', d, x => { x.plan = null; x.groups = []; }),
+      second: d.plan ? { label: 'Full rescan', title: 'Read every file again instead of trusting what the last scan already read. Slow on a big library; for when you suspect a file was swapped without its date changing.',
+        action: async () => { if (await ask('Rescan every file?', ['Every photo and video is read again from the disk, which takes as long as the first scan.', '“Scan for new duplicates” only reads files that are new or changed, and finds the same copies.'], 'Full rescan')) startPlan('duplicates', d, x => { x.plan = null; x.groups = []; }, { full: true }); } } : null }));
     const done = doneBanner(d); if (done) { done.style.marginTop = '12px'; main.append(done); }
     if (!d.plan) { const r = restoring('duplicates', d); if (r) main.append(r); else if (!busy() && !done) main.append(el('div', 'empty', 'Scan to find copies of the same photo anywhere in the library.')); else if (scanningDupes()) main.append(el('div', 'empty', 'Copies appear here as they are found.')); return; }
     fit(true);
