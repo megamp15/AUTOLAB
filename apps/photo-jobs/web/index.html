@@ -119,6 +119,54 @@
     .item { grid-template-columns:auto 1fr; } .item .tag { grid-column:2; width:max-content; } .item > div:last-child { grid-column:1 / -1; }
     .tabs { gap:20px; order:3; flex-basis:100%; }
   }
+
+  /* compact head, stats, toolbar, chips and the scrolling table */
+  #main { display:flex; flex-direction:column; gap:12px; }
+  .compact { padding:12px 16px; }
+  .compact h2 { font-size:18px; }
+  .stats { display:flex; flex-wrap:wrap; gap:6px 28px; margin-top:10px; }
+  .stats.inline { margin:0; }
+  .stat { display:flex; align-items:baseline; gap:8px; }
+  .stat b { font-size:20px; font-weight:500; font-variant-numeric:tabular-nums; }
+  .stat small { font:10.5px 'IBM Plex Mono',monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); }
+  .toolbar { display:flex; align-items:center; gap:10px 16px; flex-wrap:wrap; margin-bottom:10px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip { color:inherit; background:none; border:1px solid var(--line); border-radius:999px; padding:4px 12px; font:inherit; font-size:12px; cursor:pointer; display:inline-flex; gap:8px; align-items:baseline; transition:background-color .15s, border-color .15s, color .15s; }
+  .chip small { font:10.5px 'IBM Plex Mono',monospace; color:var(--dim); }
+  .chip:hover { border-color:var(--fg); }
+  .chip.on { background:var(--fg); color:var(--bg); border-color:var(--fg); }
+  .chip.on small { color:inherit; opacity:.7; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+  .seg button { color:inherit; background:none; border:0; border-left:1px solid var(--line); padding:5px 12px; font:inherit; font-size:12px; cursor:pointer; }
+  .seg button:first-child { border-left:0; }
+  .seg button.on { background:var(--fg); color:var(--bg); }
+  .seg button.danger.on { background:var(--bad); color:#fff; }
+  .btn.danger { background:var(--bad); border-color:var(--bad); color:#fff; }
+  .btn.danger:hover:not(:disabled) { background:transparent; color:var(--bad); }
+  .note.bad { border-left-color:var(--bad); color:var(--fg); }
+  .table-panel { display:flex; flex-direction:column; min-height:0; padding:12px 14px; }
+  .table { display:flex; flex-direction:column; min-height:0; flex:1; border:1px solid var(--line); border-radius:5px; overflow:hidden; }
+  .tbody { overflow:auto; flex:1 1 auto; min-height:0; max-height:70vh; scrollbar-width:thin; }
+  .tbody.groups { padding:2px 2px 0; }
+  .tr { display:grid; grid-template-columns:28px 92px minmax(0,1.25fr) minmax(0,1.25fr) minmax(0,1fr); gap:4px 14px; padding:8px 12px; border-bottom:1px solid var(--soft); align-items:start; }
+  .tr.immich { grid-template-columns:28px minmax(0,1fr) minmax(0,1.7fr) 90px 160px; }
+  .tr:hover:not(.th) { background:var(--soft); }
+  .tr.off { opacity:.42; }
+  .tr.inert .tick { opacity:.3; cursor:default; }
+  .th { position:sticky; top:0; z-index:2; background:color-mix(in srgb,var(--bg) 94%,var(--fg)); font:10.5px 'IBM Plex Mono',monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); border-bottom:1px solid var(--line); align-items:center; }
+  .tr .name { font-weight:500; font-family:'Space Grotesk',sans-serif; overflow-wrap:anywhere; }
+  .immich-status { margin-top:10px; font-size:11.5px; display:flex; align-items:center; gap:8px; color:var(--dim); }
+  .immich-status.status-ok { color:var(--ok); } .immich-status.status-bad { color:var(--bad); }
+  h2.status-bad { color:var(--bad); }
+  /* on a desktop the table fills the window and scrolls inside itself, so the page does not move */
+  @media (min-width:701px) {
+    body.fit #app { height:100dvh; padding-bottom:clamp(14px,2vw,28px); }
+    body.fit #main { flex:1; min-height:0; }
+    body.fit .table-panel { flex:1; min-height:0; }
+    body.fit .tbody { max-height:none; }
+    body.fit .bar { position:static; flex:none; }
+  }
+  @media (max-width:700px) { .tr, .tr.immich { grid-template-columns:28px 1fr; } .th { display:none; } .tr > :nth-child(n+3) { grid-column:2; } }
   @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
 </style>
 </head>
@@ -130,6 +178,7 @@
     <nav class="tabs" role="tablist" aria-label="Photo jobs">
       <button type="button" role="tab" data-tab="inbox" aria-selected="true">Inbox</button>
       <button type="button" role="tab" data-tab="duplicates" aria-selected="false">Duplicates</button>
+      <button type="button" role="tab" data-tab="immich" aria-selected="false">Immich trash</button>
       <button type="button" role="tab" data-tab="history" aria-selected="false">History<small id="runs-count"></small></button>
     </nav>
     <div id="right">
@@ -153,10 +202,12 @@
   const fmtGiB = b => b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GiB' : b >= 1048576 ? (b / 1048576).toFixed(b >= 1.05e7 ? 0 : 1) + ' MiB' : Math.max(1, Math.round(b / 1024)) + ' KiB';
   const ago = t => { const s = Date.now() / 1000 - t; return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : new Date(t * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' }); };
 
-  const state = { tab: location.hash.slice(1) || 'inbox', status: null, job: null, dark: true,
-                  sort: { plan: null, moves: null, kind: '', q: '', offset: 0, done: null },
-                  dupes: { plan: null, groups: null, q: '', offset: 0, done: null }, runs: [] };
-  if (!['inbox', 'duplicates', 'history'].includes(state.tab)) state.tab = 'inbox';
+  const TABS = ['inbox', 'duplicates', 'immich', 'history'];
+  const state = { tab: location.hash.slice(1) || 'inbox', status: null, job: null, dark: true, runs: [], immichInfo: null,
+                  sort: { plan: null, rows: [], total: 0, shown: 0, filter: { kind: '', pair: false, q: '' }, done: null },
+                  dupes: { plan: null, groups: [], total: 0, q: '', done: null },
+                  immich: { plan: null, rows: [], total: 0, selected: 0, selectable: 0, filter: { status: '', live: false, q: '' }, done: null } };
+  if (!TABS.includes(state.tab)) state.tab = 'inbox';
   try { state.dark = localStorage.getItem('photos-dark') !== '0'; } catch (e) {}
 
   async function api(path, opts = {}) {
@@ -198,9 +249,10 @@
     if (j.state === 'error') { renderProgress(); return; }
     if (j.kind === 'plan-sort') { await loadSort(j.result.plan); }
     else if (j.kind === 'plan-duplicates') { await loadDupes(j.result.plan); }
+    else if (j.kind === 'plan-immich') { await loadImmich(j.result.plan); }
     else if (j.kind === 'apply') {
-      const side = j.plan === (state.sort.plan && state.sort.plan.id) ? state.sort : state.dupes;
-      side.done = j.result.run; side.plan = null; side.moves = side.groups = null;
+      const side = [state.sort, state.dupes, state.immich].find(x => x.plan && x.plan.id === j.plan) || state.sort;
+      side.done = j.result.run; side.plan = null; side.rows = []; side.groups = [];
     }
     await refresh();
     render();
@@ -229,35 +281,57 @@
     const c = $('#runs-count'); c.textContent = state.runs.length ? state.runs.length : '';
   }
   async function loadSort(id) {
-    state.sort.plan = await api('/plans/' + id); state.sort.offset = 0; state.sort.done = null;
-    await loadMoves();
+    const s = state.sort;
+    s.plan = await api('/plans/' + id); s.done = null; s.filter = { kind: '', pair: false, q: '' };
+    await fetchRows(false);
   }
-  async function loadMoves() {
-    const s = state.sort, q = new URLSearchParams({ offset: s.offset, limit: 100, kind: s.kind, q: s.q });
-    s.moves = await api(`/plans/${s.plan.id}/moves?` + q);
+  async function fetchRows(append) {
+    const s = state.sort, f = s.filter;
+    const q = new URLSearchParams({ kind: f.kind, pair: f.pair ? '1' : '', q: f.q, offset: append ? s.rows.length : 0, limit: 200 });
+    const page = await api(`/plans/${s.plan.id}/moves?` + q);
+    s.total = page.total; s.shown = page.selected;
+    s.rows = append ? s.rows.concat(page.moves) : page.moves;
+    return page.moves;
   }
   async function loadDupes(id) {
-    state.dupes.plan = await api('/plans/' + id); state.dupes.offset = 0; state.dupes.done = null;
-    await loadGroups();
+    const d = state.dupes; d.plan = await api('/plans/' + id); d.done = null; d.q = '';
+    await fetchGroups(false);
   }
-  async function loadGroups() {
-    const d = state.dupes, q = new URLSearchParams({ offset: d.offset, limit: 40, q: d.q });
-    d.groups = await api(`/plans/${d.plan.id}/groups?` + q);
+  async function fetchGroups(append) {
+    const d = state.dupes, q = new URLSearchParams({ offset: append ? d.groups.length : 0, limit: 40, q: d.q });
+    const page = await api(`/plans/${d.plan.id}/groups?` + q);
+    d.total = page.total; d.groups = append ? d.groups.concat(page.groups) : page.groups;
+    return page.groups;
+  }
+  async function loadImmich(id) {
+    const m = state.immich; m.plan = await api('/plans/' + id); m.done = null; m.filter = { status: '', live: false, q: '' };
+    await fetchItems(false);
+  }
+  async function fetchItems(append) {
+    const m = state.immich, f = m.filter;
+    const q = new URLSearchParams({ status: f.status, live: f.live ? '1' : '', q: f.q, offset: append ? m.rows.length : 0, limit: 200 });
+    const page = await api(`/plans/${m.plan.id}/items?` + q);
+    m.total = page.total; m.selected = page.selected; m.selectable = page.selectable;
+    m.rows = append ? m.rows.concat(page.items) : page.items;
+    return page.items;
   }
   async function resume() {
     const { plans } = await api('/plans');
-    for (const kind of ['sort', 'duplicates']) {
+    for (const [kind, load] of [['sort', loadSort], ['duplicates', loadDupes], ['immich', loadImmich]]) {
       const p = plans.find(x => x.kind === kind && !x.applied);
-      if (p) await (kind === 'sort' ? loadSort(p.id) : loadDupes(p.id));
+      if (p) await load(p.id);
     }
   }
 
   // ---- views ------------------------------------------------------------------------------------
   const main = $('#main');
+  // A table that fills the screen and scrolls inside itself, so the page does not move under it.
+  const fit = on => document.body.classList.toggle('fit', on);
   function render() {
+    fit(false);
     document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
     main.replaceChildren();
-    ({ inbox: viewInbox, duplicates: viewDupes, history: viewHistory })[state.tab]();
+    ({ inbox: viewInbox, duplicates: viewDupes, immich: viewImmich, history: viewHistory })[state.tab]();
     const p = progressBlock(); if (p) main.prepend(p);
     main.classList.remove('fade-in'); void main.offsetWidth; main.classList.add('fade-in');
   }
@@ -265,173 +339,273 @@
     const t = e.target.closest('[data-tab]'); if (!t) return;
     state.tab = t.dataset.tab; history.replaceState(null, '', '#' + state.tab); render();
   });
-
-  addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['inbox', 'duplicates', 'history'].includes(t) && t !== state.tab) { state.tab = t; render(); } });
-
-  function doneBanner(side, kindWord) {
+  addEventListener('hashchange', () => { const t = location.hash.slice(1); if (TABS.includes(t) && t !== state.tab) { state.tab = t; render(); } });
+  function doneBanner(side) {
     if (!side.done) return null;
     const run = state.runs.find(r => r.id === side.done);
-    const box = el('div', 'panel'); box.style.marginBottom = '14px';
+    const box = el('div', 'panel'); box.style.marginBottom = '12px';
     const row = el('div', 'row');
-    const msg = run ? `${run.counts.moved} ${kindWord} moved${run.counts.skipped ? `, ${run.counts.skipped} skipped because they had changed` : ''}${run.counts.error ? `, ${run.counts.error} failed` : ''}.` : 'Done.';
+    let msg = 'Done.';
+    if (run) {
+      const c = run.counts;
+      msg = [c.moved && `${c.moved.toLocaleString()} moved`, c.deleted && `${c.deleted.toLocaleString()} deleted for good`,
+             c.skipped && `${c.skipped.toLocaleString()} skipped because they had changed`, c.error && `${c.error} failed`].filter(Boolean).join(' · ') + '.';
+    }
     row.append(el('span', 'status-ok', '●'), el('span', 'grow', msg));
-    if (run && !run.undone) { const u = el('button', 'btn small', 'Undo'); u.onclick = () => undo(run.id); row.append(u); }
+    if (run && run.counts.moved && !run.undone) { const u = el('button', 'btn small', 'Undo'); u.onclick = () => undo(run.id); row.append(u); }
     box.append(row); return box;
   }
 
+  // The top panel every tab shares: what this is, the one big action, and a few numbers.
+  function headPanel({ title, text, label, action, stats, extra }) {
+    const head = el('div', 'panel compact'), top = el('div', 'row');
+    const t = el('div', 'grow'); t.append(el('h2', null, title), el('p', 'muted', text));
+    const go = el('button', 'btn primary', label); go.disabled = busy(); go.onclick = action;
+    top.append(t, go); head.append(top);
+    if (stats) {
+      const row = el('div', 'stats');
+      stats.forEach(([v, k, hint]) => { const s = el('div', 'stat'); s.title = hint || ''; s.append(el('b', null, typeof v === 'number' ? v.toLocaleString() : v), el('small', null, k)); row.append(s); });
+      head.append(row);
+    }
+    if (extra) head.append(extra);
+    return head;
+  }
+  const startPlan = async (kind, side, reset) => {
+    try { reset(side); watchJob((await api('/plans', { method: 'POST', body: { kind } })).job); render(); } catch (e) { fail(e); }
+  };
+  function nearEnd(body, more) { body.addEventListener('scroll', () => { if (body.scrollTop + body.clientHeight > body.scrollHeight - 320) more(); }); }
+  function chip(label, n, active, onclick, hint) {
+    const c = el('button', 'chip' + (active ? ' on' : '')); c.type = 'button'; c.title = hint || '';
+    c.append(document.createTextNode(label), el('small', null, n.toLocaleString())); c.onclick = onclick; return c;
+  }
+  function segmented(options, current, onpick) {
+    const box = el('div', 'seg');
+    options.forEach(([value, label, hint, danger]) => {
+      const b = el('button', (value === current ? 'on' : '') + (danger ? ' danger' : ''), label); b.type = 'button'; b.title = hint; b.onclick = () => onpick(value); box.append(b);
+    });
+    return box;
+  }
+  const spacer = () => el('span', 'grow');
+  const searchBox = (value, oninput) => {
+    const q = el('input', 'search'); q.placeholder = 'Filter by name or path'; q.value = value; let timer = 0;
+    q.oninput = () => { clearTimeout(timer); timer = setTimeout(() => oninput(q.value), 250); }; return q;
+  };
+  async function refreshPlan(side) { side.plan = await api('/plans/' + side.plan.id); }
+
+  // ---- Inbox ---------------------------------------------------------------------------------------
+  let sortUI = null, sortIndex = new Map();
   function viewInbox() {
     const s = state.sort, st = state.status;
-    const head = el('div', 'panel');
-    const top = el('div', 'row');
-    const t = el('div', 'grow'); t.append(el('h2', null, 'Inbox'), el('p', 'muted', 'Photos dropped in _inbox/loose are dated one by one; each folder in _inbox/events moves whole. Nothing moves until you apply.'));
-    const scan = el('button', 'btn primary', s.plan ? 'Scan again' : 'Scan inbox'); scan.disabled = busy();
-    scan.onclick = async () => { try { s.plan = null; s.moves = null; watchJob((await api('/plans', { method: 'POST', body: { kind: 'sort' } })).job); render(); } catch (e) { fail(e); } };
-    top.append(t, scan); head.append(top);
-    if (st) {
-      const tiles = el('div', 'tiles'); tiles.style.marginTop = '14px';
-      [['loose photos', st.inbox.loose], ['in events', st.inbox.events], ['no date filed', st.inbox.no_date], ['duplicates filed', st.inbox.duplicates]].forEach(([k, v]) => {
-        const tile = el('div', 'tile'); tile.append(el('b', null, v.toLocaleString()), el('small', null, k)); tiles.append(tile);
-      });
-      head.append(tiles);
-    }
-    main.append(head);
-    const done = doneBanner(s, 'files'); if (done) { done.style.marginTop = '14px'; main.append(done); }
-    if (!s.plan) { if (!busy() && !done) { const e = el('div', 'empty', 'Scan the inbox to see exactly what would move.'); main.append(e); } return; }
-    const p = s.plan, wrap = el('div'); wrap.style.cssText = 'display:flex;flex-direction:column;gap:14px;margin-top:14px';
-    const sum = el('div', 'panel');
-    sum.append(el('p', 'head', 'Plan'));
-    const tiles = el('div', 'tiles');
-    Object.entries(p.stats.kinds).sort((a, b) => b[1] - a[1]).forEach(([k, n]) => {
-      const off = (p.excluded_kinds || []).includes(k);
-      const tile = el('button', 'tile kind' + (off ? ' off' : '')); tile.type = 'button'; tile.title = off ? 'Include these moves again' : 'Leave these moves out';
-      tile.append(el('b', null, n.toLocaleString()), el('small', null, KIND_LABEL[k] || k));
-      tile.onclick = () => patch({ kind: k, selected: off }, s, loadMoves);
-      tiles.append(tile);
-    });
-    if (p.stats.pairs) { const t2 = el('div', 'tile'); t2.append(el('b', null, p.stats.pairs.toLocaleString()), el('small', null, 'live photos kept whole')); tiles.append(t2); }
-    sum.append(tiles);
-    (p.notes || []).forEach(n => sum.append(el('div', 'note', n)));
-    if (p.stats.left) sum.append(el('div', 'note', `${p.stats.left} other files stay where they are (not photos or videos).`));
-    wrap.append(sum);
-
-    const listPanel = el('div', 'panel');
-    const filters = el('div', 'row'); filters.style.marginBottom = '8px';
-    const q = el('input', 'search'); q.placeholder = 'Filter by name or reason'; q.value = s.q;
-    let timer = 0; q.oninput = () => { clearTimeout(timer); timer = setTimeout(async () => { s.q = q.value; s.offset = 0; await loadMoves(); renderList(); }, 250); };
-    const allOn = el('button', 'btn small quiet', 'Tick all'), allOff = el('button', 'btn small quiet', 'Untick all');
-    allOn.onclick = () => patch({ all: true }, s, loadMoves); allOff.onclick = () => patch({ all: false }, s, loadMoves);
-    filters.append(q, el('span', 'grow'), allOn, allOff);
-    const list = el('div', 'list'); list.id = 'moves';
-    listPanel.append(el('p', 'head', 'Moves'), filters, list); wrap.append(listPanel);
-    main.append(wrap);
-    renderList();
-    const bar = el('div', 'bar'); bar.id = 'applybar';
-    const info = el('span', 'grow'); info.innerHTML = `<b>${p.selected.toLocaleString()}</b> of ${p.moves.toLocaleString()} moves ticked`;
-    const apply = el('button', 'btn primary', 'Apply ' + p.selected.toLocaleString() + ' moves'); apply.disabled = busy() || !p.selected;
-    apply.onclick = () => confirmApply(p, 'files will move');
-    bar.append(info, apply); main.append(bar);
+    main.append(headPanel({
+      title: 'Inbox', text: 'Photos dropped in _inbox/loose are dated one by one; each folder in _inbox/events moves whole. Nothing moves until you apply.',
+      label: s.plan ? 'Scan again' : 'Scan inbox', action: () => startPlan('sort', s, x => { x.plan = null; x.rows = []; }),
+      stats: st && [[st.inbox.loose, 'loose · waiting', 'Photos in _inbox/loose, not sorted yet'], [st.inbox.events, 'in events · waiting', 'Photos in _inbox/events folders, not placed yet'],
+                    [st.inbox.no_date, 'no date · parked', 'Already put aside in _no_date: photos with no recording date inside them'],
+                    [st.inbox.duplicates, 'duplicates · parked', 'Already put aside in _duplicates by an earlier run']] }));
+    const done = doneBanner(s); if (done) { done.style.marginTop = '12px'; main.append(done); }
+    if (!s.plan) { if (!busy() && !done) main.append(el('div', 'empty', 'Scan the inbox to see exactly what would move.')); return; }
+    fit(true);
+    const p = s.plan, panel = el('div', 'panel table-panel');
+    const tools = el('div', 'toolbar'), chips = el('div', 'chips');
+    tools.append(chips, spacer(), searchBox(s.filter.q, async v => { s.filter.q = v; await reloadRows(); }));
+    const notes = [...(p.notes || []), ...(p.stats.left ? [`${p.stats.left} other files stay where they are (not photos or videos).`] : [])];
+    const head = el('div', 'tr th'), headBox = el('input', 'tick'); headBox.type = 'checkbox'; headBox.title = 'Tick or untick everything shown';
+    headBox.onchange = () => bulk(headBox.checked);
+    ['Action', 'From', 'To', 'Why'].forEach(t => head.append(el('span', null, t))); head.prepend(headBox);
+    const body = el('div', 'tbody'); nearEnd(body, loadMore);
+    panel.append(tools, ...notes.map(n => el('div', 'note', n)), el('div', 'table').appendChild(head).parentNode);
+    panel.lastChild.append(body);
+    main.append(panel);
+    const bar = el('div', 'bar'), info = el('span', 'grow'), apply = el('button', 'btn primary');
+    apply.onclick = () => confirmApply(s.plan); bar.append(info, apply); main.append(bar);
+    sortUI = { chips, body, headBox, info, apply, tools };
+    sortIndex = new Map(); s.rows.forEach(addRow); paintSort();
   }
-  function renderList() {
-    const s = state.sort, list = $('#moves'); if (!list || !s.moves) return;
-    list.replaceChildren();
-    if (!s.moves.moves.length) list.append(el('div', 'empty', s.q ? 'Nothing matches.' : 'Nothing to move.'));
-    s.moves.moves.forEach(m => {
-      const row = el('div', 'item' + (m.selected ? '' : ' off'));
-      const box = el('input', 'tick'); box.type = 'checkbox'; box.checked = m.selected; box.setAttribute('aria-label', 'Include this move');
-      box.onchange = () => patch({ groups: [m.group || 'm' + m.id], selected: box.checked }, s, loadMoves);
-      const body = el('div'), path = el('div', 'path');
-      path.append(el('span', null, m.src), el('span', 'arrow', '→'), el('span', 'to', m.dst));
-      if ((m.group || '').startsWith('pair:')) path.append(el('span', 'live', 'LIVE PHOTO'));
-      body.append(path, el('div', 'why', m.why));
-      row.append(box, el('span', 'tag', KIND_LABEL[m.kind] || m.kind), body); list.append(row);
-    });
-    const pager = pagerFor(s.moves, 100, async o => { s.offset = o; await loadMoves(); renderList(); });
-    if (pager) list.append(pager);
+  function addRow(m) {
+    const body = sortUI.body, key = m.group || 'm' + m.id;
+    const row = el('div', 'tr' + (m.selected ? '' : ' off')), box = el('input', 'tick'); box.type = 'checkbox'; box.checked = m.selected;
+    box.setAttribute('aria-label', 'Include this move'); box.onchange = () => toggleKeys([key], box.checked);
+    const to = el('span', 'path to', m.dst); if (key.startsWith('pair:')) to.append(el('span', 'live', 'LIVE PHOTO'));
+    row.append(box, el('span', 'tag', KIND_LABEL[m.kind] || m.kind), el('span', 'path', m.src), to, el('span', 'why', m.why));
+    if (!sortIndex.has(key)) sortIndex.set(key, []);
+    sortIndex.get(key).push({ m, row, box }); body.append(row);
   }
-  function pagerFor(page, size, go) {
-    if (page.total <= size) return null;
-    const r = el('div', 'row'); r.style.cssText = 'justify-content:center;padding:12px 0';
-    const prev = el('button', 'btn small quiet', 'Previous'), next = el('button', 'btn small quiet', 'Next');
-    prev.disabled = page.offset === 0; next.disabled = page.offset + size >= page.total;
-    prev.onclick = () => go(Math.max(0, page.offset - size)); next.onclick = () => go(page.offset + size);
-    r.append(prev, el('span', 'mono muted', `${page.offset + 1}–${Math.min(page.offset + size, page.total)} of ${page.total.toLocaleString()}`), next);
-    return r;
+  const setRow = (r, on) => { r.m.selected = on; r.box.checked = on; r.row.classList.toggle('off', !on); };
+  function paintSort() {
+    const s = state.sort, p = s.plan, u = sortUI, f = s.filter; if (!u) return;
+    const defs = [{ label: 'All', n: p.moves, on: !f.kind && !f.pair, set: { kind: '', pair: false } }]
+      .concat(Object.entries(p.stats.kinds).sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ label: KIND_LABEL[k] || k, n, on: f.kind === k && !f.pair, set: { kind: k, pair: false } })));
+    if (p.stats.pairs) defs.push({ label: 'Live photos', n: p.stats.pairs, on: f.pair, set: { kind: '', pair: true }, hint: 'A still and its clip, which move together' });
+    u.chips.replaceChildren(...defs.map(d => chip(d.label, d.n, d.on, async () => { Object.assign(f, d.on ? { kind: '', pair: false } : d.set); await reloadRows(); }, d.hint)));
+    u.headBox.checked = s.total > 0 && s.shown === s.total; u.headBox.indeterminate = s.shown > 0 && s.shown < s.total;
+    u.info.innerHTML = `<b>${p.selected.toLocaleString()}</b> of ${p.moves.toLocaleString()} moves ticked <span class="muted">· ${s.total.toLocaleString()} shown, ${s.shown.toLocaleString()} of them ticked</span>`;
+    u.apply.textContent = 'Apply ' + p.selected.toLocaleString() + ' moves'; u.apply.disabled = busy() || !p.selected;
   }
-  async function patch(body, side, reload) {
-    try {
-      await api('/plans/' + side.plan.id, { method: 'PATCH', body });
-      side.plan = await api('/plans/' + side.plan.id);
-      await reload(); render();
-    } catch (e) { fail(e); }
+  async function reloadRows() {
+    const s = state.sort; await fetchRows(false);
+    sortIndex = new Map(); sortUI.body.replaceChildren(); sortUI.body.scrollTop = 0; s.rows.forEach(addRow); paintSort();
+  }
+  async function loadMore() {
+    const s = state.sort; if (s.loading || s.rows.length >= s.total) return;
+    s.loading = true; try { (await fetchRows(true)).forEach(addRow); } finally { s.loading = false; }
+  }
+  // Ticking changes only the rows you touched; the page is not redrawn, so nothing flashes.
+  async function toggleKeys(keys, on) {
+    const s = state.sort; keys.forEach(k => (sortIndex.get(k) || []).forEach(r => setRow(r, on)));
+    try { await api('/plans/' + s.plan.id, { method: 'PATCH', body: { groups: keys, selected: on } }); await afterTick(); } catch (e) { fail(e); await reloadRows(); }
+  }
+  async function bulk(on) {
+    const s = state.sort; sortIndex.forEach(list => list.forEach(r => setRow(r, on)));
+    try { await api('/plans/' + s.plan.id, { method: 'PATCH', body: { filter: s.filter, selected: on } }); await afterTick(); } catch (e) { fail(e); await reloadRows(); }
+  }
+  async function afterTick() {
+    const s = state.sort; await refreshPlan(s); const f = s.filter;
+    const page = await api(`/plans/${s.plan.id}/moves?` + new URLSearchParams({ kind: f.kind, pair: f.pair ? '1' : '', q: f.q, limit: 1 }));
+    s.total = page.total; s.shown = page.selected; paintSort();
   }
 
+  // ---- Duplicates -----------------------------------------------------------------------------------
+  let dupeUI = null;
   function viewDupes() {
     const d = state.dupes;
-    const head = el('div', 'panel'), top = el('div', 'row');
-    const t = el('div', 'grow'); t.append(el('h2', null, 'Duplicates'), el('p', 'muted', 'Byte-identical photos and videos. The best copy is kept; the others are filed under _duplicates beside it, never deleted.'));
-    const scan = el('button', 'btn primary', d.plan ? 'Scan again' : 'Find duplicates'); scan.disabled = busy();
-    scan.onclick = async () => { try { d.plan = null; d.groups = null; watchJob((await api('/plans', { method: 'POST', body: { kind: 'duplicates' } })).job); render(); } catch (e) { fail(e); } };
-    top.append(t, scan); head.append(top); main.append(head);
-    const done = doneBanner(d, 'copies'); if (done) { done.style.marginTop = '14px'; main.append(done); }
+    main.append(headPanel({
+      title: 'Duplicates', text: 'Byte-identical photos and videos. The best copy is kept; pick a different one if you prefer. The extras are filed under _duplicates, or deleted if you choose.',
+      label: d.plan ? 'Scan again' : 'Find duplicates', action: () => startPlan('duplicates', d, x => { x.plan = null; x.groups = []; }) }));
+    const done = doneBanner(d); if (done) { done.style.marginTop = '12px'; main.append(done); }
     if (!d.plan) { if (!busy() && !done) main.append(el('div', 'empty', 'Scan to find copies of the same photo anywhere in the library.')); return; }
-    const p = d.plan, wrap = el('div'); wrap.style.cssText = 'display:flex;flex-direction:column;gap:14px;margin-top:14px';
-    const sum = el('div', 'panel'), tiles = el('div', 'tiles');
-    [[p.stats.groups, 'groups'], [p.stats.extra, 'extra copies'], [fmtGiB(p.stats.extra_bytes), 'they use'], [p.preview.moves, 'will be filed']].forEach(([v, k]) => {
-      const tile = el('div', 'tile'); tile.append(el('b', null, typeof v === 'number' ? v.toLocaleString() : v), el('small', null, k)); tiles.append(tile);
+    fit(true);
+    const panel = el('div', 'panel table-panel'), tools = el('div', 'toolbar'), stats = el('div', 'stats inline');
+    const modes = segmented([['file', 'File under _duplicates', 'Move the extra copies to _duplicates; undo puts them back'],
+                             ['delete', 'Delete', 'Remove the extra copies for good. Cannot be undone', true]], d.plan.mode || 'file', async v => {
+      try { await api('/plans/' + d.plan.id, { method: 'PATCH', body: { mode: v } }); await refreshPlan(d); render(); } catch (e) { fail(e); }
     });
-    sum.append(el('p', 'head', 'Result'), tiles);
-    if (p.preview.protected_count) {
-      sum.append(el('div', 'note', `${p.preview.protected_count} copies are left alone because their Live Photo half is staying; moving one half would split the photo.`));
-    }
-    wrap.append(sum);
-    const panel = el('div', 'panel'); panel.append(el('p', 'head', 'Pick the copy to keep'));
-    const filter = el('div', 'row'); filter.style.marginBottom = '10px';
-    const q = el('input', 'search'); q.placeholder = 'Filter by path'; q.value = d.q;
-    let timer = 0; q.oninput = () => { clearTimeout(timer); timer = setTimeout(async () => { d.q = q.value; d.offset = 0; await loadGroups(); renderGroups(); }, 250); };
-    filter.append(q); panel.append(filter);
-    const holder = el('div'); holder.id = 'groups'; panel.append(holder); wrap.append(panel); main.append(wrap);
-    renderGroups();
-    const bar = el('div', 'bar'), info = el('span', 'grow');
-    info.innerHTML = `<b>${p.preview.moves.toLocaleString()}</b> copies will be filed`;
-    const apply = el('button', 'btn primary', 'File ' + p.preview.moves.toLocaleString() + ' copies'); apply.disabled = busy() || !p.preview.moves;
-    apply.onclick = () => confirmApply(p, 'copies will be filed under _duplicates');
-    bar.append(info, apply); main.append(bar);
+    tools.append(stats, spacer(), modes, searchBox(d.q, async v => { d.q = v; await fetchGroups(false); dupeUI.list.replaceChildren(); d.groups.forEach(addGroup); }));
+    const warn = el('div', 'note bad', 'Delete removes the extra copies for good. Each one is checked to still be identical to the copy you keep, just before it is removed. This cannot be undone.');
+    warn.hidden = d.plan.mode !== 'delete';
+    const list = el('div', 'tbody groups'); nearEnd(list, async () => { if (!d.loading && d.groups.length < d.total) { d.loading = true; try { (await fetchGroups(true)).forEach(addGroup); } finally { d.loading = false; } } });
+    panel.append(tools, warn, list); main.append(panel);
+    const bar = el('div', 'bar'), info = el('span', 'grow'), apply = el('button', 'btn primary');
+    apply.onclick = () => confirmApply(d.plan); bar.append(info, apply); main.append(bar);
+    dupeUI = { stats, list, info, apply }; d.groups.forEach(addGroup); paintDupes();
   }
-  function renderGroups() {
-    const d = state.dupes, holder = $('#groups'); if (!holder || !d.groups) return;
-    holder.replaceChildren();
-    if (!d.groups.groups.length) holder.append(el('div', 'empty', d.q ? 'Nothing matches.' : 'No duplicates. Nice.'));
-    d.groups.groups.forEach(g => {
-      const card = el('div', 'group' + (g.selected ? '' : ' off'));
-      const hd = el('header'), on = el('input', 'tick'); on.type = 'checkbox'; on.checked = g.selected; on.setAttribute('aria-label', 'File the extra copies of this photo');
-      on.onchange = () => patch({ groups: [g.id], selected: on.checked }, d, loadGroups);
-      hd.append(on, el('span', 'mono', `${g.files.length} copies · ${fmtGiB(g.size)} each`), el('span', 'grow'));
-      card.append(hd);
-      g.files.forEach(f => {
-        const row = el('label', 'copy'), r = el('input', 'tick radio'); r.type = 'radio'; r.name = g.id; r.checked = f === g.keep;
-        r.onchange = () => patch({ keep: { [g.id]: f } }, d, loadGroups);
-        const path = el('span', 'path', f); row.append(r, path);
-        if (f === g.keep) row.append(el('span', 'keep', 'keep'));
-        card.append(row);
-      });
-      holder.append(card);
+  function paintDupes() {
+    const p = state.dupes.plan, u = dupeUI, del = p.mode === 'delete';
+    u.stats.replaceChildren(...[[p.stats.groups, 'groups'], [p.stats.extra, 'extra copies'], [fmtGiB(p.stats.extra_bytes), 'they use'], [p.preview.moves, del ? 'to delete' : 'to file']].map(([v, k]) => {
+      const s = el('div', 'stat'); s.append(el('b', null, typeof v === 'number' ? v.toLocaleString() : v), el('small', null, k)); return s; }));
+    const n = p.preview.moves;
+    u.info.innerHTML = `<b>${n.toLocaleString()}</b> copies will be ${del ? 'deleted for good' : 'filed'}` + (p.preview.protected_count ? ` <span class="muted">· ${p.preview.protected_count} left alone because their Live Photo half is staying</span>` : '');
+    u.apply.textContent = (del ? 'Delete ' : 'File ') + n.toLocaleString() + ' copies'; u.apply.classList.toggle('danger', del); u.apply.disabled = busy() || !n;
+  }
+  function addGroup(g) {
+    const d = state.dupes, card = el('div', 'group' + (g.selected ? '' : ' off'));
+    const hd = el('header'), on = el('input', 'tick'); on.type = 'checkbox'; on.checked = g.selected; on.setAttribute('aria-label', 'Handle the extra copies of this photo');
+    on.onchange = async () => { g.selected = on.checked; card.classList.toggle('off', !g.selected); await dupePatch({ groups: [g.id], selected: g.selected }); };
+    hd.append(on, el('span', 'mono', `${g.files.length} copies · ${fmtGiB(g.size)} each`)); card.append(hd);
+    g.files.forEach(f => {
+      const row = el('label', 'copy'), r = el('input', 'tick radio'); r.type = 'radio'; r.name = g.id; r.checked = f === g.keep;
+      r.onchange = async () => { g.keep = f; card.replaceWith(groupCard(g)); await dupePatch({ keep: { [g.id]: f } }); };
+      row.append(r, el('span', 'path', f)); if (f === g.keep) row.append(el('span', 'keep', 'keep')); card.append(row);
     });
-    const pager = pagerFor(d.groups, 40, async o => { d.offset = o; await loadGroups(); renderGroups(); });
-    if (pager) holder.append(pager);
+    card.id = 'g-' + g.id; dupeUI.list.append(card);
+  }
+  function groupCard(g) { const holder = el('div'); const was = dupeUI.list; dupeUI.list = holder; addGroup(g); dupeUI.list = was; return holder.firstChild; }
+  async function dupePatch(body) {
+    const d = state.dupes;
+    try { await api('/plans/' + d.plan.id, { method: 'PATCH', body }); await refreshPlan(d); paintDupes(); } catch (e) { fail(e); }
   }
 
+  // ---- Immich's trash -------------------------------------------------------------------------------
+  let immichUI = null;
+  const WHERE = { missing: 'Not on disk: already gone', outside: 'In Immich’s own storage, not this folder', symlink: 'A link: left alone' };
+  async function checkImmich() {
+    try { state.immichInfo = await api('/immich'); } catch (e) { state.immichInfo = { configured: true, connected: false, error: e.message }; }
+    if (state.tab === 'immich' && !state.immich.plan) render();
+  }
+  function viewImmich() {
+    const m = state.immich, info = state.immichInfo;
+    if (!info) { main.append(el('div', 'empty', 'Checking the connection to Immich…')); checkImmich(); return; }
+    const status = el('div', 'immich-status mono');
+    if (!info.configured) status.append(el('span', 'dot'), document.createTextNode(' not connected'));
+    else if (!info.connected) { status.classList.add('status-bad'); status.append(el('span', 'dot'), document.createTextNode(' ' + info.error)); }
+    else { status.classList.add('status-ok'); status.append(el('span', 'dot on'), document.createTextNode(` connected to Immich ${info.version} as ${info.user}`)); }
+    const st = m.plan && m.plan.stats;
+    main.append(headPanel({
+      title: 'Immich trash', label: m.plan ? 'Read again' : 'Read Immich’s trash',
+      text: 'Photos you delete in Immich stay on disk, because Immich only reads this folder and never deletes its files. Review them here, with each file’s place in the library, and remove them.',
+      action: () => startPlan('immich', m, x => { x.plan = null; x.rows = []; }), extra: status,
+      stats: st && [[st.assets, 'in Immich’s trash'], [st.kinds.file || 0, 'files here', 'Files found in this library'], [st.live, 'live photos', 'A still with its clip'], [fmtGiB(st.bytes), 'on disk']] }));
+    if (!info.configured) {
+      const how = el('div', 'panel'); how.style.marginTop = '12px';
+      how.append(el('p', 'head', 'Connect Immich'), el('p', 'muted', 'In Immich: Account settings → API keys → New API key, with the asset.read permission. Save it as the PHOTO_JOBS repo secret IMMICH_API_KEY, then run workflow 12 (NAS) with action photos. Nothing in Immich is changed; the key only reads the trash.'));
+      main.append(how); return;
+    }
+    const done = doneBanner(m); if (done) { done.style.marginTop = '12px'; main.append(done); }
+    if (!m.plan) { if (!busy() && !done && info.connected) main.append(el('div', 'empty', 'Read Immich’s trash to see which of those photos are still on disk.')); return; }
+    fit(true);
+    const p = m.plan, panel = el('div', 'panel table-panel'), tools = el('div', 'toolbar'), chips = el('div', 'chips');
+    const modes = segmented([['file', 'Move to _removed', 'Move the files aside; undo puts them back'], ['delete', 'Delete', 'Remove the files for good. Cannot be undone', true]], p.mode || 'file', async v => {
+      try { await api('/plans/' + p.id, { method: 'PATCH', body: { mode: v } }); await refreshPlan(m); render(); } catch (e) { fail(e); }
+    });
+    tools.append(chips, spacer(), modes, searchBox(m.filter.q, async v => { m.filter.q = v; await reloadItems(); }));
+    const warn = el('div', 'note bad', 'Delete removes the files for good. Each is checked to still be the exact file Immich trashed (same SHA-1) just before it is removed. This cannot be undone.');
+    warn.hidden = p.mode !== 'delete';
+    const head = el('div', 'tr th immich'), headBox = el('input', 'tick'); headBox.type = 'checkbox'; headBox.title = 'Tick or untick every file shown';
+    headBox.onchange = () => bulkItems(headBox.checked);
+    head.append(headBox, ...['Photo', 'Where it is in the library', 'Size', ''].map(t => el('span', null, t)));
+    const body = el('div', 'tbody'); nearEnd(body, async () => { if (!m.loading && m.rows.length < m.total) { m.loading = true; try { (await fetchItems(true)).forEach(addItem); } finally { m.loading = false; } } });
+    const table = el('div', 'table'); table.append(head, body);
+    panel.append(tools, warn, table); main.append(panel);
+    const bar = el('div', 'bar'), infoEl = el('span', 'grow'), apply = el('button', 'btn primary');
+    apply.onclick = () => confirmApply(m.plan); bar.append(infoEl, apply); main.append(bar);
+    immichUI = { chips, body, headBox, infoEl, apply, index: new Map() }; m.rows.forEach(addItem); paintImmich();
+  }
+  function addItem(i) {
+    const u = immichUI, ok = i.status === 'file', key = 'immich:' + i.id;
+    const row = el('div', 'tr immich' + (i.selected && ok ? '' : ' off') + (ok ? '' : ' inert')), box = el('input', 'tick'); box.type = 'checkbox'; box.checked = ok && i.selected; box.disabled = !ok;
+    box.onchange = async () => { i.selected = box.checked; row.classList.toggle('off', !box.checked);
+      try { await api('/plans/' + state.immich.plan.id, { method: 'PATCH', body: { groups: [key], selected: box.checked } }); await afterImmichTick(); } catch (e) { fail(e); } };
+    const what = el('span', 'path'); what.append(el('b', 'name', i.name || '(no name)'));
+    const where = el('span', 'path', ok ? i.rel : WHERE[i.status] || i.status);
+    const live = i.clip ? el('span', 'live', 'LIVE PHOTO + CLIP') : el('span');
+    if (i.clip) where.append(el('div', 'why', 'clip: ' + i.clip.rel));
+    row.append(box, what, where, el('span', 'mono muted', ok ? fmtGiB(i.size + (i.clip ? i.clip.size : 0)) : ''), live);
+    u.index.set(i.id, { i, row, box }); u.body.append(row);
+  }
+  function paintImmich() {
+    const m = state.immich, p = m.plan, u = immichUI, f = m.filter, k = p.stats.kinds; if (!u) return;
+    const defs = [['All', p.stats.assets, { status: '', live: false }], ['Still on disk', k.file || 0, { status: 'file', live: false }], ['Not on disk', k.missing || 0, { status: 'missing', live: false }],
+                  ['In Immich storage', k.outside || 0, { status: 'outside', live: false }], ['Live photos', p.stats.live, { status: '', live: true }]].filter(d => d[1] || d[0] === 'All');
+    u.chips.replaceChildren(...defs.map(([label, n, set]) => chip(label, n, f.status === set.status && f.live === set.live, async () => { Object.assign(f, set); await reloadItems(); })));
+    u.headBox.checked = m.selectable > 0 && m.selected === m.selectable; u.headBox.indeterminate = m.selected > 0 && m.selected < m.selectable; u.headBox.disabled = !m.selectable;
+    const n = p.selected_items, del = p.mode === 'delete';
+    u.infoEl.innerHTML = `<b>${n.toLocaleString()}</b> photos ${del ? 'will be deleted for good' : 'will be moved to _removed'} <span class="muted">(with their clips)</span>`;
+    u.apply.textContent = (del ? 'Delete ' : 'Move ') + n.toLocaleString() + ' photos'; u.apply.classList.toggle('danger', del); u.apply.disabled = busy() || !n;
+  }
+  async function reloadItems() { await fetchItems(false); immichUI.index.clear(); immichUI.body.replaceChildren(); immichUI.body.scrollTop = 0; state.immich.rows.forEach(addItem); paintImmich(); }
+  async function afterImmichTick() {
+    const m = state.immich; await refreshPlan(m); const f = m.filter;
+    const page = await api(`/plans/${m.plan.id}/items?` + new URLSearchParams({ status: f.status, live: f.live ? '1' : '', q: f.q, limit: 1 }));
+    m.selected = page.selected; m.selectable = page.selectable; paintImmich();
+  }
+  async function bulkItems(on) {
+    const m = state.immich; immichUI.index.forEach(({ i, row, box }) => { if (i.status === 'file') { i.selected = on; box.checked = on; row.classList.toggle('off', !on); } });
+    try { await api('/plans/' + m.plan.id, { method: 'PATCH', body: { filter: m.filter, selected: on } }); await afterImmichTick(); } catch (e) { fail(e); await reloadItems(); }
+  }
+
+  // ---- History ---------------------------------------------------------------------------------------
   function viewHistory() {
-    const panel = el('div', 'panel'); panel.append(el('h2', null, 'History'), el('p', 'muted', 'Every apply is recorded. Undo puts that run’s files back, skipping anything that has changed since.'));
+    const panel = el('div', 'panel'); panel.append(el('h2', null, 'History'), el('p', 'muted', 'Every apply is recorded. Undo puts that run’s moved files back, skipping anything that has changed since. Deleted files cannot be put back.'));
     const list = el('div', 'list'); list.style.marginTop = '12px';
     if (!state.runs.length) list.append(el('div', 'empty', 'Nothing has been applied yet.'));
+    const WHAT = { duplicates: 'Duplicates handled', immich: 'Immich trash removed', sort: 'Inbox sorted' };
     state.runs.forEach(r => {
-      const row = el('div', 'runs'), left = el('div');
-      const what = r.kind === 'duplicates' ? 'Duplicates filed' : 'Inbox sorted';
-      left.append(el('div', null, `${what} · ${ago(r.started)}`));
-      const bits = [`${r.counts.moved} moved`, r.counts.skipped && `${r.counts.skipped} skipped`, r.counts.error && `${r.counts.error} failed`].filter(Boolean).join(' · ');
-      left.append(el('div', 'why mono', bits));
+      const row = el('div', 'runs'), left = el('div'), c = r.counts;
+      left.append(el('div', null, `${WHAT[r.kind] || 'Run'} · ${ago(r.started)}`));
+      left.append(el('div', 'why mono', [c.moved && `${c.moved} moved`, c.deleted && `${c.deleted} deleted for good`, c.skipped && `${c.skipped} skipped`, c.error && `${c.error} failed`].filter(Boolean).join(' · ')));
       row.append(left);
-      if (r.undone) row.append(el('span', 'tag', 'undone')); else { const u = el('button', 'btn small', 'Undo'); u.disabled = busy(); u.onclick = () => undo(r.id); row.append(u); }
+      if (r.undone) row.append(el('span', 'tag', 'undone'));
+      else if (!c.moved) row.append(el('span', 'tag', c.deleted ? 'deleted' : 'nothing to undo'));
+      else { const u = el('button', 'btn small', 'Undo'); u.disabled = busy(); u.onclick = () => undo(r.id); row.append(u); }
       list.append(row);
     });
     panel.append(list); main.append(panel);
@@ -439,18 +613,28 @@
 
   // ---- doing things ------------------------------------------------------------------------------
   const dlg = $('#confirm');
-  function confirmApply(plan, what) {
-    const n = plan.kind === 'duplicates' ? plan.preview.moves : plan.selected;
+  function confirmApply(plan) {
+    const del = plan.mode === 'delete', n = plan.kind === 'duplicates' ? plan.preview.moves : plan.selected;
     dlg.replaceChildren();
-    dlg.append(el('h2', null, `Apply ${n.toLocaleString()} moves?`));
-    const ul = el('ul'); ['Only the moves you left ticked are made.', 'Each move is skipped if its file has changed since the scan.', 'Nothing is overwritten or deleted. Undo is in History.'].forEach(t => ul.append(el('li', null, t)));
+    dlg.append(el('h2', del ? 'status-bad' : null, del ? `Delete ${n.toLocaleString()} files for good?` : `Apply ${n.toLocaleString()} moves?`));
+    const facts = del
+      ? ['These files are removed from the disk. There is no undo and no trash.', plan.kind === 'immich' ? 'Each one is checked to still be the exact file Immich trashed.' : 'Each one is checked to still be identical to the copy you keep.',
+         'A file that fails its check is skipped, not deleted.', 'The deletion is recorded in History.']
+      : ['Only the moves you left ticked are made.', 'Each move is skipped if its file has changed since the scan.', 'Nothing is overwritten or deleted. Undo is in History.'];
+    const ul = el('ul'); facts.forEach(t => ul.append(el('li', null, t)));
+    dlg.append(ul);
     const row = el('div', 'row'); row.style.justifyContent = 'flex-end';
-    const cancel = el('button', 'btn quiet', 'Cancel'), go = el('button', 'btn primary', 'Apply'); cancel.onclick = () => dlg.close();
-    go.onclick = async () => { dlg.close(); try { watchJob((await api(`/plans/${plan.id}/apply`, { method: 'POST' })).job); render(); } catch (e) { fail(e); } };
-    row.append(cancel, go); dlg.append(ul, row); dlg.showModal();
+    const cancel = el('button', 'btn quiet', 'Cancel'), go = el('button', 'btn ' + (del ? 'danger' : 'primary'), del ? 'Delete for good' : 'Apply'); cancel.onclick = () => dlg.close();
+    let typed = null;
+    if (del) {
+      typed = el('input', 'search'); typed.placeholder = 'Type DELETE to confirm'; typed.style.cssText = 'width:100%;margin-bottom:14px'; go.disabled = true;
+      typed.oninput = () => { go.disabled = typed.value !== 'DELETE'; }; dlg.append(typed);
+    }
+    go.onclick = async () => { dlg.close(); try { watchJob((await api(`/plans/${plan.id}/apply`, { method: 'POST', body: del ? { confirm: 'DELETE' } : {} })).job); render(); } catch (e) { fail(e); } };
+    row.append(cancel, go); dlg.append(row); dlg.showModal(); if (typed) typed.focus();
   }
   async function undo(id) {
-    if (!confirm('Put this run’s files back where they were?')) return;
+    if (!confirm('Put this run’s moved files back where they were? Anything deleted stays deleted.')) return;
     try { watchJob((await api(`/runs/${id}/undo`, { method: 'POST' })).job); render(); } catch (e) { fail(e); }
   }
 

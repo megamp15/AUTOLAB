@@ -26,6 +26,7 @@ import re
 import subprocess
 import time
 
+from . import immich as immich_api
 from . import pairs as live_photos
 
 MEDIA = {'.jpg', '.jpeg', '.heic', '.heif', '.png', '.gif', '.webp', '.tif', '.tiff', '.dng',
@@ -38,15 +39,18 @@ JUNK = {'.DS_Store', 'Thumbs.db', 'desktop.ini'}
 YEAR = re.compile(r'^\d{4}$')
 MONTH = re.compile(r'^(0[1-9]|1[0-2])$')
 NAMED = re.compile(r'^((?:19|20)\d\d)[_-](0[1-9]|1[0-2])[_-]')
-NODATE, DUPS = '_no_date', '_duplicates'
+NODATE, DUPS, REMOVED = '_no_date', '_duplicates', '_removed'
 LOOSE, EVENTS = ('_inbox', 'loose'), ('_inbox', 'events')
 
 
 class Config:
-    def __init__(self, root, state, library='library'):
+    def __init__(self, root, state, library='library', immich_prefix='/mnt/mahir-personal'):
         self.root = os.path.abspath(root)
         self.state = os.path.abspath(state)
         self.library = library
+        # Where the media folder appears inside Immich's container: an asset's originalPath
+        # starts with this when its file is in this library.
+        self.immich_prefix = immich_prefix.rstrip('/')
 
     @property
     def lib(self):
@@ -406,13 +410,14 @@ def plan_duplicates(cfg, progress=_noop):
         groups.append({'id': f'd{i}', 'sha1': h[:12], 'size': size, 'files': rels, 'keep': rels[0]})
         extra += len(rels) - 1
         extra_bytes += size * (len(rels) - 1)
-    return {'kind': 'duplicates', 'groups': groups, 'moves': [], 'notes': [],
+    return {'kind': 'duplicates', 'mode': 'file', 'groups': groups, 'moves': [], 'notes': [],
             'stats': {'scanned': n, 'groups': len(groups), 'extra': extra, 'extra_bytes': extra_bytes}}
 
 
 def duplicate_moves(cfg, plan):
     """The moves a duplicates plan makes with its current keep choices, and the copies left alone
     because their Live Photo half is staying. Computed from the folder as it is now."""
+    delete = plan.get('mode') == 'delete'   # remove the extra copies instead of filing them
     groups = [g for g in plan['groups'] if g['id'] not in set(plan.get('excluded', []))]
     marked = {rel: rel == g['keep'] for g in plan['groups'] for rel in g['files']}
     mate = {}
@@ -435,6 +440,10 @@ def duplicate_moves(cfg, plan):
             if rel in mate and marked.get(mate[rel], True):   # kept, or not a duplicate at all
                 protected.append({'path': rel, 'why': f'its Live Photo half {mate[rel]} is staying'})
                 continue
+            if delete:   # the copy to keep is named, and checked again at the moment of deletion
+                moves.append({'id': len(moves), 'src': rel, 'dst': '', 'kind': 'delete',
+                              'why': f'identical to {keep}', 'group': g['id'], 'keep': keep})
+                continue
             target = os.path.join(cfg.root, DUPS, kept_dir)
             if os.path.dirname(cfg.abs(rel)) == target.rstrip('/'):
                 continue   # already filed beside its kept copy
@@ -453,10 +462,109 @@ def duplicate_moves(cfg, plan):
 # ----------------------------------------------------------------------------------------------
 # Applying and undoing
 # ----------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------
+# Immich's trash
+# ----------------------------------------------------------------------------------------------
+def _immich_file(cfg, immich_path):
+    """Where an Immich asset's file is in this library: (status, relative path or None)."""
+    prefix = cfg.immich_prefix + '/'
+    if not immich_path or not immich_path.startswith(prefix):
+        return 'outside', None   # in Immich's own storage, not in this folder
+    rel = immich_path[len(prefix):]
+    try:
+        path = cfg.abs(rel)
+    except ValueError:
+        return 'outside', None
+    if os.path.islink(path):
+        return 'symlink', rel
+    return ('file' if os.path.isfile(path) else 'missing'), rel
+
+
+def plan_immich(cfg, client, progress=_noop):
+    """Every asset in Immich's trash, and where its file is in this library. A Live Photo's clip
+    is shown with its still. Changes nothing here or in Immich."""
+    assets = client.trashed(progress)
+    by_id = {a['id']: a for a in assets}
+    clip_ids = {a['livePhotoVideoId'] for a in assets if a.get('livePhotoVideoId') in by_id}
+    items, seen = [], set()
+    for a in assets:
+        if a['id'] in clip_ids:
+            continue
+        status, rel = _immich_file(cfg, a.get('originalPath'))
+        if rel in seen:
+            continue
+        seen.add(rel)
+        item = {'id': a['id'], 'name': a.get('originalFileName') or os.path.basename(a.get('originalPath') or ''),
+                'immich_path': a.get('originalPath'), 'type': a.get('type'), 'status': status, 'rel': rel,
+                'size': 0, 'sha1': immich_api.checksum_hex(a.get('checksum')), 'clip': None}
+        if status == 'file':
+            item['size'] = os.path.getsize(cfg.abs(rel))
+            clip = by_id.get(a.get('livePhotoVideoId'))
+            if clip:
+                cstatus, crel = _immich_file(cfg, clip.get('originalPath'))
+                if cstatus == 'file':
+                    item['clip'] = {'rel': crel, 'size': os.path.getsize(cfg.abs(crel)),
+                                    'sha1': immich_api.checksum_hex(clip.get('checksum'))}
+            if not item['clip'] and a.get('type') == 'IMAGE':
+                half = live_photos.partner(cfg.abs(rel))   # its clip, found by name
+                if half and os.path.isfile(half) and half.lower().endswith('.mov'):
+                    item['clip'] = {'rel': cfg.rel(half), 'size': os.path.getsize(half), 'sha1': ''}
+        items.append(item)
+    kinds = collections.Counter(i['status'] for i in items)
+    on_disk = [i for i in items if i['status'] == 'file']
+    return {'kind': 'immich', 'mode': 'file', 'items': items, 'moves': [], 'notes': [],
+            'stats': {'assets': len(items), 'kinds': dict(kinds), 'live': sum(1 for i in on_disk if i['clip']),
+                      'bytes': sum(i['size'] + (i['clip'] or {}).get('size', 0) for i in on_disk)}}
+
+
+def immich_moves(cfg, plan):
+    """The removals a trash plan makes with its current ticks: each file that is on disk, with its
+    Live Photo clip. By default a file is moved under _removed/ (undo puts it back); in delete mode
+    it is removed for good, but only if it is still the file Immich trashed (same SHA-1)."""
+    delete = plan.get('mode') == 'delete'
+    taken, moves = set(), []
+    for item in plan['items']:
+        if item['status'] != 'file' or not os.path.isfile(cfg.abs(item['rel'])):
+            continue
+        for rel, sha1 in ((item['rel'], item['sha1']), *(((item['clip']['rel'], item['clip']['sha1']),) if item['clip'] else ())):
+            m = {'id': len(moves), 'src': rel, 'dst': '', 'kind': 'purge' if delete else 'remove',
+                 'why': 'in Immich\u2019s trash' + (' (its Live Photo clip)' if rel != item['rel'] else ''),
+                 'group': f'immich:{item["id"]}', 'sha1': sha1}
+            if not delete:
+                n, c = 1, os.path.join(cfg.root, REMOVED, rel)
+                b, e = os.path.splitext(c)
+                while c.lower() in taken or os.path.lexists(c):
+                    c = f'{b}_{n}{e}'
+                    n += 1
+                taken.add(c.lower())
+                m['dst'] = cfg.rel(c)
+            moves.append(m)
+    return moves
+
+
+def purge_file(cfg, m):
+    """Delete one file Immich trashed, but only if it is still that file: a regular file (never a
+    link) whose SHA-1 is the one Immich recorded. Recorded, and cannot be undone."""
+    src = cfg.abs(m['src'])
+    entry = {'src': m['src'], 'dst': '', 'kind': 'purge', 'status': 'deleted', 'note': ''}
+    if os.path.islink(src) or not os.path.isfile(src):
+        entry.update(status='skipped', note='the file is no longer there')
+    elif m.get('sha1') and _digest(src) != m['sha1']:
+        entry.update(status='skipped', note='it is not the file Immich trashed any more (different content)')
+    else:
+        entry['sha1'] = _digest(src)
+        try:
+            os.remove(src)
+        except OSError as e:
+            entry.update(status='error', note=str(e))
+    return entry
+
+
 def selected_moves(plan, cfg=None):
     """The moves of a plan that are ticked. A pair, an event or a duplicate group is ticked or
     unticked as a whole."""
-    moves = duplicate_moves(cfg, plan)[0] if plan['kind'] == 'duplicates' else plan['moves']
+    moves = (duplicate_moves(cfg, plan)[0] if plan['kind'] == 'duplicates'
+             else immich_moves(cfg, plan) if plan['kind'] == 'immich' else plan['moves'])
     off_groups, off_kinds = set(plan.get('excluded', [])), set(plan.get('excluded_kinds', []))
     return [m for m in moves if (m.get('group') or f'm{m["id"]}') not in off_groups and m['kind'] not in off_kinds]
 
@@ -481,6 +589,10 @@ def apply_moves(cfg, moves, progress=_noop, record=None):
     run = {'started': time.time(), 'finished': None, 'moves': [], 'undone': None}
     total = len(moves)
     for i, m in enumerate(moves, 1):
+        if m['kind'] in ('delete', 'purge'):
+            run['moves'].append((delete_copy if m['kind'] == 'delete' else purge_file)(cfg, m))
+            progress(i, total, 'deleting')
+            continue
         src, dst = cfg.abs(m['src']), cfg.abs(m['dst'])
         entry = {'src': m['src'], 'dst': m['dst'], 'kind': m['kind'], 'status': 'moved', 'note': ''}
         if not os.path.lexists(src):
@@ -505,10 +617,31 @@ def apply_moves(cfg, moves, progress=_noop, record=None):
     return run
 
 
+def delete_copy(cfg, m):
+    """Delete one extra copy, but only if it is still byte-for-byte the copy that is being kept.
+    A missing or changed keeper means nothing is deleted. This is the one place a file is removed;
+    a deletion is recorded with the sha1 it had, and cannot be undone."""
+    src, keep = cfg.abs(m['src']), cfg.abs(m['keep'])
+    entry = {'src': m['src'], 'dst': '', 'kind': 'delete', 'status': 'deleted', 'note': '', 'keep': m['keep']}
+    if not os.path.isfile(src):
+        entry.update(status='skipped', note='the file is no longer there')
+    elif src == keep or not os.path.isfile(keep):
+        entry.update(status='skipped', note='the copy being kept is missing')
+    elif os.path.getsize(src) != os.path.getsize(keep) or _digest(src) != _digest(keep):
+        entry.update(status='skipped', note='no longer identical to the copy being kept')
+    else:
+        entry['sha1'] = _digest(src)
+        try:
+            os.remove(src)
+        except OSError as e:
+            entry.update(status='error', note=str(e))
+    return entry
+
+
 def undo_run(cfg, run, progress=_noop):
     """Put back every move of the run that was made, newest first. Never overwrites."""
     done = [m for m in run['moves'] if m['status'] == 'moved']
-    result = {'restored': 0, 'skipped': []}
+    result = {'restored': 0, 'skipped': [], 'not_restorable': sum(1 for m in run['moves'] if m['status'] == 'deleted')}
     for i, m in enumerate(reversed(done), 1):
         src, dst = cfg.abs(m['src']), cfg.abs(m['dst'])
         if not os.path.lexists(dst):

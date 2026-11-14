@@ -7,7 +7,7 @@ A separate Python API and worker manage durable jobs on Singularity.
 **Where it stands.** The web app exists: a small Python service (`photo_jobs/`)
 and one page (`web/index.html`) in the home page's design. It replaces the old
 `sort.py` and `dupes.py` scripts: plan, review, apply and undo, with Live
-Photos kept whole. The Expo/iOS frontend is still deferred; it would use the
+Photos kept whole, plus deleting duplicates and reviewing Immich's trash. The Expo/iOS frontend is still deferred; it would use the
 same API. See `README.md` for how to run it and `docs/design/ui-references.md`
 for the saved references and agreed order.
 
@@ -37,8 +37,9 @@ The incumbent implementation is
 - Separate preview, review and execution of file operations.
 - Keep named event folders grouped; recursively sort loose uploads by date.
 - Track Live Photo image/video relationships before cleanup is enabled.
-- Deletion decisions must be explicit, attributable and recoverable; a missing
-  API response or missing asset in a scan is never a deletion instruction.
+- Deletion decisions must be explicit, attributable and recoverable where possible; a missing
+  API response or missing asset in a scan is never a deletion instruction. Permanent deletion
+  is a deliberate mode with a typed confirmation, a re-check of each file, and a record.
 - Use the same authenticated job API for web, iOS and future automation.
 - Keep NAS deployments paused during the user's UGOS update until they confirm
   Singularity is back. Local design and development can continue.
