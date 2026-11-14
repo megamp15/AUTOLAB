@@ -82,8 +82,7 @@
   .progress.unknown i { width:30% !important; animation:sweep 1.4s ease-in-out infinite; }
   @keyframes sweep { from { transform:translateX(-100%); } to { transform:translateX(340%); } }
   .dot { width:7px; height:7px; border-radius:50%; border:1px solid currentColor; display:inline-block; flex:none; }
-  .dot.on { background:currentColor; animation:ping 2.2s ease-out infinite; }
-  @keyframes ping { 0% { box-shadow:0 0 0 0 color-mix(in srgb,currentColor 50%,transparent); } 100% { box-shadow:0 0 0 8px transparent; } }
+  .dot.on { background:currentColor; }
 
   /* lists */
   .list { display:flex; flex-direction:column; }
@@ -114,7 +113,6 @@
   dialog h2 { margin-bottom:10px; }
   dialog ul { margin:10px 0 18px; padding-left:18px; color:var(--dim); }
   .runs { display:grid; grid-template-columns:1fr auto; gap:6px 16px; padding:12px 2px; border-bottom:1px solid var(--soft); align-items:center; }
-  .fade-in { animation:fade .5s both; } @keyframes fade { from { opacity:0; transform:translateY(6px); } }
   @media (max-width:700px) {
     .item { grid-template-columns:auto 1fr; } .item .tag { grid-column:2; width:max-content; } .item > div:last-child { grid-column:1 / -1; }
     .tabs { gap:20px; order:3; flex-basis:100%; }
@@ -199,7 +197,7 @@
     </div>
   </div>
   <hr class="rule">
-  <main id="main" class="fade-in"></main>
+  <main id="main"></main>
 </div>
 <dialog id="confirm"></dialog>
 
@@ -275,7 +273,7 @@
     if (!chip.hidden) chip.innerHTML = '<span class="dot on"></span> ' + (j.message || j.kind).toUpperCase();
   }
   function progressBlock() {
-    const j = state.job, box = el('div', 'panel fade-in'); box.id = 'progress';
+    const j = state.job, box = el('div', 'panel'); box.id = 'progress';
     if (!j) return null;
     if (j.state === 'error') { box.append(el('p', 'status-bad', 'The job failed: ' + j.error)); return box; }
     if (j.state !== 'running') return null;
@@ -283,7 +281,18 @@
     const bar = el('div', 'progress' + (j.total ? '' : ' unknown')); const i = el('i'); i.style.width = (j.total ? Math.round(100 * j.done / j.total) : 30) + '%'; bar.append(i);
     box.append(line, bar); return box;
   }
-  function renderProgress() { const old = $('#progress'), nu = progressBlock(); if (old && nu) old.replaceWith(nu); else if (old) old.remove(); else if (nu) $('#main').prepend(nu); }
+  // Polled every 700 ms, so a running job is patched in place; rebuilding the panel would restart the bar.
+  function renderProgress() {
+    const old = $('#progress'), nu = progressBlock();
+    if (!nu) { if (old) old.remove(); return; }
+    if (!old) { $('#main').prepend(nu); return; }
+    const oldBar = old.querySelector('.progress'), newBar = nu.querySelector('.progress');
+    if (oldBar && newBar && oldBar.className === newBar.className) {
+      const was = old.querySelectorAll('.row > span'), now = nu.querySelectorAll('.row > span');
+      now.forEach((s, k) => { if (was[k].textContent !== s.textContent) was[k].textContent = s.textContent; });
+      oldBar.firstChild.style.width = newBar.firstChild.style.width;
+    } else old.replaceWith(nu);
+  }
   const busy = () => state.job && state.job.state === 'running';
 
   // ---- loading ----------------------------------------------------------------------------------
@@ -345,7 +354,6 @@
     main.replaceChildren();
     ({ inbox: viewInbox, duplicates: viewDupes, albums: viewAlbums, immich: viewImmich, history: viewHistory })[state.tab]();
     const p = progressBlock(); if (p) main.prepend(p);
-    main.classList.remove('fade-in'); void main.offsetWidth; main.classList.add('fade-in');
   }
   document.querySelector('.tabs').addEventListener('click', e => {
     const t = e.target.closest('[data-tab]'); if (!t) return;
@@ -647,7 +655,7 @@
     const status = el('div', 'immich-status mono');
     if (!info.configured) status.append(el('span', 'dot'), document.createTextNode(' not connected'));
     else if (!info.connected) { status.classList.add('status-bad'); status.append(el('span', 'dot'), document.createTextNode(' ' + info.error)); }
-    else { status.classList.add('status-ok'); status.append(el('span', 'dot on'), document.createTextNode(` connected to Immich ${info.version} as ${info.user}`)); }
+    else { status.classList.add('status-ok'); status.append(el('span', 'dot on'), document.createTextNode(` connected to Immich ${info.version}${info.user ? ' as ' + info.user : ''}`)); }
     const st = m.plan && m.plan.stats;
     main.append(headPanel({
       title: 'Immich trash', label: m.plan ? 'Read again' : 'Read Immich’s trash',

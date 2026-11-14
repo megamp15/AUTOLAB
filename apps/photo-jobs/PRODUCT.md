@@ -29,6 +29,10 @@ The incumbent implementation is
 - Component libraries provide behavior and accessible primitives. Their
   default dashboard layouts, fonts, colors and styling are not the design brief.
 - Keep an appropriate reduced-motion version of the animation.
+- Calm UI: nothing pulses, blinks, or fades in on update. Progress is the bar (a sweep only
+  while the total is unknown) and a static dot. Never re-run an entrance animation when state
+  re-renders or a poll comes in; patch the existing element instead. Motion is for the black
+  hole and the first page load, not for status.
 
 ## Workflow constraints
 

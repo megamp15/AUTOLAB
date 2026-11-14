@@ -35,13 +35,20 @@ class Immich:
             raise ImmichError(f'cannot reach Immich at {self.url}: {e}') from None
 
     def check(self):
-        """Who the key belongs to and what Immich version this is."""
-        me = self.call('GET', '/users/me')
+        """Whether the key works, using only a permission the workflows already need (asset.read).
+        Who it belongs to and the version are added when the key's permissions allow them."""
+        self.call('POST', '/search/metadata', {'size': 1, 'page': 1})
+        info = {'user': '', 'version': ''}
         try:
-            version = self.call('GET', '/server/about').get('version', '')
+            me = self.call('GET', '/users/me')
+            info['user'] = me.get('email') or me.get('name') or ''
         except ImmichError:
-            version = ''
-        return {'user': me.get('email') or me.get('name') or '', 'version': version}
+            pass
+        try:
+            info['version'] = self.call('GET', '/server/about').get('version', '')
+        except ImmichError:
+            pass
+        return info
 
     def trashed(self, progress=lambda *a, **k: None):
         """Every asset in the trash. The current search takes a trashedAt filter; older servers

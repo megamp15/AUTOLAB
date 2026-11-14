@@ -561,6 +561,12 @@ class ImmichApi(ImmichBase):
         bad = server.App(self.cfg, immich=immich.Immich(self.fake.url, 'wrong'))
         self.assertFalse(bad.route('GET', '/api/immich', {}, {})[1]['connected'])
 
+    def test_a_key_without_user_read_still_connects(self):
+        self.fake.forbidden = {'/api/users/me'}
+        info = self.app.route('GET', '/api/immich', {}, {})[1]
+        self.assertTrue(info['connected'])
+        self.assertEqual(info['user'], '')
+
     def test_without_immich_a_trash_plan_is_refused_clearly(self):
         with self.assertRaises(ValueError):
             server.App(self.cfg).route('POST', '/api/plans', {}, {'kind': 'immich'})
