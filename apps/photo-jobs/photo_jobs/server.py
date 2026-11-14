@@ -43,10 +43,26 @@ def matching(plan, cfg, kind='', pair=False, text='', dup=None):
             and (not text or text in m['src'].lower() or text in m['dst'].lower() or text in m['why'].lower())]
 
 
-def matching_groups(plan, text=''):
-    """The duplicate groups with a file whose path contains the text (all of them for no text)."""
-    text = text.lower()
-    return [g for g in plan['groups'] if not text or any(text in f.lower() for f in g['files'])]
+def matching_groups(plan, text='', scope='', cfg=None):
+    """The duplicate groups with a file whose path contains the text (all of them for no text), and,
+    for a scope, only those whose copies are where it says: 'library' (at least one copy in the
+    library), 'outside' (none in it) or 'multi' (more than one in it)."""
+    text, lib = text.lower(), (cfg.library if cfg else 'library') + '/'
+    def where(g):
+        n = sum(1 for f in g['files'] if f.startswith(lib))
+        return {'library': n >= 1, 'outside': n == 0, 'multi': n >= 2}.get(scope, True)
+    return [g for g in plan['groups'] if where(g) and (not text or any(text in f.lower() for f in g['files']))]
+
+
+def scope_counts(plan, cfg):
+    """How many groups each scope holds, for the filter chips."""
+    c = {'all': len(plan['groups']), 'library': 0, 'outside': 0, 'multi': 0}
+    for g in plan['groups']:
+        n = sum(1 for f in g['files'] if core.in_library(cfg, f))
+        c['library'] += n >= 1
+        c['outside'] += n == 0
+        c['multi'] += n >= 2
+    return c
 
 
 def item_on(plan, item):
@@ -149,6 +165,7 @@ class App:
             if plan['kind'] == 'duplicates':
                 moves, protected = self.duplicate_view(plan)
                 out['preview'] = {'moves': len(moves), 'protected': protected[:50], 'protected_count': len(protected)}
+                out['scopes'] = scope_counts(plan, cfg)
             elif plan['kind'] == 'sort':
                 out['notes'] = plan['notes']
                 out['left'] = plan['left'][:200]
@@ -183,7 +200,7 @@ class App:
             plan = j.plan(m.group(1))
             if plan['kind'] != 'duplicates':
                 return 404, {'error': 'only duplicate plans have groups'}
-            rows = matching_groups(plan, query.get('q', [''])[0])
+            rows = matching_groups(plan, query.get('q', [''])[0], query.get('scope', [''])[0], cfg)
             off, lim = int(query.get('offset', ['0'])[0]), min(int(query.get('limit', ['50'])[0]), 200)
             excluded = set(plan.get('excluded', []))
             return 200, {'total': len(rows), 'offset': off,
@@ -204,7 +221,7 @@ class App:
                 f = body['filter']
                 keys = ([f'immich:{i["id"]}' for i in matching_items(plan, f.get('status', ''), bool(f.get('live')), f.get('q', ''))]
                         if plan['kind'] == 'immich' else
-                        [g['id'] for g in matching_groups(plan, f.get('q', ''))] if plan['kind'] == 'duplicates' else
+                        [g['id'] for g in matching_groups(plan, f.get('q', ''), f.get('scope', ''), cfg)] if plan['kind'] == 'duplicates' else
                         [group_key(x) for x in matching(plan, cfg, f.get('kind', ''), bool(f.get('pair')), f.get('q', ''), self.duplicate_view)])
                 for key in keys:
                     (excluded.discard if body.get('selected') else excluded.add)(key)
@@ -234,8 +251,9 @@ class App:
                 frag = (body.get('keep_where') or {}).get('contains', '').strip().lower()
                 if 'keep_where' in body and not frag:
                     return 400, {'error': 'say which folder or path to keep copies in'}
-                for g in matching_groups(plan, rule.get('q', '')):
-                    pick = next((f for f in g['files'] if frag in f.lower()), None) if frag else g['files'][0]
+                for g in matching_groups(plan, rule.get('q', ''), rule.get('scope', ''), cfg):
+                    ranked = sorted(g['files'], key=lambda f: core._rank(cfg, f))      # by today's rule, not the one the scan used
+                    pick = next((f for f in ranked if frag in f.lower()), None) if frag else ranked[0]
                     if pick and pick != g['keep']:
                         g['keep'] = pick
                         changed += 1

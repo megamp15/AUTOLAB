@@ -1133,6 +1133,61 @@ class BigDuplicatePlans(Library):
         self.assertEqual((len(fresh), len(reads)), (2, 1))
 
 
+class LibraryFirst(Library):
+    """A copy in the library is the one kept, and the page can narrow to where the copies are."""
+
+    def setUp(self):
+        super().setUp()
+        self.app = server.App(self.cfg)
+        # one group per case: (files in it)
+        self.put('library/2025/06/Trip/in_event.jpg', 'g1')
+        self.put('old_upload/2025/06/in_event.jpg', 'g1')                 # outside, a name like a library one
+        self.put('library/Unsorted/odd.jpg', 'g2')                        # in the library, but not in YYYY/MM
+        self.put('2025/06/odd.jpg', 'g2')                                 # a stray year folder beside the library
+        self.put('library/2025/06/a.jpg', 'g3')
+        self.put('library/2025/07/a.jpg', 'g3')                           # two in the library
+        self.put('old_upload/x.jpg', 'g4')
+        self.put('backup/x.jpg', 'g4')                                    # none in the library
+        self.plan = core.plan_duplicates(self.cfg)
+        self.plan.update(id='p1', excluded=[], excluded_kinds=[], applied=None)
+        self.app.jobs.save_plan(self.plan)
+
+    def group(self, member):
+        return next(g for g in self.plan['groups'] if member in g['files'])
+
+    def test_the_library_copy_is_the_one_kept_whatever_the_folders_are_called(self):
+        self.assertEqual(self.group('library/2025/06/Trip/in_event.jpg')['keep'], 'library/2025/06/Trip/in_event.jpg')
+        self.assertEqual(self.group('library/Unsorted/odd.jpg')['keep'], 'library/Unsorted/odd.jpg')   # not beaten by 2025/06/ outside
+        self.assertEqual(core.duplicate_scope(self.cfg, ['library/a.jpg', 'x/a.jpg']), 'one')
+
+    def test_groups_can_be_narrowed_to_where_their_copies_are(self):
+        def ids(scope):
+            return {g['files'][0] for g in server.matching_groups(self.plan, '', scope, self.cfg)}
+        self.assertEqual(len(ids('')), 4)
+        self.assertEqual(len(ids('library')), 3)                     # at least one copy in the library
+        self.assertEqual(ids('outside'), {self.group('old_upload/x.jpg')['files'][0]})
+        self.assertEqual(len(ids('multi')), 1)
+        counts = server.scope_counts(self.plan, self.cfg)
+        self.assertEqual(counts, {'all': 4, 'library': 3, 'outside': 1, 'multi': 1})
+
+    def test_the_routes_filter_count_and_bulk_edit_by_scope(self):
+        got = self.app.route('GET', '/api/plans/p1/groups', {'scope': ['outside']}, {})[1]
+        self.assertEqual((got['total'], got['groups'][0]['files'][0] in ('backup/x.jpg', 'old_upload/x.jpg')), (1, True))
+        self.assertEqual(self.app.route('GET', '/api/plans/p1', {}, {})[1]['scopes']['library'], 3)
+        # un-tick only the groups with a copy in the library
+        self.app.route('PATCH', '/api/plans/p1', {}, {'filter': {'scope': 'library'}, 'selected': False})
+        self.assertEqual(self.app.route('GET', '/api/plans/p1', {}, {})[1]['selected'], 1)       # only the outside group is still ticked
+
+    def test_reset_keepers_applies_todays_rule_to_a_plan_made_by_an_older_one(self):
+        g = self.group('library/2025/06/Trip/in_event.jpg')
+        plan = self.app.jobs.plan('p1')
+        next(x for x in plan['groups'] if x['id'] == g['id'])['keep'] = 'old_upload/2025/06/in_event.jpg'   # the old rule picked an outside copy
+        self.app.jobs.save_plan(plan)
+        self.app.route('PATCH', '/api/plans/p1', {}, {'keep_reset': {}})
+        again = self.app.jobs.plan('p1')
+        self.assertEqual(next(x for x in again['groups'] if x['id'] == g['id'])['keep'], 'library/2025/06/Trip/in_event.jpg')
+
+
 class Pairs(unittest.TestCase):
     def test_pairing_is_by_folder_and_name(self):
         self.assertEqual(pairs.pairs(['/a/IMG_1.HEIC', '/a/IMG_1.MOV', '/b/IMG_1.MOV', '/a/IMG_2.MOV']),

@@ -342,8 +342,20 @@ def _in_library(cfg, rel):
     return rel.split('/', 1)[1] if rel.startswith(cfg.library + '/') else rel
 
 
+def in_library(cfg, rel):
+    return rel.startswith(cfg.library + '/')
+
+
+def duplicate_scope(cfg, files):
+    """Where a group's copies are: 'outside' (none in the library), 'one' (one in it: the keeper, as
+    a rule) or 'multi' (several in it, so it needs a look)."""
+    n = sum(1 for f in files if in_library(cfg, f))
+    return 'outside' if n == 0 else 'multi' if n > 1 else 'one'
+
+
 def _rank(cfg, rel):
-    """Lower is a better copy to keep."""
+    """Lower is a better copy to keep. A copy in the library always beats one outside it, whatever
+    the folders are called; after that, where it sits in the library and how its name looks decide."""
     parts = _in_library(cfg, rel).split('/')
     top = parts[0]
     if YEAR.match(top) and len(parts) >= 4 and MONTH.match(parts[1]):
@@ -363,7 +375,7 @@ def _rank(cfg, rel):
     id_name = bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-', name, re.I))
     # a clash suffix is _1, _2 added after a name that already ends in a number (IMG_8005_1)
     suffixed = bool(re.search(r'\d_\d{1,2}\.[^.]+$', name)) or bool(re.search(r' copy|\(\d+\)', name, re.I))
-    return (place, id_name, suffixed, len(rel), rel)
+    return (not in_library(cfg, rel), place, id_name, suffixed, len(rel), rel)
 
 
 def _digest(path, limit=None):
