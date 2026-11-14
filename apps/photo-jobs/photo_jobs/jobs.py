@@ -235,9 +235,9 @@ class Jobs:
         return bool(rel) and (rel == lib or rel.startswith(lib + os.sep))
 
     def _touched_library(self, run):
-        """True when a run moved, filed or deleted something in, into or out of the library: Immich
-        should look again, to see new files and to notice that others are gone."""
-        return any(m.get('status') in ('moved', 'deleted') and (self._in_library(m.get('src')) or self._in_library(m.get('dst')))
+        """True when a run moved, filed, deleted or rewrote something in, into or out of the library:
+        Immich should look again, to see new and changed files and to notice that others are gone."""
+        return any(m.get('status') in ('moved', 'deleted', 'edited') and (self._in_library(m.get('src')) or self._in_library(m.get('dst')))
                    for m in run['moves'])
 
     def _rescan(self, run):
@@ -279,7 +279,7 @@ class Jobs:
 
         def work(progress):
             result = (metadata.undo if run.get('kind') == 'metadata' else core.undo_run)(self.cfg, run, progress)
-            scan = self._rescan(run) if run.get('kind') != 'metadata' else None      # a metadata undo rewrites files in place; those edits queued their own scan
+            scan = self._rescan(run)          # putting files back, or old values back, changes what Immich should see too
             if scan:
                 result['immich_scan'] = scan
             run['undone'] = {'at': time.time(), **result}
@@ -350,11 +350,9 @@ class Jobs:
                 self._save('runs', {'id': run_id, 'plan': None, 'kind': 'metadata', **run})
 
             run = metadata.edit(self.cfg, rels, spec, progress, record)
-            if any(m['status'] == 'edited' for m in run['moves']) and self.immich and self.immich.configured:
-                try:
-                    run['immich_scan'] = {'status': 'queued', 'library': albums.scan_external_library(self.cfg, self.immich)['name']}
-                except (ImmichError, ValueError) as e:
-                    run['immich_scan'] = {'status': 'failed', 'error': str(e)}
+            scan = self._rescan(run)
+            if scan:
+                run['immich_scan'] = scan
                 record(run)
             return {'run': run_id, 'immich_scan': run.get('immich_scan'),
                     'failed': [{'src': m['src'], 'note': m['note']} for m in run['moves'] if m['status'] == 'error'][:50]}

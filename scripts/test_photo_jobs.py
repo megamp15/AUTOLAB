@@ -1391,6 +1391,21 @@ class RescanAfterChanges(Library):
         self.assertEqual(len(self.scans()), 2)                         # once to see them go, once to see them return
         self.assertEqual(undone['result']['immich_scan']['status'], 'queued')
 
+    def test_editing_metadata_in_the_library_and_undoing_it_both_ask_for_a_rescan_but_edits_elsewhere_do_not(self):
+        self.put('library/2025/06/a.jpg', 'photo bytes')
+        self.put('old_upload/b.jpg', 'other photo')
+        self.sync_dates()
+        self.app.jobs.start_meta_edit(['library/2025/06/a.jpg'], {'location': '10, 20'})
+        job = self.wait()
+        self.assertEqual((job['state'], len(self.scans())), ('done', 1))
+        self.app.jobs.start_undo(job['result']['run'])
+        undone = self.wait()
+        self.assertEqual((undone['state'], len(self.scans())), ('done', 2))          # the old values must reach Immich too
+        self.assertEqual(undone['result']['immich_scan']['status'], 'queued')
+        self.app.jobs.start_meta_edit(['old_upload/b.jpg'], {'location': '10, 20'})  # not in the library: Immich does not read it
+        self.wait()
+        self.assertEqual(len(self.scans()), 2)
+
     def test_without_immich_nothing_is_attempted_and_the_page_knows_not_to_promise_it(self):
         plain = server.App(self.cfg)
         self.assertIs(plain.route('GET', '/api/status', {}, {})[1]['immich'], False)
