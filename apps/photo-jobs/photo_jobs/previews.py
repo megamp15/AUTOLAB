@@ -66,11 +66,28 @@ def _embedded(src, out):
     return False
 
 
+def cover(cfg, rel):
+    """The first photo in a folder (not a video), to stand for the folder: an event, an album. None if there is none."""
+    seen = 0
+    for path in core.files_under(cfg.abs(rel)):
+        seen += 1
+        if core.is_media(path) and not is_video(path):
+            return cfg.rel(path)
+        if seen > 400:
+            break
+    return None
+
+
 def thumbnail(cfg, rel, width=240):
     """Path of a JPEG of this photo, at most `width` px on its long side (rounded up to a size
     that is made). Raises NoPreview for videos and files nothing can draw, FileNotFoundError for
     a path that is not there."""
     src = cfg.abs(rel)
+    if os.path.isdir(src):              # a folder is shown by its first photo
+        inside = cover(cfg, rel)
+        if not inside:
+            raise NoPreview(rel)
+        return thumbnail(cfg, inside, width)
     if not core.is_media(src) or is_video(src):
         raise NoPreview(rel)
     st = os.stat(src)

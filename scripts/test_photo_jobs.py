@@ -711,6 +711,15 @@ class Previews(Library):
         with self.assertRaises(FileNotFoundError):
             previews.thumbnail(self.cfg, 'missing.jpg')
 
+    def test_a_folder_is_shown_by_its_first_photo_not_a_video(self):
+        self.put('library/2025/06/Trip/a_clip.mov', 'v')
+        self.put('library/2025/06/Trip/b_photo.jpg', 'jpeg')
+        self.put('library/2025/06/Only_video/c.mov', 'v')
+        self.assertEqual(previews.cover(self.cfg, 'library/2025/06/Trip'), 'library/2025/06/Trip/b_photo.jpg')
+        self.assertEqual(previews.thumbnail(self.cfg, 'library/2025/06/Trip'), str(self.root / 'library/2025/06/Trip/b_photo.jpg'))
+        with self.assertRaises(previews.NoPreview):
+            previews.thumbnail(self.cfg, 'library/2025/06/Only_video')
+
     def test_identical_and_different_files_are_told_apart_by_content(self):
         self.put('a.jpg', 'same bytes')
         self.put('b.jpg', 'same bytes')
@@ -846,6 +855,12 @@ class PreviewRoutes(Library):
         self.assertEqual(self.get('/api/file?path=clip.mov', {'Range': 'bytes=4-'})[2], b'456789')
         self.assertEqual(self.get('/api/file?path=clip.mov', {'Range': 'bytes=50-'})[0], 416)
         self.assertEqual(self.get('/api/file?path=clip.mov')[2], b'0123456789')
+
+    def test_a_folder_can_be_previewed_but_never_downloaded(self):
+        self.put('Trip/b.jpg', 'FOLDERCOVER')
+        self.assertEqual(self.get('/api/preview?path=Trip&w=240')[2], b'FOLDERCOVER')
+        self.assertEqual(self.get('/api/file?path=Trip')[0], 400)
+        self.assertEqual(self.get('/api/preview?path=..')[0], 400)       # not out of the media folder either
 
     def test_nothing_outside_the_media_or_that_is_not_a_photo_is_served(self):
         self.assertEqual(self.get('/api/file?path=notes.txt')[0], 400)
@@ -1060,6 +1075,46 @@ class Restarts(Library):
         service = server.App(self.cfg)
         service.jobs.resume_interrupted()
         self.assertIsNone(service.jobs.status())
+
+
+class BigDuplicatePlans(Library):
+    """A library's worth of duplicates must load in seconds, and ticking one group must not re-read the disk."""
+
+    def test_bulk_partners_agree_with_looking_one_up_at_a_time(self):
+        for name in ('IMG_1.HEIC', 'IMG_1.MOV', 'IMG_2.jpg', 'IMG_3.HEIC', 'IMG_3.JPG', 'IMG_3.MOV', 'img_4.heic', 'IMG_4.MOV', 'lone.jpg'):
+            self.put(f'a/{name}', name)
+            self.put(f'b/{name}', name)
+        paths = [str(p) for p in self.root.rglob('*') if p.is_file()]
+        bulk = pairs.partners(paths)
+        for p in paths:
+            self.assertEqual(bulk.get(p), pairs.partner(p), p)
+        self.assertIn(str(self.root / 'a/IMG_4.MOV'), bulk)          # case does not matter
+        self.assertNotIn(str(self.root / 'a/IMG_3.MOV'), bulk)       # two stills: ambiguous, so none
+
+    def test_showing_a_plan_reads_the_disk_once_and_a_tick_does_not_read_it_again(self):
+        for i in range(3):
+            self.put(f'library/2025/06/a{i}.jpg', f'same-{i}')
+            self.put(f'library/2025/07/b{i}.jpg', f'same-{i}')
+        app = server.App(self.cfg)
+        app.jobs.start_plan('duplicates')
+        for _ in range(300):
+            if app.jobs.status()['state'] != 'running':
+                break
+            time.sleep(0.02)
+        plan_id = app.jobs.status()['result']['plan']
+        reads, real = [], core.live_mates
+        core.live_mates = lambda cfg, plan: (reads.append(1), real(cfg, plan))[1]
+        self.addCleanup(setattr, core, 'live_mates', real)
+        before = app.route('GET', f'/api/plans/{plan_id}', {}, {})[1]
+        self.assertEqual((before['preview']['moves'], before['selected']), (3, 3))
+        app.route('PATCH', f'/api/plans/{plan_id}', {}, {'groups': ['d1'], 'selected': False})
+        after = app.route('GET', f'/api/plans/{plan_id}', {}, {})[1]
+        self.assertEqual((after['preview']['moves'], after['selected']), (2, 2))    # the tick took effect...
+        self.assertEqual(len(reads), 1)                                              # ...without reading the disk again
+        # but applying works from the folder as it is then, never from the remembered answer
+        reads.clear()
+        fresh = core.selected_moves(app.jobs.plan(plan_id), self.cfg)
+        self.assertEqual((len(fresh), len(reads)), (2, 1))
 
 
 class Pairs(unittest.TestCase):

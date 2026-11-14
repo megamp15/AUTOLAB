@@ -34,9 +34,9 @@ def group_key(move):
     return move.get('group') or f'm{move["id"]}'
 
 
-def matching(plan, cfg, kind='', pair=False, text=''):
+def matching(plan, cfg, kind='', pair=False, text='', dup=None):
     """The plan's moves that pass a filter: a kind, Live Photos only, and/or text in a path or reason."""
-    moves = core.duplicate_moves(cfg, plan)[0] if plan['kind'] == 'duplicates' else plan['moves']
+    moves = (dup or (lambda p: core.duplicate_moves(cfg, p)))(plan)[0] if plan['kind'] == 'duplicates' else plan['moves']
     text = text.lower()
     return [m for m in moves if (not kind or m['kind'] == kind)
             and (not pair or (m.get('group') or '').startswith('pair:'))
@@ -64,6 +64,23 @@ class App:
         self.cfg, self.token, self.immich = cfg, token, immich
         self.jobs = Jobs(cfg, immich)
         self.started = time.time()
+        self.dup_view = self.dup_mates = None
+
+    def duplicate_view(self, plan):
+        """What a duplicates plan would do, for showing. Working it out looks at the disk for every
+        file in the plan, so the answer is kept for a minute for the same choices; an apply never
+        uses it, it works from the folder as it is at that moment."""
+        sig = (plan['id'], plan.get('mode'), tuple(plan.get('excluded', [])), tuple(plan.get('excluded_kinds', [])),
+               hash(tuple(g['keep'] for g in plan['groups'])))
+        hit = self.dup_view
+        if hit and hit[0] == sig and time.time() - hit[1] < 60:
+            return hit[2]
+        mates = self.dup_mates
+        if not (mates and mates[0] == plan['id'] and time.time() - mates[1] < 120):
+            mates = self.dup_mates = (plan['id'], time.time(), core.live_mates(self.cfg, plan))   # the part that reads the disk
+        result = core.duplicate_moves(self.cfg, plan, mates[2])
+        self.dup_view = (sig, time.time(), result)
+        return result
 
     def media(self, rel):
         """A photo or video inside the media folder, or an error: the page may ask about nothing else."""
@@ -130,20 +147,20 @@ class App:
             if plan['kind'] == 'immich':
                 out['selected_items'] = sum(1 for i in plan['items'] if i['status'] == 'file' and item_on(plan, i))
             if plan['kind'] == 'duplicates':
-                moves, protected = core.duplicate_moves(cfg, plan)
+                moves, protected = self.duplicate_view(plan)
                 out['preview'] = {'moves': len(moves), 'protected': protected[:50], 'protected_count': len(protected)}
             elif plan['kind'] == 'sort':
                 out['notes'] = plan['notes']
                 out['left'] = plan['left'][:200]
             else:
                 out['notes'] = plan['notes']
-            out['selected'] = len(core.selected_moves(plan, cfg))
+            out['selected'] = len(core.selected_moves(plan, cfg, moves if plan['kind'] == 'duplicates' else None))
             return 200, out
         m = re.fullmatch(r'/api/plans/([\w-]+)/moves', path)
         if m and method == 'GET':
             plan = j.plan(m.group(1))
             one = lambda k: query.get(k, [''])[0]
-            rows = matching(plan, cfg, one('kind'), one('pair') == '1', one('q'))
+            rows = matching(plan, cfg, one('kind'), one('pair') == '1', one('q'), self.duplicate_view)
             off, lim = int(one('offset') or 0), min(int(one('limit') or 100), 500)
             excluded, kinds = set(plan.get('excluded', [])), set(plan.get('excluded_kinds', []))
             on = lambda x: group_key(x) not in excluded and x['kind'] not in kinds
@@ -188,7 +205,7 @@ class App:
                 keys = ([f'immich:{i["id"]}' for i in matching_items(plan, f.get('status', ''), bool(f.get('live')), f.get('q', ''))]
                         if plan['kind'] == 'immich' else
                         [g['id'] for g in matching_groups(plan, f.get('q', ''))] if plan['kind'] == 'duplicates' else
-                        [group_key(x) for x in matching(plan, cfg, f.get('kind', ''), bool(f.get('pair')), f.get('q', ''))])
+                        [group_key(x) for x in matching(plan, cfg, f.get('kind', ''), bool(f.get('pair')), f.get('q', ''), self.duplicate_view)])
                 for key in keys:
                     (excluded.discard if body.get('selected') else excluded.add)(key)
             if 'kind' in body:
@@ -301,7 +318,8 @@ def handler(app):
         def binary(self, path, query):
             rel = query.get('path', [''])[0]
             try:
-                app.media(rel)
+                if not (path == '/api/preview' and os.path.isdir(app.cfg.abs(rel))):   # a preview may be of a folder
+                    app.media(rel)
                 if path == '/api/preview':
                     file = previews.thumbnail(app.cfg, rel, int(query.get('w', ['240'])[0] or 240))
                     return self.stream(file, mimetypes.guess_type(file)[0] or 'image/jpeg', 'private, max-age=86400')
