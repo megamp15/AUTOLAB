@@ -340,7 +340,9 @@ autolab_obs_homepage_links:
   - name: AdventureLog
     group: services
     meta: travel log
-    url: "{{ autolab_obs_lab_url.format(name='adventurelog', raw='http://nebula.' ~ autolab_tailscale_fqdn.split('.', 1)[1] ~ ':' ~ autolab_service_catalog.adventurelog.port) }}"
+    url: >-
+      {{ autolab_obs_lab_url.format(name='adventurelog', raw='http://nebula.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.adventurelog.port) }}
     icon: map
     enabled: "{{ 'adventurelog' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
     check:
