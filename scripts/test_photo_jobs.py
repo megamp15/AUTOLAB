@@ -1333,6 +1333,71 @@ class FindAndEdit(Library):
             self.app.route('POST', '/api/meta/read', {}, {'paths': ['notes.txt']})
 
 
+class RescanAfterChanges(Library):
+    """Whatever changes the library, Immich is asked to look again: new files, files that left, files that came back."""
+
+    def setUp(self):
+        super().setUp()
+        self.fake = FakeImmich([], libraries=[{'id': 'lib1', 'name': 'Personal library', 'importPaths': ['/mnt/mahir-personal/library']}])
+        self.addCleanup(self.fake.stop) if hasattr(self.fake, 'stop') else None
+        self.app = server.App(self.cfg, immich=immich.Immich(self.fake.url, 'k3y'))
+
+    def scans(self):
+        return [c for c in self.fake.calls if c[0] == 'POST' and c[1].endswith('/scan')]
+
+    def wait(self):
+        for _ in range(300):
+            job = self.app.jobs.status()
+            if job['state'] != 'running':
+                return job
+            time.sleep(0.02)
+        self.fail('the job never finished')
+
+    def plan_and_apply(self, kind):
+        self.app.jobs.start_plan(kind)
+        plan_id = self.wait()['result']['plan']
+        self.app.jobs.start_apply(plan_id)
+        return self.wait()
+
+    def test_filing_duplicates_out_of_the_library_asks_immich_to_rescan(self):
+        self.put('library/2025/06/a.jpg', 'same bytes')
+        self.put('library/2025/07/b.jpg', 'same bytes')
+        job = self.plan_and_apply('duplicates')
+        self.assertEqual(job['state'], 'done', job)
+        self.assertEqual(len(self.scans()), 1)
+        self.assertEqual(job['result']['immich_scan']['status'], 'queued')
+        self.assertEqual(self.app.jobs.run(job['result']['run'])['immich_scan']['library'], 'Personal library')
+
+    def test_deleting_from_the_library_or_removing_trashed_photos_asks_for_a_rescan_too(self):
+        run = {'moves': [{'src': 'library/2025/03/IMG_1.JPG', 'dst': '', 'status': 'deleted'}]}
+        self.assertTrue(self.app.jobs._touched_library(run))
+        self.assertEqual(self.app.jobs._rescan(run)['status'], 'queued')
+        self.assertEqual(len(self.scans()), 1)
+
+    def test_a_run_that_never_touched_the_library_does_not(self):
+        self.put('_inbox/loose/new.jpg', 'x')                          # no date: goes to _no_date, nowhere near the library
+        job = self.plan_and_apply('sort')
+        self.assertEqual(job['state'], 'done', job)
+        self.assertEqual(self.scans(), [])
+        self.assertNotIn('immich_scan', self.app.jobs.run(job['result']['run']))
+
+    def test_undoing_a_run_that_changed_the_library_asks_again(self):
+        self.put('library/2025/06/a.jpg', 'same bytes')
+        self.put('library/2025/07/b.jpg', 'same bytes')
+        job = self.plan_and_apply('duplicates')
+        self.app.jobs.start_undo(job['result']['run'])
+        undone = self.wait()
+        self.assertEqual(undone['state'], 'done', undone)
+        self.assertEqual(len(self.scans()), 2)                         # once to see them go, once to see them return
+        self.assertEqual(undone['result']['immich_scan']['status'], 'queued')
+
+    def test_without_immich_nothing_is_attempted_and_the_page_knows_not_to_promise_it(self):
+        plain = server.App(self.cfg)
+        self.assertIs(plain.route('GET', '/api/status', {}, {})[1]['immich'], False)
+        self.assertIsNone(plain.jobs._rescan({'moves': [{'src': 'library/a.jpg', 'dst': '', 'status': 'deleted'}]}))
+        self.assertIs(self.app.route('GET', '/api/status', {}, {})[1]['immich'], True)
+
+
 class Pairs(unittest.TestCase):
     def test_pairing_is_by_folder_and_name(self):
         self.assertEqual(pairs.pairs(['/a/IMG_1.HEIC', '/a/IMG_1.MOV', '/b/IMG_1.MOV', '/a/IMG_2.MOV']),
