@@ -146,7 +146,7 @@ class Jobs:
             if j['kind'].startswith('plan-') and pid:
                 try:
                     plan = self.plan(pid)
-                    row.update(plan=pid, stats=plan.get('stats', {}), applied=plan.get('applied'), partial=bool(plan.get('partial')))
+                    row.update(plan=pid, stats=plan.get('stats', {}), applied=plan.get('applied'), partial=bool(plan.get('partial')), runs=len(plan.get('runs', [])))
                 except Missing:
                     row['plan_gone'] = True
             if res.get('run'):
@@ -207,7 +207,7 @@ class Jobs:
         self.interrupted = []
 
     # -- the three things a person does
-    def start_plan(self, kind, resumed=None):
+    def start_plan(self, kind, resumed=None, full=False):
         if kind not in ('sort', 'duplicates', 'immich'):
             raise ValueError(f'unknown plan kind {kind}')
         if kind == 'immich' and not (self.immich and self.immich.configured):
@@ -221,7 +221,7 @@ class Jobs:
 
         def work(progress):
             if kind == 'duplicates':   # saved as it goes, so what is found can be looked at while it runs
-                plan = core.plan_duplicates(self.cfg, progress, checkpoint=lambda p: keep(p, True))
+                plan = core.plan_duplicates(self.cfg, progress, checkpoint=lambda p: keep(p, True), full=full)
             else:
                 plan = (core.plan_sort(self.cfg, progress) if kind == 'sort' else core.plan_immich(self.cfg, self.immich, progress))
             keep(plan, False)
@@ -266,7 +266,10 @@ class Jobs:
             if scan:
                 run['immich_scan'] = scan
                 self._save('runs', {'id': run_id, 'plan': plan_id, 'kind': plan['kind'], **run})
-            plan['applied'] = run_id
+            if plan['kind'] in ('duplicates', 'immich') and core.carry_forward(plan, run):
+                plan['runs'] = [*plan.get('runs', []), run_id]     # still open: what was left is there to carry on with
+            else:
+                plan['applied'] = run_id
             self.save_plan(plan)
             return {'run': run_id, 'immich_scan': run.get('immich_scan')}
 

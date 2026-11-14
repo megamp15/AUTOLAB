@@ -89,14 +89,14 @@ class App:
         """What a duplicates plan would do, for showing. Working it out looks at the disk for every
         file in the plan, so the answer is kept for a minute for the same choices; an apply never
         uses it, it works from the folder as it is at that moment."""
-        sig = (plan['id'], plan.get('mode'), tuple(plan.get('excluded', [])), tuple(plan.get('excluded_kinds', [])),
+        sig = (plan['id'], plan.get('rev', 0), plan.get('mode'), tuple(plan.get('excluded', [])), tuple(plan.get('excluded_kinds', [])),
                hash(tuple(g['keep'] for g in plan['groups'])))
         hit = self.dup_view
         if hit and hit[0] == sig and time.time() - hit[1] < 60:
             return hit[2]
         mates = self.dup_mates
-        if not (mates and mates[0] == plan['id'] and time.time() - mates[1] < 120):
-            mates = self.dup_mates = (plan['id'], time.time(), core.live_mates(self.cfg, plan))   # the part that reads the disk
+        if not (mates and mates[0] == (plan['id'], plan.get('rev', 0)) and time.time() - mates[1] < 120):
+            mates = self.dup_mates = ((plan['id'], plan.get('rev', 0)), time.time(), core.live_mates(self.cfg, plan))   # the part that reads the disk
         result = core.duplicate_moves(self.cfg, plan, mates[2])
         self.dup_view = (sig, time.time(), result)
         return result
@@ -171,7 +171,7 @@ class App:
         if method == 'GET' and path == '/api/plans':
             return 200, {'plans': j.plans()}
         if method == 'POST' and path == '/api/plans':
-            return 202, {'job': j.start_plan(body.get('kind', ''))}
+            return 202, {'job': j.start_plan(body.get('kind', ''), full=bool(body.get('full')))}
         m = re.fullmatch(r'/api/plans/([\w-]+)', path)
         if m and method == 'GET':
             plan = j.plan(m.group(1))

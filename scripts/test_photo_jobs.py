@@ -943,7 +943,7 @@ class ActivityLog(Library):
         seen = []
         real = core.plan_duplicates
 
-        def spy(cfg, progress=core._noop, checkpoint=None):
+        def spy(cfg, progress=core._noop, checkpoint=None, full=False):
             # ask for a checkpoint after every size bucket, and look at the plan the page would load
             def look(plan):
                 job = self.app.jobs.status()
@@ -1091,6 +1091,66 @@ class Restarts(Library):
         service = server.App(self.cfg)
         service.jobs.resume_interrupted()
         self.assertIsNone(service.jobs.status())
+
+
+class KeepScanAfterApply(Library):
+    """Applying part of a scan must not throw the scan away: what is left stays open."""
+
+    def _scan(self, app):
+        app.jobs.start_plan('duplicates')
+        for _ in range(300):
+            if app.jobs.status()['state'] != 'running':
+                break
+            time.sleep(0.02)
+        return app.jobs.status()['result']['plan']
+
+    def _apply(self, app, plan_id):
+        app.jobs.start_apply(plan_id)
+        for _ in range(300):
+            if app.jobs.status()['state'] != 'running':
+                break
+            time.sleep(0.02)
+        self.assertEqual(app.jobs.status()['state'], 'done')
+
+    def test_the_groups_left_unticked_stay_open_after_an_apply(self):
+        for i in range(3):
+            self.put(f'library/2025/06/a{i}.jpg', f'same-{i}')
+            self.put(f'library/2025/07/b{i}.jpg', f'same-{i}')
+        app = server.App(self.cfg)
+        pid = self._scan(app)
+        left = next(g['id'] for g in app.jobs.plan(pid)['groups'])
+        app.route('PATCH', f'/api/plans/{pid}', {}, {'groups': [left], 'selected': False})
+        self._apply(app, pid)
+        plan = app.route('GET', f'/api/plans/{pid}', {}, {})[1]
+        self.assertFalse(plan.get('applied'))
+        self.assertEqual((plan['stats']['groups'], plan['stats']['extra'], len(plan['runs'])), (1, 1, 1))
+        self.assertEqual(plan['preview']['moves'], 0)                    # still unticked
+        self.assertEqual(app.route('GET', '/api/plans', {}, {})[1]['plans'][0]['applied'], None)
+        app.route('PATCH', f'/api/plans/{pid}', {}, {'groups': [left], 'selected': True})
+        self.assertEqual(app.route('GET', f'/api/plans/{pid}', {}, {})[1]['preview']['moves'], 1)
+        self._apply(app, pid)                                            # the rest, later, from the same scan
+        self.assertTrue(app.jobs.plan(pid)['applied'])
+
+    def test_an_immich_plan_keeps_the_files_not_yet_dealt_with(self):
+        item = lambda i, status='file': {'id': str(i), 'status': status, 'rel': f'x/{i}.jpg', 'size': 5, 'clip': None, 'sha1': ''}
+        plan = {'kind': 'immich', 'items': [item(1), item(2), item(3, 'missing')], 'excluded': ['immich:1', 'immich:2'],
+                'stats': {'assets': 3, 'kinds': {}, 'live': 0, 'bytes': 10}}
+        left = core.carry_forward(plan, {'moves': [{'src': 'x/1.jpg', 'status': 'moved'}, {'src': 'x/9.jpg', 'status': 'error'}]})
+        self.assertEqual((left, [i['id'] for i in plan['items']], plan['excluded'], plan['stats']['bytes']), (1, ['2', '3'], ['immich:2'], 5))
+        self.assertEqual(core.carry_forward(plan, {'moves': [{'src': 'x/2.jpg', 'status': 'deleted'}]}), 0)    # only the missing one is left: nothing to do
+
+    def test_a_full_rescan_reads_every_file_again_and_the_default_does_not(self):
+        self.put('library/a.jpg', 'same'); self.put('library/b.jpg', 'same')
+        reads = []
+        real = core._digest
+        core._digest = lambda path, limit=None: (reads.append(path), real(path, limit))[1]
+        self.addCleanup(setattr, core, '_digest', real)
+        core.plan_duplicates(self.cfg)
+        first = len(reads)
+        core.plan_duplicates(self.cfg)
+        self.assertEqual(len(reads), first)                              # nothing changed: nothing read
+        core.plan_duplicates(self.cfg, full=True)
+        self.assertGreater(len(reads), first)
 
 
 class RunDetails(Library):

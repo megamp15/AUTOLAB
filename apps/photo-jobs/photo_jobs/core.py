@@ -398,7 +398,8 @@ class HashCache:
     almost nothing. Only for scanning: a deletion always re-reads the bytes (delete_copy).
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, fresh=False):
+        self.fresh = fresh    # a full rescan: read every file again, and remember what it says
         try:
             self.db = sqlite3.connect(os.path.join(cfg.state, 'hashes.db'), timeout=30)
             self.db.execute('PRAGMA journal_mode=WAL')
@@ -411,7 +412,7 @@ class HashCache:
         if not self.db:
             return _digest(path, limit)
         st, part = os.stat(path), limit or 0
-        row = self.db.execute('SELECT size, mtime, digest FROM hashes WHERE path=? AND part=?', (path, part)).fetchone()
+        row = None if self.fresh else self.db.execute('SELECT size, mtime, digest FROM hashes WHERE path=? AND part=?', (path, part)).fetchone()
         if row and row[0] == st.st_size and row[1] == st.st_mtime_ns:
             return row[2]
         got = _digest(path, limit)
@@ -431,8 +432,10 @@ class HashCache:
             self.db.close()
 
 
-def plan_duplicates(cfg, progress=_noop, checkpoint=None):
-    cache = HashCache(cfg)
+def plan_duplicates(cfg, progress=_noop, checkpoint=None, full=False):
+    """By default a file already read (same path, size and time) is not read again, so a rescan only
+    reads what is new or changed. `full` reads every file again."""
+    cache = HashCache(cfg, fresh=full)
     try:
         return _plan_duplicates(cfg, progress, checkpoint, cache)
     finally:
@@ -490,6 +493,36 @@ def _duplicate_plan(cfg, found, scanned):
         extra_bytes += size * (len(rels) - 1)
     return {'kind': 'duplicates', 'mode': 'file', 'groups': groups, 'moves': [], 'notes': [],
             'stats': {'scanned': scanned, 'groups': len(groups), 'extra': extra, 'extra_bytes': extra_bytes}}
+
+
+def carry_forward(plan, run):
+    """After an apply, drop from a duplicates or Immich plan what the run dealt with and keep the
+    rest, so the scan is still there to carry on with instead of being thrown away. Returns how many
+    groups (or files, for Immich) are still open. Choices already made for what is left stay."""
+    gone = {m['src'] for m in run['moves'] if m['status'] in ('moved', 'deleted')}
+    plan['rev'] = plan.get('rev', 0) + 1
+    if plan['kind'] == 'duplicates':
+        groups = []
+        for g in plan['groups']:
+            files = [f for f in g['files'] if f not in gone]
+            if len(files) > 1:
+                groups.append({**g, 'files': files, 'keep': g['keep'] if g['keep'] in files else files[0]})
+        plan['groups'] = groups
+        left = sum(len(g['files']) - 1 for g in groups)
+        plan['excluded'] = [i for i in plan.get('excluded', []) if i in {g['id'] for g in groups}]
+        plan['stats'] = {**plan['stats'], 'groups': len(groups), 'extra': left,
+                         'extra_bytes': sum(g['size'] * (len(g['files']) - 1) for g in groups)}
+        return len(groups)
+    if plan['kind'] == 'immich':
+        items = [i for i in plan['items'] if i['rel'] not in gone]
+        plan['items'] = items
+        on_disk = [i for i in items if i['status'] == 'file']
+        plan['excluded'] = [k for k in plan.get('excluded', []) if k in {f'immich:{i["id"]}' for i in on_disk}]
+        plan['stats'] = {**plan['stats'], 'assets': len(items), 'kinds': dict(collections.Counter(i['status'] for i in items)),
+                         'live': sum(1 for i in on_disk if i['clip']),
+                         'bytes': sum(i['size'] + (i['clip'] or {}).get('size', 0) for i in on_disk)}
+        return len(on_disk)
+    return 0
 
 
 def live_mates(cfg, plan):
