@@ -225,6 +225,7 @@
     </div>
   </div>
   <hr class="rule">
+  <div id="lost" class="panel status-bad" hidden>Lost contact with the photo service (it may be restarting). Reconnecting…</div>
   <main id="main"></main>
 </div>
 <dialog id="confirm"></dialog>
@@ -241,13 +242,20 @@
   const ago = t => { const s = Date.now() / 1000 - t; return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : new Date(t * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' }); };
 
   const TABS = ['inbox', 'duplicates', 'nodate', 'albums', 'immich', 'history'];
-  const state = { tab: location.hash.slice(1) || 'inbox', status: null, job: null, dark: true, runs: [], immichInfo: null, activity: [],
+  const state = { tab: location.hash.slice(1) || 'inbox', status: null, job: null, dark: true, runs: [], immichInfo: null, activity: [], loading: {},
                   sort: { plan: null, rows: [], total: 0, shown: 0, filter: { kind: '', pair: false, q: '' }, done: null },
                   dupes: { plan: null, groups: [], total: 0, q: '', done: null },
                   nodate: { files: null, checked: new Set(), q: '', date: '', time: '12:00', done: null, failed: [] },
                   immich: { plan: null, rows: [], total: 0, selected: 0, selectable: 0, filter: { status: '', live: false, q: '' }, done: null },
                   albums: null, albumChecked: new Set(), albumConfigured: false, albumResult: '', albumResultKind: 'ok' };
   if (!TABS.includes(state.tab)) state.tab = 'inbox';
+  // What you were looking at: the filters and search boxes survive a reload. (The scans themselves are saved by the service.)
+  const savedUI = (() => { try { return JSON.parse(localStorage.getItem('photos-ui')) || {}; } catch (e) { return {}; } })();
+  const saveUI = () => { try { localStorage.setItem('photos-ui', JSON.stringify({ sort: state.sort.filter, dupesQ: state.dupes.q, immich: state.immich.filter,
+    nodate: { q: state.nodate.q, date: state.nodate.date, time: state.nodate.time } })); } catch (e) {} };
+  Object.assign(state.nodate, savedUI.nodate || {});
+  addEventListener('pagehide', () => saveUI());                              // filters change without a redraw, so save on the way out
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveUI(); });
   try { state.dark = localStorage.getItem('photos-dark') !== '0'; } catch (e) {}
 
   async function api(path, opts = {}) {
@@ -280,9 +288,10 @@
       try {
         const { job: j } = await api('/job');
         state.job = j; renderChip(); renderProgress();
+        if (!j) { clearInterval(poller); await refresh(); render(); return; }   // the service restarted and has no such job
         if (j && j.state === 'running') pollPartial(j);
         if (j && j.state !== 'running') { clearInterval(poller); await jobFinished(j); }
-      } catch (e) { clearInterval(poller); }
+      } catch (e) { /* the heartbeat below reports a lost service; keep following the job */ }
     }, 700);
     renderProgress();
   }
@@ -385,9 +394,10 @@
     const c = $('#runs-count'); c.textContent = state.runs.length ? state.runs.length : '';
     const nd = $('#nodate-count'); nd.textContent = state.status.inbox.no_date || '';
   }
-  async function loadSort(id) {
+  async function loadSort(id, resumed) {
     const s = state.sort;
     s.plan = await api('/plans/' + id); s.done = null; s.filter = { kind: '', pair: false, q: '' };
+    if (resumed && savedUI.sort) { const f = savedUI.sort; s.filter = { kind: (s.plan.stats.kinds || {})[f.kind] ? f.kind : '', pair: !!f.pair && !!s.plan.stats.pairs, q: f.q || '' }; }
     await fetchRows(false);
   }
   async function fetchRows(append) {
@@ -398,8 +408,8 @@
     s.rows = append ? s.rows.concat(page.moves) : page.moves;
     return page.moves;
   }
-  async function loadDupes(id) {
-    const d = state.dupes; d.plan = await api('/plans/' + id); d.done = null; d.q = '';
+  async function loadDupes(id, resumed) {
+    const d = state.dupes; d.plan = await api('/plans/' + id); d.done = null; d.q = resumed ? savedUI.dupesQ || '' : '';
     await fetchGroups(false);
   }
   async function fetchGroups(append) {
@@ -408,8 +418,9 @@
     d.total = page.total; d.shown = page.selected; d.groups = append ? d.groups.concat(page.groups) : page.groups;
     return page.groups;
   }
-  async function loadImmich(id) {
+  async function loadImmich(id, resumed) {
     const m = state.immich; m.plan = await api('/plans/' + id); m.done = null; m.filter = { status: '', live: false, q: '' };
+    if (resumed && savedUI.immich) m.filter = { status: savedUI.immich.status || '', live: !!savedUI.immich.live, q: savedUI.immich.q || '' };
     await fetchItems(false);
   }
   async function fetchItems(append) {
@@ -420,13 +431,20 @@
     m.rows = append ? m.rows.concat(page.items) : page.items;
     return page.items;
   }
+  // Reopen the last scan of each kind. They load side by side and each appears the moment it is ready,
+  // so a slow one cannot hold the others back, and a failed one only affects its own tab.
+  const SAVED = { sort: [loadSort, 'inbox', 'sort'], duplicates: [loadDupes, 'duplicates', 'dupes'], immich: [loadImmich, 'immich', 'immich'] };
   async function resume() {
-    const { plans } = await api('/plans');
-    for (const [kind, load] of [['sort', loadSort], ['duplicates', loadDupes], ['immich', loadImmich]]) {
+    let plans; try { plans = (await api('/plans')).plans; } catch (e) { return; }
+    await Promise.all(Object.entries(SAVED).map(async ([kind, [load, tab, key]]) => {
       const p = plans.find(x => x.kind === kind && !x.applied);
-      if (p) await load(p.id);
-    }
+      if (!p || (state[key].plan && state[key].plan.id === p.id)) return;
+      state.loading[kind] = true; state[key].loadError = ''; if (state.tab === tab) render();
+      try { await load(p.id, true); } catch (e) { state[key].loadError = e.message; }
+      state.loading[kind] = false; if (state.tab === tab) render();
+    }));
   }
+  const restoring = (kind, side) => state.loading[kind] ? el('div', 'empty', 'Loading your last scan…') : side.loadError ? el('div', 'note bad', 'Could not load your last scan: ' + side.loadError) : null;
 
   // ---- views ------------------------------------------------------------------------------------
   const main = $('#main');
@@ -438,6 +456,7 @@
     main.replaceChildren();
     ({ inbox: viewInbox, duplicates: viewDupes, nodate: viewNoDate, albums: viewAlbums, immich: viewImmich, history: viewHistory })[state.tab]();
     const p = progressBlock(); if (p) main.prepend(p);
+    saveUI();
   }
   document.querySelector('.tabs').addEventListener('click', e => {
     const t = e.target.closest('[data-tab]'); if (!t) return;
@@ -571,7 +590,7 @@
                     [st.inbox.no_date, 'no date · set aside', 'Put aside in _no_date by an earlier run because no date is stored inside them. Click to look at them and give them a date.', 'nodate'],
                     [st.inbox.duplicates, 'duplicates · set aside', 'Put aside in _duplicates by an earlier run']] }));
     const done = doneBanner(s); if (done) { done.style.marginTop = '12px'; main.append(done); }
-    if (!s.plan) { if (!busy() && !done) main.append(el('div', 'empty', 'Scan the inbox to see exactly what would move.')); return; }
+    if (!s.plan) { const r = restoring('sort', s); if (r) main.append(r); else if (!busy() && !done) main.append(el('div', 'empty', 'Scan the inbox to see exactly what would move.')); return; }
     fit(true);
     const p = s.plan, panel = el('div', 'panel table-panel');
     const tools = el('div', 'toolbar'), chips = el('div', 'chips');
@@ -645,7 +664,7 @@
       title: 'Duplicates', text: 'Byte-identical photos and videos. The best copy is kept; pick a different one if you prefer. The extras are filed under _duplicates, or deleted if you choose.',
       last: () => lastScan('duplicates'), label: d.plan ? 'Scan again' : 'Find duplicates', action: () => startPlan('duplicates', d, x => { x.plan = null; x.groups = []; }) }));
     const done = doneBanner(d); if (done) { done.style.marginTop = '12px'; main.append(done); }
-    if (!d.plan) { if (!busy() && !done) main.append(el('div', 'empty', 'Scan to find copies of the same photo anywhere in the library.')); else if (scanningDupes()) main.append(el('div', 'empty', 'Copies appear here as they are found.')); return; }
+    if (!d.plan) { const r = restoring('duplicates', d); if (r) main.append(r); else if (!busy() && !done) main.append(el('div', 'empty', 'Scan to find copies of the same photo anywhere in the library.')); else if (scanningDupes()) main.append(el('div', 'empty', 'Copies appear here as they are found.')); return; }
     fit(true);
     const panel = el('div', 'panel table-panel'), tools = el('div', 'toolbar'), stats = el('div', 'stats inline');
     const modes = segmented([['file', 'File under _duplicates', 'Move the extra copies to _duplicates; undo puts them back'],
@@ -871,7 +890,7 @@
   const WHERE = { missing: 'Not on disk: already gone', outside: 'In Immich’s own storage, not this folder', symlink: 'A link: left alone' };
   async function checkImmich() {
     try { state.immichInfo = await api('/immich'); } catch (e) { state.immichInfo = { configured: true, connected: false, error: e.message }; }
-    if (state.tab === 'immich' && !state.immich.plan) render();
+    if (state.tab === 'immich') render();
   }
   function viewImmich() {
     const m = state.immich, info = state.immichInfo;
@@ -892,7 +911,7 @@
       main.append(how); return;
     }
     const done = doneBanner(m); if (done) { done.style.marginTop = '12px'; main.append(done); }
-    if (!m.plan) { if (!busy() && !done && info.connected) main.append(el('div', 'empty', 'Read Immich’s trash to see which of those photos are still on disk.')); return; }
+    if (!m.plan) { const r = restoring('immich', m); if (r) main.append(r); else if (!busy() && !done && info.connected) main.append(el('div', 'empty', 'Read Immich’s trash to see which of those photos are still on disk.')); return; }
     fit(true);
     const p = m.plan, panel = el('div', 'panel table-panel'), tools = el('div', 'toolbar'), chips = el('div', 'chips');
     const modes = segmented([['file', 'Move to _removed', 'Move the files aside; undo puts them back'], ['delete', 'Delete', 'Remove the files for good. Cannot be undone', true]], p.mode || 'file', async v => {
@@ -1062,10 +1081,19 @@
     try {
       await refresh();
       if (state.status.job && state.status.job.state === 'running') watchJob(state.status.job);
-      await resume();
     } catch (e) { main.append(el('div', 'panel status-bad', 'Cannot reach the photo service: ' + e.message)); return; }
-    render();
+    render();            // the page is usable at once; saved scans fill in as they load
+    await resume();
   })();
+  // If the service goes away (a deploy, a restart) say so, and when it is back reload everything it
+  // has saved, so a page left open is never stale.
+  let lost = false;
+  setInterval(async () => {
+    try {
+      await api('/job');
+      if (lost) { lost = false; $('#lost').hidden = true; await refresh(); await resume(); render(); }
+    } catch (e) { if (!lost) { lost = true; $('#lost').hidden = false; } }
+  }, 4000);
 })();
 </script>
 </body>
