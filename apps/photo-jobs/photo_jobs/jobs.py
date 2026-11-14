@@ -230,6 +230,25 @@ class Jobs:
 
         return self.start('plan-' + kind, work, plan=plan_id, **({'resumed': resumed} if resumed else {}))
 
+    def _in_library(self, rel):
+        lib = self.cfg.library
+        return bool(rel) and (rel == lib or rel.startswith(lib + os.sep))
+
+    def _touched_library(self, run):
+        """True when a run moved, filed or deleted something in, into or out of the library: Immich
+        should look again, to see new files and to notice that others are gone."""
+        return any(m.get('status') in ('moved', 'deleted') and (self._in_library(m.get('src')) or self._in_library(m.get('dst')))
+                   for m in run['moves'])
+
+    def _rescan(self, run):
+        """Ask Immich to rescan its library after a run that touched it. None when there is no need or no Immich."""
+        if not (self.immich and self.immich.configured and self._touched_library(run)):
+            return None
+        try:
+            return {'status': 'queued', 'library': albums.scan_external_library(self.cfg, self.immich)['name']}
+        except (ImmichError, ValueError) as e:
+            return {'status': 'failed', 'error': str(e)}
+
     def start_apply(self, plan_id):
         plan = self.plan(plan_id)
         if plan.get('applied'):
@@ -243,16 +262,9 @@ class Jobs:
                 self._save('runs', {'id': run_id, 'plan': plan_id, 'kind': plan['kind'], **run})
 
             run = core.apply_moves(self.cfg, moves, progress, record)
-            library_changed = plan['kind'] == 'sort' and any(
-                move.get('status') == 'moved' and move.get('dst') and
-                (move['dst'] == self.cfg.library or move['dst'].startswith(self.cfg.library + os.sep))
-                for move in run['moves'])
-            if library_changed and self.immich and self.immich.configured:
-                try:
-                    library = albums.scan_external_library(self.cfg, self.immich)
-                    run['immich_scan'] = {'status': 'queued', 'library': library['name']}
-                except (ImmichError, ValueError) as e:
-                    run['immich_scan'] = {'status': 'failed', 'error': str(e)}
+            scan = self._rescan(run)
+            if scan:
+                run['immich_scan'] = scan
                 self._save('runs', {'id': run_id, 'plan': plan_id, 'kind': plan['kind'], **run})
             plan['applied'] = run_id
             self.save_plan(plan)
@@ -267,6 +279,9 @@ class Jobs:
 
         def work(progress):
             result = (metadata.undo if run.get('kind') == 'metadata' else core.undo_run)(self.cfg, run, progress)
+            scan = self._rescan(run) if run.get('kind') != 'metadata' else None      # a metadata undo rewrites files in place; those edits queued their own scan
+            if scan:
+                result['immich_scan'] = scan
             run['undone'] = {'at': time.time(), **result}
             self._save('runs', run)
             return result

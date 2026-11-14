@@ -108,7 +108,8 @@ class App:
     def route(self, method, path, query, body):
         j, cfg = self.jobs, self.cfg
         if method == 'GET' and path == '/api/status':
-            return 200, {'root': cfg.root, 'library': cfg.library, 'inbox': inbox_counts(cfg), 'job': j.status()}
+            return 200, {'root': cfg.root, 'library': cfg.library, 'inbox': inbox_counts(cfg), 'job': j.status(),
+                         'immich': bool(self.immich and self.immich.configured)}
         if method == 'GET' and path == '/api/immich':
             if not (self.immich and self.immich.configured):
                 return 200, {'configured': False}

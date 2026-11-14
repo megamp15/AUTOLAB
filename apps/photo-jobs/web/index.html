@@ -1142,6 +1142,7 @@
       ? ['These files are removed from the disk. There is no undo and no trash.', plan.kind === 'immich' ? 'Each one is checked to still be the exact file Immich trashed.' : 'Each one is checked to still be identical to the copy you keep.',
          'A file that fails its check is skipped, not deleted.', 'The deletion is recorded in History.']
       : ['Only the moves you left ticked are made.', 'Each move is skipped if its file has changed since the scan.', 'Nothing is overwritten or deleted. Undo is in History.'];
+    if (state.status && state.status.immich) facts.push('Immich is asked to rescan the library afterwards, so it notices what changed.');
     const ul = el('ul'); facts.forEach(t => ul.append(el('li', null, t)));
     dlg.append(ul);
     const row = el('div', 'row'); row.style.justifyContent = 'flex-end';
