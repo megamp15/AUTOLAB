@@ -29,7 +29,8 @@ class Api:
     def request(self, method, path, data=None, allow_missing=False):
         request = urllib.request.Request(self.base + path, method=method,
             data=json.dumps(data).encode() if data is not None else None,
-            headers={'X-API-KEY': self.token, 'Content-Type': 'application/json'})
+            headers={'X-API-KEY': self.token, 'Content-Type': 'application/json',
+                     'User-Agent': 'autolab-status/1.0'})
         try:
             with urllib.request.build_opener(NoRedirect).open(request, timeout=20) as response:
                 body = response.read()
