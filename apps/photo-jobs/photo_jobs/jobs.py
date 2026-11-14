@@ -9,7 +9,7 @@ import threading
 import time
 import uuid
 
-from . import albums, core
+from . import albums, core, nodate
 from .immich import ImmichError
 
 
@@ -180,3 +180,24 @@ class Jobs:
             return result
 
         return self.start('undo', work, run=run_id)
+
+    def start_set_dates(self, rels, date, time=''):
+        """Write a date into each of these _no_date files and send them to the inbox."""
+        when = nodate.stamp(date, time)
+        if not rels:
+            raise ValueError('choose at least one photo')
+        base = os.path.join(self.cfg.root, core.NODATE)
+        for rel in rels:
+            if not self.cfg.abs(rel).startswith(base + os.sep) or not core.is_media(rel):
+                raise ValueError(f'not a photo set aside for having no date: {rel}')
+
+        def work(progress):
+            run_id = uuid.uuid4().hex[:12]
+
+            def record(run):
+                self._save('runs', {'id': run_id, 'plan': None, 'kind': 'set-date', **run})
+
+            run = nodate.set_dates(self.cfg, rels, when, progress, record)
+            return {'run': run_id, 'failed': [{'src': m['src'], 'note': m['note']} for m in run['moves'] if m['status'] == 'error'][:50]}
+
+        return self.start('set-date', work)

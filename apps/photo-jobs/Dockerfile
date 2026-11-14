@@ -1,9 +1,9 @@
 # Photo Jobs. Built on the NAS by workflow 12's photos action, from this folder.
 FROM python:3.12.16-alpine3.24
 
-# ExifTool reads the recording dates. Nothing else is installed: the service is
-# the Python standard library.
-RUN apk add --no-cache exiftool
+# ExifTool reads and writes the recording dates; libvips (with HEIC) makes the thumbnails the
+# page shows. The service itself is the Python standard library.
+RUN apk add --no-cache exiftool vips-tools vips-heif
 
 WORKDIR /app
 COPY photo_jobs ./photo_jobs

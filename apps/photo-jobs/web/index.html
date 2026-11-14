@@ -165,6 +165,32 @@
   .immich-status { margin-top:10px; font-size:11.5px; display:flex; align-items:center; gap:8px; color:var(--dim); }
   .immich-status.status-ok { color:var(--ok); } .immich-status.status-bad { color:var(--bad); }
   h2.status-bad { color:var(--bad); }
+  /* previews: a thumbnail opens the viewer; nothing here animates */
+  .thumb { width:64px; height:64px; border-radius:4px; border:1px solid var(--line); background:var(--soft); object-fit:cover; display:block; cursor:zoom-in; flex:none; }
+  .thumb.blank { display:grid; place-items:center; text-align:center; font:9px 'IBM Plex Mono',monospace; letter-spacing:.08em; color:var(--dim); }
+  .tr.pics { grid-template-columns:28px 72px 92px minmax(0,1.25fr) minmax(0,1.25fr) minmax(0,1fr); }
+  .copy .thumb { width:56px; height:56px; }
+  .group header .btn { margin-left:auto; }
+  dialog#viewer { max-width:none; width:min(1500px,96vw); max-height:94dvh; padding:16px 18px; overflow:auto; }
+  .viewer-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); gap:14px; margin-top:12px; }
+  .viewer-grid figure { margin:0; display:flex; flex-direction:column; gap:8px; min-width:0; }
+  .frame { background:var(--soft); border:1px solid var(--line); border-radius:4px; min-height:180px; display:grid; place-items:center; overflow:hidden; }
+  .frame img, .frame video { max-width:100%; max-height:66dvh; display:block; }
+  .frame .blank { padding:40px 12px; color:var(--dim); font-size:12.5px; text-align:center; }
+  .facts { display:grid; grid-template-columns:auto 1fr; gap:1px 14px; font:11.5px 'IBM Plex Mono',monospace; color:var(--dim); }
+  .facts dt { opacity:.75; } .facts dd { margin:0; color:var(--fg); }
+  .note.ok { border-left-color:var(--ok); color:var(--fg); }
+  .shots { display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:12px; margin-top:12px; }
+  .shot { border:1px solid var(--line); border-radius:5px; padding:8px; display:flex; flex-direction:column; gap:6px; position:relative; min-width:0; }
+  .shot.on { border-color:var(--fg); background:var(--soft); }
+  .shot .thumb { width:100%; height:150px; }
+  .shot .tick { position:absolute; top:14px; left:14px; z-index:1; background:var(--bg); }
+  .shot .name { font-size:12px; overflow-wrap:anywhere; }
+  .shot .meta { font:10.5px 'IBM Plex Mono',monospace; color:var(--dim); }
+  .stat.link { cursor:pointer; text-decoration:underline dotted; text-underline-offset:4px; }
+  input.field { background:transparent; color:inherit; border:1px solid var(--line); border-radius:4px; padding:6px 10px; font:inherit; font-size:12.5px; color-scheme:dark; }
+  :root.light input.field { color-scheme:light; }
+  input.field:focus { border-color:var(--fg); outline:none; }
   /* on a desktop the table fills the window and scrolls inside itself, so the page does not move */
   @media (min-width:701px) {
     body.fit #app { height:100dvh; padding-bottom:clamp(14px,2vw,28px); }
@@ -173,7 +199,7 @@
     body.fit .tbody { max-height:none; }
     body.fit .bar { position:static; flex:none; }
   }
-  @media (max-width:700px) { .tr, .tr.immich { grid-template-columns:28px 1fr; } .th { display:none; } .tr > :nth-child(n+3) { grid-column:2; }
+  @media (max-width:700px) { .tr, .tr.immich, .tr.pics { grid-template-columns:28px 1fr; } .th { display:none; } .tr > :nth-child(n+3) { grid-column:2; }
     .album-row { grid-template-columns:24px minmax(0,1fr); } .album-row > :nth-child(n+3) { grid-column:2; } .album-head { display:none; } }
   @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
 </style>
@@ -186,6 +212,7 @@
     <nav class="tabs" role="tablist" aria-label="Photo jobs">
       <button type="button" role="tab" data-tab="inbox" aria-selected="true">Inbox</button>
       <button type="button" role="tab" data-tab="duplicates" aria-selected="false">Duplicates</button>
+      <button type="button" role="tab" data-tab="nodate" aria-selected="false">No date<small id="nodate-count"></small></button>
       <button type="button" role="tab" data-tab="albums" aria-selected="false">Albums</button>
       <button type="button" role="tab" data-tab="immich" aria-selected="false">Immich trash</button>
       <button type="button" role="tab" data-tab="history" aria-selected="false">History<small id="runs-count"></small></button>
@@ -200,6 +227,7 @@
   <main id="main"></main>
 </div>
 <dialog id="confirm"></dialog>
+<dialog id="viewer" aria-label="Photo viewer"></dialog>
 
 <script>
 (() => {
@@ -211,10 +239,11 @@
   const fmtGiB = b => b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GiB' : b >= 1048576 ? (b / 1048576).toFixed(b >= 1.05e7 ? 0 : 1) + ' MiB' : Math.max(1, Math.round(b / 1024)) + ' KiB';
   const ago = t => { const s = Date.now() / 1000 - t; return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : new Date(t * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' }); };
 
-  const TABS = ['inbox', 'duplicates', 'albums', 'immich', 'history'];
+  const TABS = ['inbox', 'duplicates', 'nodate', 'albums', 'immich', 'history'];
   const state = { tab: location.hash.slice(1) || 'inbox', status: null, job: null, dark: true, runs: [], immichInfo: null,
                   sort: { plan: null, rows: [], total: 0, shown: 0, filter: { kind: '', pair: false, q: '' }, done: null },
                   dupes: { plan: null, groups: [], total: 0, q: '', done: null },
+                  nodate: { files: null, checked: new Set(), q: '', date: '', time: '12:00', done: null, failed: [] },
                   immich: { plan: null, rows: [], total: 0, selected: 0, selectable: 0, filter: { status: '', live: false, q: '' }, done: null },
                   albums: null, albumChecked: new Set(), albumConfigured: false, albumResult: '', albumResultKind: 'ok' };
   if (!TABS.includes(state.tab)) state.tab = 'inbox';
@@ -260,6 +289,7 @@
     if (j.kind === 'plan-sort') { await loadSort(j.result.plan); }
     else if (j.kind === 'plan-duplicates') { await loadDupes(j.result.plan); }
     else if (j.kind === 'plan-immich') { await loadImmich(j.result.plan); }
+    else if (j.kind === 'set-date') { Object.assign(state.nodate, { done: j.result.run, failed: j.result.failed || [], files: null }); state.nodate.checked.clear(); }
     else if (j.kind === 'apply') {
       const side = [state.sort, state.dupes, state.immich].find(x => x.plan && x.plan.id === j.plan) || state.sort;
       side.done = j.result.run; side.plan = null; side.rows = []; side.groups = [];
@@ -300,6 +330,7 @@
     state.status = await api('/status');
     state.runs = (await api('/runs')).runs;
     const c = $('#runs-count'); c.textContent = state.runs.length ? state.runs.length : '';
+    const nd = $('#nodate-count'); nd.textContent = state.status.inbox.no_date || '';
   }
   async function loadSort(id) {
     const s = state.sort;
@@ -352,7 +383,7 @@
     fit(false);
     document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
     main.replaceChildren();
-    ({ inbox: viewInbox, duplicates: viewDupes, albums: viewAlbums, immich: viewImmich, history: viewHistory })[state.tab]();
+    ({ inbox: viewInbox, duplicates: viewDupes, nodate: viewNoDate, albums: viewAlbums, immich: viewImmich, history: viewHistory })[state.tab]();
     const p = progressBlock(); if (p) main.prepend(p);
   }
   document.querySelector('.tabs').addEventListener('click', e => {
@@ -370,6 +401,7 @@
       const c = run.counts;
       msg = [c.moved && `${c.moved.toLocaleString()} moved`, c.deleted && `${c.deleted.toLocaleString()} deleted for good`,
              c.skipped && `${c.skipped.toLocaleString()} skipped because they had changed`, c.error && `${c.error} failed`].filter(Boolean).join(' · ') + '.';
+      if (run.kind === 'set-date') msg = msg.replace(' moved', ' dated and moved to the Inbox') + ' Scan the Inbox to file them.';
       if (run.immich_scan?.status === 'queued') msg += ` Immich scan queued for ${run.immich_scan.library}; wait for it to finish before creating albums.`;
       else if (run.immich_scan?.status === 'failed') msg += ` Immich scan could not be queued: ${run.immich_scan.error}. Start a scan in Albums before creating albums.`;
     }
@@ -386,7 +418,9 @@
     top.append(t, go); head.append(top);
     if (stats) {
       const row = el('div', 'stats');
-      stats.forEach(([v, k, hint]) => { const s = el('div', 'stat'); s.title = hint || ''; s.append(el('b', null, typeof v === 'number' ? v.toLocaleString() : v), el('small', null, k)); row.append(s); });
+      stats.forEach(([v, k, hint, tab]) => { const s = el('div', 'stat' + (tab ? ' link' : '')); s.title = hint || '';
+        if (tab) s.onclick = () => { state.tab = tab; history.replaceState(null, '', '#' + tab); render(); }
+        s.append(el('b', null, typeof v === 'number' ? v.toLocaleString() : v), el('small', null, k)); row.append(s); });
       head.append(row);
     }
     if (extra) head.append(extra);
@@ -414,6 +448,63 @@
   };
   async function refreshPlan(side) { side.plan = await api('/plans/' + side.plan.id); }
 
+  // ---- seeing the photos ---------------------------------------------------------------------------
+  const MEDIA_EXT = /\.(jpe?g|heic|heif|png|gif|webp|tiff?|dng|raw|cr2|cr3|nef|arw|orf|rw2|mov|mp4|m4v|avi|mkv|3gp|mts|m2ts)$/i;
+  const VIDEO_EXT = /\.(mov|mp4|m4v|avi|mkv|3gp|mts|m2ts)$/i;
+  const qs = o => new URLSearchParams(o).toString();
+  const blank = (text, cls) => el('span', 'thumb blank ' + (cls || ''), text);
+  // A small picture of a file; clicking it calls onopen. A video or a folder gets a label instead.
+  function thumb(rel, onopen, { w = 240, label = '' } = {}) {
+    let t;
+    if (!MEDIA_EXT.test(rel)) t = blank(label || '—');
+    else if (VIDEO_EXT.test(rel)) t = blank('VIDEO');
+    else {
+      t = el('img', 'thumb'); t.loading = 'lazy'; t.decoding = 'async'; t.alt = ''; t.src = '/api/preview?' + qs({ path: rel, w });
+      t.onerror = () => { const b = blank('NO PREVIEW'); b.onclick = t.onclick; t.replaceWith(b); };
+    }
+    if (onopen && MEDIA_EXT.test(rel)) t.onclick = e => { e.preventDefault(); e.stopPropagation(); onopen(); };
+    else t.style.cursor = 'default';
+    return t;
+  }
+  const viewer = $('#viewer');
+  viewer.addEventListener('click', e => { if (e.target === viewer) viewer.close(); });
+  const fmtDate = t => new Date(t * 1000).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  // One photo big, or several side by side with a check that they really are the same bytes.
+  function openViewer(items, title) {
+    viewer.replaceChildren();
+    const top = el('div', 'row'), close = el('button', 'btn small quiet', 'Close'); close.onclick = () => viewer.close();
+    top.append(el('h2', 'grow', title), close);
+    const verdict = el('div', 'note'); verdict.hidden = items.length < 2;
+    if (items.length > 1) verdict.textContent = 'Comparing the files byte by byte…';
+    const grid = el('div', 'viewer-grid');
+    items.forEach(it => {
+      const fig = el('figure'), frame = el('div', 'frame'), cap = el('figcaption'), facts = el('dl', 'facts');
+      if (VIDEO_EXT.test(it.path)) {
+        const v = el('video'); v.controls = true; v.preload = 'metadata'; v.src = '/api/file?' + qs({ path: it.path });
+        v.onerror = () => frame.replaceChildren(el('div', 'blank', 'This browser cannot play this video. Open the original to download it.')); frame.append(v);
+      } else {
+        const img = el('img'); img.alt = it.path; img.src = '/api/preview?' + qs({ path: it.path, w: 1600 });
+        img.onerror = () => frame.replaceChildren(el('div', 'blank', 'No preview for this file type.')); frame.append(img);
+      }
+      const open = el('a', 'muted', 'Open original'); open.href = '/api/file?' + qs({ path: it.path }); open.target = '_blank'; open.rel = 'noopener';
+      cap.append(...(it.label ? [el('div', 'mono', it.label)] : []), el('div', 'path', it.path), facts, open); fig.append(frame, cap); grid.append(fig);
+      api('/info?' + qs({ path: it.path })).then(f => {
+        [['Size', fmtGiB(f.size)], ['Dimensions', f.width ? `${f.width} × ${f.height}` : ''], ['Taken', f.taken], ['Camera', f.camera], ['Length', f.duration], ['File changed', fmtDate(f.modified)]]
+          .filter(([, v]) => v).forEach(([k, v]) => facts.append(el('dt', null, k), el('dd', null, v)));
+      }).catch(() => {});
+    });
+    viewer.append(top, verdict, grid);
+    if (items.length > 1) {
+      Promise.all(items.slice(1).map(it => api('/same?' + qs({ a: items[0].path, b: it.path })))).then(rs => {
+        const all = rs.every(r => r.same);
+        verdict.className = 'note ' + (all ? 'ok' : 'bad');
+        verdict.textContent = all ? 'Identical: these files are the same, byte for byte (checked just now). It does not matter which one you keep.'
+                                  : 'Not identical: at least one of these files differs from the first. Look closely before removing any.';
+      }).catch(() => { verdict.textContent = 'Could not compare the files.'; });
+    }
+    viewer.showModal();
+  }
+
   // ---- Inbox ---------------------------------------------------------------------------------------
   let sortUI = null, sortIndex = new Map();
   function viewInbox() {
@@ -422,8 +513,8 @@
       title: 'Inbox', text: 'Photos dropped in _inbox/loose are dated one by one; each folder in _inbox/events moves whole. Nothing moves until you apply.',
       label: s.plan ? 'Scan again' : 'Scan inbox', action: () => startPlan('sort', s, x => { x.plan = null; x.rows = []; }),
       stats: st && [[st.inbox.loose, 'loose · waiting', 'Photos in _inbox/loose, not sorted yet'], [st.inbox.events, 'in events · waiting', 'Photos in _inbox/events folders, not placed yet'],
-                    [st.inbox.no_date, 'no date · parked', 'Already put aside in _no_date: photos with no recording date inside them'],
-                    [st.inbox.duplicates, 'duplicates · parked', 'Already put aside in _duplicates by an earlier run']] }));
+                    [st.inbox.no_date, 'no date · set aside', 'Put aside in _no_date by an earlier run because no date is stored inside them. Click to look at them and give them a date.', 'nodate'],
+                    [st.inbox.duplicates, 'duplicates · set aside', 'Put aside in _duplicates by an earlier run']] }));
     const done = doneBanner(s); if (done) { done.style.marginTop = '12px'; main.append(done); }
     if (!s.plan) { if (!busy() && !done) main.append(el('div', 'empty', 'Scan the inbox to see exactly what would move.')); return; }
     fit(true);
@@ -433,7 +524,7 @@
     const notes = [...(p.notes || []), ...(p.stats.left ? [`${p.stats.left} other files stay where they are (not photos or videos).`] : [])];
     const head = el('div', 'tr th'), headBox = el('input', 'tick'); headBox.type = 'checkbox'; headBox.title = 'Tick or untick everything shown';
     headBox.onchange = () => bulk(headBox.checked);
-    ['Action', 'From', 'To', 'Why'].forEach(t => head.append(el('span', null, t))); head.prepend(headBox);
+    ['', 'Action', 'From', 'To', 'Why'].forEach(t => head.append(el('span', null, t))); head.prepend(headBox); head.classList.add('pics');
     const body = el('div', 'tbody'); nearEnd(body, loadMore);
     panel.append(tools, ...notes.map(n => el('div', 'note', n)), el('div', 'table').appendChild(head).parentNode);
     panel.lastChild.append(body);
@@ -445,10 +536,13 @@
   }
   function addRow(m) {
     const body = sortUI.body, key = m.group || 'm' + m.id;
-    const row = el('div', 'tr' + (m.selected ? '' : ' off')), box = el('input', 'tick'); box.type = 'checkbox'; box.checked = m.selected;
+    const row = el('div', 'tr pics' + (m.selected ? '' : ' off')), box = el('input', 'tick'); box.type = 'checkbox'; box.checked = m.selected;
     box.setAttribute('aria-label', 'Include this move'); box.onchange = () => toggleKeys([key], box.checked);
     const to = el('span', 'path to', m.dst); if (key.startsWith('pair:')) to.append(el('span', 'live', 'LIVE PHOTO'));
-    row.append(box, el('span', 'tag', KIND_LABEL[m.kind] || m.kind), el('span', 'path', m.src), to, el('span', 'why', m.why));
+    const kept = m.kind === 'duplicate' ? m.why.replace(/^copy of /, '') : '';
+    const look = kept ? () => openViewer([{ path: m.src, label: 'This copy (to be filed away)' }, { path: kept, label: 'The copy that stays' }], 'Is it the same photo?')
+                      : () => openViewer([{ path: m.src, label: '' }], m.src.split('/').pop());
+    row.append(box, thumb(m.src, look, { label: m.kind === 'event' ? 'FOLDER' : '' }), el('span', 'tag', KIND_LABEL[m.kind] || m.kind), el('span', 'path', m.src), to, el('span', 'why', m.why));
     if (!sortIndex.has(key)) sortIndex.set(key, []);
     sortIndex.get(key).push({ m, row, box }); body.append(row);
   }
@@ -540,11 +634,13 @@
     const d = state.dupes, card = el('div', 'group' + (g.selected ? '' : ' off'));
     const hd = el('header'), on = el('input', 'tick'); on.type = 'checkbox'; on.checked = g.selected; on.setAttribute('aria-label', 'Handle the extra copies of this photo');
     on.onchange = async () => { g.selected = on.checked; card.classList.toggle('off', !g.selected); d.shown += g.selected ? 1 : -1; await dupePatch({ groups: [g.id], selected: g.selected }); };
-    hd.append(on, el('span', 'mono', `${g.files.length} copies · ${fmtGiB(g.size)} each`)); card.append(hd);
+    const cmp = el('button', 'btn small quiet', 'Compare side by side'); cmp.type = 'button';
+    cmp.onclick = () => openViewer(g.files.map(f => ({ path: f, label: f === g.keep ? 'Keep' : 'Extra copy' })), `${g.files.length} copies of the same photo`);
+    hd.append(on, el('span', 'mono', `${g.files.length} copies · ${fmtGiB(g.size)} each`), cmp); card.append(hd);
     g.files.forEach(f => {
       const row = el('label', 'copy'), r = el('input', 'tick radio'); r.type = 'radio'; r.name = g.id; r.checked = f === g.keep;
       r.onchange = async () => { g.keep = f; card.replaceWith(groupCard(g)); await dupePatch({ keep: { [g.id]: f } }); };
-      row.append(r, el('span', 'path', f)); if (f === g.keep) row.append(el('span', 'keep', 'keep')); card.append(row);
+      row.append(r, thumb(f, () => openViewer(g.files.map(x => ({ path: x, label: x === g.keep ? 'Keep' : 'Extra copy' })), `${g.files.length} copies of the same photo`)), el('span', 'path', f)); if (f === g.keep) row.append(el('span', 'keep', 'keep')); card.append(row);
     });
     card.id = 'g-' + g.id; dupeUI.list.append(card);
   }
@@ -552,6 +648,68 @@
   async function dupePatch(body) {
     const d = state.dupes;
     try { await api('/plans/' + d.plan.id, { method: 'PATCH', body }); await refreshPlan(d); paintDupes(); } catch (e) { fail(e); }
+  }
+
+  // ---- No date --------------------------------------------------------------------------------------
+  async function loadNoDate() {
+    try { state.nodate.files = (await api('/nodate')).files; } catch (e) { state.nodate.files = []; fail(e); }
+    if (state.tab === 'nodate') render();
+  }
+  function viewNoDate() {
+    const n = state.nodate;
+    if (n.files === null) { const p = el('section', 'panel compact'); p.append(el('h2', null, 'No date'), el('p', 'muted', 'Looking through _no_date…')); main.append(p); loadNoDate(); return; }
+    const named = n.files.filter(f => f.hint).length;
+    main.append(headPanel({
+      title: 'No date', text: 'These photos and videos have no recording date stored inside them, so the sorter set them aside in _no_date. Look at them, pick a date, and it is written into the files themselves; they then go back to the Inbox to be filed.',
+      label: 'Reload', action: () => { n.files = null; render(); },
+      stats: [[n.files.length, 'set aside'], [named, 'with a date in the name', 'The file name contains something like 20230614 or 2023-06-14; the button on the photo uses it']] }));
+    const done = doneBanner(n); if (done) { done.style.marginTop = '12px'; main.append(done); }
+    if (n.done && n.failed.length) {
+      const bad = el('div', 'note bad'); bad.append(el('div', null, `${n.failed.length} could not be dated, so they stay here:`), ...n.failed.slice(0, 8).map(f => el('div', 'mono', `${f.src.split('/').pop()}: ${f.note}`)));
+      main.append(bad);
+    }
+    if (!n.files.length) { main.append(el('div', 'empty', 'Nothing is set aside for lack of a date.')); return; }
+    const panel = el('div', 'panel'); panel.style.marginTop = '12px';
+    const tools = el('div', 'toolbar'), all = el('input', 'tick'), count = el('span', 'muted'), date = el('input', 'field'), time = el('input', 'field'), go = el('button', 'btn primary');
+    all.type = 'checkbox'; all.title = 'Tick or untick every photo shown'; date.type = 'date'; date.value = n.date; date.title = 'The day these were taken'; time.type = 'time'; time.value = n.time; time.title = 'Time of day to write';
+    date.max = new Date().toISOString().slice(0, 10);
+    const search = searchBox(n.q, v => { n.q = v; render(); });
+    tools.append(all, count, spacer(), search, date, time, go);
+    const grid = el('div', 'shots'), shown = n.files.filter(f => !n.q || f.path.toLowerCase().includes(n.q.toLowerCase()));
+    const cards = new Map();
+    const paint = () => {
+      const on = shown.filter(f => n.checked.has(f.path)).length;
+      all.checked = shown.length > 0 && on === shown.length; all.indeterminate = on > 0 && on < shown.length;
+      count.textContent = `${on.toLocaleString()} of ${shown.length.toLocaleString()} ticked`;
+      go.textContent = on ? `Set date on ${on.toLocaleString()}` : 'Set date'; go.disabled = busy() || !on || !n.date;
+      cards.forEach((c, path) => { c.card.classList.toggle('on', n.checked.has(path)); c.box.checked = n.checked.has(path); });
+    };
+    shown.forEach(f => {
+      const card = el('div', 'shot'), box = el('input', 'tick'); box.type = 'checkbox';
+      box.onchange = () => { (box.checked ? n.checked.add(f.path) : n.checked.delete(f.path)); paint(); };
+      const look = () => openViewer([{ path: f.path, label: '' }], f.name);
+      card.append(box, thumb(f.path, look, { w: 640 }), el('div', 'name', f.name),
+                  el('div', 'meta', `${fmtGiB(f.size)} · file changed ${new Date(f.modified * 1000).toLocaleDateString()}`));
+      if (f.hint) { const h = el('button', 'chip', `Use ${f.hint}`); h.type = 'button'; h.title = 'The file name says this day; use it for this photo';
+        h.onclick = () => { n.date = date.value = f.hint; n.checked.add(f.path); paint(); }; card.append(h); }
+      cards.set(f.path, { card, box }); grid.append(card);
+    });
+    all.onchange = () => { shown.forEach(f => (all.checked ? n.checked.add(f.path) : n.checked.delete(f.path))); paint(); };
+    date.oninput = () => { n.date = date.value; paint(); }; time.oninput = () => { n.time = time.value; };
+    go.onclick = () => confirmDate([...n.checked]);
+    panel.append(tools, el('div', 'note', 'The date is written into each file’s metadata (taken date and created date; videos also get their media dates). The file is then moved to _inbox/loose, and the next Inbox scan files it by that date. Undo in History moves it back; the written date stays.'), grid);
+    main.append(panel); paint();
+  }
+  function confirmDate(paths) {
+    const n = state.nodate;
+    dlg.replaceChildren(el('h2', null, `Write ${n.date} into ${paths.length.toLocaleString()} file${paths.length === 1 ? '' : 's'}?`));
+    const ul = el('ul'); ['The date is saved inside each photo or video, so it stays with the file everywhere it goes.',
+      `Every file gets ${n.date} at ${n.time || '12:00'}; set them in separate batches if they differ.`,
+      'A file that cannot hold a date is left here and reported.', 'The dated files move to _inbox/loose. Scan the Inbox to file them.'].forEach(t => ul.append(el('li', null, t)));
+    const row = el('div', 'row'); row.style.justifyContent = 'flex-end';
+    const cancel = el('button', 'btn quiet', 'Cancel'), go = el('button', 'btn primary', 'Write the date'); cancel.onclick = () => dlg.close();
+    go.onclick = async () => { dlg.close(); try { watchJob((await api('/nodate/date', { method: 'POST', body: { paths, date: n.date, time: n.time } })).job); render(); } catch (e) { fail(e); } };
+    row.append(cancel, go); dlg.append(ul, row); dlg.showModal();
   }
 
   // ---- album inbox ----------------------------------------------------------------------------------
@@ -725,7 +883,7 @@
     const panel = el('div', 'panel'); panel.append(el('h2', null, 'History'), el('p', 'muted', 'Every apply is recorded. Undo puts that run’s moved files back, skipping anything that has changed since. Deleted files cannot be put back.'));
     const list = el('div', 'list'); list.style.marginTop = '12px';
     if (!state.runs.length) list.append(el('div', 'empty', 'Nothing has been applied yet.'));
-    const WHAT = { duplicates: 'Duplicates handled', immich: 'Immich trash removed', sort: 'Inbox sorted' };
+    const WHAT = { duplicates: 'Duplicates handled', immich: 'Immich trash removed', sort: 'Inbox sorted', 'set-date': 'Dates written' };
     state.runs.forEach(r => {
       const row = el('div', 'runs'), left = el('div'), c = r.counts;
       left.append(el('div', null, `${WHAT[r.kind] || 'Run'} · ${ago(r.started)}`));

@@ -24,7 +24,7 @@ sys.path.insert(0, str(APP))
 sys.path.insert(0, str(APP / 'dev'))
 
 from fake_immich import FakeImmich, sha1b64  # noqa: E402
-from photo_jobs import core, immich, jobs, pairs, server  # noqa: E402
+from photo_jobs import core, immich, jobs, nodate, pairs, previews, server  # noqa: E402
 
 FAKE_EXIFTOOL = (APP / 'dev/fake_exiftool.py').read_text()
 
@@ -659,6 +659,201 @@ class BulkDuplicateChoices(Library):
         removed = {m['src'] for m in moves}
         self.assertNotIn('library/2025/06/Backup/IMG_06.JPG', removed)    # the one chosen to keep is not touched
         self.assertIn('library/2025/06/Trip/IMG_06.JPG', removed)         # the other copy is the extra
+
+
+class Previews(Library):
+    """Seeing a photo before anything happens to it."""
+
+    def fake_vips(self):
+        """A vipsthumbnail that writes a small JPEG-looking file and records how it was called."""
+        tool = self.bin / 'vipsthumbnail'
+        tool.write_text('#!/bin/sh\necho "$@" >> "$VIPS_LOG"\n'
+                        'for a in "$@"; do case "$a" in *.part.jpg*) out="${a%%[*}";; esac; done\n'
+                        'printf "\\377\\330fake-thumb" > "$out"\n')
+        tool.chmod(tool.stat().st_mode | stat.S_IEXEC)
+        os.environ['VIPS_LOG'] = str(self.tmp / 'vips.log')
+
+    def test_a_heic_is_thumbnailed_once_and_then_served_from_the_cache(self):
+        self.fake_vips()
+        self.put('library/2025/06/IMG_1[2].HEIC', 'heic bytes')   # a bracket in the name must not reach vips
+        first = previews.thumbnail(self.cfg, 'library/2025/06/IMG_1[2].HEIC', 300)
+        self.assertTrue(first.startswith(str(self.state / 'thumbs')))
+        self.assertEqual(Path(first).read_bytes()[:2], b'\xff\xd8')
+        self.assertEqual(previews.thumbnail(self.cfg, 'library/2025/06/IMG_1[2].HEIC', 300), first)
+        log = (self.tmp / 'vips.log').read_text().splitlines()
+        self.assertEqual(len(log), 1)
+        self.assertIn('640x640', log[0])                  # 300 rounds up to a size that is made
+        self.assertNotIn('[2]', log[0].split(' -o ')[0])
+
+    def test_a_changed_file_gets_a_fresh_thumbnail(self):
+        self.fake_vips()
+        p = self.put('a.heic', 'one')
+        old = previews.thumbnail(self.cfg, 'a.heic')
+        p.write_bytes(b'something else entirely')
+        self.assertNotEqual(previews.thumbnail(self.cfg, 'a.heic'), old)
+
+    def test_without_libvips_a_jpeg_is_served_as_it_is_and_a_heic_has_no_preview(self):
+        self.put('a.jpg', 'jpeg')
+        self.put('b.heic', 'heic')
+        self.assertEqual(previews.thumbnail(self.cfg, 'a.jpg'), str(self.root / 'a.jpg'))
+        with self.assertRaises(previews.NoPreview):
+            previews.thumbnail(self.cfg, 'b.heic')
+
+    def test_videos_and_other_files_and_paths_outside_the_media_folder_are_refused(self):
+        self.put('clip.mov', 'v')
+        self.put('notes.txt', 't')
+        for rel in ('clip.mov', 'notes.txt'):
+            with self.assertRaises(previews.NoPreview):
+                previews.thumbnail(self.cfg, rel)
+        with self.assertRaises(ValueError):
+            previews.thumbnail(self.cfg, '../outside.jpg')
+        with self.assertRaises(FileNotFoundError):
+            previews.thumbnail(self.cfg, 'missing.jpg')
+
+    def test_identical_and_different_files_are_told_apart_by_content(self):
+        self.put('a.jpg', 'same bytes')
+        self.put('b.jpg', 'same bytes')
+        self.put('c.jpg', 'same size!')
+        self.put('d.jpg', 'longer than the others')
+        self.assertTrue(previews.same_bytes(self.cfg, 'a.jpg', 'b.jpg'))
+        self.assertFalse(previews.same_bytes(self.cfg, 'a.jpg', 'c.jpg'))
+        self.assertFalse(previews.same_bytes(self.cfg, 'a.jpg', 'd.jpg'))
+
+    def test_facts_report_size_and_what_exiftool_knows(self):
+        self.put('a.jpg', 'twelve bytes', '2025-06')
+        self.sync_dates()
+        f = previews.facts(self.cfg, 'a.jpg')
+        self.assertEqual((f['size'], f['width'], f['camera'], f['taken'], f['video']), (12, 160, 'Demo camera', '2025-06', False))
+
+
+class NoDate(Library):
+    def setUp(self):
+        super().setUp()
+        self.app = server.App(self.cfg)
+
+    def wait(self):
+        for _ in range(200):
+            job = self.app.jobs.status()
+            if job['state'] != 'running':
+                return job
+            time.sleep(0.02)
+        self.fail('the job never finished')
+
+    def test_a_date_in_the_file_name_is_offered_but_a_long_id_is_not(self):
+        self.assertEqual(nodate.hint('IMG_20230614_101010.jpg'), '2023-06-14')
+        self.assertEqual(nodate.hint('Screenshot 2022-11-03 at 9.41.png'), '2022-11-03')
+        self.assertEqual(nodate.hint('176971082174389512.JPG'), '')
+        self.assertEqual(nodate.hint('IMG_20231345.jpg'), '')       # month 13
+        self.assertEqual(nodate.hint('IMG_20230230.jpg'), '')       # no 30th of February
+
+    def test_the_set_aside_media_is_listed_with_hints_and_other_files_are_not(self):
+        self.put('_no_date/_inbox/loose/IMG_20230614.jpg', 'a')
+        self.put('_no_date/_inbox/loose/Scans/s1.jpg', 'bb')
+        self.put('_no_date/_inbox/loose/notes.txt', 'not media')
+        self.put('library/2025/06/dated.jpg', 'c', '2025-06')
+        found = {f['name']: f for f in nodate.files(self.cfg)}
+        self.assertEqual(sorted(found), ['IMG_20230614.jpg', 's1.jpg'])
+        self.assertEqual((found['IMG_20230614.jpg']['hint'], found['s1.jpg']['size']), ('2023-06-14', 2))
+
+    def test_the_date_is_validated_before_anything_is_written(self):
+        self.assertEqual(nodate.stamp('2023-06-14', '09:30'), '2023:06:14 09:30:00')
+        self.assertEqual(nodate.stamp('2023-06-14', ''), '2023:06:14 12:00:00')
+        for bad in (('14/06/2023', '12:00'), ('2023-02-30', '12:00'), ('1950-01-01', '12:00'), ('2023-06-14', '25:00')):
+            with self.assertRaises(ValueError):
+                nodate.stamp(*bad)
+
+    def test_dating_writes_the_date_then_sends_the_photo_to_the_inbox_where_it_sorts_by_it(self):
+        self.put('_no_date/_inbox/loose/a.jpg', 'A')
+        self.put('_no_date/_inbox/loose/Scans/b.jpg', 'B')
+        self.put('_inbox/loose/b.jpg', 'already here')     # a name clash in the inbox
+        self.sync_dates()
+        self.app.jobs.start_set_dates(['_no_date/_inbox/loose/a.jpg', '_no_date/_inbox/loose/Scans/b.jpg'], '2023-06-14', '10:00')
+        job = self.wait()
+        self.assertEqual(job['state'], 'done', job)
+        self.assertEqual(job['result']['failed'], [])
+        self.assertEqual(self.tree(), ['_inbox/loose/a.jpg', '_inbox/loose/b.jpg', '_inbox/loose/b_1.jpg'])
+        written = json.loads((self.tmp / 'dates.json').read_text())
+        self.assertEqual(written['_no_date/_inbox/loose/a.jpg'], '2023-06')
+        # the stand-in keeps dates by path, a real file carries its date along: follow the moves
+        self.dates.update({'_inbox/loose/a.jpg': written['_no_date/_inbox/loose/a.jpg'],
+                           '_inbox/loose/b_1.jpg': written['_no_date/_inbox/loose/Scans/b.jpg']})
+        # the next inbox sort files them by the date that was written
+        plan, _ = self.sort()
+        self.assertEqual(sorted(m['dst'] for m in plan['moves'] if m['src'].endswith(('a.jpg', 'b_1.jpg'))),
+                         ['library/2023/06/a.jpg', 'library/2023/06/b_1.jpg'])
+        # and the run is in History, with the moves undoable
+        run = self.app.jobs.runs()[-1]
+        self.assertEqual((run['kind'], run['counts']['moved']), ('set-date', 2))
+
+    def test_a_file_that_cannot_hold_a_date_stays_put_and_is_reported(self):
+        self.put('_no_date/_inbox/loose/ok.jpg', 'A')
+        self.put('_no_date/_inbox/loose/anim.gif', 'G')
+        self.sync_dates()
+        os.environ['FAKE_CANNOT_WRITE'] = '.gif'
+        self.app.jobs.start_set_dates(['_no_date/_inbox/loose/ok.jpg', '_no_date/_inbox/loose/anim.gif'], '2023-06-14')
+        job = self.wait()
+        self.assertEqual(job['state'], 'done', job)
+        self.assertEqual([f['src'] for f in job['result']['failed']], ['_no_date/_inbox/loose/anim.gif'])
+        self.assertIn('cannot hold a date', job['result']['failed'][0]['note'])
+        self.assertEqual(self.tree(), ['_inbox/loose/ok.jpg', '_no_date/_inbox/loose/anim.gif'])
+
+    def test_only_files_set_aside_for_having_no_date_can_be_dated(self):
+        self.put('library/2025/06/dated.jpg', 'x', '2025-06')
+        self.put('_inbox/loose/new.jpg', 'y')
+        for rel in ('library/2025/06/dated.jpg', '_inbox/loose/new.jpg', '../etc/passwd'):
+            with self.assertRaises(ValueError):
+                self.app.jobs.start_set_dates([rel], '2023-06-14')
+        with self.assertRaises(ValueError):
+            self.app.jobs.start_set_dates([], '2023-06-14')
+        self.assertIsNone(self.app.jobs.status())     # nothing was started
+
+
+class PreviewRoutes(Library):
+    """The picture routes, over real HTTP: they return bytes, honour Range, and stay in the media folder."""
+
+    def setUp(self):
+        super().setUp()
+        import http.client
+        from http.server import ThreadingHTTPServer
+        self.put('a.jpg', 'JPEGBYTES')
+        self.put('clip.mov', '0123456789')
+        self.put('notes.txt', 'secret')
+        self.srv = ThreadingHTTPServer(('127.0.0.1', 0), server.handler(server.App(self.cfg)))
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.http = http.client
+
+    def tearDown(self):
+        self.srv.shutdown()
+        super().tearDown()
+
+    def get(self, path, headers=None):
+        c = self.http.HTTPConnection('127.0.0.1', self.srv.server_port)
+        c.request('GET', path, headers=headers or {})
+        r = c.getresponse()
+        return r.status, dict(r.getheaders()), r.read()
+
+    def test_a_preview_is_an_image_that_the_browser_may_cache(self):
+        status, headers, body = self.get('/api/preview?path=a.jpg&w=240')
+        self.assertEqual((status, body), (200, b'JPEGBYTES'))
+        self.assertTrue(headers['Content-Type'].startswith('image/jpeg'))
+        self.assertIn('max-age', headers['Cache-Control'])
+
+    def test_a_video_can_be_read_in_ranges_so_it_can_seek(self):
+        status, headers, body = self.get('/api/file?path=clip.mov', {'Range': 'bytes=2-5'})
+        self.assertEqual((status, body, headers['Content-Range']), (206, b'2345', 'bytes 2-5/10'))
+        self.assertEqual(self.get('/api/file?path=clip.mov', {'Range': 'bytes=-3'})[2], b'789')
+        self.assertEqual(self.get('/api/file?path=clip.mov', {'Range': 'bytes=4-'})[2], b'456789')
+        self.assertEqual(self.get('/api/file?path=clip.mov', {'Range': 'bytes=50-'})[0], 416)
+        self.assertEqual(self.get('/api/file?path=clip.mov')[2], b'0123456789')
+
+    def test_nothing_outside_the_media_or_that_is_not_a_photo_is_served(self):
+        self.assertEqual(self.get('/api/file?path=notes.txt')[0], 400)
+        self.assertEqual(self.get('/api/file?path=../state/plans')[0], 400)
+        self.assertEqual(self.get('/api/file?path=..%2f..%2fetc%2fpasswd.jpg')[0], 400)
+        self.assertEqual(self.get('/api/preview?path=missing.jpg')[0], 404)
+        self.assertEqual(self.get('/api/preview?path=clip.mov')[0], 404)      # a video has no thumbnail
+        self.assertEqual(self.get('/api/info?path=notes.txt')[0], 400)
+        self.assertEqual(self.get('/api/same?a=a.jpg&b=notes.txt')[0], 400)
 
 
 class Pairs(unittest.TestCase):

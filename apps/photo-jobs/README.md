@@ -64,6 +64,28 @@ The path Immich reports (`/mnt/mahir-personal/...`) is mapped to this folder wit
 `IMMICH_MEDIA_PREFIX`. Both the current Immich search (a `trashedAt` filter) and the older one
 (`withDeleted`) are supported.
 
+## Seeing the photos
+
+Every row with a photo shows a thumbnail; click it to open the photo large. On a duplicate row
+(Inbox) or a duplicate group (Duplicates) the viewer shows the copies side by side with their size,
+dimensions, taken date and camera, and checks the files byte for byte, so "same photo" is proven
+rather than guessed. Thumbnails are made by libvips (it reads HEIC, which most browsers cannot) the
+first time they are asked for and kept under `STATE_DIR/thumbs`. Videos show a label in the grid and
+play in the viewer when the browser supports their format.
+
+## No date
+
+A photo with no recording date inside it is set aside in `_no_date` by the sorter. The **No date**
+tab shows them as a grid. Tick some, pick a day and a time, and **Set date** writes it into each
+file (`DateTimeOriginal`, `CreateDate`, `ModifyDate`; videos also get their media dates) with
+ExifTool, then moves the file to `_inbox/loose`. The next Inbox scan files it by that date, with the
+usual duplicate and Live Photo handling. A file name that contains a date (`20230614`, `2023-06-14`)
+offers a one-click **Use** button. A file type that cannot hold a date (an animated GIF, say) is
+left where it is and reported. Undo in History moves the files back; the written date stays.
+
+"Set aside" on the Inbox page means exactly this: files an earlier run put in `_no_date` or
+`_duplicates`, outside the current plan.
+
 ## Albums
 
 The Albums tab looks for event folders at `library/YYYY/MM/<event>`. It matches the folder's

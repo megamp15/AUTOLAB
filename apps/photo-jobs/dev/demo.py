@@ -38,8 +38,15 @@ if not dates_file.exists():
         if month:
             dates[rel] = month
 
+    def png(tag, w=160, h=120):   # a real picture whose colours come from the tag, the same bytes for the same tag
+        import hashlib, struct, zlib
+        r0, g0, b0 = hashlib.sha1(tag.encode()).digest()[:3]
+        raw = b''.join(b'\x00' + b''.join(bytes(((r0 + 2 * x + y) % 256, (g0 + 2 * y) % 256, (b0 + x) % 256)) for x in range(w)) for y in range(h))
+        chunk = lambda kind, body: struct.pack('>I', len(body)) + kind + body + struct.pack('>I', zlib.crc32(kind + body))
+        return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+
     def blob(tag, n=2048):   # distinct, sized bytes, so size and hash comparisons are real
-        return (tag.encode() + rng.randbytes(n))[:n]
+        return png(tag) if n == 2048 else (tag.encode() + rng.randbytes(n))[:n]
 
     # already in the library
     for m, name in (('2025-05', 'IMG_2001'), ('2025-06', 'IMG_2044'), ('2025-06', 'IMG_2045')):
@@ -74,6 +81,13 @@ if not dates_file.exists():
     put('_inbox/loose/scan_0002.jpg', blob('scan2'))
     put('_inbox/loose/IMG_3500.JPG', b'lake-photo' * 300, '2025-06')                                          # and this one
     put('_inbox/loose/notes.txt', 'not a photo')
+    # set aside earlier because no date is stored inside them
+    put('_no_date/_inbox/loose/IMG_20230614_101010.jpg', blob('nd1'))
+    put('_no_date/_inbox/loose/Screenshot 2022-11-03 at 9.41.02.png', blob('nd2'))
+    put('_no_date/_inbox/loose/Scans/scan_0001.jpg', blob('nd3'))
+    put('_no_date/_inbox/loose/Scans/scan_0002.jpg', blob('nd4'))
+    put('_no_date/_inbox/loose/Scans/clip_0003.mov', blob('nd5', 6000))
+    put('_no_date/_inbox/loose/176971082174389512.JPG', blob('nd6'))
     # events
     for i in range(14):
         put(f'_inbox/events/Beach_trip/IMG_{5000 + i}.JPG', blob(f'beach{i}'), '2025-07')
