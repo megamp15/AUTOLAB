@@ -169,6 +169,12 @@
   .tr.pics { grid-template-columns:28px 72px 92px minmax(0,1.25fr) minmax(0,1.25fr) minmax(0,1fr); }
   .copy .thumb { width:56px; height:56px; }
   .group header .btn { margin-left:auto; }
+  dialog#runview { max-width:none; width:min(1100px,96vw); max-height:94dvh; padding:18px 20px; display:none; }
+  dialog#runview[open] { display:flex; flex-direction:column; gap:12px; }
+  .runrows { overflow:auto; min-height:120px; max-height:62vh; border:1px solid var(--line); border-radius:5px; scrollbar-width:thin; }
+  .runrow { display:grid; grid-template-columns:72px minmax(0,1fr) 110px; gap:4px 14px; padding:8px 12px; border-bottom:1px solid var(--soft); align-items:start; }
+  .runrow .path { overflow-wrap:anywhere; }
+  .runs.open { cursor:pointer; } .runs.open:hover, .runs.open:focus-visible { background:var(--soft); outline:none; }
   dialog#viewer { max-width:none; width:min(1500px,96vw); max-height:94dvh; padding:16px 18px; overflow:auto; }
   .viewer-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); gap:14px; margin-top:12px; }
   .viewer-grid figure { margin:0; display:flex; flex-direction:column; gap:8px; min-width:0; }
@@ -269,6 +275,7 @@
 </div>
 <dialog id="confirm"></dialog>
 <dialog id="viewer" aria-label="Photo viewer"></dialog>
+<dialog id="runview" aria-label="What a run changed"></dialog>
 
 <script>
 (() => {
@@ -523,6 +530,7 @@
   }
   const JOB_NOW = { 'meta-edit': 'writing metadata', 'plan-sort': 'the Inbox scan', 'plan-duplicates': 'the duplicates scan', 'plan-immich': 'reading Immich’s trash', apply: 'applying a plan', undo: 'undoing a run', 'set-date': 'writing dates' };
   const JOB_DID = { 'meta-edit': 'Edited metadata', 'plan-sort': 'Scanned the inbox', 'plan-duplicates': 'Scanned for duplicates', 'plan-immich': 'Read Immich’s trash', apply: 'Applied a plan', undo: 'Undid a run', 'set-date': 'Wrote dates' };
+  const RUN_WHAT = { duplicates: 'Duplicates handled', immich: 'Immich trash removed', sort: 'Inbox sorted', 'set-date': 'Dates written', metadata: 'Metadata edited' };
   const n0 = v => (v || 0).toLocaleString();
   function found(a) {
     const st = a.stats || {};
@@ -1291,12 +1299,12 @@
     const panel = el('div', 'panel'); panel.append(el('h2', null, 'History'), el('p', 'muted', 'Every apply is recorded. Undo puts that run’s moved files back, skipping anything that has changed since. Deleted files cannot be put back.'));
     const list = el('div', 'list'); list.style.marginTop = '12px';
     if (!state.runs.length) list.append(el('div', 'empty', 'Nothing has been applied yet.'));
-    const WHAT = { duplicates: 'Duplicates handled', immich: 'Immich trash removed', sort: 'Inbox sorted', 'set-date': 'Dates written', metadata: 'Metadata edited' };
+    const WHAT = RUN_WHAT;
     state.runs.forEach(r => {
       const row = el('div', 'runs'), left = el('div'), c = r.counts;
       left.append(el('div', null, `${WHAT[r.kind] || 'Run'} · ${ago(r.started)}`));
       left.append(el('div', 'why mono', [c.edited && `${c.edited} edited`, c.moved && `${c.moved} moved`, c.deleted && `${c.deleted} deleted for good`, c.skipped && `${c.skipped} skipped`, c.error && `${c.error} failed`].filter(Boolean).join(' · ')));
-      row.append(left);
+      row.append(left); opens(row, () => openRun(r.id));
       if (r.undone) row.append(el('span', 'tag', 'undone'));
       else if (!c.moved && !c.edited) row.append(el('span', 'tag', c.deleted ? 'deleted' : 'nothing to undo'));
       else { const u = el('button', 'btn small', 'Undo'); u.disabled = busy(); u.onclick = () => undo(r.id); row.append(u); }
@@ -1313,6 +1321,7 @@
       left.append(el('div', null, `${JOB_DID[a.kind] || a.kind}${a.resumed ? ' (resumed after a restart)' : ''} · ${ago(a.started)}${took ? ' · took ' + took : ''}`));
       left.append(el('div', 'why mono' + (['error', 'interrupted'].includes(a.state) ? ' status-bad' : ''), outcome(a)));
       row.append(left); alist.append(row);
+      if (a.run) opens(row, () => openRun(a.run));
     });
     act.append(alist); main.append(act);
   }
@@ -1339,6 +1348,64 @@
     }
     go.onclick = async () => { dlg.close(); try { watchJob((await api(`/plans/${plan.id}/apply`, { method: 'POST', body: del ? { confirm: 'DELETE' } : {} })).job); render(); } catch (e) { fail(e); } };
     row.append(cancel, go); dlg.append(row); dlg.showModal(); if (typed) typed.focus();
+  }
+  // A row that opens something: it says so with the pointer, the hover and the keyboard.
+  function opens(row, go) {
+    row.classList.add('open'); row.tabIndex = 0; row.setAttribute('role', 'button');
+    row.addEventListener('click', e => { if (!e.target.closest('button')) go(); });
+    row.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); go(); } });
+  }
+  const runview = $('#runview');
+  runview.addEventListener('click', e => { if (e.target === runview) runview.close(); });
+  const STATUS = { moved: 'moved', deleted: 'deleted for good', skipped: 'skipped', error: 'failed', edited: 'edited' };
+  const base = rel => rel.split('/').pop();
+  // What a run did, file by file: where each went, what was deleted, what was skipped and why.
+  async function openRun(id) {
+    let first;
+    try { first = await api('/runs/' + id + '?' + qs({ limit: 100 })); } catch (e) { return fail(e); }
+    const st = { status: '', rows: [], total: first.matching, loading: false };
+    const top = el('div', 'row'), close = el('button', 'btn small quiet', 'Close'); close.onclick = () => runview.close();
+    const c = first.counts, spec = first.spec || {};
+    top.append(el('h2', 'grow', `${RUN_WHAT[first.kind] || 'Run'} · ${ago(first.started)}`));
+    if (!first.undone && (c.moved || c.edited)) { const u = el('button', 'btn small', 'Undo'); u.disabled = busy(); u.onclick = () => { runview.close(); undo(id); }; top.append(u); }
+    top.append(close);
+    const said = [];
+    if (first.dated) said.push(`Date written into each file: ${first.dated.slice(0, 10).replaceAll(':', '-')}`);
+    if (spec.day) said.push(`Date set to ${spec.day}${spec.day_only ? ' (each photo kept its own time)' : spec.time ? ' ' + spec.time : ''}`);
+    if (spec.lat !== undefined && spec.lat !== null) said.push(`Location set to ${spec.lat}, ${spec.lon}`);
+    if (spec.description !== undefined && spec.description !== null) said.push(spec.description ? `Description set to “${spec.description}”` : 'Description cleared');
+    if (first.immich_scan) said.push('Immich was asked to rescan the library afterwards');
+    if (first.undone) said.push('This run has been undone: moved files went back where they were');
+    const note = el('div', 'muted', said.join(' · '));
+    const chips = el('div', 'chips'), list = el('div', 'runrows'), more = el('div', 'muted'); more.style.padding = '8px 12px';
+    const addRow = m => {
+      const gone = m.status === 'deleted', shown = m.status === 'moved' && !first.undone ? m.dst : m.src;
+      const row = el('div', 'runrow'), what = el('div'), tag = el('span', 'tag' + (m.status === 'error' ? ' status-bad' : ''), STATUS[m.status] || m.status);
+      const pic = gone || !shown ? blank('GONE') : thumb(shown, () => openViewer([{ path: shown, label: STATUS[m.status] || '' }], base(m.src)), { label: '' });
+      what.append(el('b', 'name', base(m.src)), el('div', 'why path', 'from ' + m.src));
+      if (m.dst) what.append(el('div', 'why path', (first.undone ? 'was moved to ' : 'to ') + m.dst));
+      if (m.keep) what.append(el('div', 'why path', 'identical to the copy kept: ' + m.keep));
+      if (m.before) {
+        const b = m.before, was = [b.DateTimeOriginal && `date ${b.DateTimeOriginal}`, b.lat != null && `location ${b.lat}, ${b.lon}`, b.description && `description “${b.description}”`].filter(Boolean);
+        what.append(el('div', 'why', 'before: ' + (was.join(' · ') || 'no date, location or description')));
+      }
+      if (m.note) what.append(el('div', 'why' + (m.status === 'error' ? ' status-bad' : ''), m.note));
+      row.append(pic, what, tag); list.append(row);
+    };
+    const paint = () => { more.textContent = st.rows.length < st.total ? 'Scroll for more…' : st.total ? '' : 'Nothing in this view.'; };
+    const fetchMore = async reset => {
+      if (st.loading) return; st.loading = true;
+      try {
+        const page = await api('/runs/' + id + '?' + qs({ status: st.status, offset: reset ? 0 : st.rows.length, limit: 100 }));
+        if (reset) { st.rows = []; list.replaceChildren(); list.scrollTop = 0; }
+        st.total = page.matching; st.rows.push(...page.moves); page.moves.forEach(addRow); list.append(more); paint();
+      } catch (e) { fail(e); } finally { st.loading = false; }
+    };
+    const paintChips = () => chips.replaceChildren(...[['All', first.total_moves, ''], ...Object.keys(STATUS).filter(k => c[k]).map(k => [STATUS[k][0].toUpperCase() + STATUS[k].slice(1), c[k], k])]
+      .map(([label, n, v]) => chip(label, n, st.status === v, async () => { st.status = v; paintChips(); await fetchMore(true); })));
+    nearEnd(list, () => { if (st.rows.length < st.total) fetchMore(false); });
+    runview.replaceChildren(top, ...(said.length ? [note] : []), chips, list); paintChips();
+    first.moves.forEach(addRow); st.rows = [...first.moves]; list.append(more); paint(); runview.showModal();
   }
   function notice(text, title = 'Something went wrong') {
     dlg.replaceChildren(el('h2', null, title), el('p', 'muted', text));
