@@ -1093,6 +1093,23 @@ class Restarts(Library):
         self.assertIsNone(service.jobs.status())
 
 
+class RunDetails(Library):
+    """A run can be opened to see, file by file, what it did."""
+
+    def test_a_run_pages_and_filters_by_what_became_of_each_file(self):
+        app = server.App(self.cfg)
+        moves = ([{'src': f'a/{i}.jpg', 'dst': f'b/{i}.jpg', 'kind': 'file', 'status': 'moved', 'note': ''} for i in range(250)]
+                 + [{'src': 'a/x.jpg', 'dst': '', 'kind': 'delete', 'status': 'deleted', 'note': '', 'keep': 'k.jpg'},
+                    {'src': 'a/y.jpg', 'dst': '', 'kind': 'file', 'status': 'skipped', 'note': 'the file is no longer there'}])
+        app.jobs._save('runs', {'id': 'r1', 'kind': 'duplicates', 'started': 1.0, 'finished': 2.0, 'moves': moves, 'undone': None})
+        _, first = app.route('GET', '/api/runs/r1', {}, {})
+        self.assertEqual((len(first['moves']), first['total_moves'], first['counts']), (252, 252, {'moved': 250, 'deleted': 1, 'skipped': 1}))
+        _, page = app.route('GET', '/api/runs/r1', {'status': ['moved'], 'offset': ['200'], 'limit': ['100']}, {})
+        self.assertEqual((page['matching'], len(page['moves']), page['moves'][0]['src']), (250, 50, 'a/200.jpg'))
+        _, one = app.route('GET', '/api/runs/r1', {'status': ['skipped']}, {})
+        self.assertEqual([m['note'] for m in one['moves']], ['the file is no longer there'])
+
+
 class BigPlansOnEveryTab(Library):
     """Ticking a box on any tab must cost about the same with 20,000 rows as with 20: no step may
     redo work per row, and the Immich count must not walk the disk."""

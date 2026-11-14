@@ -292,8 +292,14 @@ class App:
         m = re.fullmatch(r'/api/runs/([\w-]+)', path)
         if m and method == 'GET':
             run = j.run(m.group(1))
-            return 200, {**{k: v for k, v in run.items() if k != 'moves'}, 'moves': run['moves'][:300],
-                         'total_moves': len(run['moves'])}
+            one = lambda k: query.get(k, [''])[0]
+            rows = [x for x in run['moves'] if not one('status') or x['status'] == one('status')]
+            off, lim = max(0, int(one('offset') or 0)), min(int(one('limit') or 300), 300)
+            counts = {}
+            for x in run['moves']:
+                counts[x['status']] = counts.get(x['status'], 0) + 1
+            return 200, {**{k: v for k, v in run.items() if k != 'moves'}, 'moves': rows[off:off + lim],
+                         'total_moves': len(run['moves']), 'matching': len(rows), 'counts': counts, 'offset': off}
         m = re.fullmatch(r'/api/runs/([\w-]+)/undo', path)
         if m and method == 'POST':
             return 202, {'job': j.start_undo(m.group(1))}
