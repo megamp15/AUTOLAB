@@ -40,7 +40,9 @@ are not in GitHub and not in the log. To read the break-glass password:
 The edge `services` playbook creates the Pocket ID client and restricts it to
 `admins`. It registers the callback and configures the app, then checks the
 redirect to Pocket ID. `APPS_ADMIN_EMAIL` identifies the existing local admin;
-automatic email-based linking requires Pocket ID to report the email as verified.
+automatic email-based linking requires Pocket ID to report the email as verified
+(Application Configuration → Email → *Emails verified by default*; see
+[apps](apps.md#verified-emails)).
 If it is unverified, sign in to the existing local account and connect Pocket ID
 from its account settings, or explicitly link the verified Pocket ID subject to
 that user. Do not trust all unverified emails. Social account links live in

@@ -67,16 +67,42 @@ request, to remove the password form (for Sure that sets
 Several apps trust an email only if the identity provider says it is verified:
 AdventureLog and Tandoor attach a first Pocket ID sign-in to an existing account
 by email only then, and LinkAce (`SSO_REQUIRE_VERIFIED_EMAIL=true`) and Sure
-refuse a sign-in whose email is not. **Pocket ID reports emails as unverified by
-default.** Either:
+refuse a sign-in whose email is not. **Pocket ID reports emails as unverified
+unless told otherwise.** Without that, a first sign-in to LinkAce or Sure is
+refused, and one to AdventureLog or Tandoor lands on a sign-up form instead of
+your account.
 
-- turn on Pocket ID's *Emails Verified* setting (Application Configuration):
-  reasonable here, since sign-up is closed and every email is one you entered, or
-- link a specific account by hand (what was done for AdventureLog: tie that one
-  Pocket ID subject to the existing user), leaving the policy strict.
+### The setting
 
-Without one of the two, a first sign-in to LinkAce or Sure is refused and one to
-AdventureLog or Tandoor lands on a sign-up form instead of your account.
+Pocket ID → **Application Configuration** → **Email** tab → **General** →
+**Emails verified by default**. Its own description: *when enabled, users' email
+addresses will be marked as verified by default upon signup or when their email
+address is changed.* It is instance-wide and off by default. (The tab row is
+General · User Creation · Passkeys · Email · LDAP · OIDC; the switch sits under
+*Require Email Address*, above the SMTP fields. SMTP is not needed for it.)
+
+Turning it on is reasonable here: sign-up is closed and every email is one an
+admin entered. It is a statement that Pocket ID's users own their emails, so
+re-think it before ever opening sign-up.
+
+**It applies at signup or when an email changes, not retroactively.** A user who
+already existed keeps `emailVerified = false` until their email is re-saved:
+Administration → Users → the user → set the email (change it, save, change it
+back if the form refuses an unchanged value) and save. As code, the same switch
+is `EMAILS_VERIFIED=true` on the Pocket ID container (it then becomes read-only in
+the UI); it has the same signup-or-change behavior.
+
+### Proving it worked
+
+Sign in to **LinkAce** or **Sure** with Pocket ID: they refuse an unverified
+email, so a successful first sign-in is the proof, and a refusal means this
+user's flag did not change. Sure has been confirmed working this way.
+
+### The alternative
+
+Leave the policy strict and link one account by hand (what was done for
+AdventureLog: tie that Pocket ID user's subject id to the existing local user).
+That trusts one identity instead of every email.
 
 ## What the playbook checks, and what it cannot
 
