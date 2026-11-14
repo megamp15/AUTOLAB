@@ -450,6 +450,16 @@ jobs:
               "autolab_services_paradigm_tunnel_token": os.environ.get("AUTOLAB_PARADIGM_TUNNEL_TOKEN", ""),
               "autolab_services_adventurelog_oidc_client_id": os.environ.get("AUTOLAB_ADVENTURELOG_OIDC_CLIENT_ID", ""),
               "autolab_services_adventurelog_oidc_client_secret": os.environ.get("AUTOLAB_ADVENTURELOG_OIDC_CLIENT_SECRET", ""),
+              "autolab_services_forgejo_oidc_client_id": os.environ.get("AUTOLAB_FORGEJO_OIDC_CLIENT_ID", ""),
+              "autolab_services_forgejo_oidc_client_secret": os.environ.get("AUTOLAB_FORGEJO_OIDC_CLIENT_SECRET", ""),
+              "autolab_services_tandoor_oidc_client_id": os.environ.get("AUTOLAB_TANDOOR_OIDC_CLIENT_ID", ""),
+              "autolab_services_tandoor_oidc_client_secret": os.environ.get("AUTOLAB_TANDOOR_OIDC_CLIENT_SECRET", ""),
+              "autolab_services_airtrail_oidc_client_id": os.environ.get("AUTOLAB_AIRTRAIL_OIDC_CLIENT_ID", ""),
+              "autolab_services_airtrail_oidc_client_secret": os.environ.get("AUTOLAB_AIRTRAIL_OIDC_CLIENT_SECRET", ""),
+              "autolab_services_linkace_oidc_client_id": os.environ.get("AUTOLAB_LINKACE_OIDC_CLIENT_ID", ""),
+              "autolab_services_linkace_oidc_client_secret": os.environ.get("AUTOLAB_LINKACE_OIDC_CLIENT_SECRET", ""),
+              "autolab_services_sure_oidc_client_id": os.environ.get("AUTOLAB_SURE_OIDC_CLIENT_ID", ""),
+              "autolab_services_sure_oidc_client_secret": os.environ.get("AUTOLAB_SURE_OIDC_CLIENT_SECRET", ""),
               "autolab_services_admin_email": os.environ.get("AUTOLAB_APPS_ADMIN_EMAIL", ""),
           }, open(sys.argv[1], "w"))
           PY
