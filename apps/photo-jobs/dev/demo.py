@@ -143,5 +143,8 @@ os.environ.update(PATH=f'{tools}:{os.environ["PATH"]}', FAKE_DATES=str(dates_fil
                   MEDIA_ROOT=str(media), STATE_DIR=str(state), PORT=port, BIND='127.0.0.1', IMMICH_URL=immich.url, IMMICH_API_KEY='demo-key')
 print(f'demo library in {root}')
 print(f'http://127.0.0.1:{port}/')
-from photo_jobs import server  # noqa: E402
+from photo_jobs import core, server  # noqa: E402
+if os.environ.get('DEMO_SLOW'):   # make a scan last long enough to watch: DEMO_SLOW=0.6 python3 dev/demo.py
+    _digest, pause = core._digest, float(os.environ['DEMO_SLOW'])
+    core._digest = lambda *a, **k: (__import__('time').sleep(pause), _digest(*a, **k))[1]
 server.main()

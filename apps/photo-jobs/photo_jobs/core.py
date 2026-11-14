@@ -23,6 +23,7 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import time
 
@@ -122,8 +123,8 @@ def prune_empty(cfg, remove):
 # Sorting the inbox
 # ----------------------------------------------------------------------------------------------
 class SortPlanner:
-    def __init__(self, cfg, progress=_noop):
-        self.cfg, self.progress = cfg, progress
+    def __init__(self, cfg, progress=_noop, cache=None):
+        self.cfg, self.progress, self.cache = cfg, progress, cache
         self.moves, self.notes, self.taken, self.hashes = [], [], set(), {}
         self.alias = {}   # a planned destination -> the file that will be moved there
         self.sizes = collections.defaultdict(list)   # every sorted file, by size, for duplicates
@@ -139,6 +140,8 @@ class SortPlanner:
     def sha1(self, p):
         if p in self.alias:   # planned, not there yet: it is a copy of the file that will be moved there
             return self.sha1(self.alias[p])
+        if p not in self.hashes and self.cache:
+            self.hashes[p] = self.cache.digest(p)
         if p not in self.hashes:
             h = hashlib.sha1()
             with open(p, 'rb') as f:
@@ -317,9 +320,13 @@ class SortPlanner:
 
 def plan_sort(cfg, progress=_noop):
     """What sorting the inbox (and year-level event folders) would do."""
-    planner = SortPlanner(cfg, progress)
+    cache = HashCache(cfg)
+    planner = SortPlanner(cfg, progress, cache)
     progress(0, 0, 'looking through the inbox')
-    left = planner.run()
+    try:
+        left = planner.run()
+    finally:
+        cache.close()
     kinds = collections.Counter(m['kind'] for m in planner.moves)
     return {'kind': 'sort', 'moves': planner.moves, 'left': [cfg.rel(p) for p in left],
             'notes': planner.notes,
@@ -370,7 +377,57 @@ def _digest(path, limit=None):
     return h.hexdigest()
 
 
-def plan_duplicates(cfg, progress=_noop):
+class HashCache:
+    """SHA-1s remembered on disk by (path, size, modified time), in <state>/hashes.db.
+
+    Reading 30,000 photos off the NAS takes a long time and is what makes a scan slow. A file
+    that has not changed does not need reading again, so a scan that was cut short (a restart, a
+    stop) picks up where it was, in seconds. Committed every couple of seconds, so a kill loses
+    almost nothing. Only for scanning: a deletion always re-reads the bytes (delete_copy).
+    """
+
+    def __init__(self, cfg):
+        try:
+            self.db = sqlite3.connect(os.path.join(cfg.state, 'hashes.db'), timeout=30)
+            self.db.execute('PRAGMA journal_mode=WAL')
+            self.db.execute('CREATE TABLE IF NOT EXISTS hashes (path TEXT, part INT, size INT, mtime INT, digest TEXT, PRIMARY KEY (path, part))')
+        except sqlite3.Error:
+            self.db = None    # no cache is slower, never wrong
+        self.last = time.time()
+
+    def digest(self, path, limit=None):
+        if not self.db:
+            return _digest(path, limit)
+        st, part = os.stat(path), limit or 0
+        row = self.db.execute('SELECT size, mtime, digest FROM hashes WHERE path=? AND part=?', (path, part)).fetchone()
+        if row and row[0] == st.st_size and row[1] == st.st_mtime_ns:
+            return row[2]
+        got = _digest(path, limit)
+        self.db.execute('INSERT OR REPLACE INTO hashes VALUES (?,?,?,?,?)', (path, part, st.st_size, st.st_mtime_ns, got))
+        if time.time() - self.last > 2:
+            self.flush()
+        return got
+
+    def flush(self):
+        if self.db:
+            self.db.commit()
+        self.last = time.time()
+
+    def close(self):
+        if self.db:
+            self.flush()
+            self.db.close()
+
+
+def plan_duplicates(cfg, progress=_noop, checkpoint=None):
+    cache = HashCache(cfg)
+    try:
+        return _plan_duplicates(cfg, progress, checkpoint, cache)
+    finally:
+        cache.close()
+
+
+def _plan_duplicates(cfg, progress, checkpoint, cache):
     """Groups of byte-identical photos and videos across the whole media folder, best copy first.
     Sidecars are left out: those of different photos are often identical, each belongs to its own."""
     by_size, n = collections.defaultdict(list), 0
@@ -388,21 +445,30 @@ def plan_duplicates(cfg, progress=_noop):
                 by_size[size].append(p)
                 n += 1
     candidates = [ps for ps in by_size.values() if len(ps) > 1]
-    total, done, found = sum(map(len, candidates)), 0, []
+    total, done, found, last = sum(map(len, candidates)), 0, [], time.time()
     progress(0, total, f'{n} files; comparing the {total} that share a size with another')
     for ps in candidates:
         heads = collections.defaultdict(list)
         for p in ps:                     # the first 64 KiB rules most out cheaply
-            heads[_digest(p, 65536)].append(p)
+            heads[cache.digest(p, 65536)].append(p)
         for same_head in heads.values():
             if len(same_head) < 2:
                 continue
             full = collections.defaultdict(list)
             for p in same_head:
-                full[_digest(p)].append(p)
+                full[cache.digest(p)].append(p)
             found += [(h, g) for h, g in full.items() if len(g) > 1]
         done += len(ps)
-        progress(done, total, 'comparing files')
+        progress(done, total, f'comparing files · {len(found)} groups of copies found so far')
+        # Every few seconds, hand over what has been found: a group is complete the moment it is
+        # found (all files of its size were compared), so it can be looked at before the scan ends.
+        if checkpoint and found and time.time() - last > 5:
+            checkpoint(_duplicate_plan(cfg, found, n))
+            last = time.time()
+    return _duplicate_plan(cfg, found, n)
+
+
+def _duplicate_plan(cfg, found, scanned):
     groups, extra, extra_bytes = [], 0, 0
     for i, (h, g) in enumerate(sorted(found, key=lambda x: -os.path.getsize(x[1][0])), 1):
         rels = sorted((cfg.rel(p) for p in g), key=lambda r: _rank(cfg, r))
@@ -411,7 +477,7 @@ def plan_duplicates(cfg, progress=_noop):
         extra += len(rels) - 1
         extra_bytes += size * (len(rels) - 1)
     return {'kind': 'duplicates', 'mode': 'file', 'groups': groups, 'moves': [], 'notes': [],
-            'stats': {'scanned': n, 'groups': len(groups), 'extra': extra, 'extra_bytes': extra_bytes}}
+            'stats': {'scanned': scanned, 'groups': len(groups), 'extra': extra, 'extra_bytes': extra_bytes}}
 
 
 def duplicate_moves(cfg, plan):

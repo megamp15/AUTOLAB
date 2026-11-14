@@ -64,6 +64,31 @@ The path Immich reports (`/mnt/mahir-personal/...`) is mapped to this folder wit
 `IMMICH_MEDIA_PREFIX`. Both the current Immich search (a `trashedAt` filter) and the older one
 (`withDeleted`) are supported.
 
+## Surviving a deploy
+
+A scan runs in the service's own process, so replacing the container ends it. Three things make
+that harmless instead of guarded against:
+
+- **Data is on a volume.** Plans, runs, the activity log and the hash cache live in `STATE_DIR`
+  (a bind mount on the NAS), so nothing is lost with the container.
+- **Hashes are remembered.** `STATE_DIR/hashes.db` keeps each file's SHA-1 by path, size and
+  modified time, so a restarted scan does not read a file it already read. Deleting a duplicate
+  never uses the cache; it re-reads the bytes first.
+- **An interrupted scan resumes itself.** A job still marked running at startup is logged as
+  interrupted and, if it was a scan, started again (once; a scan that was already a resume is not
+  resumed again, so a crash cannot loop). An apply is never restarted by itself; its plan stays
+  open and re-applying skips what was already moved.
+
+The compose file runs the service under an init process so `docker stop` is immediate instead of
+waiting ten seconds for a Python that ignores SIGTERM as PID 1.
+
+## Activity and live results
+
+History lists every scan and apply with when it ran, how long it took and what it found. A
+duplicates scan saves what it has found every few seconds, so the Duplicates tab shows the groups
+as they appear (read-only until it finishes) and **Stop** keeps them. Each scan tab says when it was
+last scanned and why its button is disabled when another job is running.
+
 ## Seeing the photos
 
 Every row with a photo shows a thumbnail; click it to open the photo large. On a duplicate row

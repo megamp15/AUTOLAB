@@ -73,6 +73,11 @@ class NasCompose(unittest.TestCase):
         self.assertEqual(len(refused), 1)
         self.assertNotIn('headers', refused[0]['ansible.builtin.uri'])
 
+    def test_a_restart_does_not_wait_ten_seconds_for_a_python_that_ignores_sigterm(self):
+        # As PID 1 Python ignores SIGTERM, so Docker waits ten seconds and kills it. An init process
+        # forwards the signal, so a deploy restarts the service at once.
+        self.assertIs(self.service.get('init'), True)
+
     def test_it_proves_immich_was_left_alone(self):
         tasks = yaml.safe_load((ANSIBLE / 'roles/nas-photos/tasks/main.yml').read_text())
         self.assertIn('autolab_photos_before.stdout_lines == autolab_photos_after.stdout_lines', json.dumps(tasks[-1]))

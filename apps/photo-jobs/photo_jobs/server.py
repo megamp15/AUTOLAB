@@ -115,6 +115,10 @@ class App:
             return 202, {'job': j.start_set_dates(paths, str(body.get('date', '')), str(body.get('time', '')))}
         if method == 'GET' and path == '/api/job':
             return 200, {'job': j.status()}
+        if method == 'GET' and path == '/api/activity':
+            return 200, {'activity': j.activity()}
+        if method == 'POST' and path == '/api/job/cancel':
+            return 200, {'job': j.cancel()}
         if method == 'GET' and path == '/api/plans':
             return 200, {'plans': j.plans()}
         if method == 'POST' and path == '/api/plans':
@@ -173,6 +177,8 @@ class App:
             plan = j.plan(m.group(1))
             if plan.get('applied'):
                 return 409, {'error': 'already applied'}
+            if j.job and j.job['state'] == 'running' and j.job.get('plan') == plan['id']:
+                return 409, {'error': 'this scan is still running; choices open when it finishes'}
             excluded = set(plan.get('excluded', []))
             kinds = set(plan.get('excluded_kinds', []))
             for key in body.get('groups', []):
@@ -355,6 +361,7 @@ def main():
                       os.environ.get('LIBRARY', 'library'), os.environ.get('IMMICH_MEDIA_PREFIX', '/mnt/mahir-personal'))
     immich = Immich(os.environ.get('IMMICH_URL', ''), os.environ.get('IMMICH_API_KEY', ''))
     app = App(cfg, os.environ.get('PHOTO_JOBS_TOKEN', ''), immich)
+    app.jobs.resume_interrupted()
     host, port = os.environ.get('BIND', '0.0.0.0'), int(os.environ.get('PORT', '8099'))
     srv = ThreadingHTTPServer((host, port), handler(app))
     print(f'photo-jobs on {host}:{port}, media {cfg.root}, state {cfg.state}', flush=True)
