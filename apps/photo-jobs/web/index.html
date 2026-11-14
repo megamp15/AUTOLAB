@@ -155,6 +155,13 @@
   .tr:hover:not(.th) { background:var(--soft); }
   .tr.off { opacity:.42; }
   .tr.inert .tick { opacity:.3; cursor:default; }
+  .album-row { display:grid; grid-template-columns:28px minmax(150px,1.3fr) minmax(160px,1fr) 150px 160px; gap:8px 14px; padding:10px 12px; border-bottom:1px solid var(--soft); align-items:center; }
+  .album-row:not(.album-head):hover { background:var(--soft); }
+  .album-head { position:sticky; top:0; z-index:2; background:color-mix(in srgb,var(--bg) 94%,var(--fg)); font:10.5px 'IBM Plex Mono',monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); border-bottom:1px solid var(--line); }
+  .album-name { width:100%; min-width:0; }
+  .album-state { font:10.5px 'IBM Plex Mono',monospace; color:var(--dim); }
+  .album-state.ready, .album-state.add { color:var(--ok); }
+  .album-state.not_scanned { color:var(--warn); }
   .th { position:sticky; top:0; z-index:2; background:color-mix(in srgb,var(--bg) 94%,var(--fg)); font:10.5px 'IBM Plex Mono',monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); border-bottom:1px solid var(--line); align-items:center; }
   .tr .name { font-weight:500; font-family:'Space Grotesk',sans-serif; overflow-wrap:anywhere; }
   .immich-status { margin-top:10px; font-size:11.5px; display:flex; align-items:center; gap:8px; color:var(--dim); }
@@ -168,7 +175,8 @@
     body.fit .tbody { max-height:none; }
     body.fit .bar { position:static; flex:none; }
   }
-  @media (max-width:700px) { .tr, .tr.immich { grid-template-columns:28px 1fr; } .th { display:none; } .tr > :nth-child(n+3) { grid-column:2; } }
+  @media (max-width:700px) { .tr, .tr.immich { grid-template-columns:28px 1fr; } .th { display:none; } .tr > :nth-child(n+3) { grid-column:2; }
+    .album-row { grid-template-columns:24px minmax(0,1fr); } .album-row > :nth-child(n+3) { grid-column:2; } .album-head { display:none; } }
   @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
 </style>
 </head>
@@ -180,6 +188,7 @@
     <nav class="tabs" role="tablist" aria-label="Photo jobs">
       <button type="button" role="tab" data-tab="inbox" aria-selected="true">Inbox</button>
       <button type="button" role="tab" data-tab="duplicates" aria-selected="false">Duplicates</button>
+      <button type="button" role="tab" data-tab="albums" aria-selected="false">Albums</button>
       <button type="button" role="tab" data-tab="immich" aria-selected="false">Immich trash</button>
       <button type="button" role="tab" data-tab="history" aria-selected="false">History<small id="runs-count"></small></button>
     </nav>
@@ -204,11 +213,12 @@
   const fmtGiB = b => b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GiB' : b >= 1048576 ? (b / 1048576).toFixed(b >= 1.05e7 ? 0 : 1) + ' MiB' : Math.max(1, Math.round(b / 1024)) + ' KiB';
   const ago = t => { const s = Date.now() / 1000 - t; return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : new Date(t * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' }); };
 
-  const TABS = ['inbox', 'duplicates', 'immich', 'history'];
+  const TABS = ['inbox', 'duplicates', 'albums', 'immich', 'history'];
   const state = { tab: location.hash.slice(1) || 'inbox', status: null, job: null, dark: true, runs: [], immichInfo: null,
                   sort: { plan: null, rows: [], total: 0, shown: 0, filter: { kind: '', pair: false, q: '' }, done: null },
                   dupes: { plan: null, groups: [], total: 0, q: '', done: null },
-                  immich: { plan: null, rows: [], total: 0, selected: 0, selectable: 0, filter: { status: '', live: false, q: '' }, done: null } };
+                  immich: { plan: null, rows: [], total: 0, selected: 0, selectable: 0, filter: { status: '', live: false, q: '' }, done: null },
+                  albums: null, albumChecked: new Set(), albumConfigured: false, albumResult: '', albumResultKind: 'ok' };
   if (!TABS.includes(state.tab)) state.tab = 'inbox';
   try { state.dark = localStorage.getItem('photos-dark') !== '0'; } catch (e) {}
 
@@ -333,7 +343,7 @@
     fit(false);
     document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
     main.replaceChildren();
-    ({ inbox: viewInbox, duplicates: viewDupes, immich: viewImmich, history: viewHistory })[state.tab]();
+    ({ inbox: viewInbox, duplicates: viewDupes, albums: viewAlbums, immich: viewImmich, history: viewHistory })[state.tab]();
     const p = progressBlock(); if (p) main.prepend(p);
     main.classList.remove('fade-in'); void main.offsetWidth; main.classList.add('fade-in');
   }
@@ -352,6 +362,8 @@
       const c = run.counts;
       msg = [c.moved && `${c.moved.toLocaleString()} moved`, c.deleted && `${c.deleted.toLocaleString()} deleted for good`,
              c.skipped && `${c.skipped.toLocaleString()} skipped because they had changed`, c.error && `${c.error} failed`].filter(Boolean).join(' · ') + '.';
+      if (run.immich_scan?.status === 'queued') msg += ` Immich scan queued for ${run.immich_scan.library}; wait for it to finish before creating albums.`;
+      else if (run.immich_scan?.status === 'failed') msg += ` Immich scan could not be queued: ${run.immich_scan.error}. Start a scan in Albums before creating albums.`;
     }
     row.append(el('span', 'status-ok', '●'), el('span', 'grow', msg));
     if (run && run.counts.moved && !run.undone) { const u = el('button', 'btn small', 'Undo'); u.onclick = () => undo(run.id); row.append(u); }
@@ -532,6 +544,94 @@
   async function dupePatch(body) {
     const d = state.dupes;
     try { await api('/plans/' + d.plan.id, { method: 'PATCH', body }); await refreshPlan(d); paintDupes(); } catch (e) { fail(e); }
+  }
+
+  // ---- album inbox ----------------------------------------------------------------------------------
+  let albumUI = null;
+  async function loadAlbums() {
+    try {
+      const data = await api('/albums'); state.albumConfigured = data.configured; state.albums = data.events || [];
+      state.albumChecked = new Set([...state.albumChecked].filter(path => state.albums.some(e => e.path === path)));
+      if (state.tab === 'albums') render();
+    } catch (e) { state.albums = []; state.albumConfigured = false; state.albumResult = e.message; state.albumResultKind = 'bad'; if (state.tab === 'albums') render(); }
+  }
+  const ALBUM_STATE = { ready: 'Ready to create', add: 'Photos to add', current: 'Up to date', not_scanned: 'Scan Immich first' };
+  function viewAlbums() {
+    if (state.albums === null) {
+      const loading = el('section', 'panel compact'); loading.append(el('h2', null, 'Albums'), el('p', 'muted', 'Event folders in your library become Immich albums. Checking the library…'));
+      main.append(loading);
+      loadAlbums(); return;
+    }
+    const events = state.albums, eligible = events.filter(e => ['ready', 'add'].includes(e.status));
+    const panel = el('section', 'panel');
+    const top = el('div', 'row'); const intro = el('div', 'grow');
+    intro.append(el('h2', null, 'Albums'), el('p', 'muted', 'Review event folders already in the library. Creating an album only adds photos in Immich. It never moves or removes files.'));
+    const scan = el('button', 'btn quiet', 'Scan Immich library');
+    scan.onclick = async () => {
+      scan.disabled = true;
+      try {
+        const { scan: queued } = await api('/albums/scan', { method: 'POST', body: {} });
+        state.albumResult = `Immich scan queued for ${queued.name}. Wait for it to finish, then refresh matches.`;
+        state.albumResultKind = 'ok';
+      } catch (e) { state.albumResult = e.message; state.albumResultKind = 'bad'; }
+      render();
+    };
+    const refresh = el('button', 'btn quiet', 'Refresh matches'); refresh.onclick = () => { state.albums = null; state.albumChecked.clear(); render(); };
+    const controls = el('div', 'row'); controls.append(scan, refresh);
+    top.append(intro, controls); panel.append(top);
+    panel.append(el('div', 'note', 'After an Inbox sort, Photo Jobs queues this scan automatically. For moves done elsewhere, scan here before creating albums. Immich may treat moved files as new assets and lose their old album memberships.'));
+    const counts = el('div', 'stats');
+    counts.append(...[[eligible.length, 'pending'], [events.filter(e => e.status === 'not_scanned').length, 'not scanned'], [events.filter(e => e.status === 'current').length, 'up to date']]
+      .map(([n, label]) => { const s = el('div', 'stat'); s.append(el('b', null, String(n)), el('small', null, label)); return s; }));
+    panel.append(counts);
+    if (!state.albumConfigured) {
+      const permissions = 'Immich needs asset.read, album.read, album.create, albumAsset.create, library.read and library.update for this workflow. The library scopes require an admin-owned API key.';
+      panel.append(el('div', 'note ' + (state.albumResultKind === 'bad' && state.albumResult ? 'status-bad' : ''), state.albumResult ? `${state.albumResult} ${permissions}` : permissions));
+      main.append(panel); return;
+    }
+    if (state.albumResult) { const note = el('div', 'note ' + (state.albumResultKind === 'bad' ? 'status-bad' : 'status-ok'), state.albumResult); panel.append(note); }
+    const table = el('div', 'table');
+    const head = el('div', 'album-row album-head'); const all = el('input', 'tick'); all.type = 'checkbox'; all.title = 'Select all events with photos ready';
+    all.checked = eligible.length > 0 && eligible.every(e => state.albumChecked.has(e.path));
+    all.indeterminate = eligible.some(e => state.albumChecked.has(e.path)) && !all.checked;
+    all.onchange = () => { eligible.forEach(e => all.checked ? state.albumChecked.add(e.path) : state.albumChecked.delete(e.path)); render(); };
+    head.append(all, ...['Event folder', 'Immich album name', 'Status', ''].map(t => el('span', null, t))); table.append(head);
+    const body = el('div', 'tbody');
+    if (!events.length) body.append(el('div', 'empty', 'No event folders found under library/YYYY/MM yet.'));
+    events.forEach(event => {
+      const row = el('div', 'album-row'); const box = el('input', 'tick'); box.type = 'checkbox'; box.checked = state.albumChecked.has(event.path); box.disabled = !['ready', 'add'].includes(event.status);
+      box.setAttribute('aria-label', 'Select ' + event.path); box.onchange = () => { box.checked ? state.albumChecked.add(event.path) : state.albumChecked.delete(event.path); paintAlbumAction(); };
+      const where = el('div'); where.append(el('div', 'name', event.folder.replaceAll('_', ' ')), el('div', 'why mono', event.path));
+      const name = el('input', 'search album-name'); name.value = event.name; name.setAttribute('aria-label', 'Immich album name for ' + event.path);
+      name.oninput = () => { event.name = name.value; };
+      const status = el('span', 'album-state ' + event.status, ALBUM_STATE[event.status] || event.status);
+      const total = event.status === 'add' ? `${event.to_add} to add · ${event.photos} total` : `${event.photos} photos`;
+      row.append(box, where, name, status, el('span', 'mono muted', total)); body.append(row);
+    });
+    table.append(body); panel.append(table); main.append(panel);
+    const bar = el('div', 'bar'), info = el('span', 'grow'), create = el('button', 'btn primary');
+    create.textContent = 'Create albums'; create.onclick = async () => {
+      create.disabled = true;
+      try {
+        const selected = events.filter(e => state.albumChecked.has(e.path)).map(e => ({ path: e.path, name: e.name }));
+        const { results } = await api('/albums', { method: 'POST', body: { events: selected } });
+        const added = results.reduce((n, r) => n + (r.added || 0), 0);
+        const created = results.filter(r => r.status === 'created').length;
+        const updated = results.filter(r => r.status === 'added').length;
+        const skipped = results.filter(r => r.status === 'not_scanned' || r.status === 'skipped').length;
+        state.albumResult = [created && `${created} album${created === 1 ? '' : 's'} created`, updated && `${updated} updated`, added && `${added} photos added`, skipped && `${skipped} need an Immich scan`].filter(Boolean).join(' · ') || 'Everything selected is already up to date.';
+        state.albumResultKind = 'ok';
+        state.albumChecked.clear(); state.albums = null; await loadAlbums();
+      } catch (e) { fail(e); create.disabled = false; }
+    };
+    bar.append(info, create); main.append(bar); albumUI = { info, create }; paintAlbumAction();
+  }
+  function paintAlbumAction() {
+    if (!albumUI) return;
+    const count = state.albumChecked.size;
+    albumUI.info.textContent = `${count} event folder${count === 1 ? '' : 's'} selected`;
+    albumUI.create.textContent = `Create / update ${count} album${count === 1 ? '' : 's'}`;
+    albumUI.create.disabled = !count || busy();
   }
 
   // ---- Immich's trash -------------------------------------------------------------------------------

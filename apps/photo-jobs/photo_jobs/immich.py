@@ -1,9 +1,4 @@
-"""A small client for the one thing Photo Jobs asks Immich: which assets are in its trash.
-
-Immich never deletes the files of an external library; trashing an asset only hides it. This
-reads the trash so the files can be reviewed and removed here. It needs an API key with the
-`asset.read` permission and changes nothing in Immich.
-"""
+"""Small client for Immich's external-library assets, albums, and trash."""
 import base64
 import json
 import urllib.error
@@ -31,6 +26,8 @@ class Immich:
             headers={'x-api-key': self.key, 'Accept': 'application/json', 'Content-Type': 'application/json'})
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                if r.status == 204:
+                    return None
                 return json.load(r)
         except urllib.error.HTTPError as e:
             raise ImmichError(f'Immich answered {e.code} for {path}: {e.read(300).decode(errors="replace")}') from None
@@ -72,6 +69,35 @@ class Immich:
 
     def asset(self, id_):
         return self.call('GET', f'/assets/{id_}')
+
+    def search_assets(self, filters):
+        """Return all non-trashed assets matching an Immich metadata filter."""
+        page, found = 1, []
+        while page:
+            res = self.call('POST', '/search/metadata', {'filter': filters, 'size': PAGE, 'page': page})
+            assets = res.get('assets', {})
+            found.extend(a for a in assets.get('items', []) if not a.get('isTrashed'))
+            page = int(assets['nextPage']) if assets.get('nextPage') else 0
+        return found
+
+    def albums(self):
+        return self.call('GET', '/albums')
+
+    def libraries(self):
+        return self.call('GET', '/libraries')
+
+    def scan_library(self, library_id):
+        """Queue an external-library scan. Immich processes it asynchronously."""
+        return self.call('POST', f'/libraries/{library_id}/scan')
+
+    def album_assets(self, album_id):
+        return self.search_assets({'albumIds': {'in': [album_id]}})
+
+    def create_album(self, name, asset_ids):
+        return self.call('POST', '/albums', {'albumName': name, 'assetIds': asset_ids})
+
+    def add_album_assets(self, album_id, asset_ids):
+        return self.call('PUT', f'/albums/{album_id}/assets', {'assetIds': asset_ids})
 
 
 def checksum_hex(b64):

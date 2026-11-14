@@ -64,11 +64,27 @@ The path Immich reports (`/mnt/mahir-personal/...`) is mapped to this folder wit
 `IMMICH_MEDIA_PREFIX`. Both the current Immich search (a `trashedAt` filter) and the older one
 (`withDeleted`) are supported.
 
+## Albums
+
+The Albums tab looks for event folders at `library/YYYY/MM/<event>`. It matches the folder's
+files to scanned Immich assets by their original path. Applying an Inbox sort automatically
+queues a scan when it moves files into the library. For files moved outside Photo Jobs, use
+**Scan Immich library** in Albums, then **Refresh matches** after Immich finishes. A folder with
+no matching assets stays marked **Scan Immich first**. Immich may treat a moved file as a new
+asset and lose the old asset's album membership on rescan. Choose one or many events, edit their
+album names if needed, then create the albums. If an album with that name already exists, the app
+adds only missing assets. Repeated runs are safe and never remove assets from albums. Live Photo
+stills and clips are both added. The Immich API key needs `asset.read`, `album.read`,
+`album.create`, `albumAsset.create`, `library.read` and `library.update` permissions. The library
+permissions are used only to identify and queue a scan for the configured external library;
+Immich requires an admin-owned key for those library endpoints.
+
 ## Running it
 
 ```sh
 # a made-up library (with a stand-in Immich) to click through, on http://127.0.0.1:8099/
 python3 apps/photo-jobs/dev/demo.py /tmp/photo-demo 8099
+# open http://127.0.0.1:8099/#albums to try the album review/create flow
 
 # for real (needs exiftool on PATH)
 MEDIA_ROOT=/media STATE_DIR=/state PORT=8099 python3 -m photo_jobs.server
@@ -81,7 +97,7 @@ MEDIA_ROOT=/media STATE_DIR=/state PORT=8099 python3 -m photo_jobs.server
 | `LIBRARY` | the library folder's name under the media root | `library` |
 | `PORT`, `BIND` | where to listen | `8099`, `0.0.0.0` |
 | `PHOTO_JOBS_TOKEN` | when set, `/api/*` needs it in `X-Autolab-Photos-Token` | unset |
-| `IMMICH_URL`, `IMMICH_API_KEY` | the Immich server and a key with `asset.read`; both needed for the Immich tab | unset |
+| `IMMICH_URL`, `IMMICH_API_KEY` | the Immich server and a key with `asset.read`, `album.read`, `album.create`, `albumAsset.create`, `library.read` and `library.update` | unset |
 | `IMMICH_MEDIA_PREFIX` | where the media folder appears inside Immich's container | `/mnt/mahir-personal` |
 
 Who may reach it is decided in front of it (Traefik and Pocket ID). The token is
