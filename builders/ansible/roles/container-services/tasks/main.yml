@@ -565,6 +565,24 @@
   delay: 10
   when: "'adventurelog' in autolab_services_enabled and not ansible_check_mode"
 
+- name: Connect the administrator's Immich account to AdventureLog
+  community.docker.docker_container_exec:
+    container: "{{ autolab_services_project }}-adventurelog-1"
+    chdir: /code
+    argv: [python, manage.py, shell]
+    stdin: "{{ lookup('ansible.builtin.file', 'adventurelog/immich_integration.py') }}"
+    env:
+      AL_IMMICH_URL: "{{ autolab_services_adventurelog_immich_url }}"
+      AL_IMMICH_KEY: "{{ autolab_services_adventurelog_immich_api_key }}"
+      AL_ADMIN_EMAIL: "{{ autolab_services_admin_email }}"
+  register: autolab_immich_setup
+  changed_when: autolab_immich_setup.stdout_lines | last | default('') == 'CHANGED'
+  no_log: true
+  when:
+    - "'adventurelog' in autolab_services_enabled"
+    - autolab_services_adventurelog_immich_api_key | length > 0
+    - not ansible_check_mode
+
 # The environment is that of this one exec, so the client secret is never in
 # the container's own. The script says CHANGED or UNCHANGED, so a converged
 # host reports ok.
