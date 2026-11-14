@@ -65,8 +65,11 @@ def scope_counts(plan, cfg):
     return c
 
 
-def item_on(plan, item):
-    return f'immich:{item["id"]}' not in set(plan.get('excluded', []))
+def item_on(plan, item, off=None):
+    """Is this trash item ticked? Pass `off` (the plan's excluded set) when asking about many items:
+    building it per item makes a ten-thousand-item plan quadratic."""
+    off = set(plan.get('excluded', [])) if off is None else off
+    return f'immich:{item["id"]}' not in off
 
 
 def matching_items(plan, status='', live=False, text=''):
@@ -174,7 +177,10 @@ class App:
             plan = j.plan(m.group(1))
             out = j.summary(plan)
             if plan['kind'] == 'immich':
-                out['selected_items'] = sum(1 for i in plan['items'] if i['status'] == 'file' and item_on(plan, i))
+                off = set(plan.get('excluded', []))
+                ticked = [i for i in plan['items'] if i['status'] == 'file' and item_on(plan, i, off)]
+                out['selected_items'] = len(ticked)
+                out['selected'] = len(ticked) + sum(1 for i in ticked if i['clip'])   # what the scan found; an apply looks at the disk
             if plan['kind'] == 'duplicates':
                 moves, protected = self.duplicate_view(plan)
                 out['preview'] = {'moves': len(moves), 'protected': protected[:50], 'protected_count': len(protected)}
@@ -184,7 +190,8 @@ class App:
                 out['left'] = plan['left'][:200]
             else:
                 out['notes'] = plan['notes']
-            out['selected'] = len(core.selected_moves(plan, cfg, moves if plan['kind'] == 'duplicates' else None))
+            if plan['kind'] != 'immich':
+                out['selected'] = len(core.selected_moves(plan, cfg, moves if plan['kind'] == 'duplicates' else None))
             return 200, out
         m = re.fullmatch(r'/api/plans/([\w-]+)/moves', path)
         if m and method == 'GET':
@@ -204,10 +211,11 @@ class App:
             one = lambda k: query.get(k, [''])[0]
             rows = matching_items(plan, one('status'), one('live') == '1', one('q'))
             off, lim = int(one('offset') or 0), min(int(one('limit') or 100), 500)
+            offs = set(plan.get('excluded', []))
             return 200, {'total': len(rows), 'offset': off,
-                         'selected': sum(1 for i in rows if i['status'] == 'file' and item_on(plan, i)),
+                         'selected': sum(1 for i in rows if i['status'] == 'file' and item_on(plan, i, offs)),
                          'selectable': sum(1 for i in rows if i['status'] == 'file'),
-                         'items': [{**i, 'selected': item_on(plan, i)} for i in rows[off:off + lim]]}
+                         'items': [{**i, 'selected': item_on(plan, i, offs)} for i in rows[off:off + lim]]}
         m = re.fullmatch(r'/api/plans/([\w-]+)/groups', path)
         if m and method == 'GET':
             plan = j.plan(m.group(1))

@@ -1093,6 +1093,53 @@ class Restarts(Library):
         self.assertIsNone(service.jobs.status())
 
 
+class BigPlansOnEveryTab(Library):
+    """Ticking a box on any tab must cost about the same with 20,000 rows as with 20: no step may
+    redo work per row, and the Immich count must not walk the disk."""
+
+    N = 20000
+
+    def _app(self, plan):
+        app = server.App(self.cfg)
+        app.jobs.save_plan(plan)
+        return app
+
+    def _tick(self, app, plan_id, tick, listing):
+        t = time.perf_counter()
+        app.route('PATCH', f'/api/plans/{plan_id}', {}, {**tick, 'selected': False})
+        app.route('GET', f'/api/plans/{plan_id}', {}, {})
+        page = app.route('GET', listing, {'limit': ['1']}, {})[1]
+        return time.perf_counter() - t, page
+
+    def test_immich_tick_is_quick_and_does_not_touch_the_disk(self):
+        items = [{'id': str(i), 'status': 'file', 'name': f'n{i}', 'immich_path': 'p', 'rel': f'x/{i}.jpg', 'sha1': 'a',
+                  'size': 1, 'clip': {'rel': f'x/{i}.mov', 'sha1': 'b', 'size': 1} if i % 2 else None} for i in range(self.N)]
+        app = self._app({'id': 'im1', 'kind': 'immich', 'mode': 'file', 'excluded': [], 'excluded_kinds': [], 'notes': [],
+                         'moves': [], 'stats': {}, 'items': items})
+        real = os.path.isfile
+        os.path.isfile = lambda p: self.fail('the count walked the disk')
+        self.addCleanup(setattr, os.path, 'isfile', real)
+        took, page = self._tick(app, 'im1', {'groups': ['immich:0']}, '/api/plans/im1/items')
+        os.path.isfile = real
+        self.assertEqual((page['selected'], page['selectable']), (self.N - 1, self.N))
+        plan = app.route('GET', '/api/plans/im1', {}, {})[1]
+        self.assertEqual((plan['selected_items'], plan['selected']), (self.N - 1, self.N - 1 + self.N // 2))
+        self.assertLess(took, 2.0)
+
+    def test_inbox_and_duplicate_ticks_are_quick(self):
+        sort = {'id': 's1', 'kind': 'sort', 'excluded': [], 'excluded_kinds': [], 'notes': [], 'left': [],
+                'moves': [{'id': i, 'src': f'_inbox/{i}.jpg', 'dst': f'2020/{i}.jpg', 'kind': 'file', 'why': 'w', 'group': f'm{i}'} for i in range(self.N)]}
+        took, page = self._tick(self._app(sort), 's1', {'groups': ['m0']}, '/api/plans/s1/moves')
+        self.assertEqual(page['selected'], self.N - 1)
+        self.assertLess(took, 2.0)
+        lib = self.cfg.library
+        dup = {'id': 'd1', 'kind': 'duplicates', 'mode': 'file', 'excluded': [], 'excluded_kinds': [], 'moves': [],
+               'groups': [{'id': str(i), 'files': [f'{lib}/a/{i}.jpg', f'in/b/{i}.jpg'], 'keep': f'{lib}/a/{i}.jpg'} for i in range(self.N)]}
+        took, page = self._tick(self._app(dup), 'd1', {'groups': ['0']}, '/api/plans/d1/groups')
+        self.assertEqual(page['selected'], self.N - 1)
+        self.assertLess(took, 2.0)
+
+
 class BigDuplicatePlans(Library):
     """A library's worth of duplicates must load in seconds, and ticking one group must not re-read the disk."""
 
