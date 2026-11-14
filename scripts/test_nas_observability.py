@@ -62,7 +62,7 @@ class NasObservabilityTest(unittest.TestCase):
         names = [t["name"] for t in tasks]
         lookup = next(i for i, t in enumerate(tasks) if "getent ahostsv4" in str(t.get("ansible.builtin.command", "")))
         self.assertLess(lookup, names.index("Render NAS Alloy configuration"))
-        self.assertIn("autolab_nas_stack_addr", next(t for t in tasks if "ansible.builtin.set_fact" in t)["ansible.builtin.set_fact"])
+        self.assertIn("autolab_nas_stack_addr", next(t["ansible.builtin.set_fact"] for t in tasks if "autolab_nas_stack_addr" in t.get("ansible.builtin.set_fact", {})))
 
 
 if __name__ == "__main__":
