@@ -11,9 +11,10 @@ import uuid
 
 
 class FakeImmich:
-    def __init__(self, assets, legacy=False, key='k3y', albums=None, libraries=None, scan_assets=None):
+    def __init__(self, assets, legacy=False, key='k3y', albums=None, libraries=None, scan_assets=None, forbidden=()):
         import http.server
         self.assets, self.legacy, self.key, self.calls = assets, legacy, key, []
+        self.forbidden = set(forbidden)   # paths this key lacks the permission for
         self.albums = albums or []
         self.libraries, self.scan_assets = libraries or [], scan_assets or []
         outer = self
@@ -32,6 +33,8 @@ class FakeImmich:
                 outer.calls.append((self.command, self.path, body, self.headers.get('x-api-key')))
                 if self.headers.get('x-api-key') != outer.key:
                     return self.reply(401, {'message': 'Invalid API key'})
+                if self.path in outer.forbidden:
+                    return self.reply(403, {'message': 'Missing required permission'})
                 if self.path == '/api/users/me':
                     return self.reply(200, {'email': 'me@example.com'})
                 if self.path == '/api/server/about':
