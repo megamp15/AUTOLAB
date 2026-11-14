@@ -1,0 +1,39 @@
+  # Flights, aircraft and airports on a map: a personal flight log. Uploads on
+  # the NAS, the database local and dumped nightly. docs/gitops/apps.md.
+  airtrail:
+    image: {{ autolab_services_images.airtrail }}
+    restart: unless-stopped
+    depends_on:
+      airtrail-db:
+        condition: service_healthy
+    env_file:
+      - /etc/autolab/airtrail.env
+      - /etc/autolab/airtrail-oidc.env
+    environment:
+      ORIGIN: "{{ autolab_services_airtrail_public_url }}"
+      # Traefik is one hop in front: take the client address from it.
+      ADDRESS_HEADER: X-Forwarded-For
+      XFF_DEPTH: "1"
+    volumes:
+      - type: bind
+        source: {{ autolab_services_data_root }}/airtrail/uploads
+        target: /app/uploads
+        bind:
+          create_host_path: false
+    mem_limit: {{ autolab_services_memory.airtrail }}
+    # The image carries its own healthcheck.
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.airtrail }}:3000"
+
+  airtrail-db:
+    image: {{ autolab_services_images.postgres }}
+    restart: unless-stopped
+    env_file: /etc/autolab/airtrail-db.env
+    volumes:
+      - airtrail-db:/var/lib/postgresql/data
+    mem_limit: {{ autolab_services_memory.airtrail_db }}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airtrail -d airtrail"]
+      interval: 10s
+      timeout: 5s
+      retries: 6

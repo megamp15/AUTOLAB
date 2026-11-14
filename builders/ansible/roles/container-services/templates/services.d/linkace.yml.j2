@@ -1,0 +1,63 @@
+  # Bookmarks, with tags, lists and a link checker. Search is the database's:
+  # Meilisearch is a container more than a personal collection needs. The
+  # database is local and dumped nightly. docs/gitops/apps.md.
+  linkace:
+    image: {{ autolab_services_images.linkace }}
+    restart: unless-stopped
+    depends_on:
+      linkace-db:
+        condition: service_healthy
+      linkace-redis:
+        condition: service_healthy
+    env_file:
+      - /etc/autolab/linkace.env
+      - /etc/autolab/linkace-oidc.env
+    environment:
+      APP_URL: "{{ autolab_services_linkace_public_url }}"
+      # Traefik is the only thing in front of it, and it is on the tailnet.
+      TRUSTED_PROXIES: "*"
+      SESSION_SECURE_COOKIE: "true"
+      DB_CONNECTION: mysql
+      DB_HOST: linkace-db
+      DB_PORT: "3306"
+      DB_DATABASE: linkace
+      DB_USERNAME: linkace
+      REDIS_HOST: linkace-redis
+      REDIS_PORT: "6379"
+      APP_SEARCH_DRIVER: database
+      SESSION_DRIVER: redis
+      CACHE_DRIVER: redis
+    mem_limit: {{ autolab_services_memory.linkace }}
+    healthcheck:
+      # LinkAce answers 400 to a Host it was not told about, so say its own.
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null -H 'Host: {{ autolab_services_linkace_public_url | regex_replace('^https?://', '') }}' -H 'X-Forwarded-Proto: https' http://127.0.0.1:80/login"]
+      start_period: 120s
+      interval: 30s
+      timeout: 6s
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.linkace }}:80"
+
+  linkace-db:
+    image: {{ autolab_services_images.mariadb }}
+    restart: unless-stopped
+    env_file: /etc/autolab/linkace-db.env
+    volumes:
+      - linkace-db:/var/lib/mysql
+    mem_limit: {{ autolab_services_memory.linkace_db }}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  linkace-redis:
+    image: {{ autolab_services_images.redis }}
+    restart: unless-stopped
+    env_file: /etc/autolab/linkace-redis.env
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\""]
+    mem_limit: {{ autolab_services_memory.linkace_redis }}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 6

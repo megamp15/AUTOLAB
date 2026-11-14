@@ -336,7 +336,8 @@
     repo: 'M7 8l-4 4 4 4M17 8l4 4-4 4M14 5l-4 14',
     guest: 'M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5',
     tenant: 'M4 6h16v12H4zM9.5 10l5 2-5 2z',
-    photos: 'M3 7h4l2-2.5h6L17 7h4v12H3zM12 10a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7'
+    photos: 'M3 7h4l2-2.5h6L17 7h4v12H3zM12 10a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7',
+    map: 'M12 21s-6-5.2-6-10a6 6 0 0 1 12 0c0 4.8-6 10-6 10zM12 8.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5'
   };
 
   const state = { dark: false, rows: [], feed: [], stale: false, tab: location.hash.slice(1).split("?")[0] || "services", operations: {} };
@@ -560,7 +561,7 @@
     const CTR_APPS = { grafana: () => byName.Grafana, loki: () => byName.Loki, prometheus: () => labUrl('prometheus'),
       homepage: () => labUrl('home'), 'code-server': () => labUrl('code-server'), dockhand: () => labUrl('dockhand'),
       registry: () => labUrl('registry-ui'), 'registry-ui': () => labUrl('registry-ui'), dash: () => labUrl('dash'),
-      qr: () => labUrl('qr'), cosmos: () => labUrl('cosmos'), pihole: () => byName['Pi-hole'], 'pocket-id': () => pubUrl('auth') };
+      qr: () => labUrl('qr'), adventurelog: () => labUrl('adventurelog'), forgejo: () => labUrl('forgejo'), tandoor: () => labUrl('tandoor'), airtrail: () => labUrl('airtrail'), linkace: () => labUrl('linkace'), sure: () => labUrl('sure'), cosmos: () => labUrl('cosmos'), pihole: () => byName['Pi-hole'], 'pocket-id': () => pubUrl('auth') };
     const link = { byName, labUrl, pubUrl, ctr: name => (CTR_APPS[name] || (() => ''))() || '' };
     return { op, nodes, hosts, ctrs, rowBy, link, labNames: [...new Set(labNames)], publicNames: [...new Set(publicNames)] };
   }

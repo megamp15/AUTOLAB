@@ -12,6 +12,68 @@ autolab_services_catalog: "{{ autolab_service_catalog.keys() | list }}"
 
 autolab_services_root: /opt/autolab/services
 
+# State that must outlive the VM lives on the NAS, mounted here by the storage
+# playbook (builder.storage in the machines map). Uploads, repositories and
+# source checkouts bind-mount from under it; the databases do not (a live
+# Postgres on NFS v3 is a corruption story), and are dumped to it instead.
+autolab_services_data_root: /mnt/apps
+# Services with a directory under the data root. A machine that runs one of
+# these refuses to start the stack while the share is not mounted, so nothing
+# can write into an empty local directory standing where the NAS should be.
+autolab_services_nas_backed: [adventurelog, forgejo, tandoor, airtrail, sure]
+# Directories to create under the data root, per enabled service.
+autolab_services_nas_dirs: >-
+  {{ autolab_services_nas_dir_catalog | selectattr('service', 'in', autolab_services_enabled) | list }}
+autolab_services_nas_dir_catalog:
+  - {service: adventurelog, path: adventurelog/media, owner: root, group: root}
+  - {service: forgejo, path: forgejo, owner: root, group: root}
+  # The rootless image runs as uid 1000.
+  - {service: forgejo, path: forgejo/data, owner: "1000", group: "1000"}
+  - {service: tandoor, path: tandoor/media, owner: root, group: root}
+  - {service: airtrail, path: airtrail/uploads, owner: root, group: root}
+  # Sure's image runs as 1000:1000.
+  - {service: sure, path: sure/storage, owner: "1000", group: "1000"}
+# The Postgres behind each service that has one: dumped nightly, restored
+# weekly into a scratch container. `container` is the compose service name.
+autolab_services_databases:
+  adventurelog:
+    container: adventurelog-db
+    user: adventure
+    db: database
+    image: "{{ autolab_services_images.adventurelog_db }}"
+  forgejo:
+    container: forgejo-db
+    user: forgejo
+    db: forgejo
+    image: "{{ autolab_services_images.forgejo_db }}"
+  tandoor:
+    container: tandoor-db
+    user: djangouser
+    db: djangodb
+    image: "{{ autolab_services_images.postgres }}"
+  airtrail:
+    container: airtrail-db
+    user: airtrail
+    db: airtrail
+    image: "{{ autolab_services_images.postgres }}"
+  sure:
+    container: sure-db
+    user: sure
+    db: sure
+    image: "{{ autolab_services_images.postgres }}"
+  # MariaDB, dumped by the container's own client (see autolab-db-backup).
+  linkace:
+    kind: mariadb
+    container: linkace-db
+    user: linkace
+    db: linkace
+    image: "{{ autolab_services_images.mariadb }}"
+autolab_services_db_backup:
+  keep_daily: 14
+  keep_weekly_days: 60
+  dump_calendar: "*-*-* 01:15:00"
+  restore_calendar: "Sun *-*-* 04:00:00"
+
 # Compose names containers <project>-<service>-<n>, and takes the project from
 # the directory it runs in. Derived rather than written out, so moving the root
 # does not leave a task addressing a container that no longer exists.
@@ -30,6 +92,23 @@ autolab_services_images:
   # the tools below baked in. See templates/code-server/Dockerfile.j2.
   code_server: "codercom/code-server:4.145.2"
   immich_share: "alangrainger/immich-public-proxy:4.1.2"
+  # One image holds the web app, the API, nginx and a cache; PostGIS is the
+  # only other container.
+  adventurelog: "ghcr.io/seanmorley15/adventurelog:v0.13.1"
+  adventurelog_db: "postgis/postgis:16-3.5"
+  # The long-term-support line: 17.0.0 shipped with a warning against
+  # upgrading to it. The rootless image runs as uid 1000 and is the one the
+  # docs recommend for repositories on NFS.
+  forgejo: "codeberg.org/forgejo/forgejo:15.0.11-rootless"
+  postgres: "postgres:16.15-alpine"
+  forgejo_db: "{{ autolab_services_images.postgres }}"
+  mariadb: "mariadb:12.0"
+  redis: "redis:8.2"
+  tandoor: "vabene1111/recipes:2.7.2"
+  airtrail: "johly/airtrail:v3.14.0"
+  # The release before 2.6.3 carried a critical Docker-setup flaw; this is the fix.
+  linkace: "linkace/linkace:v2.6.3"
+  sure: "ghcr.io/we-promise/sure:0.7.6-hotfix.1"
   dash: "ghcr.io/gethomepage/homepage:v2.4.0"
   # The connector for the Paradigm Prints tunnel, pinned with the same
   # version horizon's runs.
@@ -46,12 +125,173 @@ autolab_services_ports:
   code_server: "{{ autolab_service_catalog['code-server'].port }}"
   immich_share: "{{ autolab_service_catalog['immich-share'].port }}"
   dash: "{{ autolab_service_catalog.dash.port }}"
+  adventurelog: "{{ autolab_service_catalog.adventurelog.port }}"
+  forgejo: "{{ autolab_service_catalog.forgejo.port }}"
+  tandoor: "{{ autolab_service_catalog.tandoor.port }}"
+  airtrail: "{{ autolab_service_catalog.airtrail.port }}"
+  linkace: "{{ autolab_service_catalog.linkace.port }}"
+  sure: "{{ autolab_service_catalog.sure.port }}"
   qr: "{{ autolab_service_catalog.qr.port }}"
 
 # gethomepage. The names it answers to (it refuses any other Host header), and
 # the zone and internal label its links are built from.
 autolab_services_dash_zone: "pmahir.space"
 autolab_services_dash_label: "lab"
+
+# The email of your Pocket ID user (GitHub variable APPS_ADMIN_EMAIL). Every
+# app creates its first administrator from it, so the first sign-in through
+# Pocket ID attaches to that account instead of making an ordinary one beside
+# it. Read once, when an app first boots; changed afterwards in the app.
+autolab_services_admin_email: ""
+
+# Forgejo. See docs/gitops/forgejo.md.
+autolab_services_forgejo_public_url: "https://forgejo.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+# Pocket ID's client for Forgejo (GitHub secrets FORGEJO_OIDC_CLIENT_ID and
+# _SECRET). Empty = password login only. The source is registered under the
+# fixed name PocketID, because that name is part of the callback URL:
+# <public url>/user/oauth2/PocketID/callback
+autolab_services_forgejo_oidc_client_id: ""
+autolab_services_forgejo_oidc_client_secret: ""
+autolab_services_forgejo_oidc_issuer: "https://auth.{{ autolab_services_dash_zone }}"
+# Pocket ID's `admins` group becomes Forgejo's site administrators.
+autolab_services_forgejo_admin_group: admins
+# false = no password form: Pocket ID is the only way in. Flipped in a pull
+# request after a Pocket ID sign-in has been seen to work.
+autolab_services_forgejo_password_login: true
+autolab_services_forgejo_memory: 1g
+autolab_services_forgejo_db_memory: 384m
+# What Forgejo holds. `mirrors` are pull mirrors of upstream, refreshed on the
+# interval; `apps` are our forks of them, made once and then ours. Declared
+# here, created by forgejo_bootstrap.py, never reset.
+autolab_services_forgejo_mirror_interval: "8h0m0s"
+autolab_services_forgejo_mirrors:
+  - {name: adventurelog, url: "https://github.com/seanmorley15/AdventureLog.git"}
+  - {name: pocket-id, url: "https://github.com/pocket-id/pocket-id.git"}
+autolab_services_forgejo_forks: [adventurelog]
+
+# Where this host reaches Forgejo (the tailnet address its port is bound to),
+# for clones at build time and for the bootstrap script.
+autolab_services_forgejo_internal_url: "http://{{ autolab_services_fqdn }}:{{ autolab_services_ports.forgejo }}"
+
+# Apps built from source. `mode: upstream` runs the project's own release image
+# (how a new app starts, and the only way before Forgejo holds its fork);
+# `mode: fork` builds on this host from our fork at the pinned `ref`, which is
+# the line to change to ship a modification. The checkout is a disposable
+# cache under the services root; the repository itself is on Forgejo, on the
+# NAS. Fork URLs are anonymous reads on the tailnet.
+autolab_services_sources:
+  adventurelog:
+    mode: upstream
+    upstream_image: "{{ autolab_services_images.adventurelog }}"
+    repo: "{{ autolab_services_forgejo_internal_url }}/apps/adventurelog.git"
+    ref: v0.13.1
+    dockerfile: docker/Dockerfile
+    target: aio
+
+# The self-hosted apps. Each is `<name>.<label>.<zone>` on the tailnet and signs
+# people in with Pocket ID (its own client; GitHub secrets <APP>_OIDC_CLIENT_ID
+# and _SECRET). With both empty an app keeps only its password login, which is
+# how a first deploy proves it before the client exists. `password_login: false`
+# turns the password form off, in a pull request, once a Pocket ID sign-in has
+# been seen to work. Their database passwords and signing keys are generated on
+# the host (autolab-gen-credentials) and never leave it.
+autolab_services_tandoor_public_url: "https://tandoor.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+autolab_services_airtrail_public_url: "https://airtrail.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+autolab_services_linkace_public_url: "https://linkace.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+autolab_services_sure_public_url: "https://sure.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+autolab_services_oidc_issuer: "https://auth.{{ autolab_services_dash_zone }}"
+autolab_services_tandoor_oidc_client_id: ""
+autolab_services_tandoor_oidc_client_secret: ""
+autolab_services_airtrail_oidc_client_id: ""
+autolab_services_airtrail_oidc_client_secret: ""
+autolab_services_linkace_oidc_client_id: ""
+autolab_services_linkace_oidc_client_secret: ""
+autolab_services_sure_oidc_client_id: ""
+autolab_services_sure_oidc_client_secret: ""
+autolab_services_tandoor_password_login: true
+autolab_services_airtrail_password_login: true
+autolab_services_linkace_password_login: true
+autolab_services_sure_password_login: true
+# Limits, not reservations. Measured idle: Tandoor ~850 MB (its workers), Sure's
+# web and worker ~375 MB each, the rest well under 400 MB.
+autolab_services_memory:
+  tandoor: 1280m
+  tandoor_db: 256m
+  airtrail: 512m
+  airtrail_db: 256m
+  linkace: 512m
+  linkace_db: 384m
+  linkace_redis: 96m
+  sure: 768m
+  sure_worker: 768m
+  sure_db: 384m
+  sure_redis: 128m
+# What each needs generated, once, on the host. {PW} is the database's password,
+# shared by the files that need it; see files/autolab-gen-credentials.py.
+autolab_services_credential_specs:
+  - service: tandoor
+    files:
+      - path: /etc/autolab/tandoor-db.env
+        lines: [POSTGRES_DB=djangodb, POSTGRES_USER=djangouser, "POSTGRES_PASSWORD={PW}"]
+      - path: /etc/autolab/tandoor.env
+        lines: ["POSTGRES_PASSWORD={PW}", "SECRET_KEY={HEX64}", "DJANGO_SUPERUSER_PASSWORD={HEX16}"]
+  - service: airtrail
+    files:
+      - path: /etc/autolab/airtrail-db.env
+        lines: [POSTGRES_DB=airtrail, POSTGRES_USER=airtrail, "POSTGRES_PASSWORD={PW}"]
+      - path: /etc/autolab/airtrail.env
+        lines: ["DB_URL=postgres://airtrail:{PW}@airtrail-db:5432/airtrail"]
+  - service: linkace
+    files:
+      - path: /etc/autolab/linkace-db.env
+        lines: [MARIADB_USER=linkace, MARIADB_DATABASE=linkace, "MARIADB_PASSWORD={PW}", "MARIADB_ROOT_PASSWORD={HEX16}"]
+      - path: /etc/autolab/linkace-redis.env
+        lines: ["REDIS_PASSWORD={PW}"]
+      - path: /etc/autolab/linkace.env
+        lines: ["APP_KEY={APPKEY}", "DB_PASSWORD={PW}", "REDIS_PASSWORD={PW}", "LINKACE_ADMIN_PASSWORD={HEX16}"]
+  - service: sure
+    files:
+      - path: /etc/autolab/sure-db.env
+        lines: [POSTGRES_DB=sure, POSTGRES_USER=sure, "POSTGRES_PASSWORD={PW}"]
+      - path: /etc/autolab/sure.env
+        lines:
+          - "POSTGRES_PASSWORD={PW}"
+          - "SECRET_KEY_BASE={HEX64}"
+          # Encrypt what Sure stores about accounts. Losing them loses that data.
+          - "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY={HEX32}"
+          - "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY={HEX32}"
+          - "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT={HEX32}"
+
+# AdventureLog. See docs/gitops/adventurelog.md.
+#
+# The address people open, and the one Pocket ID sends them back to: SITE_URL
+# below, and the callback registered in Pocket ID is
+# <this>/accounts/oidc/<provider id>/login/callback/.
+autolab_services_adventurelog_public_url: "https://adventurelog.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+# Pocket ID's client for AdventureLog (GitHub secrets
+# ADVENTURELOG_OIDC_CLIENT_ID and _SECRET). Both empty = password login only,
+# which is how a first deploy proves the app before the client exists.
+autolab_services_adventurelog_oidc_client_id: ""
+autolab_services_adventurelog_oidc_client_secret: ""
+autolab_services_adventurelog_oidc_issuer: "https://auth.{{ autolab_services_dash_zone }}"
+# The last-but-two part of the callback URL; changing it means changing the
+# client's callback in Pocket ID with it.
+autolab_services_adventurelog_oidc_provider_id: pocketid
+# true = Pocket ID is the only way in, and the sign-in page sends people
+# straight there. Flipped only after a Pocket ID sign-in has been seen to work,
+# because the password it replaces is the way back in.
+autolab_services_adventurelog_sso_only: false
+# jwst has ~4.5 GB free. The app idles near 260 MB (measured) and wants about
+# 2 GB once, on first boot, while it downloads the country and region data, so
+# the cap leaves room above that; Postgres stays well under half a gigabyte for
+# a personal log. Limits, not reservations: they keep a runaway from taking
+# Prometheus down with it.
+autolab_services_adventurelog_memory: 3g
+autolab_services_adventurelog_db_memory: 512m
+autolab_services_adventurelog_workers: 2
+# Immich answers here, over the tailnet; each person gives AdventureLog this
+# address and their own API key in its settings.
+autolab_services_adventurelog_immich_port: "{{ autolab_services_immich_port }}"
 
 # QR redirect. The files that make its image: copied to the host, and what its
 # tag is a hash of. A new source file belongs here or it never reaches the host.

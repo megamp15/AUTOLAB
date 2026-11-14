@@ -1,0 +1,63 @@
+  # The lab's git host: pull mirrors of the projects the apps come from, and
+  # our forks of them. People sign in with Pocket ID. Repositories, packages and
+  # settings are on the NAS; the database is local and dumped nightly to it.
+  # See docs/gitops/forgejo.md.
+  forgejo:
+    image: {{ autolab_services_images.forgejo }}
+    restart: unless-stopped
+    depends_on:
+      forgejo-db:
+        condition: service_healthy
+    # Database password, secret key and the break-glass admin's password:
+    # generated on this host once, readable by root only.
+    env_file: /etc/autolab/forgejo.env
+    environment:
+      FORGEJO__server__DOMAIN: "{{ autolab_services_forgejo_public_url | regex_replace('^https?://', '') }}"
+      FORGEJO__server__ROOT_URL: "{{ autolab_services_forgejo_public_url }}/"
+      # HTTPS only. Nobody pushes over SSH yet, and a tailnet-only service
+      # does not need a second door.
+      FORGEJO__server__DISABLE_SSH: "true"
+      FORGEJO__database__DB_TYPE: postgres
+      FORGEJO__database__HOST: forgejo-db:5432
+      FORGEJO__database__NAME: forgejo
+      FORGEJO__database__USER: forgejo
+      FORGEJO__security__INSTALL_LOCK: "true"
+      # Accounts come from Pocket ID, and only from it. Local sign-up is closed.
+      FORGEJO__service__DISABLE_REGISTRATION: "false"
+      FORGEJO__service__ALLOW_ONLY_EXTERNAL_REGISTRATION: "true"
+      FORGEJO__service__ENABLE_INTERNAL_SIGNIN: "{{ 'true' if autolab_services_forgejo_password_login | bool else 'false' }}"
+      # Public reads: the apps are built from anonymous clones over the tailnet.
+      FORGEJO__service__REQUIRE_SIGNIN_VIEW: "false"
+      FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION: "true"
+      FORGEJO__oauth2_client__ACCOUNT_LINKING: auto
+      FORGEJO__oauth2_client__USERNAME: nickname
+      FORGEJO__mirror__DEFAULT_INTERVAL: "{{ autolab_services_forgejo_mirror_interval }}"
+      FORGEJO__actions__ENABLED: "false"
+    volumes:
+      # On the NAS; see the note on create_host_path under adventurelog.
+      - type: bind
+        source: {{ autolab_services_data_root }}/forgejo/data
+        target: /var/lib/gitea
+        bind:
+          create_host_path: false
+    mem_limit: {{ autolab_services_forgejo_memory }}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/healthz || exit 1"]
+      start_period: 60s
+      interval: 30s
+      timeout: 6s
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.forgejo }}:3000"
+
+  forgejo-db:
+    image: {{ autolab_services_images.forgejo_db }}
+    restart: unless-stopped
+    env_file: /etc/autolab/forgejo-db.env
+    volumes:
+      - forgejo-db:/var/lib/postgresql/data
+    mem_limit: {{ autolab_services_forgejo_db_memory }}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forgejo -d forgejo"]
+      interval: 10s
+      timeout: 5s
+      retries: 6

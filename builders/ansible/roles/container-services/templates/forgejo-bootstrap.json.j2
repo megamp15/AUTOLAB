@@ -1,0 +1,8 @@
+{
+  "url": "{{ autolab_services_forgejo_internal_url }}",
+  "token_file": "/etc/autolab/forgejo-api-token",
+  "orgs": {"mirrors": "Pull mirrors of the projects the lab's apps come from", "apps": "Our forks, which the apps are built from"},
+  "mirrors": {{ autolab_services_forgejo_mirrors | to_json }},
+  "forks": {{ autolab_services_forgejo_forks | to_json }},
+  "mirror_interval": "{{ autolab_services_forgejo_mirror_interval }}"
+}

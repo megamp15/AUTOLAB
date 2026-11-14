@@ -101,7 +101,7 @@ class IngressRoute(unittest.TestCase):
                      autolab_ingress_traefik_client_id='id', autolab_ingress_traefik_client_secret='secret',
                      autolab_ingress_tailnet_side=True, autolab_ingress_internal_label='lab',
                      autolab_ingress_public_routes={}, autolab_ingress_internal_routes=routes,
-                     autolab_ingress_services=[], autolab_service_catalog={},
+                     autolab_ingress_services=[], autolab_ingress_service_hosts={}, autolab_service_catalog={},
                      autolab_ingress_upstreams={'homepage': 'http://h:8080'}, autolab_ingress_homepage_groups=['admins'],
                      autolab_ingress_oidc_plugin_secret='s', autolab_ingress_session_max_age=1)
         return yaml.safe_load(doc)['http']

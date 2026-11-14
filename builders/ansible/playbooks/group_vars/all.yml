@@ -6,6 +6,16 @@
 # both roles' defaults would drift the first time one changed, so it lives
 # here, next to the playbooks that load it.
 
+# Services that run on machines in a Stack this inventory does not contain, by
+# the machine's tailnet name. The ingress run (lab) and the homepage cannot see
+# the edge Stack's machines map, so the names live here, and
+# scripts/test_remote_services.py fails if this differs from the machine's own
+# builder.services in infra/stacks/*/machines.auto.tfvars. One declaration per
+# service stays true: the machines map says where it runs, this says who has to
+# be told.
+autolab_remote_services:
+  nebula: [adventurelog, forgejo, tandoor, airtrail, linkace, sure]
+
 # Every container service the lab knows, what it listens on, and how a person
 # gets in:
 #   plugin — Traefik's OIDC middleware; one passkey, same session as the rest
@@ -52,6 +62,34 @@ autolab_service_catalog:
   qr:
     port: 8097
     login: plugin
+  # AdventureLog: the travel log. `own`, not `plugin`: it keeps a user per
+  # person (their adventures, their Immich key), so it signs people in itself
+  # with Pocket ID's OpenID Connect and the plugin in front would be a second,
+  # redundant login. Tailnet-only, like every lab name.
+  adventurelog:
+    port: 8098
+    login: own
+  # Forgejo: the lab's own git host. Mirrors of the projects the apps come from
+  # (so a takedown costs nothing) and our forks of them, which are what gets
+  # built. `own`: it signs people in itself with Pocket ID.
+  forgejo:
+    port: 8100
+    login: own
+  # The self-hosted apps on nebula. All `own`: each keeps a user per person and
+  # signs them in itself with Pocket ID, so the plugin in front would be a
+  # second login. Tailnet-only.
+  tandoor:
+    port: 8101
+    login: own
+  airtrail:
+    port: 8102
+    login: own
+  linkace:
+    port: 8103
+    login: own
+  sure:
+    port: 8104
+    login: own
   # The connector for the tunnel in the Paradigm Prints Cloudflare account. One
   # tunnel, any number of hostnames: each is a route in that account's
   # dashboard to <container>:<port> on the paradigm-public network. Only

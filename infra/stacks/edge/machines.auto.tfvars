@@ -56,4 +56,54 @@ machines = {
       }
     }
   }
+
+  # The lab's applications: Forgejo (the code, mirrors of upstream and our
+  # forks) and the self-hosted apps built from it — a travel log, recipes,
+  # flights, bookmarks, finances. What the lab runs for itself stays on jwst
+  # (Dockhand, the registry, the editor); what people use lives here.
+  #
+  # Here, not on jwst, for two reasons. RAM: the apps and the builds from
+  # source come to ~3.5 GB steady and spike past that, on a host that already
+  # OOM-killed Prometheus's neighbours sixteen times. Wire: xps-pve is Wi-Fi
+  # only, and these mount the NAS with `hard` NFS, which hangs a VM when the
+  # link stalls; zima-pve is wired.
+  #
+  # State is on the NAS (/mnt/apps): uploads, repositories, source checkouts and
+  # the nightly database dumps. Live Postgres data stays on this VM's disk,
+  # because a database on NFS v3 is a corruption story waiting for a link
+  # blip; the dumps and PBS are its copies. HDD for that reason: it writes.
+  #
+  # 302: 301 is magnetosphere. DHCP: the home router reserves it; the NAS rule
+  # is by tailnet name, which follows the machine.
+  nebula = {
+    type                    = "vm"
+    provisioning_class      = "builder_target"
+    name                    = "nebula"
+    vm_id                   = 302
+    node_name               = "zima-pve"
+    template_vm_id          = 9000
+    datastore_id            = "hdd"
+    cloud_init_datastore_id = "hdd"
+    cpu_cores               = 4
+    memory_mb               = 8192
+    disk_size_gb            = 80
+    ipv4_address            = "dhcp"
+    builder = {
+      docker_enabled = true
+      # What it runs. The names are the catalog's (playbooks/group_vars/all.yml)
+      # and must equal autolab_remote_services.nebula there; a test fails the
+      # build if they drift.
+      services = ["adventurelog", "forgejo", "tandoor", "airtrail", "linkace", "sure"]
+      # A share of its own, not a folder on /volume1/autolab: that share holds
+      # the PBS datastore, and a compromised app VM with write access to it
+      # could delete the backups. The export rule for this host must exist
+      # before the storage playbook runs — see docs/gitops/nebula.md.
+      storage = [
+        { protocol = "nfs", server = "singularity", share = "/volume1/apps", path = "/mnt/apps", directories = ["backups"], mode = "0755" },
+      ]
+      observability = {
+        ship_to = "jwst"
+      }
+    }
+  }
 }

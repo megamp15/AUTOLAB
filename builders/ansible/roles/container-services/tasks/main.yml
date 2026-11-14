@@ -63,6 +63,42 @@
       host. Run the harden playbook first, which creates it.
   when: "'code-server' in autolab_services_enabled"
 
+# The NAS share, before anything that stores state on it. A directory standing
+# where the share should be would take uploads onto the local disk and look
+# fine until the NAS came back.
+- name: Work out whether this machine runs services that live on the NAS
+  ansible.builtin.set_fact:
+    autolab_services_uses_nas: "{{ autolab_services_enabled | intersect(autolab_services_nas_backed) | length > 0 }}"
+
+- name: See whether the NAS share is mounted
+  ansible.builtin.command: mountpoint -q {{ autolab_services_data_root }}
+  register: autolab_services_nas_mount
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: autolab_services_uses_nas | bool
+
+- name: Require the NAS share for services that keep their files there
+  ansible.builtin.assert:
+    that: autolab_services_nas_mount.rc == 0
+    fail_msg: >-
+      {{ autolab_services_enabled | intersect(autolab_services_nas_backed) | join(', ') }} keep their files on the
+      NAS, and {{ autolab_services_data_root }} is not mounted. Create the NAS export rule for this host and run the
+      storage playbook first: docs/gitops/nebula.md.
+  when: autolab_services_uses_nas | bool
+
+- name: Create each NAS-backed service's directories
+  ansible.builtin.file:
+    path: "{{ autolab_services_data_root }}/{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "0755"
+  loop: "{{ autolab_services_nas_dirs }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: autolab_services_uses_nas | bool
+
 - name: Create the services directory
   ansible.builtin.file:
     path: "{{ autolab_services_root }}"
@@ -161,6 +197,173 @@
   no_log: true
   notify: Restart the services stack
   when: "'paradigm-tunnel' in autolab_services_enabled"
+
+# The account that exists from the app's first boot, and whose email a Pocket ID
+# sign-in is matched to. Refused empty rather than defaulted: the app reads it
+# once, at the first boot, and a wrong one is only fixable by hand afterwards.
+- name: Require AdventureLog's admin email and a complete Pocket ID client
+  ansible.builtin.assert:
+    that:
+      - autolab_services_admin_email is match('^[^@ ]+@[^@ ]+$')
+      - (autolab_services_adventurelog_oidc_client_id | length > 0) == (autolab_services_adventurelog_oidc_client_secret | length > 0)
+      - not autolab_services_adventurelog_sso_only | bool or autolab_services_adventurelog_oidc_client_id | length > 0
+    fail_msg: >-
+      The adventurelog service needs the APPS_ADMIN_EMAIL GitHub
+      variable (the email of your Pocket ID user). ADVENTURELOG_OIDC_CLIENT_ID
+      and ADVENTURELOG_OIDC_CLIENT_SECRET come as a pair, and signing in only
+      through Pocket ID needs them both.
+  no_log: true
+  when: "'adventurelog' in autolab_services_enabled"
+
+- name: Create protected service state directory for AdventureLog
+  ansible.builtin.file:
+    path: /etc/autolab
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: "'adventurelog' in autolab_services_enabled"
+
+# Three secrets, made here and kept here: the database's password, Django's
+# signing key, and the break-glass admin's password. They live and are backed
+# up with the database next to them, so they are not GitHub's to hold. Both
+# files are written before the marker one (`creates`), so an interrupted run
+# leaves nothing that looks finished. The values are hex: the app's first boot
+# interpolates the admin password into a script, so it must contain no quotes.
+- name: Create AdventureLog's credentials once
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      umask 077
+      db=$(mktemp /etc/autolab/.adventurelog-db.XXXXXX)
+      app=$(mktemp /etc/autolab/.adventurelog.XXXXXX)
+      trap 'rm -f "$db" "$app"' EXIT
+      pw=$(openssl rand -hex 24)
+      printf 'POSTGRES_DB=database\nPOSTGRES_USER=adventure\nPOSTGRES_PASSWORD=%s\n' "$pw" > "$db"
+      printf 'POSTGRES_PASSWORD=%s\nSECRET_KEY=%s\nDJANGO_ADMIN_PASSWORD=%s\n' \
+        "$pw" "$(openssl rand -hex 32)" "$(openssl rand -hex 16)" > "$app"
+      mv "$db" /etc/autolab/adventurelog-db.env
+      mv "$app" /etc/autolab/adventurelog.env
+    creates: /etc/autolab/adventurelog.env
+  no_log: true
+  when: "'adventurelog' in autolab_services_enabled"
+
+# Forgejo's credentials, the same way: made here once, read by root only.
+# SECRET_KEY signs sessions and encrypts what Forgejo stores; it must survive
+# the container, so it is not left to be generated into app.ini.
+- name: Create Forgejo's credentials once
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      umask 077
+      db=$(mktemp /etc/autolab/.forgejo-db.XXXXXX)
+      app=$(mktemp /etc/autolab/.forgejo.XXXXXX)
+      trap 'rm -f "$db" "$app"' EXIT
+      pw=$(openssl rand -hex 24)
+      printf 'POSTGRES_DB=forgejo\nPOSTGRES_USER=forgejo\nPOSTGRES_PASSWORD=%s\n' "$pw" > "$db"
+      printf 'FORGEJO__database__PASSWD=%s\nFORGEJO__security__SECRET_KEY=%s\nFORGEJO_ADMIN_PASSWORD=%s\n' \
+        "$pw" "$(openssl rand -hex 32)" "$(openssl rand -hex 16)" > "$app"
+      mv "$db" /etc/autolab/forgejo-db.env
+      mv "$app" /etc/autolab/forgejo.env
+    creates: /etc/autolab/forgejo.env
+  no_log: true
+  when: "'forgejo' in autolab_services_enabled"
+
+- name: Require Forgejo's admin email and a complete Pocket ID client
+  ansible.builtin.assert:
+    that:
+      - autolab_services_admin_email is match('^[^@ ]+@[^@ ]+$')
+      - (autolab_services_forgejo_oidc_client_id | length > 0) == (autolab_services_forgejo_oidc_client_secret | length > 0)
+      - autolab_services_forgejo_password_login | bool or autolab_services_forgejo_oidc_client_id | length > 0
+    fail_msg: >-
+      Forgejo needs the APPS_ADMIN_EMAIL GitHub variable, FORGEJO_OIDC_CLIENT_ID and FORGEJO_OIDC_CLIENT_SECRET as a
+      pair, and no password login only with both.
+  no_log: true
+  when: "'forgejo' in autolab_services_enabled"
+
+# Apps in `fork` mode are built from our fork. A checkout per app, at the
+# pinned ref, under the services root: a cache, rebuilt from Forgejo if lost.
+- name: Work out which apps are built from our forks
+  ansible.builtin.set_fact:
+    autolab_services_fork_apps: >-
+      {{ autolab_services_sources | dict2items
+         | selectattr('value.mode', 'equalto', 'fork') | map(attribute='key')
+         | select('in', autolab_services_enabled) | list }}
+
+- name: Install git where something is built from source
+  ansible.builtin.apt:
+    name: git
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: autolab_services_fork_apps | length > 0
+
+- name: Check out each fork at its pinned ref
+  ansible.builtin.git:
+    repo: "{{ autolab_services_sources[item].repo }}"
+    dest: "{{ autolab_services_root }}/src/{{ item }}"
+    version: "{{ autolab_services_sources[item].ref }}"
+    force: true
+  loop: "{{ autolab_services_fork_apps }}"
+  register: autolab_services_checkouts
+
+- name: Tag each built image with the commit it was built from
+  ansible.builtin.set_fact:
+    autolab_services_source_tags: >-
+      {{ dict(autolab_services_fork_apps | zip(autolab_services_checkouts.results | map(attribute='after') | map('truncate', 12, true, ''))) }}
+  when: autolab_services_fork_apps | length > 0
+
+# The self-hosted apps (tandoor, airtrail, linkace, sure): credentials made once
+# on this host, the Pocket ID client written to a root-only env file each run.
+- name: Work out which of the self-hosted apps this machine runs
+  ansible.builtin.set_fact:
+    autolab_services_apps: "{{ ['tandoor', 'airtrail', 'linkace', 'sure'] | intersect(autolab_services_enabled) }}"
+
+- name: Require an admin email and complete Pocket ID clients for the apps
+  ansible.builtin.assert:
+    that:
+      - autolab_services_admin_email is match('^[^@ ]+@[^@ ]+$')
+      - (lookup('ansible.builtin.vars', 'autolab_services_' ~ item ~ '_oidc_client_id') | length > 0)
+        == (lookup('ansible.builtin.vars', 'autolab_services_' ~ item ~ '_oidc_client_secret') | length > 0)
+      - lookup('ansible.builtin.vars', 'autolab_services_' ~ item ~ '_password_login') | bool
+        or lookup('ansible.builtin.vars', 'autolab_services_' ~ item ~ '_oidc_client_id') | length > 0
+    fail_msg: >-
+      {{ item }} needs the APPS_ADMIN_EMAIL variable, its OIDC client id and secret as a pair
+      ({{ item | upper }}_OIDC_CLIENT_ID / _SECRET), and no password login only with both.
+  loop: "{{ autolab_services_apps }}"
+  no_log: true
+
+- name: Install the credential generator
+  ansible.builtin.copy:
+    src: autolab-gen-credentials.py
+    dest: /usr/local/bin/autolab-gen-credentials
+    owner: root
+    group: root
+    mode: "0755"
+  when: autolab_services_apps | length > 0
+
+- name: Generate each app's credentials once
+  ansible.builtin.command:
+    argv: [/usr/local/bin/autolab-gen-credentials]
+    stdin: "{{ {'files': item.files} | to_json }}"
+    creates: "{{ (item.files | last).path }}"
+  loop: "{{ autolab_services_credential_specs | selectattr('service', 'in', autolab_services_apps) | list }}"
+  loop_control:
+    label: "{{ item.service }}"
+  no_log: true
+
+- name: Write each app's Pocket ID client
+  ansible.builtin.template:
+    src: app-oidc.env.j2
+    dest: "/etc/autolab/{{ app }}-oidc.env"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ autolab_services_apps }}"
+  loop_control:
+    loop_var: app
+  no_log: true
+  notify: Restart the services stack
 
 - name: Create code-server persistent state and workspace
   ansible.builtin.file:
@@ -350,6 +553,334 @@
   no_log: true
   when: "'dockhand' in autolab_services_enabled and not ansible_check_mode"
 
+# The first boot migrates the database and downloads the world's regions, which
+# takes minutes; later boots take seconds. Nothing below works before it.
+- name: Wait for AdventureLog to answer
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.adventurelog }}/health"
+    status_code: [200]
+  register: autolab_adventurelog_ready
+  until: autolab_adventurelog_ready.status == 200
+  retries: 90
+  delay: 10
+  when: "'adventurelog' in autolab_services_enabled and not ansible_check_mode"
+
+# The environment is that of this one exec, so the client secret is never in
+# the container's own. The script says CHANGED or UNCHANGED, so a converged
+# host reports ok.
+- name: Register Pocket ID as AdventureLog's login
+  community.docker.docker_container_exec:
+    container: "{{ autolab_services_project }}-adventurelog-1"
+    chdir: /code
+    argv: [python, manage.py, shell]
+    stdin: "{{ lookup('ansible.builtin.file', 'adventurelog/pocketid_provider.py') }}"
+    env:
+      AL_OIDC_PROVIDER_ID: "{{ autolab_services_adventurelog_oidc_provider_id }}"
+      AL_OIDC_NAME: Pocket ID
+      AL_OIDC_CLIENT_ID: "{{ autolab_services_adventurelog_oidc_client_id }}"
+      AL_OIDC_CLIENT_SECRET: "{{ autolab_services_adventurelog_oidc_client_secret }}"
+      AL_OIDC_ISSUER: "{{ autolab_services_adventurelog_oidc_issuer }}"
+      AL_SITE_HOST: "{{ autolab_services_adventurelog_public_url | regex_replace('^https?://', '') }}"
+  register: autolab_adventurelog_provider
+  changed_when: autolab_adventurelog_provider.stdout_lines | last | default('') == 'CHANGED'
+  no_log: true
+  when:
+    - "'adventurelog' in autolab_services_enabled"
+    - autolab_services_adventurelog_oidc_client_id | length > 0
+    - not ansible_check_mode
+
+# What the sign-in button actually does: the app fetches Pocket ID's discovery
+# document and answers with a redirect to its authorize page. A wrong issuer,
+# an unreachable Pocket ID or a missing provider all fail here, by name, rather
+# than on the first person to click.
+- name: Verify the sign-in reaches Pocket ID
+  ansible.builtin.uri:
+    url: >-
+      http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.adventurelog }}/accounts/oidc/{{
+      autolab_services_adventurelog_oidc_provider_id }}/login/?process=login
+    headers:
+      Host: "{{ autolab_services_adventurelog_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    follow_redirects: none
+    status_code: [302]
+  register: autolab_adventurelog_signin
+  failed_when: >-
+    autolab_adventurelog_signin.status != 302 or
+    not (autolab_adventurelog_signin.location | default('')).startswith(
+      autolab_services_adventurelog_oidc_issuer ~ '/authorize?')
+  when:
+    - "'adventurelog' in autolab_services_enabled"
+    - autolab_services_adventurelog_oidc_client_id | length > 0
+    - not ansible_check_mode
+
+# Forgejo: its break-glass admin, Pocket ID as a login, an API token, and the
+# organizations, mirrors and forks it exists to hold. Each step is a no-op once
+# it has happened, so a converged host reports ok.
+- name: Wait for Forgejo to answer
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.forgejo }}/api/healthz"
+    status_code: [200]
+  register: autolab_forgejo_ready
+  until: autolab_forgejo_ready.status == 200
+  retries: 60
+  delay: 5
+  when: "'forgejo' in autolab_services_enabled and not ansible_check_mode"
+
+- name: List Forgejo's users
+  community.docker.docker_container_exec:
+    container: "{{ autolab_services_project }}-forgejo-1"
+    argv: [forgejo, admin, user, list]
+  register: autolab_forgejo_users
+  changed_when: false
+  when: "'forgejo' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Create Forgejo's break-glass administrator
+  ansible.builtin.shell:
+    cmd: |
+      . /etc/autolab/forgejo.env
+      docker exec {{ autolab_services_project }}-forgejo-1 forgejo admin user create --admin \
+        --username forgejo-admin --email "{{ autolab_services_admin_email }}" \
+        --password "$FORGEJO_ADMIN_PASSWORD" --must-change-password=false
+  no_log: true
+  changed_when: true
+  when:
+    - "'forgejo' in autolab_services_enabled"
+    - not ansible_check_mode
+    - "'forgejo-admin' not in autolab_forgejo_users.stdout"
+
+# The source is rewritten only when what describes it changed: Forgejo will not
+# say whether a secret differs, so a digest of the settings stands in.
+- name: Describe the Pocket ID login
+  ansible.builtin.set_fact:
+    autolab_forgejo_oidc_digest: >-
+      {{ (autolab_services_forgejo_oidc_client_id ~ autolab_services_forgejo_oidc_client_secret
+          ~ autolab_services_forgejo_oidc_issuer ~ autolab_services_forgejo_admin_group) | hash('sha256') }}
+  no_log: true
+  when: autolab_services_forgejo_oidc_client_id | length > 0
+
+- name: Read the digest of the login Forgejo has
+  ansible.builtin.slurp:
+    src: /etc/autolab/forgejo-oidc.sha256
+  register: autolab_forgejo_oidc_have
+  failed_when: false
+  when:
+    - "'forgejo' in autolab_services_enabled"
+    - autolab_services_forgejo_oidc_client_id | length > 0
+    - not ansible_check_mode
+
+- name: Register or update Pocket ID as Forgejo's login
+  ansible.builtin.shell:
+    executable: /bin/bash
+    cmd: |
+      set -eo pipefail
+      f="docker exec {{ autolab_services_project }}-forgejo-1 forgejo admin auth"
+      id=$($f list | awk -F'\t' '$2 == "PocketID" {print $1}')
+      if [ -n "$id" ]; then verb="update-oauth --id $id"; else verb="add-oauth"; fi
+      $f $verb --name PocketID --provider openidConnect \
+        --key "$KEY" --secret "$SECRET" \
+        --auto-discover-url "{{ autolab_services_forgejo_oidc_issuer }}/.well-known/openid-configuration" \
+        --scopes openid --scopes email --scopes profile --scopes groups \
+        --group-claim-name groups --admin-group "{{ autolab_services_forgejo_admin_group }}" --skip-local-2fa
+      umask 077
+      printf '%s' "$DIGEST" > /etc/autolab/forgejo-oidc.sha256
+  environment:
+    KEY: "{{ autolab_services_forgejo_oidc_client_id }}"
+    SECRET: "{{ autolab_services_forgejo_oidc_client_secret }}"
+    DIGEST: "{{ autolab_forgejo_oidc_digest | default('') }}"
+  no_log: true
+  changed_when: true
+  when:
+    - "'forgejo' in autolab_services_enabled"
+    - autolab_services_forgejo_oidc_client_id | length > 0
+    - not ansible_check_mode
+    - (autolab_forgejo_oidc_have.content | default('') | b64decode) != autolab_forgejo_oidc_digest
+
+- name: Verify Forgejo's sign-in reaches Pocket ID
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.forgejo }}/user/oauth2/PocketID"
+    headers:
+      Host: "{{ autolab_services_forgejo_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    follow_redirects: none
+    status_code: [307]
+  register: autolab_forgejo_signin
+  failed_when: >-
+    autolab_forgejo_signin.status != 307 or
+    not (autolab_forgejo_signin.location | default('')).startswith(autolab_services_forgejo_oidc_issuer ~ '/authorize?')
+  when:
+    - "'forgejo' in autolab_services_enabled"
+    - autolab_services_forgejo_oidc_client_id | length > 0
+    - not ansible_check_mode
+
+# The token the bootstrap script calls the API with, made once.
+- name: Create Forgejo's API token once
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      umask 077
+      docker exec {{ autolab_services_project }}-forgejo-1 forgejo admin user generate-access-token \
+        --username forgejo-admin --token-name autolab-bootstrap --scopes all --raw > /etc/autolab/.forgejo-token
+      mv /etc/autolab/.forgejo-token /etc/autolab/forgejo-api-token
+    creates: /etc/autolab/forgejo-api-token
+  no_log: true
+  when: "'forgejo' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Install the Forgejo bootstrap script
+  ansible.builtin.copy:
+    src: forgejo_bootstrap.py
+    dest: /usr/local/bin/autolab-forgejo-bootstrap
+    owner: root
+    group: root
+    mode: "0755"
+  when: "'forgejo' in autolab_services_enabled"
+
+- name: Describe what Forgejo should hold
+  ansible.builtin.template:
+    src: forgejo-bootstrap.json.j2
+    dest: /etc/autolab/forgejo-bootstrap.json
+    owner: root
+    group: root
+    mode: "0644"
+  when: "'forgejo' in autolab_services_enabled"
+
+- name: Create the organizations, mirrors and forks
+  ansible.builtin.command: /usr/local/bin/autolab-forgejo-bootstrap /etc/autolab/forgejo-bootstrap.json
+  register: autolab_forgejo_bootstrap
+  changed_when: autolab_forgejo_bootstrap.stdout_lines | last | default('') == 'CHANGED'
+  when: "'forgejo' in autolab_services_enabled and not ansible_check_mode"
+
+# The self-hosted apps, once up. Each is waited for, given its first
+# administrator where it can be done without a person, and its Pocket ID login
+# checked as far as that can be seen from here.
+- name: Wait for Tandoor to answer
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.tandoor }}/"
+    headers:
+      Host: "{{ autolab_services_tandoor_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    follow_redirects: none
+    status_code: [200, 302]
+  register: autolab_tandoor_ready
+  until: autolab_tandoor_ready.status in [200, 302]
+  retries: 60
+  delay: 10
+  when: "'tandoor' in autolab_services_enabled and not ansible_check_mode"
+
+# Django's own command, from the password generated for it. A second run finds
+# the account and changes nothing.
+- name: Create Tandoor's break-glass administrator
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - "{{ autolab_services_project }}-tandoor-1"
+      - sh
+      - -c
+      - >-
+        cd /opt/recipes && /opt/recipes/venv/bin/python manage.py createsuperuser --noinput
+        --username admin --email "{{ autolab_services_admin_email }}"
+  register: autolab_tandoor_admin
+  changed_when: autolab_tandoor_admin.rc == 0
+  failed_when: autolab_tandoor_admin.rc != 0 and 'already taken' not in autolab_tandoor_admin.stderr
+  no_log: true
+  when: "'tandoor' in autolab_services_enabled and not ansible_check_mode"
+
+# Tandoor 2 runs allauth headless: the login button is the SPA's, and the
+# provider list it draws from is this API. Present = loaded and parsed.
+- name: Verify Tandoor offers Pocket ID
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.tandoor }}/_allauth/browser/v1/config"
+    headers:
+      Host: "{{ autolab_services_tandoor_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    return_content: true
+  register: autolab_tandoor_config
+  failed_when: >-
+    'pocketid' not in (autolab_tandoor_config.json.data.socialaccount.providers | map(attribute='id') | list)
+  when:
+    - "'tandoor' in autolab_services_enabled"
+    - autolab_services_tandoor_oidc_client_id | length > 0
+    - not ansible_check_mode
+
+- name: Wait for AirTrail to answer
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.airtrail }}/"
+    status_code: [200]
+  register: autolab_airtrail_ready
+  until: autolab_airtrail_ready.status == 200
+  retries: 60
+  delay: 5
+  when: "'airtrail' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Wait for LinkAce to answer
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.linkace }}/"
+    headers:
+      Host: "{{ autolab_services_linkace_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    follow_redirects: none
+    status_code: [200, 302]
+  register: autolab_linkace_ready
+  until: autolab_linkace_ready.status in [200, 302]
+  retries: 60
+  delay: 5
+  when: "'linkace' in autolab_services_enabled and not ansible_check_mode"
+
+# LinkAce shows a setup wizard until it is told setup is over, and its tables
+# do not exist until the wizard (or `migrate`) makes them. This does what the
+# wizard does, with the generated password, once.
+- name: Create LinkAce's administrator and finish its setup
+  ansible.builtin.shell:
+    cmd: >-
+      docker exec {{ autolab_services_project }}-linkace-1 sh -c
+      'php artisan migrate --force && php artisan registeruser --admin -n admin
+      "{{ autolab_services_admin_email }}" "$LINKACE_ADMIN_PASSWORD" && php artisan setup:complete' && touch /etc/autolab/linkace-setup-done
+    creates: /etc/autolab/linkace-setup-done
+  no_log: true
+  when: "'linkace' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Verify LinkAce's sign-in reaches Pocket ID
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.linkace }}/auth/sso/oidc/redirect"
+    headers:
+      Host: "{{ autolab_services_linkace_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    follow_redirects: none
+    status_code: [302]
+  register: autolab_linkace_signin
+  failed_when: >-
+    not (autolab_linkace_signin.location | default('')).startswith(autolab_services_oidc_issuer ~ '/authorize?')
+  when:
+    - "'linkace' in autolab_services_enabled"
+    - autolab_services_linkace_oidc_client_id | length > 0
+    - not ansible_check_mode
+
+- name: Wait for Sure to answer
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.sure }}/up"
+    status_code: [200]
+  register: autolab_sure_ready
+  until: autolab_sure_ready.status == 200
+  retries: 60
+  delay: 5
+  when: "'sure' in autolab_services_enabled and not ansible_check_mode"
+
+# Sure's login is a POST behind a CSRF token, which is not worth faking here;
+# its sign-in page carrying the button is the proof the client was loaded.
+- name: Verify Sure offers Pocket ID
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.sure }}/sessions/new"
+    headers:
+      Host: "{{ autolab_services_sure_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    return_content: true
+  register: autolab_sure_signin
+  failed_when: "'Sign in with Pocket ID' not in autolab_sure_signin.content"
+  when:
+    - "'sure' in autolab_services_enabled"
+    - autolab_services_sure_oidc_client_id | length > 0
+    - not ansible_check_mode
+
 # After the stack is up, because it runs inside the container. The CLI is
 # idempotent and says so — "already installed" is how a converged host is
 # told apart from one that just gained an extension, which is what keeps a
@@ -370,6 +901,82 @@
     - autolab_services_code_server_extensions | length > 0
     - not ansible_check_mode
 
+# Nightly dumps of every app database to the NAS and a weekly restore into a
+# scratch container, with metrics for the alert rules. The databases are local;
+# these are their copies. Skipped, with a line saying so, until the share is
+# mounted.
+- name: Work out which of this machine's services have a database to protect
+  ansible.builtin.set_fact:
+    autolab_services_db_list: >-
+      {{ autolab_services_enabled | intersect(autolab_services_databases.keys() | list)
+         | map('extract', autolab_services_databases) | list }}
+    autolab_services_db_names: "{{ autolab_services_enabled | intersect(autolab_services_databases.keys() | list) }}"
+
+- name: Install the database backup script
+  ansible.builtin.copy:
+    src: autolab-db-backup.py
+    dest: /usr/local/bin/autolab-db-backup
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - autolab_services_db_names | length > 0
+    - autolab_services_nas_mount.rc | default(1) == 0
+
+- name: Describe the databases to the backup script
+  ansible.builtin.template:
+    src: db-backup.json.j2
+    dest: /etc/autolab/db-backup.json
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - autolab_services_db_names | length > 0
+    - autolab_services_nas_mount.rc | default(1) == 0
+
+- name: Install the backup and restore-test timers
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - autolab-db-backup.service
+    - autolab-db-backup.timer
+    - autolab-db-restore-test.service
+    - autolab-db-restore-test.timer
+  when:
+    - autolab_services_db_names | length > 0
+    - autolab_services_nas_mount.rc | default(1) == 0
+
+- name: Enable the backup and restore-test timers
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+  loop: [autolab-db-backup.timer, autolab-db-restore-test.timer]
+  when:
+    - autolab_services_db_names | length > 0
+    - autolab_services_nas_mount.rc | default(1) == 0
+    - not ansible_check_mode
+
+# A dump that has never run is an alert waiting for 36 hours; take the first one
+# now, and prove it can be restored, so the first thing a new app's database has
+# is evidence.
+- name: Take a first dump and prove it restores
+  ansible.builtin.shell:
+    cmd: >-
+      /usr/local/bin/autolab-db-backup dump &&
+      /usr/local/bin/autolab-db-backup restore-test &&
+      touch /var/lib/autolab/db-backup-first-ok
+    creates: /var/lib/autolab/db-backup-first-ok
+  when:
+    - autolab_services_db_names | length > 0
+    - autolab_services_nas_mount.rc | default(1) == 0
+    - not ansible_check_mode
+
 - name: Say what is running and where
   ansible.builtin.debug:
     msg: >-
@@ -378,3 +985,6 @@
       {{- ', registry :' ~ autolab_services_ports.registry if 'registry' in autolab_services_enabled else '' }}
       {{- ', registry-ui :' ~ autolab_services_ports.registry_ui if 'registry-ui' in autolab_services_enabled else '' }}
       {{- ', code-server :' ~ autolab_services_ports.code_server if 'code-server' in autolab_services_enabled else '' }}
+      {{- ', adventurelog :' ~ autolab_services_ports.adventurelog if 'adventurelog' in autolab_services_enabled else '' }}
+      {{- ' (each person gives it Immich at http://singularity.' ~ autolab_services_fqdn.split('.', 1)[1]
+          ~ ':' ~ autolab_services_adventurelog_immich_port ~ '/api)' if 'adventurelog' in autolab_services_enabled else '' }}

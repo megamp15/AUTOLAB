@@ -1,0 +1,10 @@
+# Managed by Ansible — roles/container-services.
+[Unit]
+Description=Dump the app databases to the NAS
+After=docker.service
+Requires=docker.service
+RequiresMountsFor={{ autolab_services_data_root }}
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/autolab-db-backup dump

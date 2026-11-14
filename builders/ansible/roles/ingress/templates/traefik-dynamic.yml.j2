@@ -40,7 +40,7 @@ http:
             sans: ["*.{{ lab }}"]
 {%     endif %}
 {%   endfor %}
-{%   for name in autolab_ingress_services %}
+{%   for name in autolab_ingress_service_hosts %}
 {%     set svc = autolab_service_catalog[name] %}
 {%     if svc.port is defined and (svc.login not in ['plugin', 'admin'] or plugin_on) %}
     lab-{{ name }}:
@@ -84,13 +84,13 @@ http:
           - url: "{{ route.upstream }}"
 {%     endif %}
 {%   endfor %}
-{%   for name in autolab_ingress_services %}
+{%   for name in autolab_ingress_service_hosts %}
 {%     set svc = autolab_service_catalog[name] %}
 {%     if svc.port is defined and (svc.login not in ['plugin', 'admin'] or plugin_on) %}
     lab-{{ name }}:
       loadBalancer:
         servers:
-          - url: "http://{{ autolab_ingress_services_fqdn }}:{{ svc.port }}"
+          - url: "http://{{ autolab_ingress_service_hosts[name] }}:{{ svc.port }}"
 {%     endif %}
 {%   endfor %}
 

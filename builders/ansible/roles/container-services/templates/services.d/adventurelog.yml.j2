@@ -1,0 +1,76 @@
+  # The travel log: one image with the web app, the API, nginx and a cache,
+  # beside the PostGIS database it needs. People sign in with Pocket ID; the
+  # photos they attach are Immich's, fetched by this container over the
+  # tailnet when each person gives it an Immich API key. See
+  # docs/gitops/adventurelog.md. Uploads are on the NAS; the database is local
+  # and is dumped to the NAS every night (autolab-db-backup).
+  adventurelog:
+{% set src = autolab_services_sources.adventurelog %}
+{% if src.mode == 'fork' %}
+    # Built here from our fork at the pinned ref; the tag is the commit built.
+    image: autolab/adventurelog:{{ autolab_services_source_tags.adventurelog }}
+    build:
+      context: ./src/adventurelog
+      dockerfile: {{ src.dockerfile }}
+      target: {{ src.target }}
+{% else %}
+    image: {{ src.upstream_image }}
+{% endif %}
+    restart: unless-stopped
+    depends_on:
+      adventurelog-db:
+        condition: service_healthy
+    # The credentials are generated on this host the first time and kept in a
+    # file only root reads: not in this one, not in GitHub, not in the log.
+    env_file: /etc/autolab/adventurelog.env
+    environment:
+      SITE_URL: "{{ autolab_services_adventurelog_public_url }}"
+      PGHOST: adventurelog-db
+      POSTGRES_DB: database
+      POSTGRES_USER: adventure
+      # The frontend's own port inside the container; nginx fronts both it
+      # and the API on 80.
+      PORT: "3000"
+      DJANGO_ADMIN_USERNAME: admin
+      DJANGO_ADMIN_EMAIL: "{{ autolab_services_admin_email }}"
+      GUNICORN_WORKERS: "{{ autolab_services_adventurelog_workers }}"
+      # Nobody signs themselves up with a password. A Pocket ID account that
+      # Pocket ID lets through (the client's allowed groups) gets an
+      # AdventureLog account on first sign-in, and one whose email matches an
+      # existing account is attached to it rather than duplicated.
+      DISABLE_REGISTRATION: "true"
+      SOCIALACCOUNT_ALLOW_SIGNUP: "true"
+      SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT: "true"
+      FORCE_SOCIALACCOUNT_LOGIN: "{{ 'true' if autolab_services_adventurelog_sso_only | bool else 'false' }}"
+    volumes:
+      # On the NAS. create_host_path: false makes a missing path an error
+      # instead of an empty directory made on the local disk, which would hold
+      # uploads that vanish from the NAS's view the day it comes back.
+      - type: bind
+        source: {{ autolab_services_data_root }}/adventurelog/media
+        target: /code/media
+        bind:
+          create_host_path: false
+    mem_limit: {{ autolab_services_adventurelog_memory }}
+    healthcheck:
+      # No curl or wget in the image; Python is.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1/health', timeout=4)\""]
+      # The first boot runs migrations and downloads the world's regions.
+      start_period: 600s
+      interval: 30s
+      timeout: 6s
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.adventurelog }}:80"
+
+  adventurelog-db:
+    image: {{ autolab_services_images.adventurelog_db }}
+    restart: unless-stopped
+    env_file: /etc/autolab/adventurelog-db.env
+    volumes:
+      - adventurelog-db:/var/lib/postgresql/data
+    mem_limit: {{ autolab_services_adventurelog_db_memory }}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adventure -d database"]
+      interval: 10s
+      timeout: 5s
+      retries: 6

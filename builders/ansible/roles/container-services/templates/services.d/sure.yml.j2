@@ -1,0 +1,90 @@
+  # Personal finance: accounts, budgets, net worth. The most sensitive thing
+  # here, so: tailnet only, Pocket ID, its files on the NAS, its database
+  # dumped nightly and restore-tested, and no bank aggregator or AI service
+  # enabled (those are credentials in its settings, off unless someone adds them).
+  # docs/gitops/apps.md.
+  sure:
+    image: {{ autolab_services_images.sure }}
+    restart: unless-stopped
+    depends_on:
+      sure-db:
+        condition: service_healthy
+      sure-redis:
+        condition: service_healthy
+    env_file:
+      - /etc/autolab/sure.env
+      - /etc/autolab/sure-oidc.env
+    environment: &sure_env
+      SELF_HOSTED: "true"
+      # Traefik terminates TLS: Rails must believe the request was https, and
+      # must not redirect the plain-HTTP hop from Traefik to it.
+      RAILS_ASSUME_SSL: "true"
+      RAILS_FORCE_SSL: "false"
+      APP_DOMAIN: "{{ autolab_services_sure_public_url | regex_replace('^https?://', '') }}"
+      DB_HOST: sure-db
+      DB_PORT: "5432"
+      POSTGRES_DB: sure
+      POSTGRES_USER: sure
+      REDIS_URL: redis://sure-redis:6379/1
+      # The password form, and the passkey page that sits beside it.
+      AUTH_LOCAL_LOGIN_ENABLED: "{{ 'true' if autolab_services_sure_password_login | bool else 'false' }}"
+    volumes:
+      - type: bind
+        source: {{ autolab_services_data_root }}/sure/storage
+        target: /rails/storage
+        bind:
+          create_host_path: false
+    mem_limit: {{ autolab_services_memory.sure }}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:3000/up"]
+      start_period: 120s
+      interval: 30s
+      timeout: 6s
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.sure }}:3000"
+
+  # The background jobs: syncs, imports, scheduled work.
+  sure-worker:
+    image: {{ autolab_services_images.sure }}
+    restart: unless-stopped
+    command: bundle exec sidekiq
+    depends_on:
+      sure-db:
+        condition: service_healthy
+      sure-redis:
+        condition: service_healthy
+    env_file:
+      - /etc/autolab/sure.env
+      - /etc/autolab/sure-oidc.env
+    environment: *sure_env
+    volumes:
+      - type: bind
+        source: {{ autolab_services_data_root }}/sure/storage
+        target: /rails/storage
+        bind:
+          create_host_path: false
+    mem_limit: {{ autolab_services_memory.sure_worker }}
+
+  sure-db:
+    image: {{ autolab_services_images.postgres }}
+    restart: unless-stopped
+    env_file: /etc/autolab/sure-db.env
+    volumes:
+      - sure-db:/var/lib/postgresql/data
+    mem_limit: {{ autolab_services_memory.sure_db }}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sure -d sure"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # Only the job queue. Nothing here is the only copy of anything.
+  sure-redis:
+    image: {{ autolab_services_images.redis }}
+    restart: unless-stopped
+    mem_limit: {{ autolab_services_memory.sure_redis }}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6

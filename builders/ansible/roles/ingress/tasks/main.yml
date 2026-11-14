@@ -63,6 +63,22 @@
       {{ autolab_ingress_services_host if '.' in autolab_ingress_services_host
          else autolab_ingress_services_host ~ '.' ~ autolab_ingress_tailnet_domain }}
 
+# One upstream per service name: the services host for its own, the named
+# machine for the ones that run in another Stack.
+- name: Map every routed service to the machine that runs it
+  ansible.builtin.set_fact:
+    autolab_ingress_service_hosts: >-
+      {%- set out = {} -%}
+      {%- for name in autolab_ingress_services -%}
+      {%-   set _ = out.update({name: autolab_ingress_services_fqdn}) -%}
+      {%- endfor -%}
+      {%- for machine, names in autolab_ingress_remote_services.items() -%}
+      {%-   for name in names -%}
+      {%-     set _ = out.update({name: machine ~ '.' ~ autolab_ingress_tailnet_domain}) -%}
+      {%-   endfor -%}
+      {%- endfor -%}
+      {{ out }}
+
 - name: Set the backup host's full name
   ansible.builtin.set_fact:
     autolab_ingress_pbs_fqdn: >-
