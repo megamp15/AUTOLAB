@@ -42,7 +42,11 @@ class FakeImmich:
                 if self.path == '/api/search/metadata':
                     if outer.legacy and 'filter' in body:
                         return self.reply(400, {'message': 'property filter should not exist'})
-                    size, page = body['size'], body['page']
+                    size = body['size']
+                    if 'filter' in body and 'page' in body:      # what Immich 3.x answers
+                        return self.reply(400, {'message': 'Validation failed', 'errors': [
+                            {'path': ['page'], 'message': 'Deprecated field page cannot be combined with filter'}]})
+                    start = int(base64.b64decode(body['cursor'])) if body.get('cursor') else (body.get('page', 1) - 1) * size
                     filters = body.get('filter') or {}
                     items = [a for a in outer.assets if a.get('isTrashed')] if filters.get('trashedAt') or body.get('withDeleted') else \
                             [a for a in outer.assets if not a.get('isTrashed')]
@@ -53,10 +57,12 @@ class FakeImmich:
                     if album_filter:
                         ids = {asset_id for album in outer.albums if album['id'] in album_filter for asset_id in album['assetIds']}
                         items = [a for a in items if a['id'] in ids]
-                    chunk = items[(page - 1) * size:page * size]
-                    more = page * size < len(items)
+                    chunk = items[start:start + size]
+                    more = start + size < len(items)
+                    nxt = base64.b64encode(str(start + size).encode()).decode() if more else None
                     return self.reply(200, {'assets': {'items': chunk, 'total': len(items),
-                                                       'nextPage': str(page + 1) if more else None}})
+                                                       'nextPage': str(start // size + 2) if more and 'filter' not in body else None,
+                                                       'nextCursor': nxt if 'filter' in body else None}})
                 if self.path == '/api/libraries' and self.command == 'GET':
                     return self.reply(200, outer.libraries)
                 if self.path.startswith('/api/libraries/') and self.path.endswith('/scan') and self.command == 'POST':
