@@ -9,7 +9,8 @@ import threading
 import time
 import uuid
 
-from . import core
+from . import albums, core
+from .immich import ImmichError
 
 
 class Busy(Exception):
@@ -150,9 +151,20 @@ class Jobs:
                 self._save('runs', {'id': run_id, 'plan': plan_id, 'kind': plan['kind'], **run})
 
             run = core.apply_moves(self.cfg, moves, progress, record)
+            library_changed = plan['kind'] == 'sort' and any(
+                move.get('status') == 'moved' and move.get('dst') and
+                (move['dst'] == self.cfg.library or move['dst'].startswith(self.cfg.library + os.sep))
+                for move in run['moves'])
+            if library_changed and self.immich and self.immich.configured:
+                try:
+                    library = albums.scan_external_library(self.cfg, self.immich)
+                    run['immich_scan'] = {'status': 'queued', 'library': library['name']}
+                except (ImmichError, ValueError) as e:
+                    run['immich_scan'] = {'status': 'failed', 'error': str(e)}
+                self._save('runs', {'id': run_id, 'plan': plan_id, 'kind': plan['kind'], **run})
             plan['applied'] = run_id
             self.save_plan(plan)
-            return {'run': run_id}
+            return {'run': run_id, 'immich_scan': run.get('immich_scan')}
 
         return self.start('apply', work, plan=plan_id)
 

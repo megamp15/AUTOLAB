@@ -15,6 +15,7 @@ import random
 import stat
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -45,13 +46,19 @@ if not dates_file.exists():
         y, mo = m.split('-')
         put(f'library/{y}/{mo}/{name}.HEIC', blob(name), m)
     put('library/2025/06/Lake_weekend/IMG_2100.JPG', b'lake-photo' * 300, '2025-06')
+    put('library/2025/06/Lake_weekend/IMG_2101.JPG', b'lake-photo-2' * 300, '2025-06')
+    put('library/2025/06/Not_scanned_yet/IMG_2200.JPG', blob('not-scanned'), '2025-06')
+    put('library/2025/07/Beach_trip/IMG_5000.JPG', blob('album-beach-0'), '2025-07')
+    put('library/2025/07/Beach_trip/IMG_5001.JPG', blob('album-beach-1'), '2025-07')
     put('library/2025/06/IMG_2100.JPG', b'lake-photo' * 300, '2025-06')   # the same photo, loose
     # the same photos kept twice: once in a Trip folder, once in a Backup folder (bulk choices)
     for m in range(1, 7):
         for i in range(2):
             data = blob(f'twice{m}{i}')
-            put(f'library/2024/{m:02d}/Trip_{m}/IMG_{m}{i}.JPG', data, f'2024-{m:02d}')
-            put(f'library/2024/{m:02d}/Backup/IMG_{m}{i}.JPG', data, f'2024-{m:02d}')
+            # Keep duplicate-review examples outside YYYY/MM/<event>, so the
+            # Albums tab shows only actual event-folder examples.
+            put(f'library/_duplicates/Trip_{m}/IMG_{m}{i}.JPG', data, f'2024-{m:02d}')
+            put(f'library/_duplicates/Backup/{m:02d}/IMG_{m}{i}.JPG', data, f'2024-{m:02d}')
     # loose uploads
     n = 3100
     for m in ('2025-06', '2025-06', '2025-07', '2025-07', '2025-07', '2025-08', '2025-09', '2025-09'):
@@ -101,7 +108,19 @@ for id_, rel, content, extra in json.loads((root / 'trashed.json').read_text()):
     path = '/mnt/mahir-personal/' + rel if rel else extra['originalPath']
     assets.append({'id': id_, 'originalPath': path, 'originalFileName': os.path.basename(path), 'isTrashed': True,
                    'type': 'IMAGE', 'checksum': sha1b64(content), **extra})
-immich = FakeImmich(assets, key='demo-key')
+library_assets, unscanned_assets = [], []
+for path in sorted((media / 'library').rglob('*')):
+    if path.is_file() and path.suffix.lower() in {'.jpg', '.jpeg', '.heic', '.mov', '.mp4', '.png'}:
+        rel = path.relative_to(media).as_posix()
+        asset = {'id': str(uuid.uuid5(uuid.NAMESPACE_URL, rel)),
+                 'originalPath': '/mnt/mahir-personal/' + rel,
+                 'originalFileName': path.name, 'isTrashed': False, 'type': 'IMAGE'}
+        (unscanned_assets if rel.startswith('library/2025/06/Not_scanned_yet/') else library_assets).append(asset)
+lake_id = str(uuid.uuid5(uuid.NAMESPACE_URL, 'library/2025/06/Lake_weekend/IMG_2100.JPG'))
+immich = FakeImmich(assets + library_assets, key='demo-key', albums=[
+    {'id': str(uuid.uuid4()), 'albumName': 'Lake weekend', 'assetIds': [lake_id]}],
+    libraries=[{'id': str(uuid.uuid5(uuid.NAMESPACE_URL, 'personal-library')), 'name': 'Personal library',
+                'importPaths': ['/mnt/mahir-personal/library']}], scan_assets=unscanned_assets)
 
 shim = tools / 'exiftool'
 shim.write_text((HERE / 'fake_exiftool.py').read_text())

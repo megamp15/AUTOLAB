@@ -14,7 +14,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import core
+from . import albums, core
 from .immich import Immich, ImmichError
 from .jobs import Busy, Jobs, Missing
 
@@ -77,6 +77,21 @@ class App:
                 return 200, {'configured': True, 'connected': True, **self.immich.check()}
             except ImmichError as e:
                 return 200, {'configured': True, 'connected': False, 'error': str(e)}
+        if method == 'GET' and path == '/api/albums':
+            if not (self.immich and self.immich.configured):
+                return 200, {'configured': False, 'events': []}
+            return 200, {'configured': True, 'events': albums.review(cfg, self.immich)}
+        if method == 'POST' and path == '/api/albums/scan':
+            if not (self.immich and self.immich.configured):
+                return 400, {'error': 'Immich is not connected'}
+            return 202, {'scan': albums.scan_external_library(cfg, self.immich)}
+        if method == 'POST' and path == '/api/albums':
+            if not (self.immich and self.immich.configured):
+                return 400, {'error': 'Immich is not connected'}
+            selected = body.get('events', [])
+            if not isinstance(selected, list) or not selected or len(selected) > 100:
+                return 400, {'error': 'select between 1 and 100 event folders'}
+            return 200, albums.create(cfg, self.immich, selected)
         if method == 'GET' and path == '/api/job':
             return 200, {'job': j.status()}
         if method == 'GET' and path == '/api/plans':
@@ -241,6 +256,8 @@ def handler(app):
                     status, doc = 409, {'error': f'a {e} job is already running'}
                 except (ValueError, KeyError) as e:
                     status, doc = 400, {'error': str(e)}
+                except ImmichError as e:
+                    status, doc = 502, {'error': str(e)}
                 return self.send(status, doc)
             if method != 'GET':
                 return self.send(405, {'error': 'method not allowed'})
@@ -254,6 +271,7 @@ def handler(app):
         def do_GET(self): self.dispatch('GET')
         def do_POST(self): self.dispatch('POST')
         def do_PATCH(self): self.dispatch('PATCH')
+        def do_PUT(self): self.dispatch('PUT')
     return H
 
 

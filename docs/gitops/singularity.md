@@ -100,11 +100,17 @@ exists; with no token there is no route at all.
 **Immich's trash.** The *Immich trash* tab lists photos deleted in Immich (which
 leaves their files on disk), shows where each file is in the library, and moves
 them to `_removed/` or deletes them. It needs an Immich API key with only the
-`asset.read` permission, saved as the `IMMICH_API_KEY` environment secret and
-picked up by the next `photos` run; without it the tab says it is not connected
-and nothing else is affected. The play reports whether Immich answered. Nothing
-in Immich is changed; an asset whose file is removed shows as offline in Immich
-until its trash is emptied there.
+`asset.read`, `album.read`, `album.create`, `albumAsset.create`, `library.read`
+and `library.update` permissions, saved as the `IMMICH_API_KEY` environment
+secret and picked up by the next `photos` run. The library permissions let Photo
+Jobs find and queue a scan for the external library; it does not create, edit or
+delete libraries. Applying an Inbox sort queues a scan after files move into the
+library; for files moved elsewhere, use **Scan Immich library** in Albums and
+then **Refresh matches** after Immich finishes. The Albums tab links scanned
+assets into Immich albums; it does not upload, move or remove files. Immich may
+treat moved files as new assets and lose their previous album metadata on rescan.
+The play reports whether Immich answered. An asset whose file is removed shows
+as offline in Immich until its trash is emptied there.
 
 State (scan plans and run records) is under `/volume1/docker/photo-jobs/state`.
 
