@@ -51,8 +51,6 @@
   p.muted, .muted { color:var(--dim); margin:0; }
   .btn { color:inherit; background:none; border:1px solid var(--fg); border-radius:4px; padding:8px 16px; font:inherit; font-size:13px; cursor:pointer; letter-spacing:.02em; transition:background-color .2s, color .2s; }
   .btn:hover:not(:disabled) { background:var(--fg); color:var(--bg); }
-  .btn.primary { background:var(--fg); color:var(--bg); }
-  .btn.primary:hover:not(:disabled) { background:transparent; color:var(--fg); }
   .btn.small { padding:4px 10px; font-size:11.5px; }
   .btn:disabled { opacity:.35; cursor:default; }
   .btn.quiet { border-color:var(--line); }
@@ -196,6 +194,38 @@
   .refchip .thumb { width:40px; height:40px; }
   .shot .where { font:10.5px 'IBM Plex Mono',monospace; color:var(--dim); overflow-wrap:anywhere; }
   .shot .facts2 { font:11px 'IBM Plex Mono',monospace; }
+  /* our own controls, the same in every browser */
+  * { scrollbar-width:thin; scrollbar-color:color-mix(in srgb,var(--fg) 28%,transparent) transparent; }
+  ::-webkit-scrollbar { width:9px; height:9px; } ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:color-mix(in srgb,var(--fg) 26%,transparent); border-radius:9px; border:2px solid transparent; background-clip:content-box; }
+  .sel { display:inline-flex; }
+  button.selbtn { background:transparent; color:inherit; border:1px solid var(--line); border-radius:4px; padding:6px 10px; font:inherit; font-size:12.5px; }
+  button.selbtn:hover, button.selbtn[aria-expanded="true"] { border-color:var(--fg); } button.selbtn:focus-visible { outline:1px dashed var(--dim); outline-offset:3px; }
+  .shots .empty { grid-column:1 / -1; }
+  .selbtn { display:inline-flex; align-items:center; justify-content:space-between; gap:12px; min-width:150px; cursor:pointer; text-align:left; }
+  .selbtn svg { opacity:.65; flex:none; display:block; }
+  .pop { position:fixed; z-index:60; background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:7px; box-shadow:0 14px 36px rgba(0,0,0,.5); padding:4px; font-size:13px; max-width:calc(100vw - 16px); }
+  .optlist { max-height:min(320px,55vh); overflow:auto; display:flex; flex-direction:column; gap:1px; }
+  .opt { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:7px 10px; border-radius:4px; cursor:pointer; white-space:nowrap; }
+  .opt.hi { background:var(--soft); } .opt.on { font-weight:500; } .opt.on::after { content:''; width:5px; height:9px; border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:rotate(45deg) translate(-1px,-1px); }
+  .dp, .tm { position:relative; display:inline-flex; }
+  .dp input.field, .tm input.field { padding-right:34px; width:136px; }
+  .tm input.field { width:116px; }
+  input.field.bad { border-color:var(--bad); }
+  .iconbtn { position:absolute; right:3px; top:3px; bottom:3px; width:28px; display:grid; place-items:center; background:none; border:0; border-radius:4px; color:var(--dim); cursor:pointer; padding:0; }
+  .iconbtn:hover { color:var(--fg); background:var(--soft); }
+  .cal { width:264px; padding:6px; }
+  .cal header { display:flex; align-items:center; gap:2px; margin-bottom:6px; }
+  .caltitle { flex:1; text-align:center; font-weight:500; font-size:13px; }
+  .navbtn { width:28px; height:28px; display:grid; place-items:center; background:none; border:0; border-radius:4px; color:inherit; cursor:pointer; padding:0; }
+  .navbtn:hover { background:var(--soft); }
+  .calgrid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+  .dow { font:10px 'IBM Plex Mono',monospace; letter-spacing:.08em; color:var(--dim); text-align:center; padding:5px 0; }
+  .day { aspect-ratio:1; border:0; background:none; color:inherit; border-radius:4px; font:inherit; font-size:12.5px; cursor:pointer; padding:0; font-variant-numeric:tabular-nums; }
+  .day:hover:not(:disabled) { background:var(--soft); } .day.out { opacity:.38; } .day.today { box-shadow:inset 0 0 0 1px var(--dim); }
+  .day.picked { background:var(--fg); color:var(--bg); opacity:1; } .day:disabled { opacity:.18; cursor:default; }
+  .cal footer { display:flex; justify-content:space-between; margin-top:6px; padding-top:6px; border-top:1px solid var(--soft); }
+  .chk { display:inline-flex; align-items:center; gap:8px; cursor:pointer; }
   .stat.link { cursor:pointer; text-decoration:underline dotted; text-underline-offset:4px; }
   input.field { background:transparent; color:inherit; border:1px solid var(--line); border-radius:4px; padding:6px 10px; font:inherit; font-size:12.5px; color-scheme:dark; }
   :root.light input.field { color-scheme:light; }
@@ -275,7 +305,154 @@
     if (!res.ok) throw new Error(doc.error || res.statusText);
     return doc;
   }
-  const fail = e => alert(e.message || e);
+  const fail = e => notice(e.message || String(e));
+
+  // ---- our own controls ------------------------------------------------------------------------------
+  // A dropdown, a date picker, a time picker and a checkbox that look and behave the same in every
+  // browser, in place of the browser's own. Each returns { el, get, set }; they work with the keyboard.
+  const UI = (() => {
+    const ICON = {
+      chev: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>',
+      cal: '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>',
+      clock: '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.4 1.5"/></svg>',
+      prev: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 2.5 4 6l3.5 3.5"/></svg>',
+      next: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 2.5 8 6l-3.5 3.5"/></svg>',
+      prev2: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2.5 3 6l3.5 3.5M10 2.5 6.5 6 10 9.5"/></svg>',
+      next2: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2.5 5.5 6 2 9.5M5.5 2.5 9 6 5.5 9.5"/></svg>' };
+    const pad = n => String(n).padStart(2, '0'), iso = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
+    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+    // One popover at a time, placed under (or above) its anchor, closed by a click elsewhere, a scroll or a resize.
+    let current = null;
+    const closePop = () => current && current.close();
+    document.addEventListener('mousedown', e => { if (current && !current.pop.contains(e.target) && !current.anchor.contains(e.target)) current.close(); });
+    addEventListener('resize', closePop);
+    document.addEventListener('scroll', e => { if (current && !current.pop.contains(e.target)) current.close(); }, true);
+    function popover(anchor, content, onClose) {
+      closePop();
+      const pop = el('div', 'pop'); pop.append(content); document.body.append(pop);
+      const r = anchor.getBoundingClientRect(), h = pop.offsetHeight, w = pop.offsetWidth, up = innerHeight - r.bottom < h + 12 && r.top > innerHeight - r.bottom;
+      pop.style.minWidth = r.width + 'px';
+      pop.style.left = Math.max(8, Math.min(r.left, innerWidth - Math.max(w, r.width) - 8)) + 'px';
+      pop.style.top = Math.max(8, up ? r.top - h - 6 : r.bottom + 6) + 'px';
+      const handle = { pop, anchor, close() { if (current === handle) current = null; pop.remove(); if (onClose) onClose(); } };
+      current = handle; return handle;
+    }
+    // a list you move through with the arrow keys or the mouse; pick(i) chooses a row
+    function listbox(items, at, pick) {
+      const list = el('div', 'optlist'); list.setAttribute('role', 'listbox');
+      const rows = items.map(([, label], i) => { const o = el('div', 'opt', label); o.setAttribute('role', 'option'); o.onmousedown = e => e.preventDefault(); o.onclick = () => pick(i); o.onmousemove = () => mark(i); list.append(o); return o; });
+      const mark = i => { at = i; rows.forEach((o, k) => { o.classList.toggle('hi', k === i); o.setAttribute('aria-selected', String(k === i)); }); rows[i].scrollIntoView({ block: 'nearest' }); };
+      return { list, mark, at: () => at, step: d => mark(Math.max(0, Math.min(rows.length - 1, at + d))), rows };
+    }
+
+    function select({ options, value = '', onchange, label }) {
+      const root = el('div', 'sel'), btn = el('button', 'field selbtn'), text = el('span'), chev = el('span'); chev.innerHTML = ICON.chev;
+      btn.type = 'button'; btn.setAttribute('aria-haspopup', 'listbox'); btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-label', label || 'Choose'); btn.append(text, chev); root.append(btn);
+      const labelOf = v => (options.find(o => o[0] === v) || options[0] || ['', ''])[1];
+      const api = { el: root, get: () => value, set(v) { value = v; text.textContent = labelOf(v); }, options(list) { options = list; api.set(value); } };
+      let h = null, box = null;
+      const pick = i => { const v = options[i][0]; api.set(v); if (h) h.close(); btn.focus(); if (onchange) onchange(v); };
+      const open = () => {
+        box = listbox(options, Math.max(0, options.findIndex(o => o[0] === value)), pick);
+        box.rows.forEach((o, i) => o.classList.toggle('on', options[i][0] === value));
+        h = popover(btn, box.list, () => { h = null; btn.setAttribute('aria-expanded', 'false'); });
+        btn.setAttribute('aria-expanded', 'true'); box.mark(box.at());
+      };
+      btn.onclick = () => (h ? h.close() : open());
+      btn.onkeydown = e => {
+        if (!h) { if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) { e.preventDefault(); open(); } return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); box.step(1); } else if (e.key === 'ArrowUp') { e.preventDefault(); box.step(-1); }
+        else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(box.at()); } else if (e.key === 'Escape' || e.key === 'Tab') h.close();
+      };
+      api.set(value); return api;
+    }
+
+    const parseDate = t => {
+      t = (t || '').trim(); const slash = t.includes('/'), m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/) || t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (!m) return ''; const [y, mo, d] = slash ? [+m[3], +m[1], +m[2]] : [+m[1], +m[2], +m[3]], dt = new Date(y, mo - 1, d);
+      return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d ? iso(y, mo - 1, d) : '';
+    };
+    function date({ value = '', max = '', onchange, label }) {
+      const root = el('div', 'dp'), inp = el('input', 'field'), btn = el('button', 'iconbtn');
+      inp.placeholder = 'YYYY-MM-DD'; inp.value = value; inp.inputMode = 'numeric'; inp.setAttribute('aria-label', label || 'Date'); inp.title = 'Type a date (2023-06-14 or 6/14/2023) or pick one';
+      btn.type = 'button'; btn.innerHTML = ICON.cal; btn.setAttribute('aria-label', 'Choose from a calendar'); root.append(inp, btn);
+      const api = { el: root, get: () => value, set(v) { value = v; inp.value = v; inp.classList.remove('bad'); } };
+      const commit = v => { api.set(v); if (onchange) onchange(v); };
+      inp.onchange = () => { const t = inp.value.trim(); if (!t) return commit(''); const p = parseDate(t); if (p && (!max || p <= max)) commit(p); else { value = ''; inp.classList.add('bad'); if (onchange) onchange(''); } };
+      let h = null;
+      const open = () => {
+        const now = new Date(), todayS = iso(now.getFullYear(), now.getMonth(), now.getDate()), start = value ? new Date(value + 'T00:00') : now;
+        let y = start.getFullYear(), m = start.getMonth(), focus = value || todayS;
+        const cal = el('div', 'cal'), head = el('header'), title = el('div', 'caltitle'), grid = el('div', 'calgrid'), foot = el('footer');
+        const navBtn = (name, icon, fn) => { const b = el('button', 'navbtn'); b.type = 'button'; b.innerHTML = icon; b.setAttribute('aria-label', name); b.onclick = fn; return b; };
+        const shift = (dy, dm) => { const d = new Date(y + dy, m + dm, 1); y = d.getFullYear(); m = d.getMonth(); draw(); };
+        const draw = () => {
+          title.textContent = `${MONTHS[m]} ${y}`; grid.replaceChildren(...['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => el('div', 'dow', d)));
+          const first = new Date(y, m, 1).getDay();
+          for (let i = 0; i < 42; i++) {
+            const d = new Date(y, m, i - first + 1), s = iso(d.getFullYear(), d.getMonth(), d.getDate());
+            const b = el('button', 'day' + (d.getMonth() !== m ? ' out' : '') + (s === value ? ' picked' : '') + (s === todayS ? ' today' : ''), String(d.getDate()));
+            b.type = 'button'; b.dataset.d = s; b.tabIndex = s === focus ? 0 : -1; b.setAttribute('aria-label', d.toDateString()); if (max && s > max) b.disabled = true;
+            b.onclick = () => { commit(s); h.close(); inp.focus(); }; grid.append(b);
+          }
+        };
+        head.append(navBtn('Previous year', ICON.prev2, () => shift(-1, 0)), navBtn('Previous month', ICON.prev, () => shift(0, -1)), title, navBtn('Next month', ICON.next, () => shift(0, 1)), navBtn('Next year', ICON.next2, () => shift(1, 0)));
+        const today = el('button', 'btn small quiet', 'Today'), clear = el('button', 'btn small quiet', 'Clear'); today.type = clear.type = 'button';
+        today.onclick = () => { if (!max || todayS <= max) { commit(todayS); h.close(); inp.focus(); } }; clear.onclick = () => { commit(''); h.close(); inp.focus(); };
+        foot.append(today, clear); cal.append(head, grid, foot); draw();
+        const move = (days, months) => { const f = new Date(focus + 'T00:00'); f.setDate(f.getDate() + days); if (months) f.setMonth(f.getMonth() + months); focus = iso(f.getFullYear(), f.getMonth(), f.getDate()); y = f.getFullYear(); m = f.getMonth(); draw(); grid.querySelector(`[data-d="${focus}"]`).focus(); };
+        cal.onkeydown = e => {
+          const k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [-7, 0], ArrowDown: [7, 0], PageUp: [0, -1], PageDown: [0, 1] }[e.key];
+          if (k) { e.preventDefault(); move(...k); } else if (e.key === 'Escape') { h.close(); inp.focus(); }
+        };
+        h = popover(root, cal, () => { h = null; }); (grid.querySelector('[tabindex="0"]') || grid.querySelector('.day')).focus();
+      };
+      btn.onclick = () => (h ? h.close() : open());
+      inp.onkeydown = e => { if (e.key === 'ArrowDown' && !h) { e.preventDefault(); open(); } };
+      return api;
+    }
+
+    // 'h:mm AM' on screen, 'HH:MM' in the value; typing 3pm, 3:30pm or 15:30 all work
+    const parseTime = t => {
+      const m = (t || '').trim().toLowerCase().match(/^(\d{1,2})(?::?(\d{2}))?\s*([ap])?m?$/); if (!m) return '';
+      let h = +m[1]; const mi = +(m[2] || 0); if (mi > 59) return '';
+      if (m[3]) { if (h < 1 || h > 12) return ''; h = h % 12 + (m[3] === 'p' ? 12 : 0); } else if (h > 23) return '';
+      return `${pad(h)}:${pad(mi)}`;
+    };
+    const showTime = v => { if (!v) return ''; const [h, m] = v.split(':').map(Number); return `${h % 12 || 12}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`; };
+    function time({ value = '', onchange, label, step = 30 }) {
+      const root = el('div', 'tm'), inp = el('input', 'field'), btn = el('button', 'iconbtn');
+      inp.placeholder = 'h:mm AM'; inp.value = showTime(value); inp.setAttribute('aria-label', label || 'Time'); inp.title = 'Type a time (3pm, 3:30 PM or 15:30) or pick one';
+      btn.type = 'button'; btn.innerHTML = ICON.clock; btn.setAttribute('aria-label', 'Choose a time'); root.append(inp, btn);
+      const api = { el: root, get: () => value, set(v) { value = v; inp.value = showTime(v); inp.classList.remove('bad'); } };
+      const commit = v => { api.set(v); if (onchange) onchange(v); };
+      inp.onchange = () => { const t = inp.value.trim(); if (!t) return commit(''); const p = parseTime(t); if (p) commit(p); else { value = ''; inp.classList.add('bad'); if (onchange) onchange(''); } };
+      const slots = []; for (let mins = 0; mins < 1440; mins += step) slots.push(`${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`);
+      const items = slots.map(v => [v, showTime(v)]);
+      let h = null, box = null;
+      const pick = i => { commit(slots[i]); if (h) h.close(); inp.focus(); };
+      const open = () => {
+        const near = Math.max(0, slots.findIndex(v => v >= (value || '12:00')));
+        box = listbox(items, near, pick); box.rows.forEach((o, i) => o.classList.toggle('on', slots[i] === value));
+        h = popover(root, box.list, () => { h = null; }); box.mark(near);
+      };
+      btn.onclick = () => (h ? h.close() : open());
+      inp.onkeydown = e => {
+        if (!h) { if (e.key === 'ArrowDown') { e.preventDefault(); open(); } return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); box.step(1); } else if (e.key === 'ArrowUp') { e.preventDefault(); box.step(-1); }
+        else if (e.key === 'Enter') { e.preventDefault(); pick(box.at()); } else if (e.key === 'Escape') h.close();
+      };
+      return api;
+    }
+
+    function check({ label, checked = false, onchange, title }) {
+      const l = el('label', 'chk'), b = el('input', 'tick'); b.type = 'checkbox'; b.checked = checked; l.append(b, document.createTextNode(label)); if (title) l.title = title;
+      b.onchange = () => { if (onchange) onchange(b.checked); };
+      return { el: l, input: b, get: () => b.checked, set: v => { b.checked = v; } };
+    }
+    return { select, date, time, check };
+  })();
 
   // ---- theme, clock ---------------------------------------------------------------------------
   const SUN = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
@@ -776,11 +953,12 @@
     }
     if (!n.files.length) { main.append(el('div', 'empty', 'Nothing is set aside for lack of a date.')); return; }
     const panel = el('div', 'panel'); panel.style.marginTop = '12px';
-    const tools = el('div', 'toolbar'), all = el('input', 'tick'), count = el('span', 'muted'), date = el('input', 'field'), time = el('input', 'field'), go = el('button', 'btn primary');
-    all.type = 'checkbox'; all.title = 'Tick or untick every photo shown'; date.type = 'date'; date.value = n.date; date.title = 'The day these were taken'; time.type = 'time'; time.value = n.time; time.title = 'Time of day to write';
-    date.max = new Date().toISOString().slice(0, 10);
+    const tools = el('div', 'toolbar'), all = el('input', 'tick'), count = el('span', 'muted'), go = el('button', 'btn primary');
+    all.type = 'checkbox'; all.title = 'Tick or untick every photo shown';
+    const date = UI.date({ value: n.date, max: new Date().toISOString().slice(0, 10), label: 'The day these were taken', onchange: v => { n.date = v; paint(); } });
+    const time = UI.time({ value: n.time, label: 'Time of day to write', onchange: v => { n.time = v; } });
     const search = searchBox(n.q, v => { n.q = v; render(); });
-    tools.append(all, count, spacer(), search, date, time, go);
+    tools.append(all, count, spacer(), search, date.el, time.el, go);
     const grid = el('div', 'shots'), shown = n.files.filter(f => !n.q || f.path.toLowerCase().includes(n.q.toLowerCase()));
     const cards = new Map();
     const paint = () => {
@@ -797,11 +975,10 @@
       card.append(box, thumb(f.path, look, { w: 640 }), el('div', 'name', f.name),
                   el('div', 'meta', `${fmtGiB(f.size)} · file changed ${new Date(f.modified * 1000).toLocaleDateString()}`));
       if (f.hint) { const h = el('button', 'chip', `Use ${f.hint}`); h.type = 'button'; h.title = 'The file name says this day; use it for this photo';
-        h.onclick = () => { n.date = date.value = f.hint; n.checked.add(f.path); paint(); }; card.append(h); }
+        h.onclick = () => { n.date = f.hint; date.set(f.hint); n.checked.add(f.path); paint(); }; card.append(h); }
       cards.set(f.path, { card, box }); grid.append(card);
     });
     all.onchange = () => { shown.forEach(f => (all.checked ? n.checked.add(f.path) : n.checked.delete(f.path))); paint(); };
-    date.oninput = () => { n.date = date.value; paint(); }; time.oninput = () => { n.time = time.value; };
     go.onclick = () => confirmDate([...n.checked]);
     panel.append(tools, el('div', 'note', 'The date is written into each file’s metadata (taken date and created date; videos also get their media dates). The file is then moved to _inbox/loose, and the next Inbox scan files it by that date. Undo in History moves it back; the written date stays.'), grid);
     main.append(panel); paint();
@@ -835,25 +1012,25 @@
     const panel = el('div', 'panel table-panel'), tools = el('div', 'toolbar');
     panel.style.marginTop = '12px';
     const q = el('input', 'search wide'); q.placeholder = 'Search by name or folder, e.g. peru img_34'; q.value = M.q; q.setAttribute('aria-label', 'Search the media folder');
-    const folder = el('select', 'field'); folder.setAttribute('aria-label', 'Folder'); folder.append(new Option('everywhere', ''), ...M.folders.map(n => new Option(n, n))); folder.value = M.folder;
+    const folder = UI.select({ label: 'Folder', value: M.folder, options: [['', 'everywhere'], ...M.folders.map(n => [n, n])], onchange: v => { M.folder = v; search(); } });
     const kinds = el('div', 'chips'), all = el('input', 'tick'), count = el('span', 'muted');
     all.type = 'checkbox'; all.title = 'Tick or untick what is shown';
     let timer = 0; q.oninput = () => { clearTimeout(timer); timer = setTimeout(() => { M.q = q.value; search(); }, 300); };
-    folder.onchange = () => { M.folder = folder.value; search(); };
-    tools.append(all, count, spacer(), q, folder, kinds);
+    tools.append(all, count, spacer(), q, folder.el, kinds);
     // -- set values on what is ticked
-    const set = el('div', 'metaform'), date = el('input', 'field'), time = el('input', 'field'), loc = el('input', 'field'), desc = el('input', 'field'), setBtn = el('button', 'btn primary');
-    date.type = 'date'; time.type = 'time'; date.value = f.date; time.value = f.time; loc.placeholder = 'Location: 30.6280, -96.3344'; loc.value = f.loc; loc.size = 24; desc.placeholder = 'Description'; desc.value = f.desc; desc.size = 22;
-    date.max = new Date().toISOString().slice(0, 10); time.title = 'Time of day. Blank with “keep each file’s own time” ticked keeps what each photo has.';
-    const dayOnly = el('input'); dayOnly.type = 'checkbox'; dayOnly.checked = f.dayOnly; const dayLab = el('label', null); dayLab.append(dayOnly, document.createTextNode('keep each file’s own time of day')); dayLab.title = 'Change only the day; every photo keeps the hour and minute it already has';
+    const set = el('div', 'metaform'), loc = el('input', 'field'), desc = el('input', 'field'), setBtn = el('button', 'btn primary');
+    const date = UI.date({ value: f.date, max: new Date().toISOString().slice(0, 10), label: 'Date taken', onchange: v => { f.date = v; paint(); } });
+    const time = UI.time({ value: f.time, label: 'Time of day', onchange: v => { f.time = v; paint(); } });
+    loc.placeholder = 'Location: 30.6280, -96.3344'; loc.value = f.loc; loc.size = 24; desc.placeholder = 'Description'; desc.value = f.desc; desc.size = 22;
+    time.el.title = 'Time of day. Blank with “keep each file’s own time” ticked keeps what each photo has.';
+    const dayChk = UI.check({ label: 'keep each file’s own time of day', checked: f.dayOnly, title: 'Change only the day; every photo keeps the hour and minute it already has', onchange: () => read() }), dayOnly = dayChk.input, dayLab = dayChk.el;
     const locHint = el('span', 'muted');
-    set.append(el('span', 'lab', 'Set on ticked'), date, time, dayLab, loc, locHint, desc, setBtn);
+    set.append(el('span', 'lab', 'Set on ticked'), date.el, time.el, dayLab, loc, locHint, desc, setBtn);
     // -- copy from a reference photo
-    const copy = el('div', 'metaform'), refBox = el('span'), cLoc = el('input'), cDate = el('input'), cDesc = el('input'), copyBtn = el('button', 'btn');
-    [cLoc, cDate, cDesc].forEach(c => { c.type = 'checkbox'; });
-    cLoc.checked = f.copyLoc; cDate.checked = f.copyDate; cDesc.checked = f.copyDesc;
-    const lab = (box, text) => { const l = el('label', null); l.append(box, document.createTextNode(text)); return l; };
-    copy.append(el('span', 'lab', 'Copy from one'), refBox, lab(cLoc, 'location'), lab(cDate, 'date'), lab(cDesc, 'description'), copyBtn);
+    const copy = el('div', 'metaform'), refBox = el('span'), copyBtn = el('button', 'btn');
+    const kLoc = UI.check({ label: 'location', checked: f.copyLoc, onchange: () => read() }), kDate = UI.check({ label: 'date', checked: f.copyDate, onchange: () => read() }), kDesc = UI.check({ label: 'description', checked: f.copyDesc, onchange: () => read() });
+    const cLoc = kLoc.input, cDate = kDate.input, cDesc = kDesc.input;
+    copy.append(el('span', 'lab', 'Copy from one'), refBox, kLoc.el, kDate.el, kDesc.el, copyBtn);
     const body = el('div', 'tbody'); const grid = el('div', 'shots'); body.append(grid); nearEnd(body, loadMore);
     panel.append(tools, set, copy, body); main.append(panel); fit(true);
     const cards = new Map();
@@ -896,7 +1073,7 @@
       try {
         const r = await api('/find?' + qs({ q: M.q, folder: M.folder, kind: M.kind, offset: 0, limit: 60 }));
         M.files = r.files; M.total = r.total; M.folders = r.folders;
-        if (folder.options.length === 1) { folder.append(...r.folders.map(n => new Option(n, n))); folder.value = M.folder; }
+        folder.options([['', 'everywhere'], ...r.folders.map(n => [n, n])]);
         if (!r.files.length) grid.append(el('div', 'empty', 'No photo or video matches.'));
         addCards(r.files); paint(); loadInfo(r.files);
       } catch (e) { M.files = []; M.total = 0; grid.append(el('div', 'empty', e.message)); paint(); }
@@ -907,8 +1084,8 @@
       try { const r = await api('/find?' + qs({ q: M.q, folder: M.folder, kind: M.kind, offset: M.files.length, limit: 60 })); M.files = M.files.concat(r.files); addCards(r.files); paint(); loadInfo(r.files); } finally { M.loadingMore = false; }
     }
     all.onchange = () => { (M.files || []).forEach(x => (all.checked ? M.checked.add(x.path) : M.checked.delete(x.path))); paint(); };
-    const read = () => { f.date = date.value; f.time = time.value; f.loc = loc.value; f.desc = desc.value; f.dayOnly = dayOnly.checked; f.copyLoc = cLoc.checked; f.copyDate = cDate.checked; f.copyDesc = cDesc.checked; paint(); };
-    [date, time, loc, desc, dayOnly, cLoc, cDate, cDesc].forEach(x => { x.oninput = read; x.onchange = read; });
+    function read() { f.loc = loc.value; f.desc = desc.value; f.dayOnly = dayOnly.checked; f.copyLoc = cLoc.checked; f.copyDate = cDate.checked; f.copyDesc = cDesc.checked; paint(); }
+    [loc, desc].forEach(x => { x.oninput = read; });
     setBtn.onclick = () => confirmMeta(ticked().slice(0, 500), { date: f.date, time: f.time, day_only: f.dayOnly, location: f.loc.trim(), description: f.desc.trim() });
     copyBtn.onclick = () => confirmMeta(ticked().slice(0, 500), { copy_from: M.ref, copy: [cLoc.checked && 'location', cDate.checked && 'date', cDesc.checked && 'description'].filter(Boolean), day_only: f.dayOnly });
     if (M.files === null) search(); else { addCards(M.files); paint(); loadInfo(M.files); }
@@ -1155,8 +1332,23 @@
     go.onclick = async () => { dlg.close(); try { watchJob((await api(`/plans/${plan.id}/apply`, { method: 'POST', body: del ? { confirm: 'DELETE' } : {} })).job); render(); } catch (e) { fail(e); } };
     row.append(cancel, go); dlg.append(row); dlg.showModal(); if (typed) typed.focus();
   }
+  function notice(text, title = 'Something went wrong') {
+    dlg.replaceChildren(el('h2', null, title), el('p', 'muted', text));
+    const row = el('div', 'row'), ok = el('button', 'btn', 'OK'); row.style.cssText = 'justify-content:flex-end;margin-top:16px'; ok.onclick = () => dlg.close();
+    row.append(ok); dlg.append(row); dlg.showModal(); ok.focus();
+  }
+  // Ask a yes/no question in our own dialog; resolves true only when the person says yes.
+  function ask(title, lines, yes) {
+    return new Promise(resolve => {
+      let answered = false; const finish = v => { if (answered) return; answered = true; dlg.close(); resolve(v); };
+      dlg.replaceChildren(el('h2', null, title)); const ul = el('ul'); lines.forEach(t => ul.append(el('li', null, t)));
+      const row = el('div', 'row'), no = el('button', 'btn quiet', 'Cancel'), go = el('button', 'btn', yes); row.style.justifyContent = 'flex-end';
+      no.onclick = () => finish(false); go.onclick = () => finish(true); dlg.addEventListener('close', () => finish(false), { once: true });
+      row.append(no, go); dlg.append(ul, row); dlg.showModal(); go.focus();
+    });
+  }
   async function undo(id) {
-    if (!confirm('Put this run’s moved files back where they were? Anything deleted stays deleted.')) return;
+    if (!await ask('Put this run’s files back?', ['Each moved file goes back where it was; a value an edit replaced is put back.', 'Anything that was deleted stays deleted.'], 'Undo')) return;
     try { watchJob((await api(`/runs/${id}/undo`, { method: 'POST' })).job); render(); } catch (e) { fail(e); }
   }
 
