@@ -89,6 +89,26 @@ duplicates scan saves what it has found every few seconds, so the Duplicates tab
 as they appear (read-only until it finishes) and **Stop** keeps them. Each scan tab says when it was
 last scanned and why its button is disabled when another job is running.
 
+## Find & edit
+
+**Why not edit in Immich:** Immich reads the media folder read-only, so a date or place changed in
+its UI lives only in its database, and a rescan reads the files again and undoes it. A `.xmp`
+sidecar beside a photo also wins over the photo's own tags. The edit that lasts is in the files.
+
+The **Find & edit** tab searches every photo and video in the media folder (every word must be in
+the path; filter by folder and photos or videos), shows each file's date and location, and writes:
+
+- a **date** and time (or only the day, so each photo keeps its own time of day),
+- a **location** pasted as `30.6280, -96.3344` (a link opens it in a map),
+- a **description**,
+
+into the ticked files, up to 500 at once. **Copy from one** picks a reference photo with "Use as
+reference" and copies its location, date and/or description to the ticked files. Photos, HEIC and
+videos are supported; a sidecar next to a file is updated too. A file that cannot hold the change is
+left exactly as it was and reported. After writing, Immich is asked to rescan the library. Each
+edit records the values it replaced, and **Undo** in History puts them back, removing a value that
+was not there before.
+
 ## Seeing the photos
 
 Every row with a photo shows a thumbnail; click it to open the photo large. On a duplicate row

@@ -14,7 +14,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import albums, core, nodate, previews
+from . import albums, core, metadata, nodate, previews
 from .immich import Immich, ImmichError
 from .jobs import Busy, Jobs, Missing
 
@@ -138,6 +138,18 @@ class App:
         if method == 'GET' and path == '/api/same':
             self.media(one('a')), self.media(one('b'))
             return 200, {'same': previews.same_bytes(cfg, one('a'), one('b'))}
+        if method == 'GET' and path == '/api/find':
+            found = metadata.find(cfg, one('q'), one('folder'), one('kind'), max(0, int(one('offset') or 0)), min(int(one('limit') or 60), metadata.MAX_FILES))
+            return 200, {**found, 'folders': metadata.top_folders(cfg)}
+        if method == 'POST' and path == '/api/meta/read':
+            paths = body.get('paths', [])
+            if not isinstance(paths, list) or len(paths) > 200:
+                raise ValueError('paths must be a list of up to 200 files')
+            for rel in paths:
+                self.media(rel)
+            return 200, {'files': [{k: v for k, v in r.items() if k != 'raw'} for r in metadata.read(cfg, paths)]}
+        if method == 'POST' and path == '/api/meta/edit':
+            return 202, {'job': j.start_meta_edit(body.get('paths', []), body)}
         if method == 'GET' and path == '/api/nodate':
             found = nodate.files(cfg)
             return 200, {'total': len(found), 'files': found}
