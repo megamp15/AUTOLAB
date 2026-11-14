@@ -63,29 +63,45 @@ class Immich:
         raise last
 
     def _pages(self, body, progress):
-        page, seen = 1, 0
-        while page:
-            res = self.call('POST', '/search/metadata', {**body, 'size': PAGE, 'page': page})
-            items = res.get('assets', {}).get('items', [])
+        """Walk a metadata search. Immich 3.x pages a `filter` search with a cursor and refuses
+        `page` beside it; the older body (withDeleted) is paged by number."""
+        cursor, page, seen = None, 1, 0
+        while True:
+            req = {**body, 'size': PAGE}
+            if 'filter' in body:
+                if cursor:
+                    req['cursor'] = cursor
+            else:
+                req['page'] = page
+            assets = self.call('POST', '/search/metadata', req).get('assets', {})
+            items = assets.get('items', [])
             for a in items:
                 if a.get('isTrashed'):
                     yield a
             seen += len(items)
-            progress(seen, res.get('assets', {}).get('total') or 0, 'reading Immich’s trash')
-            page = int(res['assets']['nextPage']) if res.get('assets', {}).get('nextPage') else 0
+            progress(seen, assets.get('total') or 0, 'reading Immich’s trash')
+            cursor, nxt = assets.get('nextCursor'), assets.get('nextPage')
+            if 'filter' in body:
+                if not cursor:
+                    return
+            elif nxt:
+                page = int(nxt)
+            else:
+                return
 
     def asset(self, id_):
         return self.call('GET', f'/assets/{id_}')
 
     def search_assets(self, filters):
         """Return all non-trashed assets matching an Immich metadata filter."""
-        page, found = 1, []
-        while page:
-            res = self.call('POST', '/search/metadata', {'filter': filters, 'size': PAGE, 'page': page})
-            assets = res.get('assets', {})
+        found, cursor = [], None
+        while True:
+            body = {'filter': filters, 'size': PAGE, **({'cursor': cursor} if cursor else {})}
+            assets = self.call('POST', '/search/metadata', body).get('assets', {})
             found.extend(a for a in assets.get('items', []) if not a.get('isTrashed'))
-            page = int(assets['nextPage']) if assets.get('nextPage') else 0
-        return found
+            cursor = assets.get('nextCursor')
+            if not cursor:
+                return found
 
     def albums(self):
         return self.call('GET', '/albums')
