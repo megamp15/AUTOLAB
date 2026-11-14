@@ -271,6 +271,8 @@ autolab_services_adventurelog_public_url: "https://adventurelog.{{ autolab_servi
 # Pocket ID's client for AdventureLog (GitHub secrets
 # ADVENTURELOG_OIDC_CLIENT_ID and _SECRET). Both empty = password login only,
 # which is how a first deploy proves the app before the client exists.
+autolab_services_adventurelog_immich_api_key: ""
+autolab_services_adventurelog_immich_url: "http://singularity:2283/api"
 autolab_services_adventurelog_oidc_client_id: ""
 autolab_services_adventurelog_oidc_client_secret: ""
 autolab_services_adventurelog_oidc_issuer: "https://auth.{{ autolab_services_dash_zone }}"

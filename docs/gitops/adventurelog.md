@@ -78,9 +78,15 @@ own API key.
 
 1. Immich → *Account Settings* → *API Keys* → *New API Key*, with permissions
    `asset.read`, `asset.view`, `album.read`, `library.read`, `user.read`.
-2. AdventureLog → your profile → *Settings* → *Immich Integration*. Server URL
-   `http://singularity.<tailnet>:2283/api` (the playbook prints it); paste the
-   key; *Connect*.
+2. For the administrator account, run `gh secret set ADVENTURELOG_IMMICH_API_KEY`
+   from the repository and enter the key at the prompt. Workflow **05** on edge,
+   playbook `services`, validates the key's account email against `APPS_ADMIN_EMAIL`
+   and creates the connection. It refuses to replace another server's integration.
+3. Other users add their own keys in AdventureLog → profile → *Settings* →
+   *Immich Integration*. The server URL is `http://singularity:2283/api`.
+
+AdventureLog stores each key in its database, and database dumps contain it.
+Keep both the NAS share and database backups restricted accordingly.
 
 The URL is the NAS's tailnet name, not `immich.lab.<zone>` and not
 `localhost`: the request is made by the AdventureLog container on nebula, which
