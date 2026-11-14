@@ -109,12 +109,18 @@ jobs:
           python3 - <<'PYTHON'
           import base64, json, os, time, urllib.error, urllib.parse, urllib.request
           query = urllib.parse.urlencode({'query': 'up{instance="singularity"}'})
-          with urllib.request.urlopen('http://jwst:9090/api/v1/query?' + query, timeout=15) as response:
-              targets = json.load(response)['data']['result']
+          # Alloy may have just restarted: its first samples take a scrape interval plus a push to land.
+          for attempt in range(24):
+              with urllib.request.urlopen('http://jwst:9090/api/v1/query?' + query, timeout=15) as response:
+                  targets = json.load(response)['data']['result']
+              with urllib.request.urlopen('http://jwst:3100/loki/api/v1/label/host/values', timeout=15) as response:
+                  hosts = json.load(response)['data']
+              if len(targets) >= 3 and all(float(t['value'][1]) == 1 for t in targets) and 'singularity' in hosts:
+                  break
+              time.sleep(5)
           assert len(targets) >= 3 and all(float(t['value'][1]) == 1 for t in targets), 'NAS scrape targets are not all healthy'
           print('NAS node, Alloy and container metric targets are healthy')
-          with urllib.request.urlopen('http://jwst:3100/loki/api/v1/label/host/values', timeout=15) as response:
-              assert 'singularity' in json.load(response)['data'], 'NAS Docker logs have not arrived'
+          assert 'singularity' in hosts, 'NAS Docker logs have not arrived'
           print('NAS logs are present in Loki')
           password = os.environ['GF_ADMIN_PASSWORD']
           assert password, 'GF_SECURITY_ADMIN_PASSWORD is required to verify dashboard sync'
