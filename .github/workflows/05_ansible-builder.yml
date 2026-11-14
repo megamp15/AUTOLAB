@@ -391,6 +391,13 @@ jobs:
           # whose services list has qr and paradigm-tunnel.
           AUTOLAB_QR_PUBLIC_URL: ${{ vars.QR_PUBLIC_URL }}
           AUTOLAB_PARADIGM_TUNNEL_TOKEN: ${{ secrets.PARADIGM_TUNNEL_TOKEN }}
+          # AdventureLog: Pocket ID's client for it, and the email of the
+          # account that exists from its first boot (your Pocket ID email, so
+          # the first sign-in attaches to it). Only matter on a machine whose
+          # services list has adventurelog.
+          AUTOLAB_ADVENTURELOG_OIDC_CLIENT_ID: ${{ secrets.ADVENTURELOG_OIDC_CLIENT_ID }}
+          AUTOLAB_ADVENTURELOG_OIDC_CLIENT_SECRET: ${{ secrets.ADVENTURELOG_OIDC_CLIENT_SECRET }}
+          AUTOLAB_ADVENTURELOG_ADMIN_EMAIL: ${{ vars.ADVENTURELOG_ADMIN_EMAIL }}
         run: |
           out="$RUNNER_TEMP/extra-vars.json"
           umask 077
@@ -431,6 +438,9 @@ jobs:
               "autolab_pihole_web_password": os.environ.get("AUTOLAB_PIHOLE_WEB_PASSWORD", ""),
               "autolab_services_qr_public_url": os.environ.get("AUTOLAB_QR_PUBLIC_URL", ""),
               "autolab_services_paradigm_tunnel_token": os.environ.get("AUTOLAB_PARADIGM_TUNNEL_TOKEN", ""),
+              "autolab_services_adventurelog_oidc_client_id": os.environ.get("AUTOLAB_ADVENTURELOG_OIDC_CLIENT_ID", ""),
+              "autolab_services_adventurelog_oidc_client_secret": os.environ.get("AUTOLAB_ADVENTURELOG_OIDC_CLIENT_SECRET", ""),
+              "autolab_services_adventurelog_admin_email": os.environ.get("AUTOLAB_ADVENTURELOG_ADMIN_EMAIL", ""),
           }, open(sys.argv[1], "w"))
           PY
           if [ -n "${AUTOLAB_BUILDER_SSH_PUBLIC_KEY}" ]; then
@@ -457,6 +467,11 @@ jobs:
             echo "Grafana admin password will be enforced."
           else
             echo "No Grafana admin password; the existing login is left as-is."
+          fi
+          if [ -n "${AUTOLAB_ADVENTURELOG_OIDC_CLIENT_ID}" ]; then
+            echo "AdventureLog's Pocket ID client supplied; the login is registered in the app."
+          else
+            echo "No ADVENTURELOG_OIDC_CLIENT_ID; AdventureLog keeps its password login only."
           fi
           if [ -n "${AUTOLAB_OBS_STACK_ADDRESS}" ]; then
             echo "Observability stack bridge address supplied for management-plane hosts."

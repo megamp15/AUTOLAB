@@ -52,6 +52,13 @@ autolab_service_catalog:
   qr:
     port: 8097
     login: plugin
+  # AdventureLog: the travel log. `own`, not `plugin`: it keeps a user per
+  # person (their adventures, their Immich key), so it signs people in itself
+  # with Pocket ID's OpenID Connect and the plugin in front would be a second,
+  # redundant login. Tailnet-only, like every lab name.
+  adventurelog:
+    port: 8098
+    login: own
   # The connector for the tunnel in the Paradigm Prints Cloudflare account. One
   # tunnel, any number of hostnames: each is a route in that account's
   # dashboard to <container>:<port> on the paradigm-public network. Only

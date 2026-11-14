@@ -334,6 +334,16 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.registry.port }}/v2/"
+  - name: AdventureLog
+    group: services
+    meta: travel log
+    url: "{{ autolab_obs_lab_url.format(name='adventurelog', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog.adventurelog.port) }}"
+    icon: map
+    enabled: "{{ 'adventurelog' in ((autolab_builder | default({})).services | default([])) }}"
+    check:
+      type: docker
+      target: "{{ autolab_services_project | default('services') }}-adventurelog-1"
+      url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.adventurelog.port }}/health"
   # The gethomepage grid (container-services `dash`), the same lab as a
   # compact list of tiles, next to this page.
   - name: Dashboard

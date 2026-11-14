@@ -1,0 +1,58 @@
+  # The travel log: one image with the web app, the API, nginx and a cache,
+  # beside the PostGIS database it needs. People sign in with Pocket ID; the
+  # photos they attach are Immich's, fetched by this container over the
+  # tailnet when each person gives it an Immich API key. See
+  # docs/gitops/adventurelog.md.
+  adventurelog:
+    image: {{ autolab_services_images.adventurelog }}
+    restart: unless-stopped
+    depends_on:
+      adventurelog-db:
+        condition: service_healthy
+    # The credentials are generated on this host the first time and kept in a
+    # file only root reads: not in this one, not in GitHub, not in the log.
+    env_file: /etc/autolab/adventurelog.env
+    environment:
+      SITE_URL: "{{ autolab_services_adventurelog_public_url }}"
+      PGHOST: adventurelog-db
+      POSTGRES_DB: database
+      POSTGRES_USER: adventure
+      # The frontend's own port inside the container; nginx fronts both it
+      # and the API on 80.
+      PORT: "3000"
+      DJANGO_ADMIN_USERNAME: admin
+      DJANGO_ADMIN_EMAIL: "{{ autolab_services_adventurelog_admin_email }}"
+      GUNICORN_WORKERS: "{{ autolab_services_adventurelog_workers }}"
+      # Nobody signs themselves up with a password. A Pocket ID account that
+      # Pocket ID lets through (the client's allowed groups) gets an
+      # AdventureLog account on first sign-in, and one whose email matches an
+      # existing account is attached to it rather than duplicated.
+      DISABLE_REGISTRATION: "true"
+      SOCIALACCOUNT_ALLOW_SIGNUP: "true"
+      SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT: "true"
+      FORCE_SOCIALACCOUNT_LOGIN: "{{ 'true' if autolab_services_adventurelog_sso_only | bool else 'false' }}"
+    volumes:
+      - adventurelog-media:/code/media
+    mem_limit: {{ autolab_services_adventurelog_memory }}
+    healthcheck:
+      # No curl or wget in the image; Python is.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1/health', timeout=4)\""]
+      # The first boot runs migrations and downloads the world's regions.
+      start_period: 600s
+      interval: 30s
+      timeout: 6s
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.adventurelog }}:80"
+
+  adventurelog-db:
+    image: {{ autolab_services_images.adventurelog_db }}
+    restart: unless-stopped
+    env_file: /etc/autolab/adventurelog-db.env
+    volumes:
+      - adventurelog-db:/var/lib/postgresql/data
+    mem_limit: {{ autolab_services_adventurelog_db_memory }}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adventure -d database"]
+      interval: 10s
+      timeout: 5s
+      retries: 6

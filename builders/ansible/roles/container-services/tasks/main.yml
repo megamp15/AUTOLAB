@@ -162,6 +162,56 @@
   notify: Restart the services stack
   when: "'paradigm-tunnel' in autolab_services_enabled"
 
+# The account that exists from the app's first boot, and whose email a Pocket ID
+# sign-in is matched to. Refused empty rather than defaulted: the app reads it
+# once, at the first boot, and a wrong one is only fixable by hand afterwards.
+- name: Require AdventureLog's admin email and a complete Pocket ID client
+  ansible.builtin.assert:
+    that:
+      - autolab_services_adventurelog_admin_email is match('^[^@ ]+@[^@ ]+$')
+      - (autolab_services_adventurelog_oidc_client_id | length > 0) == (autolab_services_adventurelog_oidc_client_secret | length > 0)
+      - not autolab_services_adventurelog_sso_only | bool or autolab_services_adventurelog_oidc_client_id | length > 0
+    fail_msg: >-
+      The adventurelog service needs the ADVENTURELOG_ADMIN_EMAIL GitHub
+      variable (the email of your Pocket ID user). ADVENTURELOG_OIDC_CLIENT_ID
+      and ADVENTURELOG_OIDC_CLIENT_SECRET come as a pair, and signing in only
+      through Pocket ID needs them both.
+  no_log: true
+  when: "'adventurelog' in autolab_services_enabled"
+
+- name: Create protected service state directory for AdventureLog
+  ansible.builtin.file:
+    path: /etc/autolab
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: "'adventurelog' in autolab_services_enabled"
+
+# Three secrets, made here and kept here: the database's password, Django's
+# signing key, and the break-glass admin's password. They live and are backed
+# up with the database next to them, so they are not GitHub's to hold. Both
+# files are written before the marker one (`creates`), so an interrupted run
+# leaves nothing that looks finished. The values are hex: the app's first boot
+# interpolates the admin password into a script, so it must contain no quotes.
+- name: Create AdventureLog's credentials once
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      umask 077
+      db=$(mktemp /etc/autolab/.adventurelog-db.XXXXXX)
+      app=$(mktemp /etc/autolab/.adventurelog.XXXXXX)
+      trap 'rm -f "$db" "$app"' EXIT
+      pw=$(openssl rand -hex 24)
+      printf 'POSTGRES_DB=database\nPOSTGRES_USER=adventure\nPOSTGRES_PASSWORD=%s\n' "$pw" > "$db"
+      printf 'POSTGRES_PASSWORD=%s\nSECRET_KEY=%s\nDJANGO_ADMIN_PASSWORD=%s\n' \
+        "$pw" "$(openssl rand -hex 32)" "$(openssl rand -hex 16)" > "$app"
+      mv "$db" /etc/autolab/adventurelog-db.env
+      mv "$app" /etc/autolab/adventurelog.env
+    creates: /etc/autolab/adventurelog.env
+  no_log: true
+  when: "'adventurelog' in autolab_services_enabled"
+
 - name: Create code-server persistent state and workspace
   ansible.builtin.file:
     path: "{{ item }}"
@@ -350,6 +400,66 @@
   no_log: true
   when: "'dockhand' in autolab_services_enabled and not ansible_check_mode"
 
+# The first boot migrates the database and downloads the world's regions, which
+# takes minutes; later boots take seconds. Nothing below works before it.
+- name: Wait for AdventureLog to answer
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.adventurelog }}/health"
+    status_code: [200]
+  register: autolab_adventurelog_ready
+  until: autolab_adventurelog_ready.status == 200
+  retries: 90
+  delay: 10
+  when: "'adventurelog' in autolab_services_enabled and not ansible_check_mode"
+
+# The environment is that of this one exec, so the client secret is never in
+# the container's own. The script says CHANGED or UNCHANGED, so a converged
+# host reports ok.
+- name: Register Pocket ID as AdventureLog's login
+  community.docker.docker_container_exec:
+    container: "{{ autolab_services_project }}-adventurelog-1"
+    chdir: /code
+    argv: [python, manage.py, shell]
+    stdin: "{{ lookup('ansible.builtin.file', 'adventurelog/pocketid_provider.py') }}"
+    env:
+      AL_OIDC_PROVIDER_ID: "{{ autolab_services_adventurelog_oidc_provider_id }}"
+      AL_OIDC_NAME: Pocket ID
+      AL_OIDC_CLIENT_ID: "{{ autolab_services_adventurelog_oidc_client_id }}"
+      AL_OIDC_CLIENT_SECRET: "{{ autolab_services_adventurelog_oidc_client_secret }}"
+      AL_OIDC_ISSUER: "{{ autolab_services_adventurelog_oidc_issuer }}"
+      AL_SITE_HOST: "{{ autolab_services_adventurelog_public_url | regex_replace('^https?://', '') }}"
+  register: autolab_adventurelog_provider
+  changed_when: autolab_adventurelog_provider.stdout_lines | last | default('') == 'CHANGED'
+  no_log: true
+  when:
+    - "'adventurelog' in autolab_services_enabled"
+    - autolab_services_adventurelog_oidc_client_id | length > 0
+    - not ansible_check_mode
+
+# What the sign-in button actually does: the app fetches Pocket ID's discovery
+# document and answers with a redirect to its authorize page. A wrong issuer,
+# an unreachable Pocket ID or a missing provider all fail here, by name, rather
+# than on the first person to click.
+- name: Verify the sign-in reaches Pocket ID
+  ansible.builtin.uri:
+    url: >-
+      http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.adventurelog }}/accounts/oidc/{{
+      autolab_services_adventurelog_oidc_provider_id }}/login/?process=login
+    headers:
+      Host: "{{ autolab_services_adventurelog_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    follow_redirects: none
+    status_code: [302]
+  register: autolab_adventurelog_signin
+  failed_when: >-
+    autolab_adventurelog_signin.status != 302 or
+    not (autolab_adventurelog_signin.location | default('')).startswith(
+      autolab_services_adventurelog_oidc_issuer ~ '/authorize?')
+  when:
+    - "'adventurelog' in autolab_services_enabled"
+    - autolab_services_adventurelog_oidc_client_id | length > 0
+    - not ansible_check_mode
+
 # After the stack is up, because it runs inside the container. The CLI is
 # idempotent and says so — "already installed" is how a converged host is
 # told apart from one that just gained an extension, which is what keeps a
@@ -378,3 +488,6 @@
       {{- ', registry :' ~ autolab_services_ports.registry if 'registry' in autolab_services_enabled else '' }}
       {{- ', registry-ui :' ~ autolab_services_ports.registry_ui if 'registry-ui' in autolab_services_enabled else '' }}
       {{- ', code-server :' ~ autolab_services_ports.code_server if 'code-server' in autolab_services_enabled else '' }}
+      {{- ', adventurelog :' ~ autolab_services_ports.adventurelog if 'adventurelog' in autolab_services_enabled else '' }}
+      {{- ' (each person gives it Immich at http://singularity.' ~ autolab_services_fqdn.split('.', 1)[1]
+          ~ ':' ~ autolab_services_adventurelog_immich_port ~ '/api)' if 'adventurelog' in autolab_services_enabled else '' }}

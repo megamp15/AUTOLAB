@@ -30,6 +30,10 @@ autolab_services_images:
   # the tools below baked in. See templates/code-server/Dockerfile.j2.
   code_server: "codercom/code-server:4.145.2"
   immich_share: "alangrainger/immich-public-proxy:4.1.2"
+  # One image holds the web app, the API, nginx and a cache; PostGIS is the
+  # only other container.
+  adventurelog: "ghcr.io/seanmorley15/adventurelog:v0.13.1"
+  adventurelog_db: "postgis/postgis:16-3.5"
   dash: "ghcr.io/gethomepage/homepage:v2.4.0"
   # The connector for the Paradigm Prints tunnel, pinned with the same
   # version horizon's runs.
@@ -46,12 +50,50 @@ autolab_services_ports:
   code_server: "{{ autolab_service_catalog['code-server'].port }}"
   immich_share: "{{ autolab_service_catalog['immich-share'].port }}"
   dash: "{{ autolab_service_catalog.dash.port }}"
+  adventurelog: "{{ autolab_service_catalog.adventurelog.port }}"
   qr: "{{ autolab_service_catalog.qr.port }}"
 
 # gethomepage. The names it answers to (it refuses any other Host header), and
 # the zone and internal label its links are built from.
 autolab_services_dash_zone: "pmahir.space"
 autolab_services_dash_label: "lab"
+
+# AdventureLog. See docs/gitops/adventurelog.md.
+#
+# The address people open, and the one Pocket ID sends them back to: SITE_URL
+# below, and the callback registered in Pocket ID is
+# <this>/accounts/oidc/<provider id>/login/callback/.
+autolab_services_adventurelog_public_url: "https://adventurelog.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+# The break-glass account's email (GitHub variable ADVENTURELOG_ADMIN_EMAIL).
+# Set it to the email of your Pocket ID user: the first sign-in through Pocket
+# ID then attaches to this account, which is the superuser, instead of making
+# an ordinary one beside it. Read once, on the app's first boot; changing it
+# later is done in the Django admin.
+autolab_services_adventurelog_admin_email: ""
+# Pocket ID's client for AdventureLog (GitHub secrets
+# ADVENTURELOG_OIDC_CLIENT_ID and _SECRET). Both empty = password login only,
+# which is how a first deploy proves the app before the client exists.
+autolab_services_adventurelog_oidc_client_id: ""
+autolab_services_adventurelog_oidc_client_secret: ""
+autolab_services_adventurelog_oidc_issuer: "https://auth.{{ autolab_services_dash_zone }}"
+# The last-but-two part of the callback URL; changing it means changing the
+# client's callback in Pocket ID with it.
+autolab_services_adventurelog_oidc_provider_id: pocketid
+# true = Pocket ID is the only way in, and the sign-in page sends people
+# straight there. Flipped only after a Pocket ID sign-in has been seen to work,
+# because the password it replaces is the way back in.
+autolab_services_adventurelog_sso_only: false
+# jwst has ~4.5 GB free. The app idles near 260 MB (measured) and wants about
+# 2 GB once, on first boot, while it downloads the country and region data, so
+# the cap leaves room above that; Postgres stays well under half a gigabyte for
+# a personal log. Limits, not reservations: they keep a runaway from taking
+# Prometheus down with it.
+autolab_services_adventurelog_memory: 3g
+autolab_services_adventurelog_db_memory: 512m
+autolab_services_adventurelog_workers: 2
+# Immich answers here, over the tailnet; each person gives AdventureLog this
+# address and their own API key in its settings.
+autolab_services_adventurelog_immich_port: "{{ autolab_services_immich_port }}"
 
 # QR redirect. The files that make its image: copied to the host, and what its
 # tag is a hash of. A new source file belongs here or it never reaches the host.
