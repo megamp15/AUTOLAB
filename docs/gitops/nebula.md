@@ -24,14 +24,16 @@ on jwst.
 
 | thing | where | why |
 |---|---|---|
-| uploads, repositories, source checkouts | NAS, `/mnt/apps` (share `/volume1/apps`, NFS) | outlive the VM; inside the NAS's offsite backup |
+| uploads, repositories, source checkouts | NAS, `/mnt/apps` (share `/volume1/autolab`, NFS) | outlive the VM |
 | **live Postgres data** | this VM's disk (docker volumes) | a database on NFS v3 corrupts or hangs when the link blips; `nas-storage.md` already says so about SMB |
 | nightly database dumps | NAS, `/mnt/apps/backups/<service>/` | the copy that survives losing the VM |
 | the whole VM | PBS, nightly like every guest | the other copy |
 
-`/volume1/apps` is a share of its own and **not** a folder on
-`/volume1/autolab`: that share holds the PBS datastore, and write access to it
-from an app VM is write access to the backups.
+The app VM temporarily has write access to the same export as the PBS datastore.
+Move PBS into a separate share and restrict its export to ark. Plan the cutover
+around stopped backup jobs, preserve the existing datastore until the new mount
+is verified, and verify a restore before removing the old copy. Then restrict
+nebula's access to the app share. The PBS offsite copy is not yet configured.
 
 A service that keeps files on the NAS refuses to run while the share is not
 mounted, and its container mounts use `create_host_path: false`: a missing
@@ -58,12 +60,12 @@ success. To restore for real, stop the service, load the newest dump with
 
 ## Standing it up (in order)
 
-1. **NAS, by hand, in UGOS.** Create a shared folder `apps`. UGOS rewrites ACLs
+1. **NAS, in UGOS.** Use the existing `autolab` share. UGOS rewrites ACLs
    when a permissions dialog is saved; check access afterwards.
 2. Merge, then workflow **04** (`confirm: apply`, environment `edge`) creates
    the VM. Workflow **05**, environment `edge`, `harden` with `bootstrap: true`
    for the first run, then `docker`.
-3. **NAS export rule**, by hand: shared folder `apps` → NFS permissions → the
+3. **NAS export rule**, by hand: shared folder `autolab` → NFS permissions → the
    host `nebula` (by tailnet name, like ark's), read/write, **No mapping**.
 4. Workflow **05**, environment `edge`: `storage`, then `docker-management`
    (Hawser agent, registered in Dockhand), `observability`, then `services`.
