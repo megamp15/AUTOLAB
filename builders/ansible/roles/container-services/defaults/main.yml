@@ -20,10 +20,11 @@ autolab_services_data_root: /mnt/apps
 # Services with a directory under the data root. A machine that runs one of
 # these refuses to start the stack while the share is not mounted, so nothing
 # can write into an empty local directory standing where the NAS should be.
-autolab_services_nas_backed: [adventurelog]
+autolab_services_nas_backed: [adventurelog, forgejo]
 # Directories to create under the data root, per enabled service.
 autolab_services_nas_dirs: >-
-  {{ (['adventurelog/media'] if 'adventurelog' in autolab_services_enabled else []) }}
+  {{ (['adventurelog/media'] if 'adventurelog' in autolab_services_enabled else [])
+     + (['forgejo', 'forgejo/data'] if 'forgejo' in autolab_services_enabled else []) }}
 # The Postgres behind each service that has one: dumped nightly, restored
 # weekly into a scratch container. `container` is the compose service name.
 autolab_services_databases:
@@ -32,6 +33,11 @@ autolab_services_databases:
     user: adventure
     db: database
     image: "{{ autolab_services_images.adventurelog_db }}"
+  forgejo:
+    container: forgejo-db
+    user: forgejo
+    db: forgejo
+    image: "{{ autolab_services_images.forgejo_db }}"
 autolab_services_db_backup:
   keep_daily: 14
   keep_weekly_days: 60
@@ -60,6 +66,11 @@ autolab_services_images:
   # only other container.
   adventurelog: "ghcr.io/seanmorley15/adventurelog:v0.13.1"
   adventurelog_db: "postgis/postgis:16-3.5"
+  # The long-term-support line: 17.0.0 shipped with a warning against
+  # upgrading to it. The rootless image runs as uid 1000 and is the one the
+  # docs recommend for repositories on NFS.
+  forgejo: "codeberg.org/forgejo/forgejo:15.0.11-rootless"
+  forgejo_db: "postgres:16.15-alpine"
   dash: "ghcr.io/gethomepage/homepage:v2.4.0"
   # The connector for the Paradigm Prints tunnel, pinned with the same
   # version horizon's runs.
@@ -77,6 +88,7 @@ autolab_services_ports:
   immich_share: "{{ autolab_service_catalog['immich-share'].port }}"
   dash: "{{ autolab_service_catalog.dash.port }}"
   adventurelog: "{{ autolab_service_catalog.adventurelog.port }}"
+  forgejo: "{{ autolab_service_catalog.forgejo.port }}"
   qr: "{{ autolab_service_catalog.qr.port }}"
 
 # gethomepage. The names it answers to (it refuses any other Host header), and
@@ -84,18 +96,62 @@ autolab_services_ports:
 autolab_services_dash_zone: "pmahir.space"
 autolab_services_dash_label: "lab"
 
+# The email of your Pocket ID user (GitHub variable APPS_ADMIN_EMAIL). Every
+# app creates its first administrator from it, so the first sign-in through
+# Pocket ID attaches to that account instead of making an ordinary one beside
+# it. Read once, when an app first boots; changed afterwards in the app.
+autolab_services_admin_email: ""
+
+# Forgejo. See docs/gitops/forgejo.md.
+autolab_services_forgejo_public_url: "https://forgejo.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+# Pocket ID's client for Forgejo (GitHub secrets FORGEJO_OIDC_CLIENT_ID and
+# _SECRET). Empty = password login only. The source is registered under the
+# fixed name PocketID, because that name is part of the callback URL:
+# <public url>/user/oauth2/PocketID/callback
+autolab_services_forgejo_oidc_client_id: ""
+autolab_services_forgejo_oidc_client_secret: ""
+autolab_services_forgejo_oidc_issuer: "https://auth.{{ autolab_services_dash_zone }}"
+# Pocket ID's `admins` group becomes Forgejo's site administrators.
+autolab_services_forgejo_admin_group: admins
+# false = no password form: Pocket ID is the only way in. Flipped in a pull
+# request after a Pocket ID sign-in has been seen to work.
+autolab_services_forgejo_password_login: true
+autolab_services_forgejo_memory: 1g
+autolab_services_forgejo_db_memory: 384m
+# What Forgejo holds. `mirrors` are pull mirrors of upstream, refreshed on the
+# interval; `apps` are our forks of them, made once and then ours. Declared
+# here, created by forgejo_bootstrap.py, never reset.
+autolab_services_forgejo_mirror_interval: "8h0m0s"
+autolab_services_forgejo_mirrors:
+  - {name: adventurelog, url: "https://github.com/seanmorley15/AdventureLog.git"}
+  - {name: pocket-id, url: "https://github.com/pocket-id/pocket-id.git"}
+autolab_services_forgejo_forks: [adventurelog]
+
+# Where this host reaches Forgejo (the tailnet address its port is bound to),
+# for clones at build time and for the bootstrap script.
+autolab_services_forgejo_internal_url: "http://{{ autolab_services_fqdn }}:{{ autolab_services_ports.forgejo }}"
+
+# Apps built from source. `mode: upstream` runs the project's own release image
+# (how a new app starts, and the only way before Forgejo holds its fork);
+# `mode: fork` builds on this host from our fork at the pinned `ref`, which is
+# the line to change to ship a modification. The checkout is a disposable
+# cache under the services root; the repository itself is on Forgejo, on the
+# NAS. Fork URLs are anonymous reads on the tailnet.
+autolab_services_sources:
+  adventurelog:
+    mode: upstream
+    upstream_image: "{{ autolab_services_images.adventurelog }}"
+    repo: "{{ autolab_services_forgejo_internal_url }}/apps/adventurelog.git"
+    ref: v0.13.1
+    dockerfile: docker/Dockerfile
+    target: aio
+
 # AdventureLog. See docs/gitops/adventurelog.md.
 #
 # The address people open, and the one Pocket ID sends them back to: SITE_URL
 # below, and the callback registered in Pocket ID is
 # <this>/accounts/oidc/<provider id>/login/callback/.
 autolab_services_adventurelog_public_url: "https://adventurelog.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
-# The break-glass account's email (GitHub variable ADVENTURELOG_ADMIN_EMAIL).
-# Set it to the email of your Pocket ID user: the first sign-in through Pocket
-# ID then attaches to this account, which is the superuser, instead of making
-# an ordinary one beside it. Read once, on the app's first boot; changing it
-# later is done in the Django admin.
-autolab_services_adventurelog_admin_email: ""
 # Pocket ID's client for AdventureLog (GitHub secrets
 # ADVENTURELOG_OIDC_CLIENT_ID and _SECRET). Both empty = password login only,
 # which is how a first deploy proves the app before the client exists.

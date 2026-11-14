@@ -5,7 +5,17 @@
   # docs/gitops/adventurelog.md. Uploads are on the NAS; the database is local
   # and is dumped to the NAS every night (autolab-db-backup).
   adventurelog:
-    image: {{ autolab_services_images.adventurelog }}
+{% set src = autolab_services_sources.adventurelog %}
+{% if src.mode == 'fork' %}
+    # Built here from our fork at the pinned ref; the tag is the commit built.
+    image: autolab/adventurelog:{{ autolab_services_source_tags.adventurelog }}
+    build:
+      context: ./src/adventurelog
+      dockerfile: {{ src.dockerfile }}
+      target: {{ src.target }}
+{% else %}
+    image: {{ src.upstream_image }}
+{% endif %}
     restart: unless-stopped
     depends_on:
       adventurelog-db:
@@ -22,7 +32,7 @@
       # and the API on 80.
       PORT: "3000"
       DJANGO_ADMIN_USERNAME: admin
-      DJANGO_ADMIN_EMAIL: "{{ autolab_services_adventurelog_admin_email }}"
+      DJANGO_ADMIN_EMAIL: "{{ autolab_services_admin_email }}"
       GUNICORN_WORKERS: "{{ autolab_services_adventurelog_workers }}"
       # Nobody signs themselves up with a password. A Pocket ID account that
       # Pocket ID lets through (the client's allowed groups) gets an

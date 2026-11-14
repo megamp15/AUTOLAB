@@ -348,6 +348,17 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://nebula.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.adventurelog.port }}/health"
+  - name: Forgejo
+    group: services
+    meta: git
+    url: >-
+      {{ autolab_obs_lab_url.format(name='forgejo', raw='http://nebula.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.forgejo.port) }}
+    icon: repo
+    enabled: "{{ 'forgejo' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
+    check:
+      type: http
+      target: "http://nebula.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.forgejo.port }}/api/healthz"
   # The gethomepage grid (container-services `dash`), the same lab as a
   # compact list of tiles, next to this page.
   - name: Dashboard

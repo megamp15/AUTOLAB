@@ -45,7 +45,7 @@ One-time, by hand, because Pocket ID is signed into with a passkey:
    in. Save, open it, *Generate* the secret.
 2. Repository secrets `ADVENTURELOG_OIDC_CLIENT_ID` and
    `ADVENTURELOG_OIDC_CLIENT_SECRET`; repository variable
-   `ADVENTURELOG_ADMIN_EMAIL`, **the email of your Pocket ID user**. The app
+   `APPS_ADMIN_EMAIL`, **the email of your Pocket ID user**. The app
    makes its administrator from it on the first boot, and a Pocket ID sign-in
    with the same email is attached to that account rather than creating a
    second one. It is read once; later it is changed in the Django admin.

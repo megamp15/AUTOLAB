@@ -397,7 +397,9 @@ jobs:
           # services list has adventurelog.
           AUTOLAB_ADVENTURELOG_OIDC_CLIENT_ID: ${{ secrets.ADVENTURELOG_OIDC_CLIENT_ID }}
           AUTOLAB_ADVENTURELOG_OIDC_CLIENT_SECRET: ${{ secrets.ADVENTURELOG_OIDC_CLIENT_SECRET }}
-          AUTOLAB_ADVENTURELOG_ADMIN_EMAIL: ${{ vars.ADVENTURELOG_ADMIN_EMAIL }}
+          AUTOLAB_FORGEJO_OIDC_CLIENT_ID: ${{ secrets.FORGEJO_OIDC_CLIENT_ID }}
+          AUTOLAB_FORGEJO_OIDC_CLIENT_SECRET: ${{ secrets.FORGEJO_OIDC_CLIENT_SECRET }}
+          AUTOLAB_APPS_ADMIN_EMAIL: ${{ vars.APPS_ADMIN_EMAIL }}
         run: |
           out="$RUNNER_TEMP/extra-vars.json"
           umask 077
@@ -440,7 +442,7 @@ jobs:
               "autolab_services_paradigm_tunnel_token": os.environ.get("AUTOLAB_PARADIGM_TUNNEL_TOKEN", ""),
               "autolab_services_adventurelog_oidc_client_id": os.environ.get("AUTOLAB_ADVENTURELOG_OIDC_CLIENT_ID", ""),
               "autolab_services_adventurelog_oidc_client_secret": os.environ.get("AUTOLAB_ADVENTURELOG_OIDC_CLIENT_SECRET", ""),
-              "autolab_services_adventurelog_admin_email": os.environ.get("AUTOLAB_ADVENTURELOG_ADMIN_EMAIL", ""),
+              "autolab_services_admin_email": os.environ.get("AUTOLAB_APPS_ADMIN_EMAIL", ""),
           }, open(sys.argv[1], "w"))
           PY
           if [ -n "${AUTOLAB_BUILDER_SSH_PUBLIC_KEY}" ]; then

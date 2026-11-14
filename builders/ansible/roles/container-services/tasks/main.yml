@@ -202,11 +202,11 @@
 - name: Require AdventureLog's admin email and a complete Pocket ID client
   ansible.builtin.assert:
     that:
-      - autolab_services_adventurelog_admin_email is match('^[^@ ]+@[^@ ]+$')
+      - autolab_services_admin_email is match('^[^@ ]+@[^@ ]+$')
       - (autolab_services_adventurelog_oidc_client_id | length > 0) == (autolab_services_adventurelog_oidc_client_secret | length > 0)
       - not autolab_services_adventurelog_sso_only | bool or autolab_services_adventurelog_oidc_client_id | length > 0
     fail_msg: >-
-      The adventurelog service needs the ADVENTURELOG_ADMIN_EMAIL GitHub
+      The adventurelog service needs the APPS_ADMIN_EMAIL GitHub
       variable (the email of your Pocket ID user). ADVENTURELOG_OIDC_CLIENT_ID
       and ADVENTURELOG_OIDC_CLIENT_SECRET come as a pair, and signing in only
       through Pocket ID needs them both.
@@ -245,6 +245,71 @@
     creates: /etc/autolab/adventurelog.env
   no_log: true
   when: "'adventurelog' in autolab_services_enabled"
+
+# Forgejo's credentials, the same way: made here once, read by root only.
+# SECRET_KEY signs sessions and encrypts what Forgejo stores; it must survive
+# the container, so it is not left to be generated into app.ini.
+- name: Create Forgejo's credentials once
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      umask 077
+      db=$(mktemp /etc/autolab/.forgejo-db.XXXXXX)
+      app=$(mktemp /etc/autolab/.forgejo.XXXXXX)
+      trap 'rm -f "$db" "$app"' EXIT
+      pw=$(openssl rand -hex 24)
+      printf 'POSTGRES_DB=forgejo\nPOSTGRES_USER=forgejo\nPOSTGRES_PASSWORD=%s\n' "$pw" > "$db"
+      printf 'FORGEJO__database__PASSWD=%s\nFORGEJO__security__SECRET_KEY=%s\nFORGEJO_ADMIN_PASSWORD=%s\n' \
+        "$pw" "$(openssl rand -hex 32)" "$(openssl rand -hex 16)" > "$app"
+      mv "$db" /etc/autolab/forgejo-db.env
+      mv "$app" /etc/autolab/forgejo.env
+    creates: /etc/autolab/forgejo.env
+  no_log: true
+  when: "'forgejo' in autolab_services_enabled"
+
+- name: Require Forgejo's admin email and a complete Pocket ID client
+  ansible.builtin.assert:
+    that:
+      - autolab_services_admin_email is match('^[^@ ]+@[^@ ]+$')
+      - (autolab_services_forgejo_oidc_client_id | length > 0) == (autolab_services_forgejo_oidc_client_secret | length > 0)
+      - autolab_services_forgejo_password_login | bool or autolab_services_forgejo_oidc_client_id | length > 0
+    fail_msg: >-
+      Forgejo needs the APPS_ADMIN_EMAIL GitHub variable, FORGEJO_OIDC_CLIENT_ID and FORGEJO_OIDC_CLIENT_SECRET as a
+      pair, and no password login only with both.
+  no_log: true
+  when: "'forgejo' in autolab_services_enabled"
+
+# Apps in `fork` mode are built from our fork. A checkout per app, at the
+# pinned ref, under the services root: a cache, rebuilt from Forgejo if lost.
+- name: Work out which apps are built from our forks
+  ansible.builtin.set_fact:
+    autolab_services_fork_apps: >-
+      {{ autolab_services_sources | dict2items
+         | selectattr('value.mode', 'equalto', 'fork') | map(attribute='key')
+         | select('in', autolab_services_enabled) | list }}
+
+- name: Install git where something is built from source
+  ansible.builtin.apt:
+    name: git
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: autolab_services_fork_apps | length > 0
+
+- name: Check out each fork at its pinned ref
+  ansible.builtin.git:
+    repo: "{{ autolab_services_sources[item].repo }}"
+    dest: "{{ autolab_services_root }}/src/{{ item }}"
+    version: "{{ autolab_services_sources[item].ref }}"
+    force: true
+  loop: "{{ autolab_services_fork_apps }}"
+  register: autolab_services_checkouts
+
+- name: Tag each built image with the commit it was built from
+  ansible.builtin.set_fact:
+    autolab_services_source_tags: >-
+      {{ dict(autolab_services_fork_apps | zip(autolab_services_checkouts.results | map(attribute='after') | map('truncate', 12, true, ''))) }}
+  when: autolab_services_fork_apps | length > 0
 
 - name: Create code-server persistent state and workspace
   ansible.builtin.file:
@@ -493,6 +558,142 @@
     - "'adventurelog' in autolab_services_enabled"
     - autolab_services_adventurelog_oidc_client_id | length > 0
     - not ansible_check_mode
+
+# Forgejo: its break-glass admin, Pocket ID as a login, an API token, and the
+# organizations, mirrors and forks it exists to hold. Each step is a no-op once
+# it has happened, so a converged host reports ok.
+- name: Wait for Forgejo to answer
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.forgejo }}/api/healthz"
+    status_code: [200]
+  register: autolab_forgejo_ready
+  until: autolab_forgejo_ready.status == 200
+  retries: 60
+  delay: 5
+  when: "'forgejo' in autolab_services_enabled and not ansible_check_mode"
+
+- name: List Forgejo's users
+  community.docker.docker_container_exec:
+    container: "{{ autolab_services_project }}-forgejo-1"
+    argv: [forgejo, admin, user, list]
+  register: autolab_forgejo_users
+  changed_when: false
+  when: "'forgejo' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Create Forgejo's break-glass administrator
+  ansible.builtin.shell:
+    cmd: |
+      . /etc/autolab/forgejo.env
+      docker exec {{ autolab_services_project }}-forgejo-1 forgejo admin user create --admin \
+        --username forgejo-admin --email "{{ autolab_services_admin_email }}" \
+        --password "$FORGEJO_ADMIN_PASSWORD" --must-change-password=false
+  no_log: true
+  changed_when: true
+  when:
+    - "'forgejo' in autolab_services_enabled"
+    - not ansible_check_mode
+    - "'forgejo-admin' not in autolab_forgejo_users.stdout"
+
+# The source is rewritten only when what describes it changed: Forgejo will not
+# say whether a secret differs, so a digest of the settings stands in.
+- name: Describe the Pocket ID login
+  ansible.builtin.set_fact:
+    autolab_forgejo_oidc_digest: >-
+      {{ (autolab_services_forgejo_oidc_client_id ~ autolab_services_forgejo_oidc_client_secret
+          ~ autolab_services_forgejo_oidc_issuer ~ autolab_services_forgejo_admin_group) | hash('sha256') }}
+  no_log: true
+  when: autolab_services_forgejo_oidc_client_id | length > 0
+
+- name: Read the digest of the login Forgejo has
+  ansible.builtin.slurp:
+    src: /etc/autolab/forgejo-oidc.sha256
+  register: autolab_forgejo_oidc_have
+  failed_when: false
+  when:
+    - "'forgejo' in autolab_services_enabled"
+    - autolab_services_forgejo_oidc_client_id | length > 0
+    - not ansible_check_mode
+
+- name: Register or update Pocket ID as Forgejo's login
+  ansible.builtin.shell:
+    executable: /bin/bash
+    cmd: |
+      set -eo pipefail
+      f="docker exec {{ autolab_services_project }}-forgejo-1 forgejo admin auth"
+      id=$($f list | awk -F'\t' '$2 == "PocketID" {print $1}')
+      if [ -n "$id" ]; then verb="update-oauth --id $id"; else verb="add-oauth"; fi
+      $f $verb --name PocketID --provider openidConnect \
+        --key "$KEY" --secret "$SECRET" \
+        --auto-discover-url "{{ autolab_services_forgejo_oidc_issuer }}/.well-known/openid-configuration" \
+        --scopes openid --scopes email --scopes profile --scopes groups \
+        --group-claim-name groups --admin-group "{{ autolab_services_forgejo_admin_group }}" --skip-local-2fa
+      umask 077
+      printf '%s' "$DIGEST" > /etc/autolab/forgejo-oidc.sha256
+  environment:
+    KEY: "{{ autolab_services_forgejo_oidc_client_id }}"
+    SECRET: "{{ autolab_services_forgejo_oidc_client_secret }}"
+    DIGEST: "{{ autolab_forgejo_oidc_digest | default('') }}"
+  no_log: true
+  changed_when: true
+  when:
+    - "'forgejo' in autolab_services_enabled"
+    - autolab_services_forgejo_oidc_client_id | length > 0
+    - not ansible_check_mode
+    - (autolab_forgejo_oidc_have.content | default('') | b64decode) != autolab_forgejo_oidc_digest
+
+- name: Verify Forgejo's sign-in reaches Pocket ID
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.forgejo }}/user/oauth2/PocketID"
+    headers:
+      Host: "{{ autolab_services_forgejo_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    follow_redirects: none
+    status_code: [307]
+  register: autolab_forgejo_signin
+  failed_when: >-
+    autolab_forgejo_signin.status != 307 or
+    not (autolab_forgejo_signin.location | default('')).startswith(autolab_services_forgejo_oidc_issuer ~ '/authorize?')
+  when:
+    - "'forgejo' in autolab_services_enabled"
+    - autolab_services_forgejo_oidc_client_id | length > 0
+    - not ansible_check_mode
+
+# The token the bootstrap script calls the API with, made once.
+- name: Create Forgejo's API token once
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      umask 077
+      docker exec {{ autolab_services_project }}-forgejo-1 forgejo admin user generate-access-token \
+        --username forgejo-admin --token-name autolab-bootstrap --scopes all --raw > /etc/autolab/.forgejo-token
+      mv /etc/autolab/.forgejo-token /etc/autolab/forgejo-api-token
+    creates: /etc/autolab/forgejo-api-token
+  no_log: true
+  when: "'forgejo' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Install the Forgejo bootstrap script
+  ansible.builtin.copy:
+    src: forgejo_bootstrap.py
+    dest: /usr/local/bin/autolab-forgejo-bootstrap
+    owner: root
+    group: root
+    mode: "0755"
+  when: "'forgejo' in autolab_services_enabled"
+
+- name: Describe what Forgejo should hold
+  ansible.builtin.template:
+    src: forgejo-bootstrap.json.j2
+    dest: /etc/autolab/forgejo-bootstrap.json
+    owner: root
+    group: root
+    mode: "0644"
+  when: "'forgejo' in autolab_services_enabled"
+
+- name: Create the organizations, mirrors and forks
+  ansible.builtin.command: /usr/local/bin/autolab-forgejo-bootstrap /etc/autolab/forgejo-bootstrap.json
+  register: autolab_forgejo_bootstrap
+  changed_when: autolab_forgejo_bootstrap.stdout_lines | last | default('') == 'CHANGED'
+  when: "'forgejo' in autolab_services_enabled and not ansible_check_mode"
 
 # After the stack is up, because it runs inside the container. The CLI is
 # idempotent and says so — "already installed" is how a converged host is

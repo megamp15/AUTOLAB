@@ -14,7 +14,7 @@
 # service stays true: the machines map says where it runs, this says who has to
 # be told.
 autolab_remote_services:
-  nebula: [adventurelog]
+  nebula: [adventurelog, forgejo]
 
 # Every container service the lab knows, what it listens on, and how a person
 # gets in:
@@ -68,6 +68,12 @@ autolab_service_catalog:
   # redundant login. Tailnet-only, like every lab name.
   adventurelog:
     port: 8098
+    login: own
+  # Forgejo: the lab's own git host. Mirrors of the projects the apps come from
+  # (so a takedown costs nothing) and our forks of them, which are what gets
+  # built. `own`: it signs people in itself with Pocket ID.
+  forgejo:
+    port: 8100
     login: own
   # The connector for the tunnel in the Paradigm Prints Cloudflare account. One
   # tunnel, any number of hostnames: each is a route in that account's

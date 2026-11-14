@@ -93,13 +93,13 @@ machines = {
       # What it runs. The names are the catalog's (playbooks/group_vars/all.yml)
       # and must equal autolab_remote_services.nebula there; a test fails the
       # build if they drift.
-      services = ["adventurelog"]
+      services = ["adventurelog", "forgejo"]
       # A share of its own, not a folder on /volume1/autolab: that share holds
       # the PBS datastore, and a compromised app VM with write access to it
       # could delete the backups. The export rule for this host must exist
       # before the storage playbook runs — see docs/gitops/nebula.md.
       storage = [
-        { protocol = "nfs", server = "singularity", share = "/volume1/apps", path = "/mnt/apps", directories = ["backups", "src"], mode = "0755" },
+        { protocol = "nfs", server = "singularity", share = "/volume1/apps", path = "/mnt/apps", directories = ["backups"], mode = "0755" },
       ]
       observability = {
         ship_to = "jwst"
