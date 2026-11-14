@@ -91,6 +91,17 @@ class Jobs:
         self.cache[plan['id']] = plan
         self._save('plans', plan)
 
+    def _supersede(self, kind, keep_id):
+        """A new scan replaces the earlier, unapplied scan of its kind: the page only ever reopens the
+        latest one, and a duplicates plan for a whole library is megabytes."""
+        for old in self._list('plans'):
+            if old['kind'] == kind and old['id'] != keep_id and not old.get('applied'):
+                try:
+                    os.remove(self._path('plans', old['id']))
+                except OSError:
+                    continue
+                self.cache.pop(old['id'], None)
+
     def plans(self):
         return [self.summary(p) for p in self._list('plans')]
 
@@ -214,6 +225,7 @@ class Jobs:
             else:
                 plan = (core.plan_sort(self.cfg, progress) if kind == 'sort' else core.plan_immich(self.cfg, self.immich, progress))
             keep(plan, False)
+            self._supersede(kind, plan_id)
             return {'plan': plan_id}
 
         return self.start('plan-' + kind, work, plan=plan_id, **({'resumed': resumed} if resumed else {}))

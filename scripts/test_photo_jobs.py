@@ -966,6 +966,22 @@ class ActivityLog(Library):
         self.assertEqual(final['stats']['groups'], 3)
         self.assertEqual(self.app.jobs.activity()[0]['stats']['groups'], 3)
 
+    def test_a_new_scan_replaces_the_earlier_unapplied_one_of_its_kind_only(self):
+        self.put('_inbox/loose/a.jpg', 'A', '2025-06')
+        self.sync_dates()
+        ids = []
+        for kind in ('sort', 'sort', 'duplicates'):
+            self.app.jobs.start_plan(kind)
+            ids.append(self.wait()['result']['plan'])
+        kept = {p['id'] for p in self.app.jobs.plans()}
+        self.assertEqual(kept, {ids[1], ids[2]})               # the first sort scan was replaced, the duplicates scan is its own kind
+        applied = self.app.jobs.plan(ids[1])
+        applied['applied'] = 'run1'
+        self.app.jobs.save_plan(applied)
+        self.app.jobs.start_plan('sort')
+        newest = self.wait()['result']['plan']
+        self.assertEqual({p['id'] for p in self.app.jobs.plans()}, {ids[1], ids[2], newest})   # an applied plan is history, kept
+
     def test_choices_are_refused_while_their_scan_is_still_running(self):
         gate = threading.Event()
         plan = {'id': 'p1', 'kind': 'duplicates', 'groups': [], 'moves': [], 'excluded': [], 'excluded_kinds': [], 'applied': None}
