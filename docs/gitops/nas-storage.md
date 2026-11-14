@@ -243,3 +243,14 @@ took away.
 - [Builder README](../../builders/ansible/README.md) — roles and playbooks
 - [01 - Tailscale SSH](./01-tailscale-ssh.md) — the transport
 - [Tailnet policy GitOps](./tailnet-policy-gitops.md) — the policy that allows it
+
+## Recovering missing NFS exports
+
+UGOS can reload NFS while Tailscale DNS is unavailable and omit hostname-based
+rules from its active exports. The NAS NFS export guard checks every two minutes
+and restores a missing `/volume1/autolab` rule using the host and options still
+present in `/etc/exports`. It resolves every missing host first and refuses
+unknown rule formats; it never rewrites UGOS configuration or reloads unrelated
+exports. The NAS observability role installs the timer and exposes its result to
+Grafana. Alerts report a failed check or a restored export. This is separate
+from ark's PBS access guard, which repairs file permissions inside the datastore.
