@@ -149,11 +149,11 @@
   .tbody { overflow:auto; flex:1 1 auto; min-height:0; max-height:70vh; scrollbar-width:thin; }
   .tbody.groups { padding:2px 2px 0; }
   .tr { display:grid; grid-template-columns:28px 92px minmax(0,1.25fr) minmax(0,1.25fr) minmax(0,1fr); gap:4px 14px; padding:8px 12px; border-bottom:1px solid var(--soft); align-items:start; }
-  .tr.immich { grid-template-columns:28px minmax(0,1fr) minmax(0,1.7fr) 90px 160px; }
+  .tr.immich { grid-template-columns:28px 72px minmax(0,1fr) minmax(0,1.7fr) 90px 160px; }
   .tr:hover:not(.th) { background:var(--soft); }
   .tr.off { opacity:.42; }
   .tr.inert .tick { opacity:.3; cursor:default; }
-  .album-row { display:grid; grid-template-columns:28px minmax(150px,1.3fr) minmax(160px,1fr) 150px 160px; gap:8px 14px; padding:10px 12px; border-bottom:1px solid var(--soft); align-items:center; }
+  .album-row { display:grid; grid-template-columns:28px 72px minmax(150px,1.3fr) minmax(160px,1fr) 150px 160px; gap:8px 14px; padding:10px 12px; border-bottom:1px solid var(--soft); align-items:center; }
   .album-row:not(.album-head):hover { background:var(--soft); }
   .album-head { position:sticky; top:0; z-index:2; background:color-mix(in srgb,var(--bg) 94%,var(--fg)); font:10.5px 'IBM Plex Mono',monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); border-bottom:1px solid var(--line); }
   .album-name { width:100%; min-width:0; }
@@ -509,15 +509,15 @@
   const qs = o => new URLSearchParams(o).toString();
   const blank = (text, cls) => el('span', 'thumb blank ' + (cls || ''), text);
   // A small picture of a file; clicking it calls onopen. A video or a folder gets a label instead.
-  function thumb(rel, onopen, { w = 240, label = '' } = {}) {
+  function thumb(rel, onopen, { w = 240, label = '', folder = false } = {}) {
     let t;
-    if (!MEDIA_EXT.test(rel)) t = blank(label || '—');
-    else if (VIDEO_EXT.test(rel)) t = blank('VIDEO');
+    if (!folder && !MEDIA_EXT.test(rel)) t = blank(label || '—');
+    else if (!folder && VIDEO_EXT.test(rel)) t = blank('VIDEO');
     else {
       t = el('img', 'thumb'); t.loading = 'lazy'; t.decoding = 'async'; t.alt = ''; t.src = '/api/preview?' + qs({ path: rel, w });
       t.onerror = () => { const b = blank('NO PREVIEW'); b.onclick = t.onclick; t.replaceWith(b); };
     }
-    if (onopen && MEDIA_EXT.test(rel)) t.onclick = e => { e.preventDefault(); e.stopPropagation(); onopen(); };
+    if (onopen && (folder || MEDIA_EXT.test(rel))) t.onclick = e => { e.preventDefault(); e.stopPropagation(); onopen(); };
     else t.style.cursor = 'default';
     return t;
   }
@@ -534,7 +534,7 @@
     const grid = el('div', 'viewer-grid');
     items.forEach(it => {
       const fig = el('figure'), frame = el('div', 'frame'), cap = el('figcaption'), facts = el('dl', 'facts');
-      if (VIDEO_EXT.test(it.path)) {
+      if (!it.folder && VIDEO_EXT.test(it.path)) {
         const v = el('video'); v.controls = true; v.preload = 'metadata'; v.src = '/api/file?' + qs({ path: it.path });
         v.onerror = () => frame.replaceChildren(el('div', 'blank', 'This browser cannot play this video. Open the original to download it.')); frame.append(v);
       } else {
@@ -542,8 +542,8 @@
         img.onerror = () => frame.replaceChildren(el('div', 'blank', 'No preview for this file type.')); frame.append(img);
       }
       const open = el('a', 'muted', 'Open original'); open.href = '/api/file?' + qs({ path: it.path }); open.target = '_blank'; open.rel = 'noopener';
-      cap.append(...(it.label ? [el('div', 'mono', it.label)] : []), el('div', 'path', it.path), facts, open); fig.append(frame, cap); grid.append(fig);
-      api('/info?' + qs({ path: it.path })).then(f => {
+      cap.append(...(it.label ? [el('div', 'mono', it.label)] : []), el('div', 'path', it.path), facts, ...(it.folder ? [] : [open])); fig.append(frame, cap); grid.append(fig);
+      if (!it.folder) api('/info?' + qs({ path: it.path })).then(f => {
         [['Size', fmtGiB(f.size)], ['Dimensions', f.width ? `${f.width} × ${f.height}` : ''], ['Taken', f.taken], ['Camera', f.camera], ['Length', f.duration], ['File changed', fmtDate(f.modified)]]
           .filter(([, v]) => v).forEach(([k, v]) => facts.append(el('dt', null, k), el('dd', null, v)));
       }).catch(() => {});
@@ -597,7 +597,8 @@
     const kept = m.kind === 'duplicate' ? m.why.replace(/^copy of /, '') : '';
     const look = kept ? () => openViewer([{ path: m.src, label: 'This copy (to be filed away)' }, { path: kept, label: 'The copy that stays' }], 'Is it the same photo?')
                       : () => openViewer([{ path: m.src, label: '' }], m.src.split('/').pop());
-    row.append(box, thumb(m.src, look, { label: m.kind === 'event' ? 'FOLDER' : '' }), el('span', 'tag', KIND_LABEL[m.kind] || m.kind), el('span', 'path', m.src), to, el('span', 'why', m.why));
+    const asFolder = m.kind === 'event';
+    row.append(box, thumb(m.src, asFolder ? () => openViewer([{ path: m.src, label: 'First photo in the folder', folder: true }], m.src.split('/').pop()) : look, { folder: asFolder }), el('span', 'tag', KIND_LABEL[m.kind] || m.kind), el('span', 'path', m.src), to, el('span', 'why', m.why));
     if (!sortIndex.has(key)) sortIndex.set(key, []);
     sortIndex.get(key).push({ m, row, box }); body.append(row);
   }
@@ -824,7 +825,7 @@
     all.checked = eligible.length > 0 && eligible.every(e => state.albumChecked.has(e.path));
     all.indeterminate = eligible.some(e => state.albumChecked.has(e.path)) && !all.checked;
     all.onchange = () => { eligible.forEach(e => all.checked ? state.albumChecked.add(e.path) : state.albumChecked.delete(e.path)); render(); };
-    head.append(all, ...['Event folder', 'Immich album name', 'Status', ''].map(t => el('span', null, t))); table.append(head);
+    head.append(all, ...['', 'Event folder', 'Immich album name', 'Status', ''].map(t => el('span', null, t))); table.append(head);
     const body = el('div', 'tbody');
     if (!events.length) body.append(el('div', 'empty', 'No event folders found under library/YYYY/MM yet.'));
     events.forEach(event => {
@@ -835,7 +836,9 @@
       name.oninput = () => { event.name = name.value; };
       const status = el('span', 'album-state ' + event.status, ALBUM_STATE[event.status] || event.status);
       const total = event.status === 'add' ? `${event.to_add} to add · ${event.photos} total` : `${event.photos} photos`;
-      row.append(box, where, name, status, el('span', 'mono muted', total)); body.append(row);
+      const folder = `${state.status.library}/${event.path}`;      // event paths are inside the library; the previews are from the media folder
+      const cover = thumb(folder, () => openViewer([{ path: folder, label: 'First photo in the folder', folder: true }], event.folder.replaceAll('_', ' ')), { folder: true });
+      row.append(box, cover, where, name, status, el('span', 'mono muted', total)); body.append(row);
     });
     table.append(body); panel.append(table); main.append(panel);
     const bar = el('div', 'bar'), info = el('span', 'grow'), create = el('button', 'btn primary');
@@ -900,7 +903,7 @@
     warn.hidden = p.mode !== 'delete';
     const head = el('div', 'tr th immich'), headBox = el('input', 'tick'); headBox.type = 'checkbox'; headBox.title = 'Tick or untick every file shown';
     headBox.onchange = () => bulkItems(headBox.checked);
-    head.append(headBox, ...['Photo', 'Where it is in the library', 'Size', ''].map(t => el('span', null, t)));
+    head.append(headBox, ...['', 'Photo', 'Where it is in the library', 'Size', ''].map(t => el('span', null, t)));
     const body = el('div', 'tbody'); nearEnd(body, async () => { if (!m.loading && m.rows.length < m.total) { m.loading = true; try { (await fetchItems(true)).forEach(addItem); } finally { m.loading = false; } } });
     const table = el('div', 'table'); table.append(head, body);
     panel.append(tools, warn, table); main.append(panel);
@@ -917,7 +920,8 @@
     const where = el('span', 'path', ok ? i.rel : WHERE[i.status] || i.status);
     const live = i.clip ? el('span', 'live', 'LIVE PHOTO + CLIP') : el('span');
     if (i.clip) where.append(el('div', 'why', 'clip: ' + i.clip.rel));
-    row.append(box, what, where, el('span', 'mono muted', ok ? fmtGiB(i.size + (i.clip ? i.clip.size : 0)) : ''), live);
+    const pic = ok ? thumb(i.rel, () => openViewer([{ path: i.rel, label: i.clip ? 'Still (it has a clip)' : '' }], i.name || i.rel), { label: '' }) : blank('GONE');
+    row.append(box, pic, what, where, el('span', 'mono muted', ok ? fmtGiB(i.size + (i.clip ? i.clip.size : 0)) : ''), live);
     u.index.set(i.id, { i, row, box }); u.body.append(row);
   }
   function paintImmich() {

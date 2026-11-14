@@ -40,3 +40,33 @@ def partner(path):
     found = [n for n in names if os.path.splitext(n)[0].lower() == stem.lower()
              and os.path.splitext(n)[1].lower() in want]
     return os.path.join(folder, found[0]) if len(found) == 1 else None
+
+
+def partners(paths):
+    """{path: its other half} for every path in `paths` that has one on disk, listing each folder
+    once. partner() for a path at a time lists the folder every time, which is minutes for a
+    library's worth of files."""
+    by_folder, found = {}, {}
+    for path in paths:
+        by_folder.setdefault(os.path.dirname(path), []).append(path)
+    for folder, members in by_folder.items():
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            continue
+        stems = {}
+        for n in names:
+            stem, ext = os.path.splitext(n)
+            stems.setdefault(stem.lower(), []).append(ext.lower())
+        index = {}
+        for n in names:
+            stem, ext = os.path.splitext(n)
+            index.setdefault((stem.lower(), ext.lower()), []).append(n)
+        for path in members:
+            stem, ext = os.path.splitext(os.path.basename(path))
+            ext = ext.lower()
+            want = STILLS if ext in CLIPS else CLIPS if ext in STILLS else ()
+            hits = [n for e in want for n in index.get((stem.lower(), e), ())]
+            if len(hits) == 1:
+                found[path] = os.path.join(folder, hits[0])
+    return found

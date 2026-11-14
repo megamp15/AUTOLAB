@@ -480,17 +480,21 @@ def _duplicate_plan(cfg, found, scanned):
             'stats': {'scanned': scanned, 'groups': len(groups), 'extra': extra, 'extra_bytes': extra_bytes}}
 
 
-def duplicate_moves(cfg, plan):
+def live_mates(cfg, plan):
+    """{file: its Live Photo half} for the files in a duplicates plan: the part of working out the
+    moves that has to look at the disk."""
+    files = [cfg.abs(rel) for g in plan['groups'] for rel in g['files']]
+    return {cfg.rel(path): cfg.rel(half) for path, half in live_photos.partners(files).items()}
+
+
+def duplicate_moves(cfg, plan, mate=None):
     """The moves a duplicates plan makes with its current keep choices, and the copies left alone
     because their Live Photo half is staying. Computed from the folder as it is now."""
     delete = plan.get('mode') == 'delete'   # remove the extra copies instead of filing them
     groups = [g for g in plan['groups'] if g['id'] not in set(plan.get('excluded', []))]
     marked = {rel: rel == g['keep'] for g in plan['groups'] for rel in g['files']}
-    mate = {}
-    for rel in marked:
-        half = live_photos.partner(cfg.abs(rel))
-        if half:
-            mate[rel] = cfg.rel(half)
+    if mate is None:
+        mate = live_mates(cfg, plan)
     taken, moves, protected = set(), [], []
     for g in groups:
         keep = g['keep']
@@ -626,11 +630,12 @@ def purge_file(cfg, m):
     return entry
 
 
-def selected_moves(plan, cfg=None):
+def selected_moves(plan, cfg=None, moves=None):
     """The moves of a plan that are ticked. A pair, an event or a duplicate group is ticked or
-    unticked as a whole."""
-    moves = (duplicate_moves(cfg, plan)[0] if plan['kind'] == 'duplicates'
-             else immich_moves(cfg, plan) if plan['kind'] == 'immich' else plan['moves'])
+    unticked as a whole. `moves` is for a caller that has just worked them out."""
+    if moves is None:
+        moves = (duplicate_moves(cfg, plan)[0] if plan['kind'] == 'duplicates'
+                 else immich_moves(cfg, plan) if plan['kind'] == 'immich' else plan['moves'])
     off_groups, off_kinds = set(plan.get('excluded', [])), set(plan.get('excluded_kinds', []))
     return [m for m in moves if (m.get('group') or f'm{m["id"]}') not in off_groups and m['kind'] not in off_kinds]
 
