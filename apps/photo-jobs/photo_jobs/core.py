@@ -503,7 +503,8 @@ def duplicate_moves(cfg, plan, mate=None):
     """The moves a duplicates plan makes with its current keep choices, and the copies left alone
     because their Live Photo half is staying. Computed from the folder as it is now."""
     delete = plan.get('mode') == 'delete'   # remove the extra copies instead of filing them
-    groups = [g for g in plan['groups'] if g['id'] not in set(plan.get('excluded', []))]
+    excluded = set(plan.get('excluded', []))
+    groups = [g for g in plan['groups'] if g['id'] not in excluded]
     marked = {rel: rel == g['keep'] for g in plan['groups'] for rel in g['files']}
     if mate is None:
         mate = live_mates(cfg, plan)

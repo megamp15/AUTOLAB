@@ -830,12 +830,14 @@
     s.loading = true; try { (await fetchRows(true)).forEach(addRow); } finally { s.loading = false; }
   }
   // Ticking changes only the rows you touched; the page is not redrawn, so nothing flashes.
+  // While a change is being saved the count and the apply button say so, never the old number.
+  const updating = (info, apply) => { info.textContent = 'Updating selection…'; apply.disabled = true; };
   async function toggleKeys(keys, on) {
-    const s = state.sort; keys.forEach(k => (sortIndex.get(k) || []).forEach(r => setRow(r, on)));
+    const s = state.sort; updating(sortUI.info, sortUI.apply); keys.forEach(k => (sortIndex.get(k) || []).forEach(r => setRow(r, on)));
     try { await api('/plans/' + s.plan.id, { method: 'PATCH', body: { groups: keys, selected: on } }); await afterTick(); } catch (e) { fail(e); await reloadRows(); }
   }
   async function bulk(on) {
-    const s = state.sort; sortIndex.forEach(list => list.forEach(r => setRow(r, on)));
+    const s = state.sort; updating(sortUI.info, sortUI.apply); sortIndex.forEach(list => list.forEach(r => setRow(r, on)));
     try { await api('/plans/' + s.plan.id, { method: 'PATCH', body: { filter: s.filter, selected: on } }); await afterTick(); } catch (e) { fail(e); await reloadRows(); }
   }
   async function afterTick() {
@@ -890,7 +892,7 @@
     panel.append(chips, tools, scopeNote, scanNote, warn, bulk, list); main.append(panel);
     const bar = el('div', 'bar'), info = el('span', 'grow'), apply = el('button', 'btn primary');
     apply.onclick = () => confirmApply(d.plan); bar.append(info, apply); main.append(bar);
-    dupeUI = { stats, list, info, apply, headBox, shown, chips, scopeNote }; d.groups.forEach(addGroup); paintDupes();
+    dupeUI = { panel, stats, list, info, apply, headBox, shown, chips, scopeNote }; d.groups.forEach(addGroup); paintDupes();
   }
   function paintDupes() {
     const p = state.dupes.plan, u = dupeUI, del = p.mode === 'delete';
@@ -929,8 +931,14 @@
   }
   function groupCard(g) { const holder = el('div'); const was = dupeUI.list; dupeUI.list = holder; addGroup(g); dupeUI.list = was; return holder.firstChild; }
   async function dupePatch(body) {
-    const d = state.dupes;
-    try { await api('/plans/' + d.plan.id, { method: 'PATCH', body }); await refreshPlan(d); paintDupes(); } catch (e) { fail(e); }
+    const d = state.dupes, u = dupeUI;
+    u.panel.inert = true; u.apply.disabled = true; u.info.textContent = 'Updating selection…';
+    try { await api('/plans/' + d.plan.id, { method: 'PATCH', body }); await refreshPlan(d); }
+    catch (e) {
+      fail(e);
+      try { await refreshPlan(d); await fetchGroups(false); u.list.replaceChildren(); d.groups.forEach(addGroup); }
+      catch (reloadError) { fail(reloadError); }
+    } finally { u.panel.inert = false; paintDupes(); }
   }
 
   // ---- No date --------------------------------------------------------------------------------------
@@ -1247,8 +1255,8 @@
   function addItem(i) {
     const u = immichUI, ok = i.status === 'file', key = 'immich:' + i.id;
     const row = el('div', 'tr immich' + (i.selected && ok ? '' : ' off') + (ok ? '' : ' inert')), box = el('input', 'tick'); box.type = 'checkbox'; box.checked = ok && i.selected; box.disabled = !ok;
-    box.onchange = async () => { i.selected = box.checked; row.classList.toggle('off', !box.checked);
-      try { await api('/plans/' + state.immich.plan.id, { method: 'PATCH', body: { groups: [key], selected: box.checked } }); await afterImmichTick(); } catch (e) { fail(e); } };
+    box.onchange = async () => { i.selected = box.checked; row.classList.toggle('off', !box.checked); updating(u.infoEl, u.apply);
+      try { await api('/plans/' + state.immich.plan.id, { method: 'PATCH', body: { groups: [key], selected: box.checked } }); await afterImmichTick(); } catch (e) { fail(e); await reloadItems(); } };
     const what = el('span', 'path'); what.append(el('b', 'name', i.name || '(no name)'));
     const where = el('span', 'path', ok ? i.rel : WHERE[i.status] || i.status);
     const live = i.clip ? el('span', 'live', 'LIVE PHOTO + CLIP') : el('span');
@@ -1274,7 +1282,7 @@
     m.selected = page.selected; m.selectable = page.selectable; paintImmich();
   }
   async function bulkItems(on) {
-    const m = state.immich; immichUI.index.forEach(({ i, row, box }) => { if (i.status === 'file') { i.selected = on; box.checked = on; row.classList.toggle('off', !on); } });
+    const m = state.immich; updating(immichUI.infoEl, immichUI.apply); immichUI.index.forEach(({ i, row, box }) => { if (i.status === 'file') { i.selected = on; box.checked = on; row.classList.toggle('off', !on); } });
     try { await api('/plans/' + m.plan.id, { method: 'PATCH', body: { filter: m.filter, selected: on } }); await afterImmichTick(); } catch (e) { fail(e); await reloadItems(); }
   }
 
