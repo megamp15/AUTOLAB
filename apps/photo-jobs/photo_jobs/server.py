@@ -361,6 +361,7 @@ def main():
                       os.environ.get('LIBRARY', 'library'), os.environ.get('IMMICH_MEDIA_PREFIX', '/mnt/mahir-personal'))
     immich = Immich(os.environ.get('IMMICH_URL', ''), os.environ.get('IMMICH_API_KEY', ''))
     app = App(cfg, os.environ.get('PHOTO_JOBS_TOKEN', ''), immich)
+    app.jobs.resume_interrupted()
     host, port = os.environ.get('BIND', '0.0.0.0'), int(os.environ.get('PORT', '8099'))
     srv = ThreadingHTTPServer((host, port), handler(app))
     print(f'photo-jobs on {host}:{port}, media {cfg.root}, state {cfg.state}', flush=True)

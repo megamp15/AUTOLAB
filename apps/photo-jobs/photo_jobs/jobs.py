@@ -34,11 +34,13 @@ class Jobs:
         for d in ('plans', 'runs', 'jobs'):
             os.makedirs(os.path.join(cfg.state, d), exist_ok=True)
         # A job lives in a thread, so a restart ends it without a word. Say so in the log.
+        self.interrupted = []
         for old in self._list('jobs'):
             if old.get('state') == 'running':
                 old.update(state='interrupted', finished=time.time(),
                            error='the service restarted while this was running')
                 self._save('jobs', old)
+                self.interrupted.append(old)
 
     # -- files
     def _path(self, kind, id_):
@@ -127,7 +129,7 @@ class Jobs:
         """What the service has done lately, newest first: scans, applies, undos, and what became of each."""
         out = []
         for j in self._list('jobs')[:limit]:
-            row = {k: j.get(k) for k in ('id', 'kind', 'state', 'started', 'finished', 'message', 'error', 'done', 'total')}
+            row = {k: j.get(k) for k in ('id', 'kind', 'state', 'started', 'finished', 'message', 'error', 'done', 'total', 'resumed', 'resumed_by')}
             res = j.get('result') or {}
             pid = res.get('plan') or j.get('plan')
             if j['kind'].startswith('plan-') and pid:
@@ -176,8 +178,25 @@ class Jobs:
         threading.Thread(target=target, daemon=True).start()
         return dict(job)
 
+    def resume_interrupted(self):
+        """After a restart, run again the scan it cut short. The hash cache makes that quick, so a
+        deploy costs a scan seconds, not the work already done. An apply is never restarted by
+        itself, and a scan that was already a resume is not resumed a second time, so a scan that
+        crashes the service cannot restart it forever."""
+        for old in self.interrupted:
+            kind = old['kind'].removeprefix('plan-')
+            if not old['kind'].startswith('plan-') or old.get('resumed') or kind not in ('sort', 'duplicates', 'immich'):
+                continue
+            try:
+                job = self.start_plan(kind, resumed=old['id'])
+            except (ValueError, Busy):
+                continue      # Immich is not connected any more, say
+            old['resumed_by'] = job['id']
+            self._save('jobs', old)
+        self.interrupted = []
+
     # -- the three things a person does
-    def start_plan(self, kind):
+    def start_plan(self, kind, resumed=None):
         if kind not in ('sort', 'duplicates', 'immich'):
             raise ValueError(f'unknown plan kind {kind}')
         if kind == 'immich' and not (self.immich and self.immich.configured):
@@ -197,7 +216,7 @@ class Jobs:
             keep(plan, False)
             return {'plan': plan_id}
 
-        return self.start('plan-' + kind, work, plan=plan_id)
+        return self.start('plan-' + kind, work, plan=plan_id, **({'resumed': resumed} if resumed else {}))
 
     def start_apply(self, plan_id):
         plan = self.plan(plan_id)

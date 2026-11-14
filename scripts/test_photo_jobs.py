@@ -16,6 +16,7 @@ import tempfile
 import threading
 import time
 import unittest
+import uuid
 from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1] / 'apps/photo-jobs'
@@ -959,6 +960,106 @@ class ActivityLog(Library):
         gate.set()
         self.wait()
         self.assertEqual(self.app.route('PATCH', '/api/plans/p1', {}, {'all': True})[0], 200)
+
+
+class Restarts(Library):
+    """A deploy replaces the service. Scans must come through it: nothing is read twice, and the cut-short scan runs again by itself."""
+
+    def counting_digest(self):
+        calls = []
+        real = core._digest
+        core._digest = lambda path, limit=None: (calls.append((os.path.basename(path), limit)), real(path, limit))[1]
+        self.addCleanup(setattr, core, '_digest', real)
+        return calls
+
+    def library(self):
+        for i in range(4):
+            self.put(f'library/2025/06/a{i}.jpg', f'identical-{i}')
+            self.put(f'library/2025/07/b{i}.jpg', f'identical-{i}')
+        self.put('library/2025/08/lone.jpg', 'x' * 11)
+
+    def test_a_second_scan_reads_no_file_again(self):
+        self.library()
+        calls = self.counting_digest()
+        first = core.plan_duplicates(self.cfg)
+        read = len(calls)
+        self.assertTrue(read >= 16)       # every candidate was read the first time
+        again = core.plan_duplicates(self.cfg)
+        self.assertEqual(len(calls), read)   # and not once more
+        self.assertEqual(again['groups'], first['groups'])
+
+    def test_a_changed_file_is_read_again_and_judged_by_what_it_is_now(self):
+        self.library()
+        core.plan_duplicates(self.cfg)
+        calls = self.counting_digest()
+        p = self.root / 'library/2025/07/b0.jpg'
+        p.write_bytes(b'something-else')       # no longer a copy of a0
+        os.utime(p, (1, 1))
+        plan = core.plan_duplicates(self.cfg)
+        self.assertEqual(sorted(n for n, _ in calls), [])            # a different size: not even a candidate
+        self.assertEqual(plan['stats']['groups'], 3)
+        p.write_bytes(b'identical-0')          # a copy again, same size as before
+        os.utime(p, (2, 2))
+        calls.clear()
+        self.assertEqual(core.plan_duplicates(self.cfg)['stats']['groups'], 4)
+        self.assertIn('b0.jpg', [n for n, _ in calls])           # re-read, because its time changed
+
+    def test_deleting_always_reads_the_bytes_and_ignores_the_cache(self):
+        self.put('library/2025/06/keep.jpg', 'same bytes')
+        self.put('library/2025/07/extra.jpg', 'same bytes')
+        core.plan_duplicates(self.cfg)                            # both are now cached as identical
+        extra = self.root / 'library/2025/07/extra.jpg'
+        st = extra.stat()
+        extra.write_bytes(b'DIFFERENT!!')                          # same size, mtime put back: a cache would be fooled
+        os.utime(extra, ns=(st.st_atime_ns, st.st_mtime_ns))
+        entry = core.delete_copy(self.cfg, {'src': 'library/2025/07/extra.jpg', 'keep': 'library/2025/06/keep.jpg'})
+        self.assertEqual(entry['status'], 'skipped')
+        self.assertTrue(extra.exists())
+
+    def test_a_scan_cut_short_by_a_restart_runs_again_on_its_own_and_reuses_what_it_read(self):
+        self.library()
+        old = server.App(self.cfg)
+        calls = self.counting_digest()
+        core.plan_duplicates(self.cfg)                            # the work the dead service had done
+        read = len(calls)
+        gate = threading.Event()
+        old.jobs.start('plan-duplicates', lambda progress: gate.wait(5))      # ...and it was still running
+        new = server.App(self.cfg)                                # the deploy: a new service, same state folder
+        new.jobs.resume_interrupted()
+        for _ in range(300):
+            if new.jobs.status()['state'] != 'running':
+                break
+            time.sleep(0.02)
+        job = new.jobs.status()
+        self.assertEqual((job['kind'], job['state']), ('plan-duplicates', 'done'))
+        self.assertEqual(len(calls), read)                        # the resumed scan read nothing again
+        self.assertEqual(new.jobs.plan(job['result']['plan'])['stats']['groups'], 4)
+        log = {a['id']: a for a in new.jobs.activity()}
+        cut = next(a for a in log.values() if a['state'] == 'interrupted')
+        self.assertEqual(cut['resumed_by'], job['id'])
+        self.assertEqual(log[job['id']]['resumed'], cut['id'])
+        gate.set()
+        old.jobs.job and time.sleep(0.05)
+
+    def leave_running(self, **job):
+        """A job record as a killed service leaves it: still 'running', with no thread behind it."""
+        record = {'id': uuid.uuid4().hex[:12], 'state': 'running', 'started': time.time(), 'done': 0, 'total': 0,
+                  'message': 'x', 'result': None, 'error': None, **job}
+        (self.state / 'jobs').mkdir(exist_ok=True)
+        (self.state / 'jobs' / f'{record["id"]}.json').write_text(json.dumps(record))
+
+    def test_an_apply_is_never_restarted_by_itself(self):
+        self.leave_running(kind='apply', plan='p1')
+        service = server.App(self.cfg)
+        service.jobs.resume_interrupted()
+        self.assertIsNone(service.jobs.status())
+        self.assertEqual(service.jobs.activity()[0]['state'], 'interrupted')
+
+    def test_a_scan_that_was_already_a_resume_is_not_resumed_again_so_a_crash_cannot_loop(self):
+        self.leave_running(kind='plan-sort', resumed='earlier')
+        service = server.App(self.cfg)
+        service.jobs.resume_interrupted()
+        self.assertIsNone(service.jobs.status())
 
 
 class Pairs(unittest.TestCase):

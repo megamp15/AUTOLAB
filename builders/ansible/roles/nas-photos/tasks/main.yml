@@ -72,31 +72,6 @@
   loop_control:
     label: "{{ item.dest }}"
 
-# Replacing the container ends whatever the service is doing: a scan that had run for twenty
-# minutes is simply gone. So ask first, and stop here if it is working.
-- name: Ask a running service whether it is busy
-  ansible.builtin.uri:
-    url: "http://{{ autolab_photos_ip }}:{{ autolab_photos_port }}/api/job"
-    headers:
-      X-Autolab-Photos-Token: "{{ autolab_photos_token }}"
-    return_content: true
-  register: autolab_photos_busy
-  failed_when: false
-  changed_when: false
-  no_log: true
-  when: not ansible_check_mode
-
-- name: Refuse to replace the service while it is working
-  ansible.builtin.assert:
-    that: >-
-      autolab_photos_force | bool or
-      ((autolab_photos_busy.json | default({})).get('job') or {}).get('state', '') != 'running'
-    fail_msg: >-
-      The photo service is running a job ({{ ((autolab_photos_busy.json | default({})).get('job') or {}).get('kind', '') }}).
-      Replacing it now would end that job. Wait for it to finish, or stop it from the page if it is a scan,
-      then run this again.
-  when: not ansible_check_mode
-
 - name: Build and start only this project
   community.docker.docker_compose_v2:
     project_src: "{{ autolab_photos_root }}"

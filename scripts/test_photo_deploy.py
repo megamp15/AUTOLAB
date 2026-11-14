@@ -73,24 +73,10 @@ class NasCompose(unittest.TestCase):
         self.assertEqual(len(refused), 1)
         self.assertNotIn('headers', refused[0]['ansible.builtin.uri'])
 
-    def test_a_running_job_stops_the_deploy_before_the_container_is_replaced(self):
-        import jinja2
-        tasks = yaml.safe_load((ANSIBLE / 'roles/nas-photos/tasks/main.yml').read_text())
-        names = [t['name'] for t in tasks]
-        guard = tasks[names.index('Refuse to replace the service while it is working')]
-        self.assertLess(names.index('Refuse to replace the service while it is working'),
-                        names.index('Build and start only this project'))
-        env = jinja2.Environment()
-        env.filters['bool'] = bool           # Ansible's own filter
-        expr = ' '.join(guard['ansible.builtin.assert']['that'].split())
-
-        def allowed(busy, force=False):
-            return env.from_string('{{ ' + expr + ' }}').render(autolab_photos_busy=busy, autolab_photos_force=force)
-        self.assertEqual(allowed({'json': {'job': {'state': 'running', 'kind': 'plan-duplicates'}}}), 'False')
-        self.assertEqual(allowed({'json': {'job': {'state': 'running'}}}, force=True), 'True')
-        self.assertEqual(allowed({'json': {'job': {'state': 'done'}}}), 'True')
-        self.assertEqual(allowed({'json': {'job': None}}), 'True')       # nothing has run yet
-        self.assertEqual(allowed({'status': -1}), 'True')                 # not deployed yet: nothing to protect
+    def test_a_restart_does_not_wait_ten_seconds_for_a_python_that_ignores_sigterm(self):
+        # As PID 1 Python ignores SIGTERM, so Docker waits ten seconds and kills it. An init process
+        # forwards the signal, so a deploy restarts the service at once.
+        self.assertIs(self.service.get('init'), True)
 
     def test_it_proves_immich_was_left_alone(self):
         tasks = yaml.safe_load((ANSIBLE / 'roles/nas-photos/tasks/main.yml').read_text())

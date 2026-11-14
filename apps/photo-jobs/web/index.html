@@ -333,7 +333,7 @@
   // What became of a job, in words.
   function outcome(a) {
     if (a.state === 'running') return `running · ${a.message || ''}`;
-    if (a.state === 'interrupted') return 'cut short: the photo service restarted while this was running';
+    if (a.state === 'interrupted') return 'cut short: the photo service restarted while this was running' + (a.resumed_by ? '; it was started again automatically' : '');
     if (a.state === 'cancelled') return 'stopped' + (a.partial && a.stats ? `; kept the ${found(a)} found before it stopped` : '');
     if (a.state === 'error') return 'failed: ' + a.error;
     const bits = [found(a)].filter(Boolean);
@@ -965,7 +965,7 @@
     state.activity.slice(0, 40).forEach(a => {
       const row = el('div', 'runs'), left = el('div');
       const took = a.finished ? `${Math.max(1, Math.round(a.finished - a.started))} s` : '';
-      left.append(el('div', null, `${JOB_DID[a.kind] || a.kind} · ${ago(a.started)}${took ? ' · took ' + took : ''}`));
+      left.append(el('div', null, `${JOB_DID[a.kind] || a.kind}${a.resumed ? ' (resumed after a restart)' : ''} · ${ago(a.started)}${took ? ' · took ' + took : ''}`));
       left.append(el('div', 'why mono' + (['error', 'interrupted'].includes(a.state) ? ' status-bad' : ''), outcome(a)));
       row.append(left); alist.append(row);
     });

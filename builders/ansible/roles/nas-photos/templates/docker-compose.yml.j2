@@ -6,6 +6,7 @@ services:
     build: .
     image: autolab/photo-jobs:local
     restart: unless-stopped
+    init: true
     mem_limit: {{ autolab_photos_memory }}
     env_file:
       - .env
