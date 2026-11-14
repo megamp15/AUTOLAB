@@ -334,16 +334,18 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.registry.port }}/v2/"
+  # Runs on nebula (edge Stack), so it is found in the shared remote-services
+  # list rather than this machine's own, and checked over HTTP: this host's
+  # Docker socket cannot see a container on another machine.
   - name: AdventureLog
     group: services
     meta: travel log
-    url: "{{ autolab_obs_lab_url.format(name='adventurelog', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog.adventurelog.port) }}"
+    url: "{{ autolab_obs_lab_url.format(name='adventurelog', raw='http://nebula.' ~ autolab_tailscale_fqdn.split('.', 1)[1] ~ ':' ~ autolab_service_catalog.adventurelog.port) }}"
     icon: map
-    enabled: "{{ 'adventurelog' in ((autolab_builder | default({})).services | default([])) }}"
+    enabled: "{{ 'adventurelog' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
     check:
-      type: docker
-      target: "{{ autolab_services_project | default('services') }}-adventurelog-1"
-      url: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.adventurelog.port }}/health"
+      type: http
+      target: "http://nebula.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.adventurelog.port }}/health"
   # The gethomepage grid (container-services `dash`), the same lab as a
   # compact list of tiles, next to this page.
   - name: Dashboard

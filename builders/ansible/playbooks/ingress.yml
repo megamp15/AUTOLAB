@@ -70,6 +70,10 @@
           | selectattr('autolab_builder.services')
           | map(attribute='autolab_builder.services') | list | first | default([])) }}
 
+    # The same for services that run in another Stack (nebula, edge): the lab
+    # inventory cannot see them, so group_vars names them.
+    autolab_ingress_remote_services: "{{ autolab_remote_services }}"
+
   roles:
     - role: ingress
       when: ((autolab_builder | default({})).ingress | default({})).stack | default(false) | bool

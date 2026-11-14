@@ -148,10 +148,10 @@ machines = {
       # The lab's own container tooling, here because this is the machine
       # with room: Dockhand to operate containers, a registry for images
       # built in CI, its UI, Diun to say when a pinned image has a newer tag,
-      # and code-server for the operator workspace, and AdventureLog (a travel
-      # log that pulls its photos from Immich, signs in with Pocket ID).
-      # Moving them is a line in another machine's map.
-      services = ["dockhand", "registry", "registry-ui", "diun", "code-server", "immich-share", "dash", "qr", "paradigm-tunnel", "adventurelog"]
+      # and code-server for the operator workspace. The applications people use
+      # run on nebula (edge stack). Moving a service is a line in another
+      # machine's map.
+      services = ["dockhand", "registry", "registry-ui", "diun", "code-server", "immich-share", "dash", "qr", "paradigm-tunnel"]
       # Grafana is reached over the tailnet, which the baseline already allows
       # on tailscale0. Nothing is opened to the LAN.
       #

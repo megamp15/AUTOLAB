@@ -2,7 +2,8 @@
   # beside the PostGIS database it needs. People sign in with Pocket ID; the
   # photos they attach are Immich's, fetched by this container over the
   # tailnet when each person gives it an Immich API key. See
-  # docs/gitops/adventurelog.md.
+  # docs/gitops/adventurelog.md. Uploads are on the NAS; the database is local
+  # and is dumped to the NAS every night (autolab-db-backup).
   adventurelog:
     image: {{ autolab_services_images.adventurelog }}
     restart: unless-stopped
@@ -32,7 +33,14 @@
       SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT: "true"
       FORCE_SOCIALACCOUNT_LOGIN: "{{ 'true' if autolab_services_adventurelog_sso_only | bool else 'false' }}"
     volumes:
-      - adventurelog-media:/code/media
+      # On the NAS. create_host_path: false makes a missing path an error
+      # instead of an empty directory made on the local disk, which would hold
+      # uploads that vanish from the NAS's view the day it comes back.
+      - type: bind
+        source: {{ autolab_services_data_root }}/adventurelog/media
+        target: /code/media
+        bind:
+          create_host_path: false
     mem_limit: {{ autolab_services_adventurelog_memory }}
     healthcheck:
       # No curl or wget in the image; Python is.

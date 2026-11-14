@@ -14,7 +14,7 @@ ROLE = ROOT / "builders/ansible/roles/ingress"
 
 
 class PrivateDashboardTests(unittest.TestCase):
-    def render(self, plugin=True, tailnet=True):
+    def render(self, plugin=True, tailnet=True, service_hosts=None):
         env = jinja2.Environment(undefined=jinja2.StrictUndefined)
         env.filters.update(bool=bool, to_json=json.dumps)
         defaults = yaml.safe_load((ROLE / "defaults/main.yml").read_text())
@@ -29,7 +29,10 @@ class PrivateDashboardTests(unittest.TestCase):
             autolab_ingress_grafana_route=True,
             autolab_ingress_public_routes={"share": {"upstream": "http://share:3000"}},
             autolab_ingress_internal_routes=defaults["autolab_ingress_service_routes"],
-            autolab_ingress_services=[],
+            autolab_ingress_services=list(service_hosts or {}),
+            autolab_ingress_service_hosts=service_hosts or {},
+            autolab_service_catalog=yaml.safe_load(
+                (ROOT / "builders/ansible/playbooks/group_vars/all.yml").read_text())["autolab_service_catalog"],
         )
         template = env.from_string((ROLE / "templates/traefik-dynamic.yml.j2").read_text())
         return yaml.safe_load(template.render(**defaults))["http"]
@@ -54,6 +57,21 @@ class PrivateDashboardTests(unittest.TestCase):
         for middleware in ("oidc", "oidc-admin"):
             auth = config["middlewares"][middleware]["plugin"]["traefik-oidc-auth"]
             self.assertEqual(auth["CallbackUri"], "https://home.lab.example.test/oidc/callback")
+
+    def test_service_on_another_machine_routes_there_and_never_to_the_tunnel(self):
+        hosts = {"adventurelog": "nebula.tail.example", "registry-ui": "jwst.tail.example"}
+        config = self.render(service_hosts=hosts)
+        route = config["routers"]["lab-adventurelog"]
+        self.assertEqual(route["entryPoints"], ["tailnet-https"])
+        self.assertEqual(route["rule"], "Host(`adventurelog.lab.example.test`)")
+        # It signs people in itself (Pocket ID), so no plugin in front of it.
+        self.assertNotIn("middlewares", route)
+        self.assertEqual(config["services"]["lab-adventurelog"]["loadBalancer"]["servers"],
+                         [{"url": "http://nebula.tail.example:8098"}])
+        self.assertEqual(config["services"]["lab-registry-ui"]["loadBalancer"]["servers"],
+                         [{"url": "http://jwst.tail.example:8082"}])
+        public = {key for key, r in config["routers"].items() if "web" in r["entryPoints"]}
+        self.assertEqual(public, {"auth", "public-share"})
 
     def test_home_has_no_route_without_login(self):
         self.assertNotIn("lab-home", self.render(plugin=False)["routers"])

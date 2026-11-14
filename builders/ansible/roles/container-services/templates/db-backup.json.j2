@@ -1,0 +1,14 @@
+{
+  "mount": "{{ autolab_services_data_root }}",
+  "dest": "{{ autolab_services_data_root }}/backups",
+  "textfile": "/var/lib/autolab/textfile/autolab_db_backup.prom",
+  "state": "/var/lib/autolab/db-backup-state.json",
+  "keep_daily": {{ autolab_services_db_backup.keep_daily }},
+  "keep_weekly_days": {{ autolab_services_db_backup.keep_weekly_days }},
+  "databases": [
+{% for name in autolab_services_db_names %}
+{% set db = autolab_services_databases[name] %}
+    {{ {'service': name, 'container': autolab_services_project ~ '-' ~ db.container ~ '-1', 'user': db.user, 'db': db.db, 'image': db.image} | to_json }}{{ ',' if not loop.last else '' }}
+{% endfor %}
+  ]
+}

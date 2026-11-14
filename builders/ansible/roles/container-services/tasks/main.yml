@@ -63,6 +63,40 @@
       host. Run the harden playbook first, which creates it.
   when: "'code-server' in autolab_services_enabled"
 
+# The NAS share, before anything that stores state on it. A directory standing
+# where the share should be would take uploads onto the local disk and look
+# fine until the NAS came back.
+- name: Work out whether this machine runs services that live on the NAS
+  ansible.builtin.set_fact:
+    autolab_services_uses_nas: "{{ autolab_services_enabled | intersect(autolab_services_nas_backed) | length > 0 }}"
+
+- name: See whether the NAS share is mounted
+  ansible.builtin.command: mountpoint -q {{ autolab_services_data_root }}
+  register: autolab_services_nas_mount
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: autolab_services_uses_nas | bool
+
+- name: Require the NAS share for services that keep their files there
+  ansible.builtin.assert:
+    that: autolab_services_nas_mount.rc == 0
+    fail_msg: >-
+      {{ autolab_services_enabled | intersect(autolab_services_nas_backed) | join(', ') }} keep their files on the
+      NAS, and {{ autolab_services_data_root }} is not mounted. Create the NAS export rule for this host and run the
+      storage playbook first: docs/gitops/nebula.md.
+  when: autolab_services_uses_nas | bool
+
+- name: Create each NAS-backed service's directories
+  ansible.builtin.file:
+    path: "{{ autolab_services_data_root }}/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ autolab_services_nas_dirs }}"
+  when: autolab_services_uses_nas | bool
+
 - name: Create the services directory
   ansible.builtin.file:
     path: "{{ autolab_services_root }}"
@@ -478,6 +512,82 @@
   when:
     - "'code-server' in autolab_services_enabled"
     - autolab_services_code_server_extensions | length > 0
+    - not ansible_check_mode
+
+# Nightly dumps of every app database to the NAS and a weekly restore into a
+# scratch container, with metrics for the alert rules. The databases are local;
+# these are their copies. Skipped, with a line saying so, until the share is
+# mounted.
+- name: Work out which of this machine's services have a database to protect
+  ansible.builtin.set_fact:
+    autolab_services_db_list: >-
+      {{ autolab_services_enabled | intersect(autolab_services_databases.keys() | list)
+         | map('extract', autolab_services_databases) | list }}
+    autolab_services_db_names: "{{ autolab_services_enabled | intersect(autolab_services_databases.keys() | list) }}"
+
+- name: Install the database backup script
+  ansible.builtin.copy:
+    src: autolab-db-backup.py
+    dest: /usr/local/bin/autolab-db-backup
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - autolab_services_db_names | length > 0
+    - autolab_services_nas_mount.rc | default(1) == 0
+
+- name: Describe the databases to the backup script
+  ansible.builtin.template:
+    src: db-backup.json.j2
+    dest: /etc/autolab/db-backup.json
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - autolab_services_db_names | length > 0
+    - autolab_services_nas_mount.rc | default(1) == 0
+
+- name: Install the backup and restore-test timers
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - autolab-db-backup.service
+    - autolab-db-backup.timer
+    - autolab-db-restore-test.service
+    - autolab-db-restore-test.timer
+  when:
+    - autolab_services_db_names | length > 0
+    - autolab_services_nas_mount.rc | default(1) == 0
+
+- name: Enable the backup and restore-test timers
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+  loop: [autolab-db-backup.timer, autolab-db-restore-test.timer]
+  when:
+    - autolab_services_db_names | length > 0
+    - autolab_services_nas_mount.rc | default(1) == 0
+    - not ansible_check_mode
+
+# A dump that has never run is an alert waiting for 36 hours; take the first one
+# now, and prove it can be restored, so the first thing a new app's database has
+# is evidence.
+- name: Take a first dump and prove it restores
+  ansible.builtin.shell:
+    cmd: >-
+      /usr/local/bin/autolab-db-backup dump &&
+      /usr/local/bin/autolab-db-backup restore-test &&
+      touch /var/lib/autolab/db-backup-first-ok
+    creates: /var/lib/autolab/db-backup-first-ok
+  when:
+    - autolab_services_db_names | length > 0
+    - autolab_services_nas_mount.rc | default(1) == 0
     - not ansible_check_mode
 
 - name: Say what is running and where

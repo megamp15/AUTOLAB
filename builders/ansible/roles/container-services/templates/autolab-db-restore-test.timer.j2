@@ -1,0 +1,11 @@
+# Managed by Ansible — roles/container-services.
+[Unit]
+Description=Restore the newest dumps into a scratch database
+
+[Timer]
+OnCalendar={{ autolab_services_db_backup.restore_calendar }}
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

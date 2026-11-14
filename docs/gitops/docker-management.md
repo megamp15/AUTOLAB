@@ -12,6 +12,7 @@ Ansible remain the source of truth for AUTOLAB configuration.
 | singularity | Authenticated Hawser on its tailnet address | Workflow 12, action `management` |
 | horizon | Authenticated Hawser on its tailnet address | Workflow 05, environment `lab`, playbook `docker-management` |
 | magnetosphere | Authenticated Hawser on its tailnet address | Workflow 05, environment `edge`, playbook `docker-management` |
+| nebula | Authenticated Hawser on its tailnet address | Workflow 05, environment `edge`, playbook `docker-management` |
 
 Run the workflow with confirmation `apply` and the corresponding hostname as
 its limit. The VM playbook requires an existing Docker engine and the machine's

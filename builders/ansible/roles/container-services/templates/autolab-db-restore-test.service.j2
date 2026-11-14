@@ -1,0 +1,10 @@
+# Managed by Ansible — roles/container-services.
+[Unit]
+Description=Restore the newest dumps into a scratch database
+After=docker.service
+Requires=docker.service
+RequiresMountsFor={{ autolab_services_data_root }}
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/autolab-db-backup restore-test

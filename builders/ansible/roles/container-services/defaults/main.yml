@@ -12,6 +12,32 @@ autolab_services_catalog: "{{ autolab_service_catalog.keys() | list }}"
 
 autolab_services_root: /opt/autolab/services
 
+# State that must outlive the VM lives on the NAS, mounted here by the storage
+# playbook (builder.storage in the machines map). Uploads, repositories and
+# source checkouts bind-mount from under it; the databases do not (a live
+# Postgres on NFS v3 is a corruption story), and are dumped to it instead.
+autolab_services_data_root: /mnt/apps
+# Services with a directory under the data root. A machine that runs one of
+# these refuses to start the stack while the share is not mounted, so nothing
+# can write into an empty local directory standing where the NAS should be.
+autolab_services_nas_backed: [adventurelog]
+# Directories to create under the data root, per enabled service.
+autolab_services_nas_dirs: >-
+  {{ (['adventurelog/media'] if 'adventurelog' in autolab_services_enabled else []) }}
+# The Postgres behind each service that has one: dumped nightly, restored
+# weekly into a scratch container. `container` is the compose service name.
+autolab_services_databases:
+  adventurelog:
+    container: adventurelog-db
+    user: adventure
+    db: database
+    image: "{{ autolab_services_images.adventurelog_db }}"
+autolab_services_db_backup:
+  keep_daily: 14
+  keep_weekly_days: 60
+  dump_calendar: "*-*-* 01:15:00"
+  restore_calendar: "Sun *-*-* 04:00:00"
+
 # Compose names containers <project>-<service>-<n>, and takes the project from
 # the directory it runs in. Derived rather than written out, so moving the root
 # does not leave a task addressing a container that no longer exists.

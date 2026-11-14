@@ -1,0 +1,11 @@
+# Managed by Ansible — roles/container-services.
+[Unit]
+Description=Dump the app databases to the NAS
+
+[Timer]
+OnCalendar={{ autolab_services_db_backup.dump_calendar }}
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

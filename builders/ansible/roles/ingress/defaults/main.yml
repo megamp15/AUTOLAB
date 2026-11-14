@@ -124,6 +124,9 @@ autolab_ingress_public_routes: {}
 # the playbook from the machines map; empty means no service routes.
 autolab_ingress_services_host: ""
 autolab_ingress_services: []
+# Services on machines in other Stacks: machine tailnet label -> service names.
+# Routed to <label>.<tailnet> instead of the services host.
+autolab_ingress_remote_services: {}
 
 autolab_ingress_service_routes:
   grafana:

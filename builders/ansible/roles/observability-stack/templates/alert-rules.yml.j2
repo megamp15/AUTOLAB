@@ -416,6 +416,105 @@ groups:
                     type: lt
                     params: [1]
 
+      - uid: autolab-db-dump-stale
+        title: An app database has no recent dump
+        condition: THRESHOLD
+        for: 30m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "A nightly dump of an app database is more than 36 hours old"
+          description: "autolab-db-backup writes one verified dump per database per night to the NAS. Look at the timer and its journal on the apps host: the NAS share not mounted, Docker down, or a dump the archive check rejected."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: '(time() - max by (service) (autolab_db_dump_last_success_timestamp_seconds)) / 3600'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [36]
+
+      - uid: autolab-db-restore-failed
+        title: An app database dump does not restore
+        condition: THRESHOLD
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "The last restore of an app database dump did not match production"
+          description: "The weekly restore test brought the newest dump up in a scratch container and it failed or differed from production. The dump is not a backup until this is fixed: run autolab-db-backup restore-test on the apps host and read why."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: 'min by (service) (autolab_db_restore_test_ok)'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+
+      - uid: autolab-db-restore-stale
+        title: App database restores are not being tested
+        condition: THRESHOLD
+        for: 30m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "No restore test has run for 9 days"
+          description: "The weekly restore test is what proves the dumps are usable. Check autolab-db-restore-test.timer on the apps host."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: '(time() - max by (service) (autolab_db_restore_test_last_timestamp_seconds)) / 86400'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [9]
+
       - uid: autolab-nas-permissions-reset
         title: NAS permissions were reset
         condition: THRESHOLD

@@ -6,6 +6,16 @@
 # both roles' defaults would drift the first time one changed, so it lives
 # here, next to the playbooks that load it.
 
+# Services that run on machines in a Stack this inventory does not contain, by
+# the machine's tailnet name. The ingress run (lab) and the homepage cannot see
+# the edge Stack's machines map, so the names live here, and
+# scripts/test_remote_services.py fails if this differs from the machine's own
+# builder.services in infra/stacks/*/machines.auto.tfvars. One declaration per
+# service stays true: the machines map says where it runs, this says who has to
+# be told.
+autolab_remote_services:
+  nebula: [adventurelog]
+
 # Every container service the lab knows, what it listens on, and how a person
 # gets in:
 #   plugin — Traefik's OIDC middleware; one passkey, same session as the rest

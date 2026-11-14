@@ -7,37 +7,33 @@ audience: operator
 # AdventureLog
 
 A travel log: places visited and planned, grouped into collections, with the
-photos attached to each. It runs on jwst as the `adventurelog` service of the
-[container services](services.md) and is reached at
+photos attached to each. It runs on [nebula](nebula.md) as the `adventurelog`
+service of the [container services](services.md) and is reached at
 `adventurelog.lab.<zone>`, on the tailnet only, like every lab name.
 
-## Why jwst, and not the NAS
+## Why nebula, and not the NAS or jwst
 
-The NAS runs Immich in UGOS's own Docker, by hand. A service there is not in
-git, not in the nightly backup of the lab, and not rebuilt by a pull request.
-jwst already runs the lab's other services from the machines map, so
-AdventureLog is one more word in that list. It had room: ~4.5 GB free, the app
-idles near 260 MB and Postgres near 40 MB. The cost is that jwst is also the
-observability host, so both containers carry memory limits (3 GB for the app,
-which needs ~2 GB once on first boot; 512 MB for the database).
+The NAS runs Immich in UGOS's own Docker, by hand: a service there is not in
+git and not rebuilt by a pull request. jwst has the RAM problem described in
+[nebula](nebula.md). nebula is where the apps live; AdventureLog is one word in
+its services list, and its uploads are on the NAS.
 
 ## What runs
 
 | container | what | where its data is |
 |---|---|---|
-| `adventurelog` | web app, API, nginx and a cache in one image, pinned to `v0.13.1` | volume `adventurelog-media` (uploaded images) |
-| `adventurelog-db` | PostGIS 16, no published port | volume `adventurelog-db` |
+| `adventurelog` | web app, API, nginx and a cache in one image, pinned to `v0.13.1` | uploaded images on the NAS: `/mnt/apps/adventurelog/media` |
+| `adventurelog-db` | PostGIS 16, no published port | volume `adventurelog-db` on nebula's disk, **dumped nightly to the NAS** and restore-tested weekly (see [nebula](nebula.md)) |
 
-Both volumes are on jwst's disk, which the nightly vzdump to PBS covers. The
-photos attached from Immich are not copied: AdventureLog stores Immich's asset
-id and asks Immich for the picture when a page is opened, so the NAS stays the
-only place the originals live.
+The photos attached from Immich are not copied: AdventureLog stores Immich's
+asset id and asks Immich for the picture when a page is opened, so the NAS
+stays the only place the originals live.
 
 Three secrets — the database password, Django's signing key and the
-break-glass admin's password — are generated on jwst the first time and kept in
+break-glass admin's password — are generated on nebula the first time and kept in
 `/etc/autolab/adventurelog.env` and `adventurelog-db.env` (root, `0600`). They
 are not in GitHub and not in the log. To read the break-glass password:
-`ssh megamp15@jwst sudo grep DJANGO_ADMIN_PASSWORD /etc/autolab/adventurelog.env`.
+`ssh megamp15@nebula sudo grep DJANGO_ADMIN_PASSWORD /etc/autolab/adventurelog.env`.
 
 ## Setting it up
 
@@ -87,8 +83,8 @@ own API key.
    key; *Connect*.
 
 The URL is the NAS's tailnet name, not `immich.lab.<zone>` and not
-`localhost`: the request is made by the AdventureLog container on jwst, which
-reaches the NAS over the tailnet exactly as the public share proxy does. Using
+`localhost`: the request is made by the AdventureLog container on nebula, which
+reaches the NAS over the tailnet. Using
 the lab name would send it round through Traefik for nothing. After this, adding
 images to an adventure offers *Immich*: Smart Search or an album.
 

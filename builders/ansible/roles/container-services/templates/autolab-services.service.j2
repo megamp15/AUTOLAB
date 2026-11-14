@@ -2,6 +2,12 @@
 Description=Autolab container services — start once the tailnet address exists
 Wants=tailscaled.service docker.service
 After=tailscaled.service docker.service
+{% if autolab_services_uses_nas | bool %}
+# The NAS-backed services bind-mount from the share. Without it they would be
+# started against nothing (and refuse to: create_host_path is false), so this
+# unit waits for the mount instead of racing it.
+RequiresMountsFor={{ autolab_services_data_root }}
+{% endif %}
 
 [Service]
 Type=oneshot
