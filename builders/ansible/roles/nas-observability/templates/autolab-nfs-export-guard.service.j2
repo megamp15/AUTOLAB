@@ -1,0 +1,9 @@
+[Unit]
+Description=Restore missing configured AUTOLAB NFS exports
+After=network-online.target tailscaled.service nfs-server.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=AUTOLAB_NFS_METRIC_DIR={{ autolab_nas_root }}/textfile
+ExecStart=/usr/bin/python3 /usr/local/sbin/autolab-nfs-export-guard

@@ -416,6 +416,72 @@ groups:
                     type: lt
                     params: [1]
 
+      - uid: autolab-nfs-exports-unavailable
+        title: NAS NFS exports need attention
+        condition: THRESHOLD
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "The NAS cannot restore its configured AUTOLAB NFS exports"
+          description: "The NAS export guard could not verify or restore its configured AUTOLAB exports. Check its service logs and Tailscale DNS."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: 'min(autolab_nfs_exports_ok)'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+
+      - uid: autolab-nfs-exports-repaired
+        title: NAS NFS exports were restored
+        condition: THRESHOLD
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "The NAS restored missing AUTOLAB NFS exports"
+          description: "The export guard restored a configured client rule after it disappeared. Check Tailscale DNS and NAS NFS service logs."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: 'increase(autolab_nfs_export_repairs_total[1h])'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+
       - uid: autolab-db-dump-stale
         title: An app database has no recent dump
         condition: THRESHOLD

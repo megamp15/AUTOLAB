@@ -1,0 +1,10 @@
+[Unit]
+Description=Check configured AUTOLAB NFS exports
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+Unit=autolab-nfs-export-guard.service
+
+[Install]
+WantedBy=timers.target
