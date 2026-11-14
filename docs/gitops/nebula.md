@@ -7,7 +7,7 @@ audience: operator
 # nebula — where the apps run
 
 `nebula` is a VM on zima-pve (edge Stack, VMID 302, 4 vCPU, 8 GB, 80 GB on the
-HDD). It runs what people use: Forgejo and the self-hosted apps built from it.
+HDD). It runs what people use: [Forgejo](forgejo.md), [AdventureLog](adventurelog.md) and the [self-hosted apps](apps.md).
 What the lab runs for itself (Dockhand, the registry, the editor, Diun) stays
 on jwst.
 

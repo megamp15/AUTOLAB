@@ -93,7 +93,7 @@ machines = {
       # What it runs. The names are the catalog's (playbooks/group_vars/all.yml)
       # and must equal autolab_remote_services.nebula there; a test fails the
       # build if they drift.
-      services = ["adventurelog", "forgejo"]
+      services = ["adventurelog", "forgejo", "tandoor", "airtrail", "linkace", "sure"]
       # A share of its own, not a folder on /volume1/autolab: that share holds
       # the PBS datastore, and a compromised app VM with write access to it
       # could delete the backups. The export rule for this host must exist

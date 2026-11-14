@@ -359,6 +359,50 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://nebula.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.forgejo.port }}/api/healthz"
+  - name: Tandoor
+    group: services
+    meta: recipes
+    url: >-
+      {{ autolab_obs_lab_url.format(name='tandoor', raw='http://nebula.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.tandoor.port) }}
+    icon: nas
+    enabled: "{{ 'tandoor' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
+    check:
+      type: http
+      target: "http://nebula.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.tandoor.port }}/accounts/login/"
+  - name: AirTrail
+    group: services
+    meta: flights
+    url: >-
+      {{ autolab_obs_lab_url.format(name='airtrail', raw='http://nebula.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.airtrail.port) }}
+    icon: photos
+    enabled: "{{ 'airtrail' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
+    check:
+      type: http
+      target: "http://nebula.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.airtrail.port }}/"
+  - name: LinkAce
+    group: services
+    meta: bookmarks
+    url: >-
+      {{ autolab_obs_lab_url.format(name='linkace', raw='http://nebula.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.linkace.port) }}
+    icon: repo
+    enabled: "{{ 'linkace' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
+    check:
+      type: http
+      target: "http://nebula.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.linkace.port }}/login"
+  - name: Sure
+    group: services
+    meta: finances
+    url: >-
+      {{ autolab_obs_lab_url.format(name='sure', raw='http://nebula.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.sure.port) }}
+    icon: backup
+    enabled: "{{ 'sure' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
+    check:
+      type: http
+      target: "http://nebula.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.sure.port }}/up"
   # The gethomepage grid (container-services `dash`), the same lab as a
   # compact list of tiles, next to this page.
   - name: Dashboard

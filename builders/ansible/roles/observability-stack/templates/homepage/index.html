@@ -561,7 +561,7 @@
     const CTR_APPS = { grafana: () => byName.Grafana, loki: () => byName.Loki, prometheus: () => labUrl('prometheus'),
       homepage: () => labUrl('home'), 'code-server': () => labUrl('code-server'), dockhand: () => labUrl('dockhand'),
       registry: () => labUrl('registry-ui'), 'registry-ui': () => labUrl('registry-ui'), dash: () => labUrl('dash'),
-      qr: () => labUrl('qr'), adventurelog: () => labUrl('adventurelog'), forgejo: () => labUrl('forgejo'), cosmos: () => labUrl('cosmos'), pihole: () => byName['Pi-hole'], 'pocket-id': () => pubUrl('auth') };
+      qr: () => labUrl('qr'), adventurelog: () => labUrl('adventurelog'), forgejo: () => labUrl('forgejo'), tandoor: () => labUrl('tandoor'), airtrail: () => labUrl('airtrail'), linkace: () => labUrl('linkace'), sure: () => labUrl('sure'), cosmos: () => labUrl('cosmos'), pihole: () => byName['Pi-hole'], 'pocket-id': () => pubUrl('auth') };
     const link = { byName, labUrl, pubUrl, ctr: name => (CTR_APPS[name] || (() => ''))() || '' };
     return { op, nodes, hosts, ctrs, rowBy, link, labNames: [...new Set(labNames)], publicNames: [...new Set(publicNames)] };
   }

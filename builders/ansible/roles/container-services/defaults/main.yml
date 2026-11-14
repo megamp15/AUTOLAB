@@ -20,11 +20,19 @@ autolab_services_data_root: /mnt/apps
 # Services with a directory under the data root. A machine that runs one of
 # these refuses to start the stack while the share is not mounted, so nothing
 # can write into an empty local directory standing where the NAS should be.
-autolab_services_nas_backed: [adventurelog, forgejo]
+autolab_services_nas_backed: [adventurelog, forgejo, tandoor, airtrail, sure]
 # Directories to create under the data root, per enabled service.
 autolab_services_nas_dirs: >-
-  {{ (['adventurelog/media'] if 'adventurelog' in autolab_services_enabled else [])
-     + (['forgejo', 'forgejo/data'] if 'forgejo' in autolab_services_enabled else []) }}
+  {{ autolab_services_nas_dir_catalog | selectattr('service', 'in', autolab_services_enabled) | list }}
+autolab_services_nas_dir_catalog:
+  - {service: adventurelog, path: adventurelog/media, owner: root, group: root}
+  - {service: forgejo, path: forgejo, owner: root, group: root}
+  # The rootless image runs as uid 1000.
+  - {service: forgejo, path: forgejo/data, owner: "1000", group: "1000"}
+  - {service: tandoor, path: tandoor/media, owner: root, group: root}
+  - {service: airtrail, path: airtrail/uploads, owner: root, group: root}
+  # Sure's image runs as 1000:1000.
+  - {service: sure, path: sure/storage, owner: "1000", group: "1000"}
 # The Postgres behind each service that has one: dumped nightly, restored
 # weekly into a scratch container. `container` is the compose service name.
 autolab_services_databases:
@@ -38,6 +46,28 @@ autolab_services_databases:
     user: forgejo
     db: forgejo
     image: "{{ autolab_services_images.forgejo_db }}"
+  tandoor:
+    container: tandoor-db
+    user: djangouser
+    db: djangodb
+    image: "{{ autolab_services_images.postgres }}"
+  airtrail:
+    container: airtrail-db
+    user: airtrail
+    db: airtrail
+    image: "{{ autolab_services_images.postgres }}"
+  sure:
+    container: sure-db
+    user: sure
+    db: sure
+    image: "{{ autolab_services_images.postgres }}"
+  # MariaDB, dumped by the container's own client (see autolab-db-backup).
+  linkace:
+    kind: mariadb
+    container: linkace-db
+    user: linkace
+    db: linkace
+    image: "{{ autolab_services_images.mariadb }}"
 autolab_services_db_backup:
   keep_daily: 14
   keep_weekly_days: 60
@@ -70,7 +100,15 @@ autolab_services_images:
   # upgrading to it. The rootless image runs as uid 1000 and is the one the
   # docs recommend for repositories on NFS.
   forgejo: "codeberg.org/forgejo/forgejo:15.0.11-rootless"
-  forgejo_db: "postgres:16.15-alpine"
+  postgres: "postgres:16.15-alpine"
+  forgejo_db: "{{ autolab_services_images.postgres }}"
+  mariadb: "mariadb:12.0"
+  redis: "redis:8.2"
+  tandoor: "vabene1111/recipes:2.7.2"
+  airtrail: "johly/airtrail:v3.14.0"
+  # The release before 2.6.3 carried a critical Docker-setup flaw; this is the fix.
+  linkace: "linkace/linkace:v2.6.3"
+  sure: "ghcr.io/we-promise/sure:0.7.6-hotfix.1"
   dash: "ghcr.io/gethomepage/homepage:v2.4.0"
   # The connector for the Paradigm Prints tunnel, pinned with the same
   # version horizon's runs.
@@ -89,6 +127,10 @@ autolab_services_ports:
   dash: "{{ autolab_service_catalog.dash.port }}"
   adventurelog: "{{ autolab_service_catalog.adventurelog.port }}"
   forgejo: "{{ autolab_service_catalog.forgejo.port }}"
+  tandoor: "{{ autolab_service_catalog.tandoor.port }}"
+  airtrail: "{{ autolab_service_catalog.airtrail.port }}"
+  linkace: "{{ autolab_service_catalog.linkace.port }}"
+  sure: "{{ autolab_service_catalog.sure.port }}"
   qr: "{{ autolab_service_catalog.qr.port }}"
 
 # gethomepage. The names it answers to (it refuses any other Host header), and
@@ -145,6 +187,80 @@ autolab_services_sources:
     ref: v0.13.1
     dockerfile: docker/Dockerfile
     target: aio
+
+# The self-hosted apps. Each is `<name>.<label>.<zone>` on the tailnet and signs
+# people in with Pocket ID (its own client; GitHub secrets <APP>_OIDC_CLIENT_ID
+# and _SECRET). With both empty an app keeps only its password login, which is
+# how a first deploy proves it before the client exists. `password_login: false`
+# turns the password form off, in a pull request, once a Pocket ID sign-in has
+# been seen to work. Their database passwords and signing keys are generated on
+# the host (autolab-gen-credentials) and never leave it.
+autolab_services_tandoor_public_url: "https://tandoor.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+autolab_services_airtrail_public_url: "https://airtrail.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+autolab_services_linkace_public_url: "https://linkace.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+autolab_services_sure_public_url: "https://sure.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+autolab_services_oidc_issuer: "https://auth.{{ autolab_services_dash_zone }}"
+autolab_services_tandoor_oidc_client_id: ""
+autolab_services_tandoor_oidc_client_secret: ""
+autolab_services_airtrail_oidc_client_id: ""
+autolab_services_airtrail_oidc_client_secret: ""
+autolab_services_linkace_oidc_client_id: ""
+autolab_services_linkace_oidc_client_secret: ""
+autolab_services_sure_oidc_client_id: ""
+autolab_services_sure_oidc_client_secret: ""
+autolab_services_tandoor_password_login: true
+autolab_services_airtrail_password_login: true
+autolab_services_linkace_password_login: true
+autolab_services_sure_password_login: true
+# Limits, not reservations. Measured idle: Tandoor ~850 MB (its workers), Sure's
+# web and worker ~375 MB each, the rest well under 400 MB.
+autolab_services_memory:
+  tandoor: 1280m
+  tandoor_db: 256m
+  airtrail: 512m
+  airtrail_db: 256m
+  linkace: 512m
+  linkace_db: 384m
+  linkace_redis: 96m
+  sure: 768m
+  sure_worker: 768m
+  sure_db: 384m
+  sure_redis: 128m
+# What each needs generated, once, on the host. {PW} is the database's password,
+# shared by the files that need it; see files/autolab-gen-credentials.py.
+autolab_services_credential_specs:
+  - service: tandoor
+    files:
+      - path: /etc/autolab/tandoor-db.env
+        lines: [POSTGRES_DB=djangodb, POSTGRES_USER=djangouser, "POSTGRES_PASSWORD={PW}"]
+      - path: /etc/autolab/tandoor.env
+        lines: ["POSTGRES_PASSWORD={PW}", "SECRET_KEY={HEX64}", "DJANGO_SUPERUSER_PASSWORD={HEX16}"]
+  - service: airtrail
+    files:
+      - path: /etc/autolab/airtrail-db.env
+        lines: [POSTGRES_DB=airtrail, POSTGRES_USER=airtrail, "POSTGRES_PASSWORD={PW}"]
+      - path: /etc/autolab/airtrail.env
+        lines: ["DB_URL=postgres://airtrail:{PW}@airtrail-db:5432/airtrail"]
+  - service: linkace
+    files:
+      - path: /etc/autolab/linkace-db.env
+        lines: [MARIADB_USER=linkace, MARIADB_DATABASE=linkace, "MARIADB_PASSWORD={PW}", "MARIADB_ROOT_PASSWORD={HEX16}"]
+      - path: /etc/autolab/linkace-redis.env
+        lines: ["REDIS_PASSWORD={PW}"]
+      - path: /etc/autolab/linkace.env
+        lines: ["APP_KEY={APPKEY}", "DB_PASSWORD={PW}", "REDIS_PASSWORD={PW}", "LINKACE_ADMIN_PASSWORD={HEX16}"]
+  - service: sure
+    files:
+      - path: /etc/autolab/sure-db.env
+        lines: [POSTGRES_DB=sure, POSTGRES_USER=sure, "POSTGRES_PASSWORD={PW}"]
+      - path: /etc/autolab/sure.env
+        lines:
+          - "POSTGRES_PASSWORD={PW}"
+          - "SECRET_KEY_BASE={HEX64}"
+          # Encrypt what Sure stores about accounts. Losing them loses that data.
+          - "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY={HEX32}"
+          - "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY={HEX32}"
+          - "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT={HEX32}"
 
 # AdventureLog. See docs/gitops/adventurelog.md.
 #

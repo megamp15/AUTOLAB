@@ -1,0 +1,60 @@
+  # Recipes, meal plans and shopping lists. Pocket ID sign-in; uploaded images
+  # on the NAS, the database local and dumped nightly. docs/gitops/apps.md.
+  tandoor:
+    image: {{ autolab_services_images.tandoor }}
+    restart: unless-stopped
+    depends_on:
+      tandoor-db:
+        condition: service_healthy
+    env_file:
+      - /etc/autolab/tandoor.env
+      - /etc/autolab/tandoor-oidc.env
+    environment:
+      TZ: "{{ autolab_timezone | default('UTC') }}"
+      # The public name, and loopback for the container's own healthcheck.
+      ALLOWED_HOSTS: "{{ autolab_services_tandoor_public_url | regex_replace('^https?://', '') }},127.0.0.1,localhost"
+      CSRF_TRUSTED_ORIGINS: "{{ autolab_services_tandoor_public_url }}"
+      DB_ENGINE: django.db.backends.postgresql
+      POSTGRES_HOST: tandoor-db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: djangodb
+      POSTGRES_USER: djangouser
+      # Traefik in front of Tandoor's own nginx: two proxies, not one.
+      ALLAUTH_TRUSTED_PROXY_COUNT: "2"
+      ENABLE_SIGNUP: "0"
+      # An account is made on a first Pocket ID sign-in and attached by email
+      # to one that already exists; what Pocket ID lets through is the gate.
+      SOCIALACCOUNT_EMAIL_AUTHENTICATION: "1"
+      SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT: "1"
+      SOCIAL_DEFAULT_ACCESS: "1"
+      SOCIAL_DEFAULT_GROUP: user
+      SOCIALACCOUNT_ONLY: "{{ '0' if autolab_services_tandoor_password_login | bool else '1' }}"
+    volumes:
+      - tandoor-static:/opt/recipes/staticfiles
+      - type: bind
+        source: {{ autolab_services_data_root }}/tandoor/media
+        target: /opt/recipes/mediafiles
+        bind:
+          create_host_path: false
+    mem_limit: {{ autolab_services_memory.tandoor }}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:80/ || exit 1"]
+      # The first start runs migrations and takes a few minutes.
+      start_period: 300s
+      interval: 30s
+      timeout: 6s
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.tandoor }}:80"
+
+  tandoor-db:
+    image: {{ autolab_services_images.postgres }}
+    restart: unless-stopped
+    env_file: /etc/autolab/tandoor-db.env
+    volumes:
+      - tandoor-db:/var/lib/postgresql/data
+    mem_limit: {{ autolab_services_memory.tandoor_db }}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U djangouser -d djangodb"]
+      interval: 10s
+      timeout: 5s
+      retries: 6

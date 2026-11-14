@@ -89,12 +89,14 @@
 
 - name: Create each NAS-backed service's directories
   ansible.builtin.file:
-    path: "{{ autolab_services_data_root }}/{{ item }}"
+    path: "{{ autolab_services_data_root }}/{{ item.path }}"
     state: directory
-    owner: root
-    group: root
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
     mode: "0755"
   loop: "{{ autolab_services_nas_dirs }}"
+  loop_control:
+    label: "{{ item.path }}"
   when: autolab_services_uses_nas | bool
 
 - name: Create the services directory
@@ -310,6 +312,58 @@
     autolab_services_source_tags: >-
       {{ dict(autolab_services_fork_apps | zip(autolab_services_checkouts.results | map(attribute='after') | map('truncate', 12, true, ''))) }}
   when: autolab_services_fork_apps | length > 0
+
+# The self-hosted apps (tandoor, airtrail, linkace, sure): credentials made once
+# on this host, the Pocket ID client written to a root-only env file each run.
+- name: Work out which of the self-hosted apps this machine runs
+  ansible.builtin.set_fact:
+    autolab_services_apps: "{{ ['tandoor', 'airtrail', 'linkace', 'sure'] | intersect(autolab_services_enabled) }}"
+
+- name: Require an admin email and complete Pocket ID clients for the apps
+  ansible.builtin.assert:
+    that:
+      - autolab_services_admin_email is match('^[^@ ]+@[^@ ]+$')
+      - (lookup('ansible.builtin.vars', 'autolab_services_' ~ item ~ '_oidc_client_id') | length > 0)
+        == (lookup('ansible.builtin.vars', 'autolab_services_' ~ item ~ '_oidc_client_secret') | length > 0)
+      - lookup('ansible.builtin.vars', 'autolab_services_' ~ item ~ '_password_login') | bool
+        or lookup('ansible.builtin.vars', 'autolab_services_' ~ item ~ '_oidc_client_id') | length > 0
+    fail_msg: >-
+      {{ item }} needs the APPS_ADMIN_EMAIL variable, its OIDC client id and secret as a pair
+      ({{ item | upper }}_OIDC_CLIENT_ID / _SECRET), and no password login only with both.
+  loop: "{{ autolab_services_apps }}"
+  no_log: true
+
+- name: Install the credential generator
+  ansible.builtin.copy:
+    src: autolab-gen-credentials.py
+    dest: /usr/local/bin/autolab-gen-credentials
+    owner: root
+    group: root
+    mode: "0755"
+  when: autolab_services_apps | length > 0
+
+- name: Generate each app's credentials once
+  ansible.builtin.command:
+    argv: [/usr/local/bin/autolab-gen-credentials]
+    stdin: "{{ {'files': item.files} | to_json }}"
+    creates: "{{ (item.files | last).path }}"
+  loop: "{{ autolab_services_credential_specs | selectattr('service', 'in', autolab_services_apps) | list }}"
+  loop_control:
+    label: "{{ item.service }}"
+  no_log: true
+
+- name: Write each app's Pocket ID client
+  ansible.builtin.template:
+    src: app-oidc.env.j2
+    dest: "/etc/autolab/{{ app }}-oidc.env"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ autolab_services_apps }}"
+  loop_control:
+    loop_var: app
+  no_log: true
+  notify: Restart the services stack
 
 - name: Create code-server persistent state and workspace
   ansible.builtin.file:
@@ -694,6 +748,138 @@
   register: autolab_forgejo_bootstrap
   changed_when: autolab_forgejo_bootstrap.stdout_lines | last | default('') == 'CHANGED'
   when: "'forgejo' in autolab_services_enabled and not ansible_check_mode"
+
+# The self-hosted apps, once up. Each is waited for, given its first
+# administrator where it can be done without a person, and its Pocket ID login
+# checked as far as that can be seen from here.
+- name: Wait for Tandoor to answer
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.tandoor }}/"
+    headers:
+      Host: "{{ autolab_services_tandoor_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    follow_redirects: none
+    status_code: [200, 302]
+  register: autolab_tandoor_ready
+  until: autolab_tandoor_ready.status in [200, 302]
+  retries: 60
+  delay: 10
+  when: "'tandoor' in autolab_services_enabled and not ansible_check_mode"
+
+# Django's own command, from the password generated for it. A second run finds
+# the account and changes nothing.
+- name: Create Tandoor's break-glass administrator
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - "{{ autolab_services_project }}-tandoor-1"
+      - sh
+      - -c
+      - >-
+        cd /opt/recipes && /opt/recipes/venv/bin/python manage.py createsuperuser --noinput
+        --username admin --email "{{ autolab_services_admin_email }}"
+  register: autolab_tandoor_admin
+  changed_when: autolab_tandoor_admin.rc == 0
+  failed_when: autolab_tandoor_admin.rc != 0 and 'already taken' not in autolab_tandoor_admin.stderr
+  no_log: true
+  when: "'tandoor' in autolab_services_enabled and not ansible_check_mode"
+
+# Tandoor 2 runs allauth headless: the login button is the SPA's, and the
+# provider list it draws from is this API. Present = loaded and parsed.
+- name: Verify Tandoor offers Pocket ID
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.tandoor }}/_allauth/browser/v1/config"
+    headers:
+      Host: "{{ autolab_services_tandoor_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    return_content: true
+  register: autolab_tandoor_config
+  failed_when: >-
+    'pocketid' not in (autolab_tandoor_config.json.data.socialaccount.providers | map(attribute='id') | list)
+  when:
+    - "'tandoor' in autolab_services_enabled"
+    - autolab_services_tandoor_oidc_client_id | length > 0
+    - not ansible_check_mode
+
+- name: Wait for AirTrail to answer
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.airtrail }}/"
+    status_code: [200]
+  register: autolab_airtrail_ready
+  until: autolab_airtrail_ready.status == 200
+  retries: 60
+  delay: 5
+  when: "'airtrail' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Wait for LinkAce to answer
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.linkace }}/"
+    headers:
+      Host: "{{ autolab_services_linkace_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    follow_redirects: none
+    status_code: [200, 302]
+  register: autolab_linkace_ready
+  until: autolab_linkace_ready.status in [200, 302]
+  retries: 60
+  delay: 5
+  when: "'linkace' in autolab_services_enabled and not ansible_check_mode"
+
+# LinkAce shows a setup wizard until it is told setup is over, and its tables
+# do not exist until the wizard (or `migrate`) makes them. This does what the
+# wizard does, with the generated password, once.
+- name: Create LinkAce's administrator and finish its setup
+  ansible.builtin.shell:
+    cmd: >-
+      docker exec {{ autolab_services_project }}-linkace-1 sh -c
+      'php artisan migrate --force && php artisan registeruser --admin -n admin
+      "{{ autolab_services_admin_email }}" "$LINKACE_ADMIN_PASSWORD" && php artisan setup:complete' && touch /etc/autolab/linkace-setup-done
+    creates: /etc/autolab/linkace-setup-done
+  no_log: true
+  when: "'linkace' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Verify LinkAce's sign-in reaches Pocket ID
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.linkace }}/auth/sso/oidc/redirect"
+    headers:
+      Host: "{{ autolab_services_linkace_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    follow_redirects: none
+    status_code: [302]
+  register: autolab_linkace_signin
+  failed_when: >-
+    not (autolab_linkace_signin.location | default('')).startswith(autolab_services_oidc_issuer ~ '/authorize?')
+  when:
+    - "'linkace' in autolab_services_enabled"
+    - autolab_services_linkace_oidc_client_id | length > 0
+    - not ansible_check_mode
+
+- name: Wait for Sure to answer
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.sure }}/up"
+    status_code: [200]
+  register: autolab_sure_ready
+  until: autolab_sure_ready.status == 200
+  retries: 60
+  delay: 5
+  when: "'sure' in autolab_services_enabled and not ansible_check_mode"
+
+# Sure's login is a POST behind a CSRF token, which is not worth faking here;
+# its sign-in page carrying the button is the proof the client was loaded.
+- name: Verify Sure offers Pocket ID
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.sure }}/sessions/new"
+    headers:
+      Host: "{{ autolab_services_sure_public_url | regex_replace('^https?://', '') }}"
+      X-Forwarded-Proto: https
+    return_content: true
+  register: autolab_sure_signin
+  failed_when: "'Sign in with Pocket ID' not in autolab_sure_signin.content"
+  when:
+    - "'sure' in autolab_services_enabled"
+    - autolab_services_sure_oidc_client_id | length > 0
+    - not ansible_check_mode
 
 # After the stack is up, because it runs inside the container. The CLI is
 # idempotent and says so — "already installed" is how a converged host is

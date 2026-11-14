@@ -41,6 +41,10 @@ bump is a pull request.
 | `code-server` | browser-based VS Code for the operator workspace | 8443 |
 | `adventurelog` | on [nebula](nebula.md): a travel log that pulls its photos from Immich, Pocket ID sign-in — see [adventurelog](adventurelog.md) | 8098 |
 | `forgejo` | on [nebula](nebula.md): the lab's git host — mirrors of upstream and our forks, Pocket ID sign-in — see [forgejo](forgejo.md) | 8100 |
+| `tandoor` | on [nebula](nebula.md): recipes, meal plans, shopping lists — see [apps](apps.md) | 8101 |
+| `airtrail` | on [nebula](nebula.md): a personal flight log on a map — see [apps](apps.md) | 8102 |
+| `linkace` | on [nebula](nebula.md): bookmarks with tags and a link checker — see [apps](apps.md) | 8103 |
+| `sure` | on [nebula](nebula.md): personal finance — see [apps](apps.md) | 8104 |
 | `qr` | QR codes whose destination can change after printing — see [qr](qr.md) | 8097 (admin) |
 | `paradigm-tunnel` | the connector for the tunnel in the Paradigm Prints Cloudflare account — see [qr](qr.md) | — |
 
