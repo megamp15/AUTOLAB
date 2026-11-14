@@ -29,7 +29,8 @@ class Api:
     def request(self, method, path, data=None, allow_missing=False):
         request = urllib.request.Request(self.base + path, method=method,
             data=json.dumps(data).encode() if data is not None else None,
-            headers={'X-API-KEY': self.token, 'Content-Type': 'application/json'})
+            headers={'X-API-KEY': self.token, 'Content-Type': 'application/json',
+                     'User-Agent': 'autolab-status/1.0'})
         try:
             with urllib.request.build_opener(NoRedirect).open(request, timeout=20) as response:
                 body = response.read()
@@ -134,8 +135,16 @@ def main():
 
 
 if __name__ == '__main__':
+    diagnostic = Path('/run/autolab-pocketid-error')
     try:
         main()
-    except (KeyError, ValueError, RuntimeError, OSError) as error:
-        print(f'Pocket ID provisioning failed: {error}', file=sys.stderr)
+        diagnostic.unlink(missing_ok=True)
+    except Exception as error:
+        # Only our fixed RuntimeError messages contain details. Never persist
+        # an API response, token, client secret, or arbitrary exception text.
+        detail = str(error) if type(error) is RuntimeError else type(error).__name__
+        fd = os.open(diagnostic, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, 'w') as stream:
+            stream.write(detail + '\n')
+        print('Pocket ID provisioning failed; see the root-only diagnostic', file=sys.stderr)
         sys.exit(1)
