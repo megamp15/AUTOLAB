@@ -14,7 +14,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import albums, core
+from . import albums, core, nodate, previews
 from .immich import Immich, ImmichError
 from .jobs import Busy, Jobs, Missing
 
@@ -65,6 +65,12 @@ class App:
         self.jobs = Jobs(cfg, immich)
         self.started = time.time()
 
+    def media(self, rel):
+        """A photo or video inside the media folder, or an error: the page may ask about nothing else."""
+        if not core.is_media(rel):
+            raise ValueError(f'not a photo or video: {rel}')
+        self.cfg.abs(rel)
+
     # Each route returns (status, document).
     def route(self, method, path, query, body):
         j, cfg = self.jobs, self.cfg
@@ -92,6 +98,21 @@ class App:
             if not isinstance(selected, list) or not selected or len(selected) > 100:
                 return 400, {'error': 'select between 1 and 100 event folders'}
             return 200, albums.create(cfg, self.immich, selected)
+        one = lambda k: query.get(k, [''])[0]
+        if method == 'GET' and path == '/api/info':
+            self.media(one('path'))
+            return 200, previews.facts(cfg, one('path'))
+        if method == 'GET' and path == '/api/same':
+            self.media(one('a')), self.media(one('b'))
+            return 200, {'same': previews.same_bytes(cfg, one('a'), one('b'))}
+        if method == 'GET' and path == '/api/nodate':
+            found = nodate.files(cfg)
+            return 200, {'total': len(found), 'files': found}
+        if method == 'POST' and path == '/api/nodate/date':
+            paths = body.get('paths', [])
+            if not isinstance(paths, list) or len(paths) > 2000:
+                raise ValueError('paths must be a list of up to 2000 files')
+            return 202, {'job': j.start_set_dates(paths, str(body.get('date', '')), str(body.get('time', '')))}
         if method == 'GET' and path == '/api/job':
             return 200, {'job': j.status()}
         if method == 'GET' and path == '/api/plans':
@@ -234,11 +255,65 @@ def handler(app):
             self.end_headers()
             self.wfile.write(data)
 
+        def stream(self, file, ctype, cache):
+            """Send a file, honouring a Range header so a video can seek."""
+            size = os.path.getsize(file)
+            start, end, status = 0, size - 1, 200
+            m = re.fullmatch(r'bytes=(\d*)-(\d*)', (self.headers.get('Range') or '').strip())
+            if m and (m.group(1) or m.group(2)):
+                a, b = m.groups()
+                start, end = (max(0, size - int(b)), size - 1) if not a else (int(a), min(int(b), size - 1) if b else size - 1)
+                if start > end or start >= size:
+                    self.send_response(416)
+                    self.send_header('Content-Range', f'bytes */{size}')
+                    self.send_header('Content-Length', '0')
+                    self.end_headers()
+                    return
+                status = 206
+            self.send_response(status)
+            self.send_header('Content-Type', ctype)
+            self.send_header('Accept-Ranges', 'bytes')
+            self.send_header('Content-Length', str(end - start + 1))
+            if status == 206:
+                self.send_header('Content-Range', f'bytes {start}-{end}/{size}')
+            self.send_header('Cache-Control', cache)
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.end_headers()
+            try:
+                with open(file, 'rb') as f:
+                    f.seek(start)
+                    left = end - start + 1
+                    while left > 0:
+                        chunk = f.read(min(1 << 16, left))
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                        left -= len(chunk)
+            except (BrokenPipeError, ConnectionResetError):
+                pass   # the viewer closed the picture or seeked elsewhere
+
+        def binary(self, path, query):
+            rel = query.get('path', [''])[0]
+            try:
+                app.media(rel)
+                if path == '/api/preview':
+                    file = previews.thumbnail(app.cfg, rel, int(query.get('w', ['240'])[0] or 240))
+                    return self.stream(file, mimetypes.guess_type(file)[0] or 'image/jpeg', 'private, max-age=86400')
+                return self.stream(app.cfg.abs(rel), mimetypes.guess_type(rel)[0] or 'application/octet-stream', 'private, max-age=300')
+            except previews.NoPreview:
+                return self.send(404, {'error': 'no preview'})
+            except FileNotFoundError:
+                return self.send(404, {'error': 'not found'})
+            except ValueError as e:
+                return self.send(400, {'error': str(e)})
+
         def dispatch(self, method):
             url = urlparse(self.path)
             if url.path.startswith('/api/'):
                 if app.token and not hmac.compare_digest(self.headers.get('X-Autolab-Photos-Token', ''), app.token):
                     return self.send(401, {'error': 'unauthorised'})
+                if method == 'GET' and url.path in ('/api/preview', '/api/file'):
+                    return self.binary(url.path, parse_qs(url.query))
                 body = {}
                 if method in ('POST', 'PATCH'):
                     n = int(self.headers.get('Content-Length') or 0)
@@ -250,7 +325,7 @@ def handler(app):
                         return self.send(400, {'error': 'invalid JSON'})
                 try:
                     status, doc = app.route(method, url.path, parse_qs(url.query), body)
-                except Missing:
+                except (Missing, FileNotFoundError):
                     status, doc = 404, {'error': 'not found'}
                 except Busy as e:
                     status, doc = 409, {'error': f'a {e} job is already running'}
