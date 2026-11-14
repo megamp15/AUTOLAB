@@ -43,6 +43,12 @@ def matching(plan, cfg, kind='', pair=False, text=''):
             and (not text or text in m['src'].lower() or text in m['dst'].lower() or text in m['why'].lower())]
 
 
+def matching_groups(plan, text=''):
+    """The duplicate groups with a file whose path contains the text (all of them for no text)."""
+    text = text.lower()
+    return [g for g in plan['groups'] if not text or any(text in f.lower() for f in g['files'])]
+
+
 def item_on(plan, item):
     return f'immich:{item["id"]}' not in set(plan.get('excluded', []))
 
@@ -120,11 +126,11 @@ class App:
             plan = j.plan(m.group(1))
             if plan['kind'] != 'duplicates':
                 return 404, {'error': 'only duplicate plans have groups'}
-            text = query.get('q', [''])[0].lower()
-            rows = [g for g in plan['groups'] if not text or any(text in f.lower() for f in g['files'])]
+            rows = matching_groups(plan, query.get('q', [''])[0])
             off, lim = int(query.get('offset', ['0'])[0]), min(int(query.get('limit', ['50'])[0]), 200)
             excluded = set(plan.get('excluded', []))
             return 200, {'total': len(rows), 'offset': off,
+                         'selected': sum(1 for g in rows if g['id'] not in excluded),
                          'groups': [{**g, 'selected': g['id'] not in excluded} for g in rows[off:off + lim]]}
         m = re.fullmatch(r'/api/plans/([\w-]+)', path)
         if m and method == 'PATCH':
@@ -139,6 +145,7 @@ class App:
                 f = body['filter']
                 keys = ([f'immich:{i["id"]}' for i in matching_items(plan, f.get('status', ''), bool(f.get('live')), f.get('q', ''))]
                         if plan['kind'] == 'immich' else
+                        [g['id'] for g in matching_groups(plan, f.get('q', ''))] if plan['kind'] == 'duplicates' else
                         [group_key(x) for x in matching(plan, cfg, f.get('kind', ''), bool(f.get('pair')), f.get('q', ''))])
                 for key in keys:
                     (excluded.discard if body.get('selected') else excluded.add)(key)
@@ -160,9 +167,22 @@ class App:
                     g = next((x for x in plan['groups'] if x['id'] == gid), None)
                     if g and rel in g['files']:
                         g['keep'] = rel
+            changed = 0
+            if plan['kind'] == 'duplicates' and ('keep_where' in body or 'keep_reset' in body):
+                # Bulk keepers, over the groups the search box is showing. Files in a group are
+                # listed best copy first, so "the best copy in this folder" is the first that matches.
+                rule = body.get('keep_where') or body.get('keep_reset') or {}
+                frag = (body.get('keep_where') or {}).get('contains', '').strip().lower()
+                if 'keep_where' in body and not frag:
+                    return 400, {'error': 'say which folder or path to keep copies in'}
+                for g in matching_groups(plan, rule.get('q', '')):
+                    pick = next((f for f in g['files'] if frag in f.lower()), None) if frag else g['files'][0]
+                    if pick and pick != g['keep']:
+                        g['keep'] = pick
+                        changed += 1
             plan['excluded'], plan['excluded_kinds'] = sorted(excluded), sorted(kinds)
             j.save_plan(plan)
-            return 200, {'ok': True}
+            return 200, {'ok': True, 'changed': changed}
         m = re.fullmatch(r'/api/plans/([\w-]+)/apply', path)
         if m and method == 'POST':
             plan = j.plan(m.group(1))

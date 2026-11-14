@@ -144,6 +144,8 @@
   .btn.danger { background:var(--bad); border-color:var(--bad); color:#fff; }
   .btn.danger:hover:not(:disabled) { background:transparent; color:var(--bad); }
   .note.bad { border-left-color:var(--bad); color:var(--fg); }
+  .toolbar.bulk { margin:4px 0 8px; padding:6px 4px; border-top:1px solid var(--soft); border-bottom:1px solid var(--soft); font-size:12px; }
+  input.search.wide { min-width:min(360px,100%); }
   .table-panel { display:flex; flex-direction:column; min-height:0; padding:12px 14px; }
   .table { display:flex; flex-direction:column; min-height:0; flex:1; border:1px solid var(--line); border-radius:5px; overflow:hidden; }
   .tbody { overflow:auto; flex:1 1 auto; min-height:0; max-height:70vh; scrollbar-width:thin; }
@@ -300,7 +302,7 @@
   async function fetchGroups(append) {
     const d = state.dupes, q = new URLSearchParams({ offset: append ? d.groups.length : 0, limit: 40, q: d.q });
     const page = await api(`/plans/${d.plan.id}/groups?` + q);
-    d.total = page.total; d.groups = append ? d.groups.concat(page.groups) : page.groups;
+    d.total = page.total; d.shown = page.selected; d.groups = append ? d.groups.concat(page.groups) : page.groups;
     return page.groups;
   }
   async function loadImmich(id) {
@@ -482,16 +484,34 @@
     tools.append(stats, spacer(), modes, searchBox(d.q, async v => { d.q = v; await fetchGroups(false); dupeUI.list.replaceChildren(); d.groups.forEach(addGroup); }));
     const warn = el('div', 'note bad', 'Delete removes the extra copies for good. Each one is checked to still be identical to the copy you keep, just before it is removed. This cannot be undone.');
     warn.hidden = d.plan.mode !== 'delete';
+    // Choices for many groups at once. They apply to the groups the search box is showing.
+    const bulk = el('div', 'toolbar bulk'), headBox = el('input', 'tick'); headBox.type = 'checkbox'; headBox.title = 'Handle or skip every group shown';
+    const shown = el('span', 'muted shown'); const where = el('input', 'search wide'); where.placeholder = 'Keep the copy in…  e.g. /Trip/ or 2025/06/Backup';
+    const keepBtn = el('button', 'btn small', 'Keep copies there'), resetBtn = el('button', 'btn small quiet', 'Reset keepers'), msg = el('span', 'muted');
+    keepBtn.title = 'In every group shown that has a copy there, keep that copy and treat the others as the extras'; resetBtn.title = 'Back to the best copy of each group';
+    headBox.onchange = async () => {
+      d.groups.forEach(g => { g.selected = headBox.checked; }); d.shown = headBox.checked ? d.total : 0; dupeUI.list.querySelectorAll('.group').forEach(c => { c.classList.toggle('off', !headBox.checked); c.querySelector('header .tick').checked = headBox.checked; });
+      await dupePatch({ filter: { q: d.q }, selected: headBox.checked });
+    };
+    const bulkKeep = async body => {
+      try { const res = await api('/plans/' + d.plan.id, { method: 'PATCH', body }); msg.textContent = `Keeper changed in ${res.changed} group${res.changed === 1 ? '' : 's'}.`;
+        const top = dupeUI.list.scrollTop; await fetchGroups(false); dupeUI.list.replaceChildren(); d.groups.forEach(addGroup); dupeUI.list.scrollTop = top; await refreshPlan(d); paintDupes(); } catch (e) { fail(e); }
+    };
+    keepBtn.onclick = () => { if (!where.value.trim()) { where.focus(); return; } bulkKeep({ keep_where: { contains: where.value.trim(), q: d.q } }); };
+    resetBtn.onclick = () => bulkKeep({ keep_reset: { q: d.q } });
+    bulk.append(headBox, shown, spacer(), where, keepBtn, resetBtn, msg);
     const list = el('div', 'tbody groups'); nearEnd(list, async () => { if (!d.loading && d.groups.length < d.total) { d.loading = true; try { (await fetchGroups(true)).forEach(addGroup); } finally { d.loading = false; } } });
-    panel.append(tools, warn, list); main.append(panel);
+    panel.append(tools, warn, bulk, list); main.append(panel);
     const bar = el('div', 'bar'), info = el('span', 'grow'), apply = el('button', 'btn primary');
     apply.onclick = () => confirmApply(d.plan); bar.append(info, apply); main.append(bar);
-    dupeUI = { stats, list, info, apply }; d.groups.forEach(addGroup); paintDupes();
+    dupeUI = { stats, list, info, apply, headBox, shown }; d.groups.forEach(addGroup); paintDupes();
   }
   function paintDupes() {
     const p = state.dupes.plan, u = dupeUI, del = p.mode === 'delete';
     u.stats.replaceChildren(...[[p.stats.groups, 'groups'], [p.stats.extra, 'extra copies'], [fmtGiB(p.stats.extra_bytes), 'they use'], [p.preview.moves, del ? 'to delete' : 'to file']].map(([v, k]) => {
       const s = el('div', 'stat'); s.append(el('b', null, typeof v === 'number' ? v.toLocaleString() : v), el('small', null, k)); return s; }));
+    const d = state.dupes; u.headBox.checked = d.total > 0 && d.shown === d.total; u.headBox.indeterminate = d.shown > 0 && d.shown < d.total;
+    u.shown.textContent = `${d.total.toLocaleString()} group${d.total === 1 ? '' : 's'} shown · ${d.shown.toLocaleString()} handled`;
     const n = p.preview.moves;
     u.info.innerHTML = `<b>${n.toLocaleString()}</b> copies will be ${del ? 'deleted for good' : 'filed'}` + (p.preview.protected_count ? ` <span class="muted">· ${p.preview.protected_count} left alone because their Live Photo half is staying</span>` : '');
     u.apply.textContent = (del ? 'Delete ' : 'File ') + n.toLocaleString() + ' copies'; u.apply.classList.toggle('danger', del); u.apply.disabled = busy() || !n;
@@ -499,7 +519,7 @@
   function addGroup(g) {
     const d = state.dupes, card = el('div', 'group' + (g.selected ? '' : ' off'));
     const hd = el('header'), on = el('input', 'tick'); on.type = 'checkbox'; on.checked = g.selected; on.setAttribute('aria-label', 'Handle the extra copies of this photo');
-    on.onchange = async () => { g.selected = on.checked; card.classList.toggle('off', !g.selected); await dupePatch({ groups: [g.id], selected: g.selected }); };
+    on.onchange = async () => { g.selected = on.checked; card.classList.toggle('off', !g.selected); d.shown += g.selected ? 1 : -1; await dupePatch({ groups: [g.id], selected: g.selected }); };
     hd.append(on, el('span', 'mono', `${g.files.length} copies · ${fmtGiB(g.size)} each`)); card.append(hd);
     g.files.forEach(f => {
       const row = el('label', 'copy'), r = el('input', 'tick radio'); r.type = 'radio'; r.name = g.id; r.checked = f === g.keep;

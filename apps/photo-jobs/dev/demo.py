@@ -46,6 +46,12 @@ if not dates_file.exists():
         put(f'library/{y}/{mo}/{name}.HEIC', blob(name), m)
     put('library/2025/06/Lake_weekend/IMG_2100.JPG', b'lake-photo' * 300, '2025-06')
     put('library/2025/06/IMG_2100.JPG', b'lake-photo' * 300, '2025-06')   # the same photo, loose
+    # the same photos kept twice: once in a Trip folder, once in a Backup folder (bulk choices)
+    for m in range(1, 7):
+        for i in range(2):
+            data = blob(f'twice{m}{i}')
+            put(f'library/2024/{m:02d}/Trip_{m}/IMG_{m}{i}.JPG', data, f'2024-{m:02d}')
+            put(f'library/2024/{m:02d}/Backup/IMG_{m}{i}.JPG', data, f'2024-{m:02d}')
     # loose uploads
     n = 3100
     for m in ('2025-06', '2025-06', '2025-07', '2025-07', '2025-07', '2025-08', '2025-09', '2025-09'):

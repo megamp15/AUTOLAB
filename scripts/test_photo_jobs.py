@@ -587,6 +587,74 @@ class ImmichApi(ImmichBase):
         self.assertEqual(self.tree(), ['library/2025/06/b.jpg'])
 
 
+class BulkDuplicateChoices(Library):
+    def setUp(self):
+        super().setUp()
+        for month in ('05', '06', '07'):    # three groups, each a copy in Trip/ and a copy in Backup/
+            self.put(f'library/2025/{month}/Trip/IMG_{month}.JPG', f'photo {month}')
+            self.put(f'library/2025/{month}/Backup/IMG_{month}.JPG', f'photo {month}')
+        self.put('library/2025/08/Solo/IMG_8.JPG', 'eight')
+        self.put('library/2025/08/Other/IMG_8.JPG', 'eight')
+        self.app = server.App(self.cfg)
+        self.app.route('POST', '/api/plans', {}, {'kind': 'duplicates'})
+        for _ in range(300):
+            job = self.app.jobs.status()
+            if job['state'] != 'running':
+                break
+            time.sleep(0.02)
+        self.pid = job['result']['plan']
+
+    def patch(self, body):
+        return self.app.route('PATCH', f'/api/plans/{self.pid}', {}, body)
+
+    def plan(self):
+        return self.app.jobs.plan(self.pid)
+
+    def keeps(self):
+        return sorted(g['keep'] for g in self.plan()['groups'])
+
+    def test_keep_the_copy_in_a_folder_moves_the_keeper_in_every_group_that_has_one(self):
+        self.patch({'keep_reset': {}})
+        august_before = [k for k in self.keeps() if '/2025/08/' in k]
+        status, res = self.patch({'keep_where': {'contains': '/Backup/'}})
+        self.assertEqual((status, res['changed']), (200, 3))
+        keeps = self.keeps()
+        self.assertEqual([k for k in keeps if '/Backup/' in k], [f'library/2025/0{m}/Backup/IMG_0{m}.JPG' for m in (5, 6, 7)])
+        # the August group has no Backup copy: left exactly as it was
+        self.assertEqual([k for k in keeps if '/2025/08/' in k], august_before)
+
+    def test_it_only_touches_the_groups_the_search_is_showing(self):
+        self.patch({'keep_reset': {}})
+        self.patch({'keep_where': {'contains': '/Backup/', 'q': '2025/06'}})
+        backups = [k for k in self.keeps() if '/Backup/' in k]
+        self.assertEqual(backups, ['library/2025/06/Backup/IMG_06.JPG'])
+
+    def test_reset_puts_the_default_best_copy_back(self):
+        default = self.keeps()
+        self.patch({'keep_where': {'contains': '/Backup/'}})
+        self.assertNotEqual(self.keeps(), default)
+        self.patch({'keep_reset': {}})
+        self.assertEqual(self.keeps(), default)
+
+    def test_a_keep_rule_with_no_folder_is_refused(self):
+        self.assertEqual(self.patch({'keep_where': {'contains': '  '}})[0], 400)
+
+    def test_ticking_groups_in_bulk_follows_the_search(self):
+        self.patch({'filter': {'q': '2025/0'}, 'selected': False})       # the 05, 06, 07 and 08 groups: all of them
+        self.assertEqual(len(self.plan()['excluded']), 4)
+        self.patch({'filter': {'q': '2025/06'}, 'selected': True})
+        self.assertEqual(len(self.plan()['excluded']), 3)
+        _, page = self.app.route('GET', f'/api/plans/{self.pid}/groups', {'q': ['2025/0']}, {})
+        self.assertEqual((page['total'], page['selected']), (4, 1))
+
+    def test_the_moves_follow_the_chosen_keepers(self):
+        self.patch({'keep_where': {'contains': '/Backup/'}})
+        moves = core.selected_moves(self.plan(), self.cfg)
+        removed = {m['src'] for m in moves}
+        self.assertNotIn('library/2025/06/Backup/IMG_06.JPG', removed)    # the one chosen to keep is not touched
+        self.assertIn('library/2025/06/Trip/IMG_06.JPG', removed)         # the other copy is the extra
+
+
 class Pairs(unittest.TestCase):
     def test_pairing_is_by_folder_and_name(self):
         self.assertEqual(pairs.pairs(['/a/IMG_1.HEIC', '/a/IMG_1.MOV', '/b/IMG_1.MOV', '/a/IMG_2.MOV']),

@@ -32,6 +32,12 @@ The Duplicates tab compares byte-identical files across the whole library and ke
 best copy of each (you can pick another). The extras are **filed** under `_duplicates/`,
 which undo reverses, or, if you switch the mode to **Delete**, removed for good.
 
+**Choosing for many groups at once.** The search box narrows the groups shown, and the
+controls under it act on exactly those: the checkbox handles or skips every group shown,
+**Keep copies there** keeps the copy whose path contains what you typed (say `/Trip/` or
+`2025/06/Backup`) in every group shown that has one, and **Reset keepers** goes back to the
+best copy of each. A group with no copy there is left as it was.
+
 ## Deleting, and what makes it safe
 
 Nothing is deleted unless you switch a plan to **Delete** and type `DELETE` in the
