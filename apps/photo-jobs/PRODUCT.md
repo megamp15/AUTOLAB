@@ -29,6 +29,12 @@ The incumbent implementation is
 - Component libraries provide behavior and accessible primitives. Their
   default dashboard layouts, fonts, colors and styling are not the design brief.
 - Keep an appropriate reduced-motion version of the animation.
+- No native browser controls. Dropdowns, date and time pickers, checkboxes and the alert/confirm
+  popups look different in every browser and clash with this design, so the page has its own
+  (`UI.select`, `UI.date`, `UI.time`, `UI.check`, `notice()`, `ask()`). Use them for anything new;
+  never `<select>`, `<input type=date|time>`, `alert()` or `confirm()`.
+- Buttons are outlined and fill only on hover, everywhere. Filled white is reserved for a selected
+  state (a chosen chip, a picked day), not for the main action of a panel.
 - Calm UI: nothing pulses, blinks, or fades in on update. Progress is the bar (a sweep only
   while the total is unknown) and a static dot. Never re-run an entrance animation when state
   re-renders or a poll comes in; patch the existing element instead. Motion is for the black
