@@ -44,7 +44,7 @@
   ansible.builtin.set_fact:
     autolab_services_linkace_proxy_ips: >-
       {{ ((autolab_services_status.stdout | from_json).Peer | dict2items
-          | map(attribute='value') | selectattr('HostName', 'equalto', 'jwst')
+          | map(attribute='value') | selectattr('HostName', 'equalto', 'horizon')
           | map(attribute='TailscaleIPs') | map('first') | list) }}
   when: "'linkace' in autolab_services_enabled"
 
@@ -52,8 +52,8 @@
   ansible.builtin.assert:
     that: autolab_services_linkace_proxy_ips | length == 1
     fail_msg: >-
-      LinkAce needs jwst's Tailscale IP to trust forwarded HTTPS headers from
-      Traefik. Confirm jwst is online in this tailnet before deploying LinkAce.
+      LinkAce needs horizon's Tailscale IP to trust forwarded HTTPS headers
+      from Traefik. Confirm horizon is online in this tailnet before deploying LinkAce.
   when: "'linkace' in autolab_services_enabled"
 
 - name: Create LinkAce's Caddy configuration directory
