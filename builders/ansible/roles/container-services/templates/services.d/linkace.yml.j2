@@ -12,6 +12,11 @@
     env_file:
       - /etc/autolab/linkace.env
       - /etc/autolab/linkace-oidc.env
+    volumes:
+      - "{{ autolab_services_root }}/linkace/Caddyfile:/etc/caddy/Caddyfile:ro"
+    labels:
+      # Compose otherwise cannot see when a bind-mounted Caddyfile changes.
+      autolab.linkace.caddyfile-sha256: "{{ lookup('ansible.builtin.template', 'linkace/Caddyfile.j2') | hash('sha256') }}"
     environment:
       APP_URL: "{{ autolab_services_linkace_public_url }}"
       # Traefik is the only thing in front of it, and it is on the tailnet.
