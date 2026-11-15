@@ -495,11 +495,39 @@ def _duplicate_plan(cfg, found, scanned):
             'stats': {'scanned': scanned, 'groups': len(groups), 'extra': extra, 'extra_bytes': extra_bytes}}
 
 
+def handled_by(run):
+    """The paths a run moved away or deleted: they are no longer where any plan saw them."""
+    return {m['src'] for m in run['moves'] if m['status'] in ('moved', 'deleted')}
+
+
+def drop_handled(plan, gone):
+    """Forget in a plan the files in `gone`, whoever dealt with them: a scan is a picture of the
+    folder, and an apply (this plan's or another's) changes the folder. Returns True if anything
+    in the plan changed. Choices already made for what is left stay."""
+    if plan['kind'] == 'sort':
+        moves = [m for m in plan['moves'] if m['src'] not in gone]
+        if len(moves) == len(plan['moves']):
+            return False
+        plan['moves'] = moves
+        plan['left'] = [f for f in plan.get('left', []) if f not in gone]
+        kinds = collections.Counter(m['kind'] for m in moves)
+        plan['stats'] = {**plan['stats'], 'moves': len(moves), 'kinds': dict(kinds),
+                         'pairs': len({m['group'] for m in moves if (m.get('group') or '').startswith('pair:')}),
+                         'left': len(plan['left'])}
+        return True
+    if not any(f in gone for f in ([f for g in plan['groups'] for f in g['files']] if plan['kind'] == 'duplicates'
+                                   else [i['rel'] for i in plan['items']])):
+        return False
+    plan['rev'] = plan.get('rev', 0) + 1
+    carry_forward(plan, {'moves': [{'src': f, 'status': 'moved'} for f in gone]})
+    return True
+
+
 def carry_forward(plan, run):
     """After an apply, drop from a duplicates or Immich plan what the run dealt with and keep the
     rest, so the scan is still there to carry on with instead of being thrown away. Returns how many
-    groups (or files, for Immich) are still open. Choices already made for what is left stay."""
-    gone = {m['src'] for m in run['moves'] if m['status'] in ('moved', 'deleted')}
+    groups (or files, for Immich) are still open."""
+    gone = handled_by(run)
     plan['rev'] = plan.get('rev', 0) + 1
     if plan['kind'] == 'duplicates':
         groups = []

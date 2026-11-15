@@ -1139,6 +1139,30 @@ class KeepScanAfterApply(Library):
         self.assertEqual((left, [i['id'] for i in plan['items']], plan['excluded'], plan['stats']['bytes']), (1, ['2', '3'], ['immich:2'], 5))
         self.assertEqual(core.carry_forward(plan, {'moves': [{'src': 'x/2.jpg', 'status': 'deleted'}]}), 0)    # only the missing one is left: nothing to do
 
+    def test_an_apply_takes_its_files_out_of_the_other_open_scans(self):
+        """The real bug: the Inbox scan was saved, then a Duplicates apply filed some of the same files
+        away, and applying the Inbox scan later skipped them as 'no longer there'."""
+        for i in range(3):
+            self.put(f'library/2025/06/a{i}.jpg', f'same-{i}')
+            self.put(f'_inbox/loose/a{i}.jpg', f'same-{i}')
+        app = server.App(self.cfg)
+        app.jobs.start_plan('sort')
+        for _ in range(300):
+            if app.jobs.status()['state'] != 'running':
+                break
+            time.sleep(0.02)
+        sort_id = app.jobs.status()['result']['plan']
+        before = len(app.jobs.plan(sort_id)['moves'])
+        self.assertEqual(before, 3)
+        dup_id = self._scan(app)
+        self._apply(app, dup_id)                                     # files the extra copies, some of them from the inbox
+        gone = {m['src'] for m in app.jobs.run(app.jobs.status()['result']['run'])['moves'] if m['status'] == 'moved'}
+        left = app.jobs.plan(sort_id)
+        self.assertTrue(gone, 'the duplicates run moved something')
+        self.assertLess(len(left['moves']), before)
+        self.assertFalse(any(m['src'] in gone for m in left['moves']))
+        self.assertEqual(left['stats']['moves'], len(left['moves']))
+
     def test_a_full_rescan_reads_every_file_again_and_the_default_does_not(self):
         self.put('library/a.jpg', 'same'); self.put('library/b.jpg', 'same')
         reads = []
