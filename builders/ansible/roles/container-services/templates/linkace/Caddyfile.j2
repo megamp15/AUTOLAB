@@ -1,0 +1,12 @@
+{
+    servers {
+        trusted_proxies static private_ranges {{ autolab_services_linkace_proxy_ips[0] }}/32
+    }
+}
+
+:{$PORT:80} {
+    root * /app/public
+    encode zstd gzip
+    php_fastcgi {$CADDY_PHP_HOST:php}:9000
+    file_server
+}

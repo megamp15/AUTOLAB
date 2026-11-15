@@ -55,6 +55,10 @@ Local password login remains available until SSO is verified.
 | linkace | `admin`, password `LINKACE_ADMIN_PASSWORD` in `/etc/autolab/linkace.env` | SSO users are created on first sign-in as ordinary users; promote in its UI |
 | sure | none: the first user becomes super admin on a new install | sign in once; then Settings → Self-Hosting → Onboarding → Closed |
 
+On a new AirTrail install, `/login` first shows the owner-account setup form.
+Create that first local owner account there. Once setup finishes, sign in with
+Pocket ID from AirTrail's normal login page.
+
 Read a break-glass password with `ssh megamp15@nebula sudo grep <KEY> /etc/autolab/<app>.env`.
 
 When a Pocket ID sign-in works for an app, set
