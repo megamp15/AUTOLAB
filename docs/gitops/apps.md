@@ -40,16 +40,16 @@ over the same volumes. Up in 14 s, all 487 migrations applied, balances
 unchanged, about 380 MB per container.
 
 Sure's upgrade notes say to keep `SECRET_KEY_BASE` and the encryption keys.
-`sure.env` is written once and kept, so an image bump leaves them alone.
+`sure.env` is generated once (`autolab-gen-credentials`) and kept, so an image bump leaves them alone.
 
 The new image logs a `[SECURITY]` warning until its encryption backfill has
 run once. It is not an outage. Run it after the deploy, dry run first, and only
 write if the dry run ends in `"failed_count":0`:
 
 ```bash
-docker exec sure bin/rails "security:backfill_encryption[100,1]"   # dry run
-docker exec sure bin/rails "security:backfill_encryption[100,0]"   # writes
-docker restart sure sure-worker
+docker exec services-sure-1 bin/rails "security:backfill_encryption[100,1]"   # dry run
+docker exec services-sure-1 bin/rails "security:backfill_encryption[100,0]"   # writes
+docker restart services-sure-1 services-sure-worker-1
 ```
 
 Take the dump first (`systemctl start autolab-db-backup`). Migrations do not
