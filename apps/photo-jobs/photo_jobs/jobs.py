@@ -249,6 +249,18 @@ class Jobs:
         except (ImmichError, ValueError) as e:
             return {'status': 'failed', 'error': str(e)}
 
+    def _forget(self, gone, except_plan=None):
+        """After files moved or were deleted, take them out of every other open scan, so applying one
+        later does not try to move a file that is already somewhere else."""
+        if not gone:
+            return
+        for p in self._list('plans'):
+            if p['id'] == except_plan or p.get('applied') or p.get('partial'):
+                continue
+            plan = self.plan(p['id'])
+            if core.drop_handled(plan, gone):
+                self.save_plan(plan)
+
     def start_apply(self, plan_id):
         plan = self.plan(plan_id)
         if plan.get('applied'):
@@ -266,6 +278,7 @@ class Jobs:
             if scan:
                 run['immich_scan'] = scan
                 self._save('runs', {'id': run_id, 'plan': plan_id, 'kind': plan['kind'], **run})
+            self._forget(core.handled_by(run), except_plan=plan_id)     # the other scans see the folder as it was
             if plan['kind'] in ('duplicates', 'immich') and core.carry_forward(plan, run):
                 plan['runs'] = [*plan.get('runs', []), run_id]     # still open: what was left is there to carry on with
             else:

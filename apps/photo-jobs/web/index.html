@@ -522,6 +522,10 @@
       side.plan = null; side.rows = []; side.groups = [];
       // What the run did not deal with is still open: the scan stays, with the handled files gone.
       try { const open = (await api('/plans')).plans.find(x => x.id === j.plan && !x.applied); if (open && load) await load(j.plan, true); } catch (e) { /* the next scan starts fresh */ }
+      for (const other of [[state.sort, loadSort], [state.dupes, loadDupes], [state.immich, loadImmich]]) {   // the other scans lost the files this run handled
+        const [o, reload] = other; if (o === side || !o.plan) continue; const id = o.plan.id;
+        try { const open = (await api('/plans')).plans.find(x => x.id === id && !x.applied); if (open) await reload(id, true); } catch (e) { /* the next scan starts fresh */ }
+      }
       side.done = j.result.run;
     }
     await refresh();
