@@ -16,7 +16,7 @@ dumped nightly and restore-tested weekly.
 | `tandoor` 2.7.2 | recipes, meal plans, shopping lists | Postgres | `tandoor/media` | ~850 MB (its workers) |
 | `airtrail` 3.14.0 | flights on a map | Postgres | `airtrail/uploads` | ~50 MB |
 | `linkace` 2.6.3 | bookmarks, tags, link checker | **MariaDB** | none | ~75 MB + 96 MB |
-| `sure` 0.7.6-hotfix.1 | accounts, budgets, net worth | Postgres | `sure/storage` | web and worker ~375 MB each |
+| `sure` 2026.11.14-alpha | accounts, budgets, net worth | Postgres | `sure/storage` | web and worker ~375 MB each |
 
 LinkAce is on MariaDB because that is what its own compose file and docs
 describe. It also runs on Postgres (checked: migrates, creates the admin, serves
@@ -30,6 +30,30 @@ credentials entered in its settings, and nothing here enters them. Sure's docs
 mention product analytics that is on by default; I could not confirm the switch
 that turns it off, so check its release notes (`POSTHOG_*`) before relying on it
 being silent.
+
+### Sure upgrade (0.7.6-hotfix.1 to 2026.11.14-alpha)
+
+Rehearsed on a scratch Sure built like this one (same pinned Postgres and
+Redis, 768 MB limits, explicit `ACTIVE_RECORD_ENCRYPTION_*` keys), loaded with
+four loans and 96 balances on 0.7.6-hotfix.1, then switched to the new image
+over the same volumes. Up in 14 s, all 487 migrations applied, balances
+unchanged, about 380 MB per container.
+
+Sure's upgrade notes say to keep `SECRET_KEY_BASE` and the encryption keys.
+`sure.env` is generated once (`autolab-gen-credentials`) and kept, so an image bump leaves them alone.
+
+The new image logs a `[SECURITY]` warning until its encryption backfill has
+run once. It is not an outage. Run it after the deploy, dry run first, and only
+write if the dry run ends in `"failed_count":0`:
+
+```bash
+docker exec services-sure-1 bin/rails "security:backfill_encryption[100,1]"   # dry run
+docker exec services-sure-1 bin/rails "security:backfill_encryption[100,0]"   # writes
+docker restart services-sure-1 services-sure-worker-1
+```
+
+Take the dump first (`systemctl start autolab-db-backup`). Migrations do not
+reverse, so going back to 0.7.6-hotfix.1 means restoring that dump.
 
 ## Pocket ID clients
 

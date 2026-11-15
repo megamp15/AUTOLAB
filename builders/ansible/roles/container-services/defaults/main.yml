@@ -108,7 +108,13 @@ autolab_services_images:
   airtrail: "johly/airtrail:v3.14.0"
   # The release before 2.6.3 carried a critical Docker-setup flaw; this is the fix.
   linkace: "linkace/linkace:v2.6.3"
-  sure: "ghcr.io/we-promise/sure:0.7.6-hotfix.1"
+  # A prerelease, on purpose: 0.7.6-hotfix.1 has no statement vault and no
+  # /api/v1/version, which the finance backfill uses to file each Nelnet
+  # statement PDF under its loan. Sure publishes no stable release newer than
+  # 0.7.6-hotfix.1. This tag is immutable and is the same image as `latest`
+  # (sha256:e9aad2206132...). Migrations only go forward, so the way back is
+  # the nightly dump, not this line. docs/gitops/apps.md, "Sure upgrade".
+  sure: "ghcr.io/we-promise/sure:2026.11.14-alpha"
   dash: "ghcr.io/gethomepage/homepage:v2.4.0"
   # The connector for the Paradigm Prints tunnel, pinned with the same
   # version horizon's runs.
