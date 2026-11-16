@@ -336,7 +336,7 @@ autolab_services_paradigm_tunnel_token: ""
 # that changes it, like every other pin here. Empty is refused rather than
 # guessed, so the service cannot be enabled before the first publish.
 autolab_services_cosmos_registry: "registry.lab.pmahir.space"
-autolab_services_cosmos_image_tag: "69979df7ca94081776f5b7cdf50e9b2e36d02370-43933795763-1"
+autolab_services_cosmos_image_tag: "e34f459fb596413454384da285cee6907323063e-43934756386-1"
 # Kept this many daily logical dumps of the database, on the host's disk. The
 # nightly Proxmox backup of the VM carries them to the NAS.
 autolab_services_cosmos_dump_keep: 14
