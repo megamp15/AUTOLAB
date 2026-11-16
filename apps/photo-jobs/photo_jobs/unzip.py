@@ -1,8 +1,8 @@
-"""Zip files dropped in the inbox: unpacked beside themselves, checked, then deleted.
+"""Zip files dropped in the inbox: unpacked beside themselves, checked, then moved to _trash.
 
 The Inbox scan starts here. Every .zip under _inbox is extracted into the folder it sits in (a
 Google Takeout zip becomes a Takeout folder next to it), and only when every file in it is on disk
-with the exact bytes the zip holds is the zip deleted. A zip that cannot be fully checked is kept
+with the exact bytes the zip holds is the zip moved to _trash (to look over and empty yourself, never deleted by this tool). A zip that cannot be fully checked is kept
 and the scan says why. Nothing is ever overwritten: a file that is already there with the same
 bytes counts as unpacked, one with different bytes keeps its place and the new one gets " (1)".
 """
@@ -67,10 +67,10 @@ def _clean(cfg):
 
 
 def unpack(cfg, path, progress, spent):
-    """Unpack one zip beside itself and check it. Returns {'zip', 'files', 'deleted', 'note'}.
+    """Unpack one zip beside itself and check it. Returns {'zip', 'files', 'trashed', 'note'}.
     `spent` is a list [bytes done] shared across zips for progress."""
     rel, folder = cfg.rel(path), os.path.dirname(path)
-    out = {'zip': rel, 'files': 0, 'deleted': False, 'note': ''}
+    out = {'zip': rel, 'files': 0, 'trashed': '', 'note': ''}
     st = os.stat(path)
     if time.time() - st.st_mtime < SETTLE:
         out['note'] = 'it was changed a moment ago, so it may still be copying in; it is unpacked on a later scan'
@@ -150,13 +150,15 @@ def unpack(cfg, path, progress, spent):
     if (now.st_size, now.st_mtime_ns) != (st.st_size, st.st_mtime_ns):
         out['note'] = 'it changed while it was being unpacked, so it was kept'
         return out
-    os.remove(path)
-    out['deleted'] = True
+    dst = cfg.abs(core.trash_dst(cfg, rel))
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    os.rename(path, dst)
+    out['trashed'] = cfg.rel(dst)
     return out
 
 
 def unpack_all(cfg, progress=core._noop):
-    """Unpack, check and delete every zip in the inbox. Zips found inside those (up to three
+    """Unpack, check and put in _trash every zip in the inbox. Zips found inside those (up to three
     levels) are handled too. Returns one entry per zip."""
     _clean(cfg)
     report, seen = [], set()
@@ -175,10 +177,10 @@ def unpack_all(cfg, progress=core._noop):
 
 def notes(report):
     """What to tell the person, one line each."""
-    done = [r for r in report if r['deleted']]
+    done = [r for r in report if r['trashed']]
     out = []
     if done:
         files = sum(r['files'] for r in done)
-        out.append(f'Unpacked {len(done)} zip file{"s" if len(done) != 1 else ""} ({files:,} files), checked every file against the zip, then deleted the zip.')
-    out += [f'Kept {os.path.basename(r["zip"])}: {r["note"]}.' for r in report if not r['deleted']]
+        out.append(f'Unpacked {len(done)} zip file{"s" if len(done) != 1 else ""} ({files:,} files), checked every file against the zip, then moved the zip to _trash.')
+    out += [f'Kept {os.path.basename(r["zip"])}: {r["note"]}.' for r in report if not r['trashed']]
     return out

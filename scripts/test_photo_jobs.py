@@ -320,29 +320,39 @@ class Duplicates(Library):
         self.assertEqual(self.plan()['groups'], [])
 
 
-class DeletingDuplicates(Library):
-    def plan(self, mode='delete'):
+class TrashingDuplicates(Library):
+    """The Duplicates 'Move to _trash' mode: the extra copies are moved to _trash, never deleted."""
+
+    def plan(self, mode='trash'):
         plan = core.plan_duplicates(self.cfg)
         plan.update(excluded=[], excluded_kinds=[], mode=mode)
         return plan
 
-    def test_deleting_removes_only_the_extra_copies_and_keeps_the_best_one(self):
+    def test_trashing_moves_only_the_extra_copies_and_keeps_the_best_one(self):
         self.put('library/2025/06/Trip/IMG_1.JPG', 'same')
         self.put('library/2025/06/IMG_1.JPG', 'same')
         self.put('_duplicates/2025/06/IMG_1.JPG', 'same')
         self.put('library/2025/06/other.JPG', 'different')
         run = core.apply_moves(self.cfg, core.selected_moves(self.plan(), self.cfg))
-        self.assertEqual(self.tree(), ['library/2025/06/Trip/IMG_1.JPG', 'library/2025/06/other.JPG'])
-        self.assertEqual([m['status'] for m in run['moves']], ['deleted', 'deleted'])
-        self.assertTrue(all(m['sha1'] and m['keep'] == 'library/2025/06/Trip/IMG_1.JPG' for m in run['moves']))
+        self.assertEqual(self.tree(), ['_trash/_duplicates/2025/06/IMG_1.JPG', '_trash/library/2025/06/IMG_1.JPG',
+                                       'library/2025/06/Trip/IMG_1.JPG', 'library/2025/06/other.JPG'])
+        self.assertEqual([m['status'] for m in run['moves']], ['moved', 'moved'])
+        self.assertTrue(all(m['keep'] == 'library/2025/06/Trip/IMG_1.JPG' for m in run['moves'] if m.get('keep')))
+
+    def test_an_older_plan_that_said_delete_now_means_trash(self):
+        self.put('library/2025/06/A/IMG_1.JPG', 'same')
+        self.put('library/2025/06/B/IMG_1.JPG', 'same')
+        core.apply_moves(self.cfg, core.selected_moves(self.plan('delete'), self.cfg))
+        self.assertEqual(self.tree(), ['_trash/library/2025/06/B/IMG_1.JPG', 'library/2025/06/A/IMG_1.JPG'])
 
     def test_the_default_mode_still_only_files_them(self):
         self.put('library/2025/06/A/IMG_1.JPG', 'same')
         self.put('library/2025/06/B/IMG_1.JPG', 'same')
         core.apply_moves(self.cfg, core.selected_moves(self.plan('file'), self.cfg))
         self.assertEqual(len(self.tree()), 2)
+        self.assertFalse(any(t.startswith('_trash') for t in self.tree()))
 
-    def test_nothing_is_deleted_if_the_kept_copy_changed_since_the_scan(self):
+    def test_nothing_is_moved_if_the_kept_copy_changed_since_the_scan(self):
         keeper = self.put('library/2025/06/A/IMG_1.JPG', 'same')
         extra = self.put('library/2025/06/B/IMG_1.JPG', 'same')
         plan = self.plan()
@@ -351,8 +361,9 @@ class DeletingDuplicates(Library):
         run = core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
         self.assertEqual(run['moves'][0]['status'], 'skipped')
         self.assertTrue(extra.exists())
+        self.assertFalse((self.root / '_trash').exists())
 
-    def test_nothing_is_deleted_if_the_kept_copy_is_gone(self):
+    def test_nothing_is_moved_if_the_kept_copy_is_gone(self):
         keeper = self.put('library/2025/06/A/IMG_1.JPG', 'same')
         extra = self.put('library/2025/06/B/IMG_1.JPG', 'same')
         plan = self.plan()
@@ -360,22 +371,27 @@ class DeletingDuplicates(Library):
         core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
         self.assertTrue(extra.exists())
 
-    def test_a_live_photo_half_is_never_deleted_while_its_partner_stays(self):
+    def test_a_live_photo_half_is_never_moved_while_its_partner_stays(self):
         self.put('library/2025/06/A/IMG_1.HEIC', 'same still')
         self.put('library/2025/06/A/IMG_1.MOV', 'clip A')
         self.put('library/2025/06/B/IMG_1.HEIC', 'same still')
         self.put('library/2025/06/B/IMG_1.MOV', 'a different clip')
         self.assertEqual(core.selected_moves(self.plan(), self.cfg), [])
 
-    def test_undo_says_what_cannot_be_put_back(self):
+    def test_undo_puts_trashed_copies_back(self):
         self.put('library/2025/06/A/IMG_1.JPG', 'same')
         self.put('library/2025/06/B/IMG_1.JPG', 'same')
         run = core.apply_moves(self.cfg, core.selected_moves(self.plan(), self.cfg))
         result = core.undo_run(self.cfg, run)
-        self.assertEqual((result['restored'], result['not_restorable']), (0, 1))
-        self.assertEqual(len(self.tree()), 1)
+        self.assertEqual((result['restored'], result['not_restorable']), (1, 0))
+        self.assertEqual(self.tree(), ['library/2025/06/A/IMG_1.JPG', 'library/2025/06/B/IMG_1.JPG'])
 
-    def test_the_api_wants_the_word_DELETE_and_will_not_delete_without_it(self):
+    def test_whatever_is_in_trash_is_not_found_as_a_duplicate_again(self):
+        self.put('library/2025/06/A/IMG_1.JPG', 'same')
+        self.put('_trash/library/2025/06/B/IMG_1.JPG', 'same')
+        self.assertEqual(core.plan_duplicates(self.cfg)['groups'], [])
+
+    def test_the_api_only_offers_file_and_trash_for_duplicates_and_trashing_needs_no_typed_word(self):
         self.put('library/2025/06/A/IMG_1.JPG', 'same')
         self.put('library/2025/06/B/IMG_1.JPG', 'same')
         app = server.App(self.cfg)
@@ -387,17 +403,15 @@ class DeletingDuplicates(Library):
             time.sleep(0.02)
         pid = job['result']['plan']
         self.assertEqual(app.route('PATCH', f'/api/plans/{pid}', {}, {'mode': 'nonsense'})[0], 400)
-        app.route('PATCH', f'/api/plans/{pid}', {}, {'mode': 'delete'})
-        self.assertEqual(app.route('GET', f'/api/plans/{pid}', {}, {})[1]['mode'], 'delete')
-        self.assertEqual(app.route('POST', f'/api/plans/{pid}/apply', {}, {})[0], 400)
-        self.assertEqual(app.route('POST', f'/api/plans/{pid}/apply', {}, {'confirm': 'delete'})[0], 400)
-        self.assertEqual(len(self.tree()), 2)
-        self.assertEqual(app.route('POST', f'/api/plans/{pid}/apply', {}, {'confirm': 'DELETE'})[0], 202)
+        self.assertEqual(app.route('PATCH', f'/api/plans/{pid}', {}, {'mode': 'delete'})[0], 400)    # no way to delete from here any more
+        app.route('PATCH', f'/api/plans/{pid}', {}, {'mode': 'trash'})
+        self.assertEqual(app.route('GET', f'/api/plans/{pid}', {}, {})[1]['mode'], 'trash')
+        self.assertEqual(app.route('POST', f'/api/plans/{pid}/apply', {}, {})[0], 202)
         for _ in range(200):
             if app.jobs.status()['state'] != 'running':
                 break
             time.sleep(0.02)
-        self.assertEqual(len(self.tree()), 1)
+        self.assertEqual(self.tree(), ['_trash/library/2025/06/B/IMG_1.JPG', 'library/2025/06/A/IMG_1.JPG'])
 
 
 class ImmichBase(Library):
@@ -482,7 +496,7 @@ class ImmichTrash(ImmichBase):
         plan = self.plan([self.asset('s1', 'library/2025/06/IMG_1.HEIC', 'still1', livePhotoVideoId='c1'),
                           self.asset('c1', 'library/2025/06/IMG_1.MOV', 'clip1', type='VIDEO')])
         run = core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
-        self.assertEqual(self.tree(), ['_removed/library/2025/06/IMG_1.HEIC', '_removed/library/2025/06/IMG_1.MOV'])
+        self.assertEqual(self.tree(), ['_trash/library/2025/06/IMG_1.HEIC', '_trash/library/2025/06/IMG_1.MOV'])
         self.assertEqual(core.undo_run(self.cfg, run)['restored'], 2)
         self.assertEqual(self.tree(), before)
 
@@ -535,7 +549,7 @@ class ImmichTrash(ImmichBase):
         plan = self.plan([self.asset('1', 'library/2025/06/a.jpg', 'A'), self.asset('2', 'library/2025/06/b.jpg', 'B')])
         plan['excluded'] = ['immich:2']
         core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
-        self.assertEqual(self.tree(), ['_removed/library/2025/06/a.jpg', 'library/2025/06/b.jpg'])
+        self.assertEqual(self.tree(), ['_trash/library/2025/06/a.jpg', 'library/2025/06/b.jpg'])
 
 
 class ImmichApi(ImmichBase):
@@ -876,8 +890,51 @@ class NoDate(Library):
         self.assertIsNone(self.app.jobs.status())     # nothing was started
 
 
+class TrashNoDate(Library):
+    def setUp(self):
+        super().setUp()
+        self.app = server.App(self.cfg)
+
+    def wait(self):
+        for _ in range(200):
+            job = self.app.jobs.status()
+            if job['state'] != 'running':
+                return job
+            time.sleep(0.02)
+        self.fail('the job never finished')
+
+    def test_undated_photos_can_be_moved_to_trash_and_put_back(self):
+        self.put('_no_date/_inbox/loose/Takeout/a.jpg', 'A')
+        self.put('_no_date/_inbox/loose/b.jpg', 'B')
+        self.put('_no_date/_inbox/loose/keep.jpg', 'K')
+        self.app.jobs.start_trash_nodate(['_no_date/_inbox/loose/Takeout/a.jpg', '_no_date/_inbox/loose/b.jpg'])
+        job = self.wait()
+        self.assertEqual((job['state'], job['result']['failed']), ('done', []), job)
+        self.assertEqual(self.tree(), ['_no_date/_inbox/loose/keep.jpg', '_trash/_no_date/_inbox/loose/Takeout/a.jpg', '_trash/_no_date/_inbox/loose/b.jpg'])
+        run = self.app.jobs.run(self.app.jobs.runs()[-1]['id'])
+        self.assertEqual(run['kind'], 'trash')
+        core.undo_run(self.cfg, run)
+        self.assertEqual(self.tree(), ['_no_date/_inbox/loose/Takeout/a.jpg', '_no_date/_inbox/loose/b.jpg', '_no_date/_inbox/loose/keep.jpg'])
+
+    def test_only_files_set_aside_for_having_no_date_can_be_trashed_this_way(self):
+        self.put('library/2025/06/dated.jpg', 'x', '2025-06')
+        for rel in ('library/2025/06/dated.jpg', '../etc/passwd'):
+            with self.assertRaises(ValueError):
+                self.app.jobs.start_trash_nodate([rel])
+        with self.assertRaises(ValueError):
+            self.app.jobs.start_trash_nodate([])
+        self.assertIsNone(self.app.jobs.status())
+
+    def test_a_second_photo_with_the_same_path_in_trash_is_not_overwritten(self):
+        self.put('_no_date/_inbox/loose/a.jpg', 'new one')
+        self.put('_trash/_no_date/_inbox/loose/a.jpg', 'an older one')
+        self.app.jobs.start_trash_nodate(['_no_date/_inbox/loose/a.jpg'])
+        self.wait()
+        self.assertEqual(self.tree(), ['_trash/_no_date/_inbox/loose/a.jpg', '_trash/_no_date/_inbox/loose/a_1.jpg'])
+
+
 class UnzipInbox(Library):
-    """Zips dropped in the inbox are unpacked beside themselves, checked, deleted, then scanned as usual."""
+    """Zips dropped in the inbox are unpacked beside themselves, checked, moved to _trash, then scanned as usual."""
 
     def setUp(self):
         super().setUp()
@@ -904,19 +961,19 @@ class UnzipInbox(Library):
         self.assertEqual(job['state'], 'done', job)
         return self.app.jobs.plan(job['result']['plan'])
 
-    def test_a_zip_is_unpacked_beside_itself_checked_deleted_and_its_photos_are_in_the_scan(self):
+    def test_a_zip_is_unpacked_beside_itself_checked_put_in_trash_and_its_photos_are_in_the_scan(self):
         self.zip('_inbox/loose/takeout.zip', {'Takeout/Google Photos/Photos from 2022/a.jpg': 'A', 'Takeout/b.json': '{}'})
         self.dates['_inbox/loose/Takeout/Google Photos/Photos from 2022/a.jpg'] = '2022-05'
         plan = self.scan()
-        self.assertEqual(self.tree(), ['_inbox/loose/Takeout/Google Photos/Photos from 2022/a.jpg', '_inbox/loose/Takeout/b.json'])
+        self.assertEqual(self.tree(), ['_inbox/loose/Takeout/Google Photos/Photos from 2022/a.jpg', '_inbox/loose/Takeout/b.json', '_trash/_inbox/loose/takeout.zip'])
         self.assertEqual([m['dst'] for m in plan['moves']], ['library/2022/05/a.jpg'])         # and the scan went on as usual
-        self.assertTrue(plan['unzipped'][0]['deleted'])
+        self.assertTrue(plan['unzipped'][0]['trashed'])
         self.assertIn('Unpacked 1 zip file (2 files)', plan['notes'][0])
 
     def test_a_zip_in_an_event_folder_opens_inside_that_event(self):
         self.zip('_inbox/events/2022_10_Trip/pics.zip', {'one.jpg': 'A', 'sub/two.jpg': 'B'})
         self.scan()
-        self.assertEqual(self.tree(), ['_inbox/events/2022_10_Trip/one.jpg', '_inbox/events/2022_10_Trip/sub/two.jpg'])
+        self.assertEqual(self.tree(), ['_inbox/events/2022_10_Trip/one.jpg', '_inbox/events/2022_10_Trip/sub/two.jpg', '_trash/_inbox/events/2022_10_Trip/pics.zip'])
 
     def test_a_different_file_already_there_is_never_overwritten(self):
         self.put('_inbox/loose/memories/memories.html', 'the old one')
@@ -926,8 +983,9 @@ class UnzipInbox(Library):
         self.assertEqual((self.root / '_inbox/loose/memories/memories.html').read_text(), 'the old one')
         self.assertEqual((self.root / '_inbox/loose/memories/memories (1).html').read_text(), 'the new one')
         self.assertFalse((self.root / '_inbox/loose/memories/same (1).jpg').exists())          # identical: counted as unpacked
-        self.assertTrue(plan['unzipped'][0]['deleted'])
+        self.assertTrue(plan['unzipped'][0]['trashed'])
         self.assertFalse((self.root / '_inbox/loose/mydata.zip').exists())
+        self.assertTrue((self.root / '_trash/_inbox/loose/mydata.zip').exists())      # moved, not deleted
 
     def test_a_zip_that_cannot_be_read_is_kept_and_reported(self):
         bad = self.put('_inbox/loose/broken.zip', b'PK\x03\x04 this is not a zip')
@@ -935,7 +993,7 @@ class UnzipInbox(Library):
         os.utime(bad, (old, old))
         plan = self.scan()
         self.assertTrue(bad.exists())
-        self.assertFalse(plan['unzipped'][0]['deleted'])
+        self.assertFalse(plan['unzipped'][0]['trashed'])
         self.assertTrue(any(n.startswith('Kept broken.zip:') for n in plan['notes']))
 
     def test_a_zip_still_being_copied_in_is_left_for_a_later_scan(self):
@@ -966,10 +1024,10 @@ class UnzipInbox(Library):
         plan = self.scan()
         self.assertNotIn('unzipped', plan)
 
-    def test_macos_litter_in_a_zip_is_not_unpacked_and_does_not_stop_the_zip_being_deleted(self):
+    def test_macos_litter_in_a_zip_is_not_unpacked_and_does_not_stop_the_zip_being_trashed(self):
         self.zip('_inbox/loose/mac.zip', {'a.jpg': 'A', '__MACOSX/._a.jpg': 'x', 'sub/.DS_Store': 'y'})
         self.scan()
-        self.assertEqual(self.tree(), ['_inbox/loose/a.jpg'])
+        self.assertEqual(self.tree(), ['_inbox/loose/a.jpg', '_trash/_inbox/loose/mac.zip'])
 
 
 class PreviewRoutes(Library):
@@ -1189,7 +1247,7 @@ class Restarts(Library):
         self.assertEqual(core.plan_duplicates(self.cfg)['stats']['groups'], 4)
         self.assertIn('b0.jpg', [n for n, _ in calls])           # re-read, because its time changed
 
-    def test_deleting_always_reads_the_bytes_and_ignores_the_cache(self):
+    def test_moving_a_copy_to_trash_always_reads_the_bytes_and_ignores_the_cache(self):
         self.put('library/2025/06/keep.jpg', 'same bytes')
         self.put('library/2025/07/extra.jpg', 'same bytes')
         core.plan_duplicates(self.cfg)                            # both are now cached as identical
@@ -1197,8 +1255,7 @@ class Restarts(Library):
         st = extra.stat()
         extra.write_bytes(b'DIFFERENT!!')                          # same size, mtime put back: a cache would be fooled
         os.utime(extra, ns=(st.st_atime_ns, st.st_mtime_ns))
-        entry = core.delete_copy(self.cfg, {'src': 'library/2025/07/extra.jpg', 'keep': 'library/2025/06/keep.jpg'})
-        self.assertEqual(entry['status'], 'skipped')
+        self.assertIn('no longer identical', core._unlike_keeper(self.cfg, {'src': 'library/2025/07/extra.jpg', 'keep': 'library/2025/06/keep.jpg'}))
         self.assertTrue(extra.exists())
 
     def test_a_scan_cut_short_by_a_restart_runs_again_on_its_own_and_reuses_what_it_read(self):

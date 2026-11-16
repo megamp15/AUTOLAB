@@ -294,7 +294,7 @@
   const $ = (s, r = document) => r.querySelector(s);
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
   const clamp = v => v < 0 ? 0 : v > 1 ? 1 : v;
-  const KIND_LABEL = { sorted: 'dated', 'no date': 'no date', event: 'event', merged: 'merged', duplicate: 'duplicate', sidecar: 'sidecar' };
+  const KIND_LABEL = { trash: 'to _trash', sorted: 'dated', 'no date': 'no date', event: 'event', merged: 'merged', duplicate: 'duplicate', sidecar: 'sidecar' };
   const fmtGiB = b => b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GiB' : b >= 1048576 ? (b / 1048576).toFixed(b >= 1.05e7 ? 0 : 1) + ' MiB' : Math.max(1, Math.round(b / 1024)) + ' KiB';
   const ago = t => { const s = Date.now() / 1000 - t; return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : new Date(t * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' }); };
 
@@ -526,6 +526,7 @@
     else if (j.kind === 'plan-duplicates') { await loadDupes(j.result.plan); }
     else if (j.kind === 'plan-immich') { await loadImmich(j.result.plan); }
     else if (j.kind === 'meta-edit') { Object.assign(state.meta, { done: j.result.run, failed: j.result.failed || [], info: {} }); }
+    else if (j.kind === 'trash') { Object.assign(state.nodate, { done: j.result.run, failed: j.result.failed || [], files: null }); state.nodate.checked.clear(); }
     else if (j.kind === 'set-date') { Object.assign(state.nodate, { done: j.result.run, failed: j.result.failed || [], files: null }); state.nodate.checked.clear(); }
     else if (j.kind === 'apply') {
       const side = [state.sort, state.dupes, state.immich].find(x => x.plan && x.plan.id === j.plan) || state.sort;
@@ -547,9 +548,9 @@
     chip.hidden = !j || j.state !== 'running';
     if (!chip.hidden) chip.innerHTML = '<span class="dot on"></span> ' + (j.message || j.kind).toUpperCase();
   }
-  const JOB_NOW = { 'meta-edit': 'writing metadata', 'plan-sort': 'the Inbox scan', 'plan-duplicates': 'the duplicates scan', 'plan-immich': 'reading Immich’s trash', apply: 'applying a plan', undo: 'undoing a run', 'set-date': 'writing dates' };
-  const JOB_DID = { 'meta-edit': 'Edited metadata', 'plan-sort': 'Scanned the inbox', 'plan-duplicates': 'Scanned for duplicates', 'plan-immich': 'Read Immich’s trash', apply: 'Applied a plan', undo: 'Undid a run', 'set-date': 'Wrote dates' };
-  const RUN_WHAT = { duplicates: 'Duplicates handled', immich: 'Immich trash removed', sort: 'Inbox sorted', 'set-date': 'Dates written', metadata: 'Metadata edited' };
+  const JOB_NOW = { 'meta-edit': 'writing metadata', 'plan-sort': 'the Inbox scan', 'plan-duplicates': 'the duplicates scan', 'plan-immich': 'reading Immich’s trash', apply: 'applying a plan', undo: 'undoing a run', 'set-date': 'writing dates', trash: 'moving to _trash' };
+  const JOB_DID = { 'meta-edit': 'Edited metadata', 'plan-sort': 'Scanned the inbox', 'plan-duplicates': 'Scanned for duplicates', 'plan-immich': 'Read Immich’s trash', apply: 'Applied a plan', undo: 'Undid a run', 'set-date': 'Wrote dates', trash: 'Moved photos to _trash' };
+  const RUN_WHAT = { trash: 'Moved to _trash', duplicates: 'Duplicates handled', immich: 'Immich trash removed', sort: 'Inbox sorted', 'set-date': 'Dates written', metadata: 'Metadata edited' };
   const n0 = v => (v || 0).toLocaleString();
   function found(a) {
     const st = a.stats || {};
@@ -689,6 +690,7 @@
       const c = run.counts;
       msg = [c.edited && `${c.edited.toLocaleString()} edited`, c.moved && `${c.moved.toLocaleString()} moved`, c.deleted && `${c.deleted.toLocaleString()} deleted for good`,
              c.skipped && `${c.skipped.toLocaleString()} skipped because they had changed`, c.error && `${c.error} failed`].filter(Boolean).join(' · ') + '.';
+      if (run.kind === 'trash') msg = msg.replace(' moved', ' moved to _trash') + ' Look through _trash and empty it when you are sure.';
       if (run.kind === 'set-date') msg = msg.replace(' moved', ' dated and moved to the Inbox') + ' Scan the Inbox to file them.';
       if (run.immich_scan?.status === 'queued') msg += ` Immich scan queued for ${run.immich_scan.library}; wait for it to finish before creating albums.`;
       else if (run.immich_scan?.status === 'failed') msg += ` Immich scan could not be queued: ${run.immich_scan.error}. Start a scan in Albums before creating albums.`;
@@ -852,11 +854,12 @@
   function viewInbox() {
     const s = state.sort, st = state.status;
     main.append(headPanel({
-      title: 'Inbox', text: 'Photos dropped in _inbox/loose are dated one by one; each folder in _inbox/events moves whole. Scanning first unpacks any zip file there, beside the zip, and deletes the zip once every file in it is checked. Nothing else moves until you apply.',
+      title: 'Inbox', text: 'Photos dropped in _inbox/loose are dated one by one; each folder in _inbox/events moves whole. Scanning first unpacks any zip file there, beside the zip, and moves the zip to _trash once every file in it is checked. Nothing else moves until you apply.',
       last: () => lastScan('sort'), label: s.plan ? 'Scan again' : 'Scan inbox', action: () => startPlan('sort', s, x => { x.plan = null; x.rows = []; }),
       stats: st && [[st.inbox.loose, 'loose · waiting', 'Photos in _inbox/loose, not sorted yet'], [st.inbox.events, 'in events · waiting', 'Photos in _inbox/events folders, not placed yet'],
                     [st.inbox.no_date, 'no date · set aside', 'Put aside in _no_date by an earlier run because no date is stored inside them. Click to look at them and give them a date.', 'nodate'],
-                    [st.inbox.duplicates, 'duplicates · set aside', 'Put aside in _duplicates by an earlier run']] }));
+                    [st.inbox.duplicates, 'duplicates · set aside', 'Put aside in _duplicates by an earlier run'],
+                    [st.inbox.trash, 'in _trash', 'Moved to _trash by an earlier run, or a zip that was unpacked. Look through it and empty it yourself.']] }));
     const done = doneBanner(s); if (done) { done.style.marginTop = '12px'; main.append(done); }
     if (!s.plan) { const r = restoring('sort', s); if (r) main.append(r); else if (!busy() && !done) main.append(el('div', 'empty', 'Scan the inbox to see exactly what would move.')); return; }
     fit(true);
@@ -942,7 +945,7 @@
     fit(true);
     const panel = el('div', 'panel table-panel'), tools = el('div', 'toolbar'), stats = el('div', 'stats inline');
     const modes = segmented([['file', 'File under _duplicates', 'Move the extra copies to _duplicates; undo puts them back'],
-                             ['delete', 'Delete', 'Remove the extra copies for good. Cannot be undone', true]], d.plan.mode || 'file', async v => {
+                             ['trash', 'Move to _trash', 'Move the extra copies to _trash, to look over and empty yourself; undo puts them back']], d.plan.mode === 'delete' ? 'trash' : d.plan.mode || 'file', async v => {
       try { await api('/plans/' + d.plan.id, { method: 'PATCH', body: { mode: v } }); await refreshPlan(d); render(); } catch (e) { fail(e); }
     });
     tools.append(stats, spacer(), modes, searchBox(d.q, async v => { d.q = v; await fetchGroups(false); dupeUI.list.replaceChildren(); d.groups.forEach(addGroup); }));
@@ -951,8 +954,8 @@
       ? `The scan is still running: ${n0(d.plan.stats.groups)} group${d.plan.stats.groups === 1 ? '' : 's'} of copies found so far. Look through them and use Compare side by side now; choices open when it finishes.`
       : `This scan did not finish (it was stopped or the service restarted), so these are only the copies found before it stopped. They are real and safe to act on; scan again to find the rest.`;
     scanNote.hidden = !d.plan.partial;
-    const warn = el('div', 'note bad', 'Delete removes the extra copies for good. Each one is checked to still be identical to the copy you keep, just before it is removed. This cannot be undone.');
-    warn.hidden = d.plan.mode !== 'delete';
+    const warn = el('div', 'note', 'Each extra copy goes to _trash, after a check that it is still identical to the copy you keep. Nothing is deleted: look through _trash and empty it yourself, or Undo in History.');
+    warn.hidden = !['trash', 'delete'].includes(d.plan.mode);
     // Choices for many groups at once. They apply to the groups the search box is showing.
     const bulk = el('div', 'toolbar bulk'), headBox = el('input', 'tick'); headBox.type = 'checkbox'; headBox.title = 'Handle or skip every group shown';
     const shown = el('span', 'muted shown'); const where = el('input', 'search wide'); where.placeholder = 'Keep the copy in…  e.g. /Trip/ or 2025/06/Backup';
@@ -978,8 +981,8 @@
     dupeUI = { panel, stats, list, info, apply, headBox, shown, chips, scopeNote }; d.groups.forEach(addGroup); paintDupes();
   }
   function paintDupes() {
-    const p = state.dupes.plan, u = dupeUI, del = p.mode === 'delete';
-    u.stats.replaceChildren(...[[p.stats.groups, 'groups'], [p.stats.extra, 'extra copies'], [fmtGiB(p.stats.extra_bytes), 'they use'], [p.preview.moves, del ? 'to delete' : 'to file']].map(([v, k]) => {
+    const p = state.dupes.plan, u = dupeUI, del = ['trash', 'delete'].includes(p.mode);
+    u.stats.replaceChildren(...[[p.stats.groups, 'groups'], [p.stats.extra, 'extra copies'], [fmtGiB(p.stats.extra_bytes), 'they use'], [p.preview.moves, del ? 'to move to _trash' : 'to file']].map(([v, k]) => {
       const s = el('div', 'stat'); s.append(el('b', null, typeof v === 'number' ? v.toLocaleString() : v), el('small', null, k)); return s; }));
     const d = state.dupes, sc = p.scopes || {};
     const reshow = async v => { d.scope = v; await fetchGroups(false); u.list.replaceChildren(); d.groups.forEach(addGroup); u.list.scrollTop = 0; paintDupes(); };
@@ -994,8 +997,8 @@
     u.headBox.checked = d.total > 0 && d.shown === d.total; u.headBox.indeterminate = d.shown > 0 && d.shown < d.total;
     u.shown.textContent = `${d.total.toLocaleString()} group${d.total === 1 ? '' : 's'} shown · ${d.shown.toLocaleString()} handled`;
     const n = p.preview.moves;
-    u.info.innerHTML = `<b>${n.toLocaleString()}</b> copies will be ${del ? 'deleted for good' : 'filed'}` + (p.preview.protected_count ? ` <span class="muted">· ${p.preview.protected_count} left alone because their Live Photo half is staying</span>` : '');
-    u.apply.textContent = (del ? 'Delete ' : 'File ') + n.toLocaleString() + ' copies'; u.apply.classList.toggle('danger', del); u.apply.disabled = busy() || !n;
+    u.info.innerHTML = `<b>${n.toLocaleString()}</b> copies will be ${del ? 'moved to _trash' : 'filed'}` + (p.preview.protected_count ? ` <span class="muted">· ${p.preview.protected_count} left alone because their Live Photo half is staying</span>` : '');
+    u.apply.textContent = (del ? 'Move to _trash: ' : 'File ') + n.toLocaleString() + ' copies'; u.apply.disabled = busy() || !n;
   }
   function addGroup(g) {
     const d = state.dupes, card = el('div', 'group' + (g.selected ? '' : ' off'));
@@ -1045,7 +1048,7 @@
     if (!n.files.length) { main.append(el('div', 'empty', 'Nothing is set aside for lack of a date.')); return; }
     const panel = el('div', 'panel'); panel.style.marginTop = '12px';
     const bar = el('div', 'stickybar'), tools = el('div', 'toolbar'), acts = el('div', 'toolbar');
-    const all = el('input', 'tick'), count = el('span', 'muted'), go = el('button', 'btn primary'), byName = el('button', 'btn primary');
+    const all = el('input', 'tick'), count = el('span', 'muted'), go = el('button', 'btn primary'), byName = el('button', 'btn primary'), trash = el('button', 'btn');
     all.type = 'checkbox'; all.title = 'Tick or untick every photo shown';
     byName.type = 'button'; byName.title = 'Each ticked photo whose name holds a date gets that date, and the time of day from its name when it has one';
     const date = UI.date({ value: n.date, max: new Date().toISOString().slice(0, 10), label: 'The day these were taken', onchange: v => { n.date = v; paint(); } });
@@ -1056,7 +1059,8 @@
       .map(([v, l, c, hint]) => chip(l, c, n.filter === v, () => { n.filter = v; render(); }, hint)));
     const view = segmented([['tiles', 'Tiles', 'Big pictures'], ['list', 'List', 'One line each']], n.view, v => { n.view = v; render(); });
     tools.append(all, count, looks, spacer(), search, view);
-    acts.append(date.el, time.el, go, byName);
+    trash.type = 'button'; trash.title = 'Move the ticked photos to _trash, to look over and empty yourself. Undo is in History.';
+    acts.append(date.el, time.el, go, byName, spacer(), trash);
     bar.append(tools, acts);
     const q = n.q.toLowerCase(), shown = n.files.filter(f => (!q || f.path.toLowerCase().includes(q)) && (n.filter === 'all' || (n.filter === 'named') === !!f.hint));
     const cards = new Map(), at = new Map(shown.map((f, i) => [f.path, i]));
@@ -1068,6 +1072,7 @@
       count.textContent = `${on.length.toLocaleString()} of ${shown.length.toLocaleString()} ticked`;
       go.textContent = on.length ? `Set ${n.date || 'date'} on ${on.length.toLocaleString()}` : 'Set date'; go.disabled = busy() || !on.length || !n.date;
       byName.textContent = hinted ? `Use the date in each name · ${hinted.toLocaleString()}` : 'Use the date in each name'; byName.disabled = busy() || !hinted;
+      trash.textContent = on.length ? `Move ${on.length.toLocaleString()} to _trash` : 'Move to _trash'; trash.disabled = busy() || !on.length;
       cards.forEach((c, path) => { c.card.classList.toggle('on', n.checked.has(path)); c.box.checked = n.checked.has(path); });
     };
     // a click ticks one; Shift-click ticks everything from the last one clicked
@@ -1110,9 +1115,18 @@
     dragSelect(body, { items: () => [...cards].map(([key, c]) => ({ el: c.card, key })), checked: n.checked, repaint: paint });
     all.onchange = () => { shown.forEach(f => (all.checked ? n.checked.add(f.path) : n.checked.delete(f.path))); paint(); };
     go.onclick = () => confirmDate(ticked().map(f => f.path), false);
+    trash.onclick = () => confirmTrash(ticked().map(f => f.path));
     byName.onclick = () => confirmDate(ticked().filter(f => f.hint).map(f => f.path), true, ticked().filter(f => !f.hint).length, ticked().filter(f => f.hint && !f.hint_time).length);
     panel.append(bar, el('div', 'note', 'Click or drag a box across photos to tick them (hold Shift to add; drag to the edge of the screen to keep scrolling). The date is written into each file’s metadata (taken date and created date; videos also get their media dates). The file is then moved to _inbox/loose, and the next Inbox scan files it by that date. Undo in History moves it back; the written date stays.'), body);
     main.append(panel); paint();
+  }
+  function confirmTrash(paths) {
+    dlg.replaceChildren(el('h2', null, `Move ${paths.length.toLocaleString()} photo${paths.length === 1 ? '' : 's'} to _trash?`));
+    const ul = el('ul'); ['They go to _trash, under the folder they were in. Nothing is deleted.', 'Look through _trash and empty it yourself when you are sure, or Undo in History.'].forEach(t => ul.append(el('li', null, t)));
+    const row = el('div', 'row'); row.style.justifyContent = 'flex-end';
+    const cancel = el('button', 'btn quiet', 'Cancel'), go = el('button', 'btn primary', 'Move to _trash'); cancel.onclick = () => dlg.close();
+    go.onclick = async () => { dlg.close(); try { watchJob((await api('/nodate/trash', { method: 'POST', body: { paths } })).job); render(); } catch (e) { fail(e); } };
+    row.append(cancel, go); dlg.append(ul, row); dlg.showModal();
   }
   function confirmDate(paths, byName, left = 0, noTime = 0) {
     const n = state.nodate, s = x => x === 1 ? '' : 's';
@@ -1364,7 +1378,7 @@
     if (!m.plan) { const r = restoring('immich', m); if (r) main.append(r); else if (!busy() && !done && info.connected) main.append(el('div', 'empty', 'Read Immich’s trash to see which of those photos are still on disk.')); return; }
     fit(true);
     const p = m.plan, panel = el('div', 'panel table-panel'), tools = el('div', 'toolbar'), chips = el('div', 'chips');
-    const modes = segmented([['file', 'Move to _removed', 'Move the files aside; undo puts them back'], ['delete', 'Delete', 'Remove the files for good. Cannot be undone', true]], p.mode || 'file', async v => {
+    const modes = segmented([['file', 'Move to _trash', 'Move the files to _trash, to look over and empty yourself; undo puts them back'], ['delete', 'Delete', 'Remove the files for good. Cannot be undone', true]], p.mode || 'file', async v => {
       try { await api('/plans/' + p.id, { method: 'PATCH', body: { mode: v } }); await refreshPlan(m); render(); } catch (e) { fail(e); }
     });
     tools.append(chips, spacer(), modes, searchBox(m.filter.q, async v => { m.filter.q = v; await reloadItems(); }));
@@ -1400,7 +1414,7 @@
     u.chips.replaceChildren(...defs.map(([label, n, set]) => chip(label, n, f.status === set.status && f.live === set.live, async () => { Object.assign(f, set); await reloadItems(); })));
     u.headBox.checked = m.selectable > 0 && m.selected === m.selectable; u.headBox.indeterminate = m.selected > 0 && m.selected < m.selectable; u.headBox.disabled = !m.selectable;
     const n = p.selected_items, del = p.mode === 'delete';
-    u.infoEl.innerHTML = `<b>${n.toLocaleString()}</b> photos ${del ? 'will be deleted for good' : 'will be moved to _removed'} <span class="muted">(with their clips)</span>`;
+    u.infoEl.innerHTML = `<b>${n.toLocaleString()}</b> photos ${del ? 'will be deleted for good' : 'will be moved to _trash'} <span class="muted">(with their clips)</span>`;
     u.apply.textContent = (del ? 'Delete ' : 'Move ') + n.toLocaleString() + ' photos'; u.apply.classList.toggle('danger', del); u.apply.disabled = busy() || !n;
   }
   async function reloadItems() { await fetchItems(false); immichUI.index.clear(); immichUI.body.replaceChildren(); immichUI.body.scrollTop = 0; state.immich.rows.forEach(addItem); paintImmich(); }
@@ -1449,18 +1463,20 @@
   // ---- doing things ------------------------------------------------------------------------------
   const dlg = $('#confirm');
   function confirmApply(plan) {
-    const del = plan.mode === 'delete', n = plan.kind === 'duplicates' ? plan.preview.moves : plan.selected;
+    const del = plan.kind === 'immich' && plan.mode === 'delete', trash = plan.kind === 'duplicates' && ['trash', 'delete'].includes(plan.mode), n = plan.kind === 'duplicates' ? plan.preview.moves : plan.selected;
     dlg.replaceChildren();
-    dlg.append(el('h2', del ? 'status-bad' : null, del ? `Delete ${n.toLocaleString()} files for good?` : `Apply ${n.toLocaleString()} moves?`));
+    dlg.append(el('h2', del ? 'status-bad' : null, del ? `Delete ${n.toLocaleString()} files for good?` : trash ? `Move ${n.toLocaleString()} copies to _trash?` : `Apply ${n.toLocaleString()} moves?`));
     const facts = del
-      ? ['These files are removed from the disk. There is no undo and no trash.', plan.kind === 'immich' ? 'Each one is checked to still be the exact file Immich trashed.' : 'Each one is checked to still be identical to the copy you keep.',
+      ? ['These files are removed from the disk. There is no undo and no trash.', 'Each one is checked to still be the exact file Immich trashed.',
          'A file that fails its check is skipped, not deleted.', 'The deletion is recorded in History.']
+      : trash ? ['Each copy is moved to _trash, under the folder it came from.', 'Each is checked to still be identical to the copy you keep, just before it moves; if not, it stays.',
+                 'Nothing is deleted. Look through _trash and empty it yourself, or Undo in History.']
       : ['Only the moves you left ticked are made.', 'Each move is skipped if its file has changed since the scan.', 'Nothing is overwritten or deleted. Undo is in History.'];
     if (state.status && state.status.immich) facts.push('Immich is asked to rescan the library afterwards, so it notices what changed.');
     const ul = el('ul'); facts.forEach(t => ul.append(el('li', null, t)));
     dlg.append(ul);
     const row = el('div', 'row'); row.style.justifyContent = 'flex-end';
-    const cancel = el('button', 'btn quiet', 'Cancel'), go = el('button', 'btn ' + (del ? 'danger' : 'primary'), del ? 'Delete for good' : 'Apply'); cancel.onclick = () => dlg.close();
+    const cancel = el('button', 'btn quiet', 'Cancel'), go = el('button', 'btn ' + (del ? 'danger' : 'primary'), del ? 'Delete for good' : trash ? 'Move to _trash' : 'Apply'); cancel.onclick = () => dlg.close();
     let typed = null;
     if (del) {
       typed = el('input', 'search'); typed.placeholder = 'Type DELETE to confirm'; typed.style.cssText = 'width:100%;margin-bottom:14px'; go.disabled = true;

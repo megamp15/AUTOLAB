@@ -24,6 +24,7 @@ Where things are put decides what happens to them:
 - `_inbox/events/<folder>` each folder moves whole into the month most of its photos are from (or the month before, if it has at least half as many there).
 - `library/YYYY/<folder>` a folder directly in a year is an event too.
 - Photos with no recording time go to `_no_date/`; copies of photos already filed go to `_duplicates/` beside the kept copy.
+- `_trash/` is where anything you or the tool decide to get rid of waits: it holds the same folder path it came from, so you can see where each file was. Photo Jobs never empties it. Look through it and delete from the file manager when you are sure; Undo in History puts files back. It is left out of duplicate scans.
 - A **Live Photo** (a HEIC/JPEG and the MOV beside it with the same name) is one photo: dated by the still, named alike, a duplicate only when both halves are, and ticked or unticked together. See `photo_jobs/pairs.py`.
 
 ## Zip files in the inbox
@@ -34,15 +35,15 @@ dealt with at the start of an Inbox scan, before the scan reads the files:
 1. It is unpacked into the folder it sits in, so a Takeout zip makes a `Takeout` folder beside it
    (a zip in an event folder opens inside that event). Zips inside zips are opened too.
 2. Every file is read back from the disk and compared with the zip's own checksum and size.
-3. Only if every file matches is the zip deleted. Otherwise it is kept and the scan says why (it
+3. Only if every file matches is the zip moved to `_trash` (not deleted). Otherwise it is kept and the scan says why (it
    cannot be read, is password protected, there is not enough space, a file did not check out).
 4. The scan then carries on as usual and sees the unpacked photos.
 
 Nothing is overwritten: a file already there with the same bytes counts as unpacked; one with different
 bytes stays and the new one is saved as `name (1).ext`. A zip changed in the last minute is left for a
 later scan, since it may still be copying in. macOS litter (`__MACOSX`, `.DS_Store`) is not unpacked.
-A path that would leave the folder makes the zip be kept untouched. Deleting a zip cannot be undone,
-which is why it waits for every file to check out. This is the one thing a scan changes on disk.
+A path that would leave the folder makes the zip be kept untouched. Looking in `_trash` and emptying
+it is up to you. This is the one thing a scan changes on disk.
 
 ## Duplicates
 
@@ -64,15 +65,21 @@ files that are new or changed since the files were last read (the hash cache), s
 
 ## Deleting, and what makes it safe
 
-Nothing is deleted unless you switch a plan to **Delete** and type `DELETE` in the
-confirmation (the API refuses without `confirm: "DELETE"`). Even then:
+Almost nothing here is deleted. What you want gone is moved to `_trash/` and stays there until you
+empty it yourself:
 
-- a duplicate is deleted only if it is **still byte-for-byte the copy you are keeping**, checked
-  again at the moment of deletion; a missing or changed keeper means nothing is deleted;
-- an Immich-trashed file is deleted only if it is **still the exact file Immich trashed**
-  (its SHA-1 matches Immich's recorded checksum), and never if it is a symlink;
-- a Live Photo half is never deleted while its other half stays;
-- every deletion is recorded in History with the SHA-1 the file had, and says it cannot be undone.
+- **Duplicates, Move to _trash**: each extra copy is moved, but only if it is **still byte-for-byte the
+  copy you are keeping**, checked again at the moment it moves (a missing or changed keeper means it
+  stays). The keeper is named in History.
+- **No date, Move to _trash**: the ticked photos go there.
+- **Zip files**: once unpacked and every file is checked, the zip goes there (see below).
+- **Immich's trash, Move to _trash**: the default for files Immich trashed.
+- A Live Photo half is never moved while its other half stays.
+
+The one way to remove a file for good is **Delete** on an Immich trash plan. It needs the word `DELETE`
+typed in the confirmation (the API refuses without `confirm: "DELETE"`), a file is removed only if it
+is **still the exact file Immich trashed** (its SHA-1 matches Immich's recorded checksum) and is never a
+symlink, and History records the SHA-1 and says it cannot be undone.
 
 ## Immich's trash
 
@@ -82,7 +89,7 @@ stay on disk. The **Immich trash** tab reads Immich's trash (it needs an API key
 file is in the library: **still on disk**, **not on disk** (already gone), or **in Immich's
 own storage** (not this folder, so it is removed by emptying Immich's trash). A Live Photo's
 still is shown with its clip, and they are removed together. You can **move** the files to
-`_removed/` (undo puts them back) or **delete** them for good.
+`_trash/` (undo puts them back) or **delete** them for good.
 
 The path Immich reports (`/mnt/mahir-personal/...`) is mapped to this folder with
 `IMMICH_MEDIA_PREFIX`. Both the current Immich search (a `trashedAt` filter) and the older one
@@ -167,6 +174,9 @@ Ticked files with no date in their name are left where they are. The grid can be
 with one line per file. To tick many at once, drag a box across them (Shift or Ctrl/Cmd adds to what is
 ticked, Esc cancels; dragging to the top or bottom edge keeps scrolling), or click one and Shift-click
 another to tick everything between.
+
+**Move to _trash** puts the ticked photos in `_trash` instead (junk, test shots); Undo in History
+brings them back.
 
 A file type that cannot hold a date (an animated GIF, say) is left where it is and reported. Undo in
 History moves the files back; the written date stays.
