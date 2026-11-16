@@ -142,6 +142,16 @@
     group: root
     mode: "0755"
 
+# Holds the server's private key: nothing but root reads it.
+- name: Create RustDesk's key directory
+  ansible.builtin.file:
+    path: "{{ autolab_services_root }}/rustdesk"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: "'rustdesk' in autolab_services_enabled"
+
 - name: Create the dashboard's config directory
   ansible.builtin.file:
     path: "{{ autolab_services_root }}/dash/config"
@@ -1108,6 +1118,18 @@
     - autolab_services_nas_mount.rc | default(1) == 0
     - not ansible_check_mode
 
+# hbbs makes the keypair the first time it starts. Reading the public half back
+# proves it came up and gives you the one thing a client needs; it is public by
+# design. The private half stays in the directory, which is root-only.
+- name: Wait for RustDesk's public key
+  ansible.builtin.slurp:
+    src: "{{ autolab_services_root }}/rustdesk/id_ed25519.pub"
+  register: autolab_rustdesk_key_raw
+  until: autolab_rustdesk_key_raw is succeeded
+  retries: 30
+  delay: 2
+  when: "'rustdesk' in autolab_services_enabled and not ansible_check_mode"
+
 - name: Say what is running and where
   ansible.builtin.debug:
     msg: >-
@@ -1119,3 +1141,5 @@
       {{- ', adventurelog :' ~ autolab_services_ports.adventurelog if 'adventurelog' in autolab_services_enabled else '' }}
       {{- ' (each person gives it Immich at http://singularity.' ~ autolab_services_fqdn.split('.', 1)[1]
           ~ ':' ~ autolab_services_adventurelog_immich_port ~ '/api)' if 'adventurelog' in autolab_services_enabled else '' }}
+      {{- ', rustdesk: ID server ' ~ autolab_services_fqdn ~ ', key ' ~ (autolab_rustdesk_key_raw.content | default('') | b64decode | trim)
+          if 'rustdesk' in autolab_services_enabled else '' }}
