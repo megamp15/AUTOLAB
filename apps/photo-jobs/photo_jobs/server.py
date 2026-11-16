@@ -14,7 +14,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import albums, core, metadata, nodate, previews
+from . import albums, core, events, metadata, nodate, previews
 from .immich import Immich, ImmichError
 from .jobs import Busy, Jobs, Missing
 
@@ -142,6 +142,8 @@ class App:
         if method == 'GET' and path == '/api/same':
             self.media(one('a')), self.media(one('b'))
             return 200, {'same': previews.same_bytes(cfg, one('a'), one('b'))}
+        if method == 'GET' and path == '/api/event':
+            return 200, events.inspect(cfg, one('path'), one('month'), max(0, int(one('offset') or 0)), min(int(one('limit') or 100), 200))
         if method == 'GET' and path == '/api/find':
             found = metadata.find(cfg, one('q'), one('folder'), one('kind'), max(0, int(one('offset') or 0)), min(int(one('limit') or 60), metadata.MAX_FILES))
             return 200, {**found, 'folders': metadata.top_folders(cfg)}

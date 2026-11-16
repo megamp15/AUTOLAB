@@ -115,6 +115,15 @@ left exactly as it was and reported. After writing, Immich is asked to rescan th
 edit records the values it replaced, and **Undo** in History puts them back, removing a value that
 was not there before.
 
+## Looking inside an event
+
+An event row in the Inbox has **Look inside**: every photo in the folder with the date it carries
+and which tag it came from, the month the folder name says, when the files were last changed, and
+a count by month you can click to filter. Use it when the "CHECK: name says …" note appears. If the
+dates inside the files are wrong (a camera clock reset to 2016), **Fix the dates in these files…**
+opens Find & edit on that folder, where the real date can be written into them; scan the Inbox
+again and the event files under its new month.
+
 ## Seeing the photos
 
 Every row with a photo shows a thumbnail; click it to open the photo large. On a duplicate row
