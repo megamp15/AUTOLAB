@@ -9,7 +9,7 @@ import threading
 import time
 import uuid
 
-from . import albums, core, metadata, nodate
+from . import albums, core, metadata, nodate, unzip
 from .immich import ImmichError
 
 
@@ -223,7 +223,11 @@ class Jobs:
             if kind == 'duplicates':   # saved as it goes, so what is found can be looked at while it runs
                 plan = core.plan_duplicates(self.cfg, progress, checkpoint=lambda p: keep(p, True), full=full)
             else:
+                unzipped = unzip.unpack_all(self.cfg, progress) if kind == 'sort' else []     # zips dropped in the inbox open first
                 plan = (core.plan_sort(self.cfg, progress) if kind == 'sort' else core.plan_immich(self.cfg, self.immich, progress))
+                if unzipped:
+                    plan['unzipped'] = unzipped
+                    plan['notes'] = [*unzip.notes(unzipped), *plan.get('notes', [])]
             keep(plan, False)
             self._supersede(kind, plan_id)
             return {'plan': plan_id}
@@ -333,6 +337,28 @@ class Jobs:
             return {'run': run_id, 'failed': [{'src': m['src'], 'note': m['note']} for m in run['moves'] if m['status'] == 'error'][:50]}
 
         return self.start('set-date', work)
+
+    def start_trash_nodate(self, rels):
+        """Move these _no_date files to _trash, to look over and empty yourself. Undo puts them back."""
+        if not rels:
+            raise ValueError('choose at least one photo')
+        base = os.path.join(self.cfg.root, core.NODATE)
+        for rel in rels:
+            if not self.cfg.abs(rel).startswith(base + os.sep) or not core.is_media(rel):
+                raise ValueError(f'not a photo set aside for having no date: {rel}')
+
+        def work(progress):
+            run_id = uuid.uuid4().hex[:12]
+            taken, moves = set(), []
+            for rel in rels:
+                dst = core.trash_dst(self.cfg, rel, taken)
+                taken.add(self.cfg.abs(dst).lower())
+                moves.append({'src': rel, 'dst': dst, 'kind': 'trash'})
+            run = core.apply_moves(self.cfg, moves, progress, lambda r: self._save('runs', {'id': run_id, 'plan': None, 'kind': 'trash', **r}))
+            self._forget(core.handled_by(run))
+            return {'run': run_id, 'failed': [{'src': m['src'], 'note': m['note']} for m in run['moves'] if m['status'] != 'moved'][:50]}
+
+        return self.start('trash', work)
 
     def start_meta_edit(self, rels, body):
         """Write a date, a location and/or a description into these files, or copy them from a reference photo."""

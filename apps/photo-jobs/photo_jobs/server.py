@@ -27,7 +27,7 @@ def inbox_counts(cfg):
         base = os.path.join(cfg.root, *parts)
         return sum(1 for p in core.files_under(base) if core.is_media(p)) if os.path.isdir(base) else 0
     return {'loose': count(*core.LOOSE), 'events': count(*core.EVENTS), 'no_date': count(core.NODATE),
-            'duplicates': count(core.DUPS)}
+            'duplicates': count(core.DUPS), 'trash': count(core.TRASH)}
 
 
 def group_key(move):
@@ -164,6 +164,11 @@ class App:
             if not isinstance(paths, list) or len(paths) > 2000:
                 raise ValueError('paths must be a list of up to 2000 files')
             return 202, {'job': j.start_set_dates(paths, str(body.get('date', '')), str(body.get('time', '')), by_name=bool(body.get('by_name')))}
+        if method == 'POST' and path == '/api/nodate/trash':
+            paths = body.get('paths', [])
+            if not isinstance(paths, list) or len(paths) > 5000:
+                raise ValueError('paths must be a list of up to 5000 files')
+            return 202, {'job': j.start_trash_nodate(paths)}
         if method == 'GET' and path == '/api/job':
             return 200, {'job': j.status()}
         if method == 'GET' and path == '/api/activity':
@@ -258,8 +263,9 @@ class App:
                     else:
                         kinds.update({x['kind'] for x in plan['moves']} if plan['kind'] == 'sort' else {'duplicate'})
             if 'mode' in body:
-                if plan['kind'] not in ('duplicates', 'immich') or body['mode'] not in ('file', 'delete'):
-                    return 400, {'error': 'mode is "file" or "delete", and only for duplicates or Immich plans'}
+                ok = {'duplicates': ('file', 'trash'), 'immich': ('file', 'delete')}.get(plan['kind'], ())
+                if body['mode'] not in ok:
+                    return 400, {'error': 'mode is "file" or "trash" for duplicates, "file" or "delete" for Immich plans'}
                 plan['mode'] = body['mode']
             if 'keep' in body and plan['kind'] == 'duplicates':
                 for gid, rel in body['keep'].items():
@@ -286,7 +292,7 @@ class App:
         m = re.fullmatch(r'/api/plans/([\w-]+)/apply', path)
         if m and method == 'POST':
             plan = j.plan(m.group(1))
-            if plan.get('mode') == 'delete' and body.get('confirm') != 'DELETE':
+            if plan['kind'] == 'immich' and plan.get('mode') == 'delete' and body.get('confirm') != 'DELETE':
                 return 400, {'error': 'deleting needs confirm: "DELETE"; it cannot be undone'}
             return 202, {'job': j.start_apply(m.group(1))}
         if method == 'GET' and path == '/api/runs':

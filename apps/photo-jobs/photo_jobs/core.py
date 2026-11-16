@@ -40,7 +40,8 @@ JUNK = {'.DS_Store', 'Thumbs.db', 'desktop.ini'}
 YEAR = re.compile(r'^\d{4}$')
 MONTH = re.compile(r'^(0[1-9]|1[0-2])$')
 NAMED = re.compile(r'^((?:19|20)\d\d)[_-](0[1-9]|1[0-2])[_-]')
-NODATE, DUPS, REMOVED = '_no_date', '_duplicates', '_removed'
+NODATE, DUPS, TRASH = '_no_date', '_duplicates', '_trash'
+REMOVED = TRASH      # what Immich's trash plan moves aside: the same one folder to look through and empty yourself
 LOOSE, EVENTS = ('_inbox', 'loose'), ('_inbox', 'events')
 
 
@@ -447,7 +448,7 @@ def _plan_duplicates(cfg, progress, checkpoint, cache):
     Sidecars are left out: those of different photos are often identical, each belongs to its own."""
     by_size, n = collections.defaultdict(list), 0
     for d, ds, fs in os.walk(cfg.root):
-        ds[:] = sorted(x for x in ds if x not in SKIP)
+        ds[:] = sorted(x for x in ds if x not in SKIP and not (d == cfg.root and x == TRASH))     # what is in _trash is already dealt with
         for f in fs:
             if f in SKIP or f.startswith('._') or not is_media(f):
                 continue
@@ -560,10 +561,22 @@ def live_mates(cfg, plan):
     return {cfg.rel(path): cfg.rel(half) for path, half in live_photos.partners(files).items()}
 
 
+def trash_dst(cfg, rel, taken=()):
+    """Where a file goes in _trash: the same path under it, so you can see where it came from, with
+    _1, _2 added if something is already there."""
+    c = os.path.join(cfg.root, TRASH, rel)
+    b, e = os.path.splitext(c)
+    n = 1
+    while c.lower() in taken or os.path.lexists(c):
+        c = f'{b}_{n}{e}'
+        n += 1
+    return cfg.rel(c)
+
+
 def duplicate_moves(cfg, plan, mate=None):
     """The moves a duplicates plan makes with its current keep choices, and the copies left alone
     because their Live Photo half is staying. Computed from the folder as it is now."""
-    delete = plan.get('mode') == 'delete'   # remove the extra copies instead of filing them
+    trashing = plan.get('mode') in ('trash', 'delete')   # put the extra copies in _trash instead of filing them beside the kept one ('delete' is how an older plan said it)
     excluded = set(plan.get('excluded', []))
     groups = [g for g in plan['groups'] if g['id'] not in excluded]
     marked = {rel: rel == g['keep'] for g in plan['groups'] for rel in g['files']}
@@ -584,8 +597,10 @@ def duplicate_moves(cfg, plan, mate=None):
             if rel in mate and marked.get(mate[rel], True):   # kept, or not a duplicate at all
                 protected.append({'path': rel, 'why': f'its Live Photo half {mate[rel]} is staying'})
                 continue
-            if delete:   # the copy to keep is named, and checked again at the moment of deletion
-                moves.append({'id': len(moves), 'src': rel, 'dst': '', 'kind': 'delete',
+            if trashing:   # the copy to keep is named, and checked again at the moment it is moved
+                dst = trash_dst(cfg, rel, taken)
+                taken.add(cfg.abs(dst).lower())
+                moves.append({'id': len(moves), 'src': rel, 'dst': dst, 'kind': 'trash',
                               'why': f'identical to {keep}', 'group': g['id'], 'keep': keep})
                 continue
             target = os.path.join(cfg.root, DUPS, kept_dir)
@@ -663,7 +678,7 @@ def plan_immich(cfg, client, progress=_noop):
 
 def immich_moves(cfg, plan):
     """The removals a trash plan makes with its current ticks: each file that is on disk, with its
-    Live Photo clip. By default a file is moved under _removed/ (undo puts it back); in delete mode
+    Live Photo clip. By default a file is moved under _trash/ (undo puts it back); in delete mode
     it is removed for good, but only if it is still the file Immich trashed (same SHA-1)."""
     delete = plan.get('mode') == 'delete'
     taken, moves = set(), []
@@ -675,13 +690,8 @@ def immich_moves(cfg, plan):
                  'why': 'in Immich\u2019s trash' + (' (its Live Photo clip)' if rel != item['rel'] else ''),
                  'group': f'immich:{item["id"]}', 'sha1': sha1}
             if not delete:
-                n, c = 1, os.path.join(cfg.root, REMOVED, rel)
-                b, e = os.path.splitext(c)
-                while c.lower() in taken or os.path.lexists(c):
-                    c = f'{b}_{n}{e}'
-                    n += 1
-                taken.add(c.lower())
-                m['dst'] = cfg.rel(c)
+                m['dst'] = trash_dst(cfg, rel, taken)
+                taken.add(cfg.abs(m['dst']).lower())
             moves.append(m)
     return moves
 
@@ -734,8 +744,8 @@ def apply_moves(cfg, moves, progress=_noop, record=None):
     run = {'started': time.time(), 'finished': None, 'moves': [], 'undone': None}
     total = len(moves)
     for i, m in enumerate(moves, 1):
-        if m['kind'] in ('delete', 'purge'):
-            run['moves'].append((delete_copy if m['kind'] == 'delete' else purge_file)(cfg, m))
+        if m['kind'] == 'purge':
+            run['moves'].append(purge_file(cfg, m))
             progress(i, total, 'deleting')
             continue
         src, dst = cfg.abs(m['src']), cfg.abs(m['dst'])
@@ -744,6 +754,8 @@ def apply_moves(cfg, moves, progress=_noop, record=None):
             entry.update(status='skipped', note='the file is no longer there')
         elif os.path.lexists(dst):
             entry.update(status='skipped', note='something is already at the destination')
+        elif m.get('keep') and (why := _unlike_keeper(cfg, m)):
+            entry.update(status='skipped', note=why, keep=m['keep'])
         else:
             try:
                 _make_dirs(cfg, os.path.dirname(dst))
@@ -762,25 +774,16 @@ def apply_moves(cfg, moves, progress=_noop, record=None):
     return run
 
 
-def delete_copy(cfg, m):
-    """Delete one extra copy, but only if it is still byte-for-byte the copy that is being kept.
-    A missing or changed keeper means nothing is deleted. This is the one place a file is removed;
-    a deletion is recorded with the sha1 it had, and cannot be undone."""
+def _unlike_keeper(cfg, m):
+    """Why an extra copy must not be moved away, or '' when it is still byte-for-byte the copy being
+    kept. Always read from the disk, never from the cache: a missing or changed keeper means the
+    copy stays."""
     src, keep = cfg.abs(m['src']), cfg.abs(m['keep'])
-    entry = {'src': m['src'], 'dst': '', 'kind': 'delete', 'status': 'deleted', 'note': '', 'keep': m['keep']}
-    if not os.path.isfile(src):
-        entry.update(status='skipped', note='the file is no longer there')
-    elif src == keep or not os.path.isfile(keep):
-        entry.update(status='skipped', note='the copy being kept is missing')
-    elif os.path.getsize(src) != os.path.getsize(keep) or _digest(src) != _digest(keep):
-        entry.update(status='skipped', note='no longer identical to the copy being kept')
-    else:
-        entry['sha1'] = _digest(src)
-        try:
-            os.remove(src)
-        except OSError as e:
-            entry.update(status='error', note=str(e))
-    return entry
+    if src == keep or not os.path.isfile(keep):
+        return 'the copy being kept is missing'
+    if os.path.getsize(src) != os.path.getsize(keep) or _digest(src) != _digest(keep):
+        return 'no longer identical to the copy being kept'
+    return ''
 
 
 def undo_run(cfg, run, progress=_noop):
