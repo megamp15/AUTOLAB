@@ -10,17 +10,30 @@
   # Not HTTP, so there is no catalog port and no name under *.lab.<zone>:
   # Traefik cannot carry RustDesk's raw TCP and UDP. Clients are given the
   # MagicDNS name and reach it over the tailnet, which is the gate.
+  #
+  # Host networking, unlike every other service here, and on purpose. With
+  # published ports Docker's userland proxy sits in front of hbbs, which then
+  # sees every client as the bridge gateway (172.20.0.1) and hands that address
+  # to the other side as "where to reach me", so no direct connection can form
+  # and every session is relayed through this machine. On the host network it
+  # sees real addresses.
+  #
+  # The price: the ports listen on every interface instead of only the tailnet
+  # address, and ufw is the only thing keeping them tailnet-only (default deny
+  # incoming, allow on tailscale0). Docker's rules bypass ufw for published
+  # ports, but not for host networking, which is what makes this acceptable. The
+  # role refuses to start these two when ufw is not active.
   rustdesk-hbbr:
     image: {{ autolab_services_images.rustdesk }}
     restart: unless-stopped
+    network_mode: host
     command: hbbr -k _
     volumes:
       - {{ autolab_services_root }}/rustdesk:/root
-    ports:
-      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_rustdesk_ports.relay }}:21117"
   rustdesk-hbbs:
     image: {{ autolab_services_images.rustdesk }}
     restart: unless-stopped
+    network_mode: host
     # -r is the relay's address as clients are told it. An address, not the
     # MagicDNS name: hbbs resolves it once at start, inside this container, and
     # silently drops a name it cannot resolve (relay-servers=[]), leaving
@@ -31,7 +44,3 @@
       - rustdesk-hbbr
     volumes:
       - {{ autolab_services_root }}/rustdesk:/root
-    ports:
-      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_rustdesk_ports.nat_test }}:21115"
-      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_rustdesk_ports.id }}:21116"
-      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_rustdesk_ports.id }}:21116/udp"
