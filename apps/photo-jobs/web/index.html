@@ -852,7 +852,7 @@
   function viewInbox() {
     const s = state.sort, st = state.status;
     main.append(headPanel({
-      title: 'Inbox', text: 'Photos dropped in _inbox/loose are dated one by one; each folder in _inbox/events moves whole. Nothing moves until you apply.',
+      title: 'Inbox', text: 'Photos dropped in _inbox/loose are dated one by one; each folder in _inbox/events moves whole. Scanning first unpacks any zip file there, beside the zip, and deletes the zip once every file in it is checked. Nothing else moves until you apply.',
       last: () => lastScan('sort'), label: s.plan ? 'Scan again' : 'Scan inbox', action: () => startPlan('sort', s, x => { x.plan = null; x.rows = []; }),
       stats: st && [[st.inbox.loose, 'loose · waiting', 'Photos in _inbox/loose, not sorted yet'], [st.inbox.events, 'in events · waiting', 'Photos in _inbox/events folders, not placed yet'],
                     [st.inbox.no_date, 'no date · set aside', 'Put aside in _no_date by an earlier run because no date is stored inside them. Click to look at them and give them a date.', 'nodate'],

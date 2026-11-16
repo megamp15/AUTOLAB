@@ -17,6 +17,7 @@ import threading
 import time
 import unittest
 import uuid
+import zipfile
 from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1] / 'apps/photo-jobs'
@@ -25,7 +26,7 @@ sys.path.insert(0, str(APP))
 sys.path.insert(0, str(APP / 'dev'))
 
 from fake_immich import FakeImmich, sha1b64  # noqa: E402
-from photo_jobs import core, immich, jobs, metadata, nodate, pairs, previews, server  # noqa: E402
+from photo_jobs import core, immich, jobs, metadata, nodate, pairs, previews, server, unzip  # noqa: E402
 
 FAKE_EXIFTOOL = (APP / 'dev/fake_exiftool.py').read_text()
 
@@ -873,6 +874,102 @@ class NoDate(Library):
         with self.assertRaises(ValueError):
             self.app.jobs.start_set_dates([], '2023-06-14')
         self.assertIsNone(self.app.jobs.status())     # nothing was started
+
+
+class UnzipInbox(Library):
+    """Zips dropped in the inbox are unpacked beside themselves, checked, deleted, then scanned as usual."""
+
+    def setUp(self):
+        super().setUp()
+        self.app = server.App(self.cfg)
+
+    def zip(self, rel, members, age=3600):
+        p = self.root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(p, 'w') as z:
+            for name, data in members.items():
+                z.writestr(name, data)
+        old = time.time() - age
+        os.utime(p, (old, old))
+        return p
+
+    def scan(self):
+        self.sync_dates()
+        self.app.jobs.start_plan('sort')
+        for _ in range(300):
+            job = self.app.jobs.status()
+            if job['state'] != 'running':
+                break
+            time.sleep(0.02)
+        self.assertEqual(job['state'], 'done', job)
+        return self.app.jobs.plan(job['result']['plan'])
+
+    def test_a_zip_is_unpacked_beside_itself_checked_deleted_and_its_photos_are_in_the_scan(self):
+        self.zip('_inbox/loose/takeout.zip', {'Takeout/Google Photos/Photos from 2022/a.jpg': 'A', 'Takeout/b.json': '{}'})
+        self.dates['_inbox/loose/Takeout/Google Photos/Photos from 2022/a.jpg'] = '2022-05'
+        plan = self.scan()
+        self.assertEqual(self.tree(), ['_inbox/loose/Takeout/Google Photos/Photos from 2022/a.jpg', '_inbox/loose/Takeout/b.json'])
+        self.assertEqual([m['dst'] for m in plan['moves']], ['library/2022/05/a.jpg'])         # and the scan went on as usual
+        self.assertTrue(plan['unzipped'][0]['deleted'])
+        self.assertIn('Unpacked 1 zip file (2 files)', plan['notes'][0])
+
+    def test_a_zip_in_an_event_folder_opens_inside_that_event(self):
+        self.zip('_inbox/events/2022_10_Trip/pics.zip', {'one.jpg': 'A', 'sub/two.jpg': 'B'})
+        self.scan()
+        self.assertEqual(self.tree(), ['_inbox/events/2022_10_Trip/one.jpg', '_inbox/events/2022_10_Trip/sub/two.jpg'])
+
+    def test_a_different_file_already_there_is_never_overwritten(self):
+        self.put('_inbox/loose/memories/memories.html', 'the old one')
+        self.put('_inbox/loose/memories/same.jpg', 'same bytes')
+        self.zip('_inbox/loose/mydata.zip', {'memories/memories.html': 'the new one', 'memories/same.jpg': 'same bytes'})
+        plan = self.scan()
+        self.assertEqual((self.root / '_inbox/loose/memories/memories.html').read_text(), 'the old one')
+        self.assertEqual((self.root / '_inbox/loose/memories/memories (1).html').read_text(), 'the new one')
+        self.assertFalse((self.root / '_inbox/loose/memories/same (1).jpg').exists())          # identical: counted as unpacked
+        self.assertTrue(plan['unzipped'][0]['deleted'])
+        self.assertFalse((self.root / '_inbox/loose/mydata.zip').exists())
+
+    def test_a_zip_that_cannot_be_read_is_kept_and_reported(self):
+        bad = self.put('_inbox/loose/broken.zip', b'PK\x03\x04 this is not a zip')
+        old = time.time() - 3600
+        os.utime(bad, (old, old))
+        plan = self.scan()
+        self.assertTrue(bad.exists())
+        self.assertFalse(plan['unzipped'][0]['deleted'])
+        self.assertTrue(any(n.startswith('Kept broken.zip:') for n in plan['notes']))
+
+    def test_a_zip_still_being_copied_in_is_left_for_a_later_scan(self):
+        zp = self.zip('_inbox/loose/fresh.zip', {'a.jpg': 'A'}, age=5)
+        plan = self.scan()
+        self.assertTrue(zp.exists())
+        self.assertEqual(self.tree(), ['_inbox/loose/fresh.zip'])
+        self.assertIn('still be copying', plan['unzipped'][0]['note'])
+
+    def test_a_zip_with_a_path_that_leaves_its_folder_is_not_unpacked(self):
+        zp = self.zip('_inbox/loose/evil.zip', {'../escaped.jpg': 'X', 'ok.jpg': 'A'})
+        self.scan()
+        self.assertTrue(zp.exists())
+        self.assertEqual(self.tree(), ['_inbox/loose/evil.zip'])
+
+    def test_a_zip_whose_files_do_not_check_out_is_kept_and_what_it_wrote_is_removed(self):
+        zp = self.zip('_inbox/loose/pics.zip', {'a.jpg': 'A', 'b.jpg': 'B'})
+        real = unzip._same
+        unzip._same = lambda path, info: False if path.endswith('b.jpg') else real(path, info)
+        self.addCleanup(setattr, unzip, '_same', real)
+        plan = self.scan()
+        self.assertTrue(zp.exists())
+        self.assertEqual(self.tree(), ['_inbox/loose/a.jpg', '_inbox/loose/pics.zip'])
+        self.assertIn('did not match', plan['unzipped'][0]['note'])
+
+    def test_a_scan_with_no_zips_has_nothing_to_report(self):
+        self.put('_inbox/loose/a.jpg', 'A', '2025-06')
+        plan = self.scan()
+        self.assertNotIn('unzipped', plan)
+
+    def test_macos_litter_in_a_zip_is_not_unpacked_and_does_not_stop_the_zip_being_deleted(self):
+        self.zip('_inbox/loose/mac.zip', {'a.jpg': 'A', '__MACOSX/._a.jpg': 'x', 'sub/.DS_Store': 'y'})
+        self.scan()
+        self.assertEqual(self.tree(), ['_inbox/loose/a.jpg'])
 
 
 class PreviewRoutes(Library):

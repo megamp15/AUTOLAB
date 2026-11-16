@@ -26,6 +26,24 @@ Where things are put decides what happens to them:
 - Photos with no recording time go to `_no_date/`; copies of photos already filed go to `_duplicates/` beside the kept copy.
 - A **Live Photo** (a HEIC/JPEG and the MOV beside it with the same name) is one photo: dated by the still, named alike, a duplicate only when both halves are, and ticked or unticked together. See `photo_jobs/pairs.py`.
 
+## Zip files in the inbox
+
+A zip dropped anywhere under `_inbox` (a Google Takeout, an Amazon Photos or Snapchat export) is
+dealt with at the start of an Inbox scan, before the scan reads the files:
+
+1. It is unpacked into the folder it sits in, so a Takeout zip makes a `Takeout` folder beside it
+   (a zip in an event folder opens inside that event). Zips inside zips are opened too.
+2. Every file is read back from the disk and compared with the zip's own checksum and size.
+3. Only if every file matches is the zip deleted. Otherwise it is kept and the scan says why (it
+   cannot be read, is password protected, there is not enough space, a file did not check out).
+4. The scan then carries on as usual and sees the unpacked photos.
+
+Nothing is overwritten: a file already there with the same bytes counts as unpacked; one with different
+bytes stays and the new one is saved as `name (1).ext`. A zip changed in the last minute is left for a
+later scan, since it may still be copying in. macOS litter (`__MACOSX`, `.DS_Store`) is not unpacked.
+A path that would leave the folder makes the zip be kept untouched. Deleting a zip cannot be undone,
+which is why it waits for every file to check out. This is the one thing a scan changes on disk.
+
 ## Duplicates
 
 The Duplicates tab compares byte-identical files across the whole library and keeps the

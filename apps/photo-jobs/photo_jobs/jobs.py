@@ -9,7 +9,7 @@ import threading
 import time
 import uuid
 
-from . import albums, core, metadata, nodate
+from . import albums, core, metadata, nodate, unzip
 from .immich import ImmichError
 
 
@@ -223,7 +223,11 @@ class Jobs:
             if kind == 'duplicates':   # saved as it goes, so what is found can be looked at while it runs
                 plan = core.plan_duplicates(self.cfg, progress, checkpoint=lambda p: keep(p, True), full=full)
             else:
+                unzipped = unzip.unpack_all(self.cfg, progress) if kind == 'sort' else []     # zips dropped in the inbox open first
                 plan = (core.plan_sort(self.cfg, progress) if kind == 'sort' else core.plan_immich(self.cfg, self.immich, progress))
+                if unzipped:
+                    plan['unzipped'] = unzipped
+                    plan['notes'] = [*unzip.notes(unzipped), *plan.get('notes', [])]
             keep(plan, False)
             self._supersede(kind, plan_id)
             return {'plan': plan_id}
