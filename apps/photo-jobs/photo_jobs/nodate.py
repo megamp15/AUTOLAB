@@ -17,15 +17,31 @@ from . import previews
 NAME_DATE = re.compile(r'(?<!\d)((?:19|20)\d\d)[-_.]?(0[1-9]|1[0-2])[-_.]?(0[1-9]|[12]\d|3[01])(?!\d)')
 
 
-def hint(name):
+# The time that follows a date in a name: 2018-06-03_17-15-00, 20230614_171500, 2023-06-14 17.15.00.
+NAME_TIME = re.compile(r'[ _T-]((?:[01]\d|2[0-3]))[-_.:]?([0-5]\d)[-_.:]?([0-5]\d)(?!\d)')
+
+
+def _named(name):
     m = NAME_DATE.search(name)
     if not m:
-        return ''
+        return None
     try:
         datetime.date(*map(int, m.groups()))
     except ValueError:
-        return ''
-    return '-'.join(m.groups())
+        return None
+    return m
+
+
+def hint(name):
+    m = _named(name)
+    return '-'.join(m.groups()) if m else ''
+
+
+def hint_time(name):
+    """HH:MM:SS when the name has a time right after its date, else ''."""
+    m = _named(name)
+    t = NAME_TIME.match(name, m.end()) if m else None
+    return ':'.join(t.groups()) if t else ''
 
 
 def files(cfg):
@@ -36,16 +52,22 @@ def files(cfg):
         if core.is_media(p):
             st = os.stat(p)
             out.append({'path': cfg.rel(p), 'name': os.path.basename(p), 'size': st.st_size,
-                        'modified': st.st_mtime, 'video': previews.is_video(p), 'hint': hint(os.path.basename(p))})
+                        'modified': st.st_mtime, 'video': previews.is_video(p), 'hint': hint(os.path.basename(p)),
+                        'hint_time': hint_time(os.path.basename(p))})
     return out
 
 
 def stamp(date, time='12:00'):
     """'YYYY-MM-DD' and 'HH:MM' as ExifTool writes them, refusing anything that is not a real,
     plausible moment."""
-    try:
-        when = datetime.datetime.strptime(f'{date} {time or "12:00"}', '%Y-%m-%d %H:%M')
-    except ValueError:
+    when = None
+    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'):
+        try:
+            when = datetime.datetime.strptime(f'{date} {time or "12:00"}', fmt)
+            break
+        except ValueError:
+            pass
+    if when is None:
         raise ValueError('give the date as YYYY-MM-DD and the time as HH:MM') from None
     if not (1970 <= when.year <= datetime.date.today().year + 1):
         raise ValueError(f'{when.year} is not a plausible year for a photo')
@@ -73,13 +95,31 @@ def write_date(path, when):
     return ''
 
 
-def set_dates(cfg, rels, when, progress=core._noop, record=None):
+def name_dates(rels, time=''):
+    """({rel: moment} for the files whose own name holds a date, [{'src', 'note'}] for the rest).
+    The time of day comes from the name when it has one, else from `time`."""
+    whens, rejected = {}, []
+    for rel in rels:
+        name = os.path.basename(rel)
+        if not hint(name):
+            rejected.append({'src': rel, 'note': 'no date in the file name'})
+            continue
+        try:
+            whens[rel] = stamp(hint(name), hint_time(name) or time)
+        except ValueError as e:
+            rejected.append({'src': rel, 'note': str(e)})
+    return whens, rejected
+
+
+def set_dates(cfg, rels, when, progress=core._noop, record=None, rejected=()):
     """Date each file, then move the dated ones into _inbox/loose. Returns a run, like an apply:
-    the moves can be undone, the dates written stay."""
-    done, failed = [], []
+    the moves can be undone, the dates written stay. `when` is one moment for every file, or a
+    {rel: moment} for each its own."""
+    done, failed = [], list(rejected)
     for i, rel in enumerate(rels, 1):
         path = cfg.abs(rel)
-        why = write_date(path, when) if os.path.isfile(path) else 'the file is no longer there'
+        mine = when[rel] if isinstance(when, dict) else when
+        why = write_date(path, mine) if os.path.isfile(path) else 'the file is no longer there'
         (failed if why else done).append({'src': rel, 'note': why} if why else rel)
         progress(i, len(rels), 'writing dates')
     loose = os.path.join(cfg.root, *core.LOOSE)
@@ -92,10 +132,17 @@ def set_dates(cfg, rels, when, progress=core._noop, record=None):
             name = f'{b}_{n}{e}'
         taken.add(name.lower())
         moves.append({'src': rel, 'dst': cfg.rel(os.path.join(loose, name)), 'kind': 'dated',
-                      'why': f'date set to {when[:10]}'})
+                      'why': f'date set to {(when[rel] if isinstance(when, dict) else when)[:10]}'})
     run = core.apply_moves(cfg, moves, progress, record)
+    if isinstance(when, dict):                       # each file its own date: say which, in the run
+        for m in run['moves']:
+            if m['status'] == 'moved' and m['src'] in when:
+                m['note'] = 'date set to ' + when[m['src']].replace(':', '-', 2)
     run['moves'] += [{'src': f['src'], 'dst': '', 'kind': 'dated', 'status': 'error', 'note': f['note']} for f in failed]
-    run['dated'] = when
+    if isinstance(when, dict):
+        run['dated_by_name'] = True
+    else:
+        run['dated'] = when
     if record:
         record(run)
     return run

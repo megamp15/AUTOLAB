@@ -807,6 +807,43 @@ class NoDate(Library):
         self.assertIn('cannot hold a date', job['result']['failed'][0]['note'])
         self.assertEqual(self.tree(), ['_inbox/loose/ok.jpg', '_no_date/_inbox/loose/anim.gif'])
 
+    def test_a_time_after_the_date_in_a_name_is_read_but_a_bare_date_has_none(self):
+        self.assertEqual(nodate.hint_time('2018-06-03_17-15-00_000.jpeg'), '17:15:00')
+        self.assertEqual(nodate.hint_time('IMG_20230614_093015.jpg'), '09:30:15')
+        self.assertEqual(nodate.hint_time('Screenshot 2022-11-03 at 9.41.png'), '')
+        self.assertEqual(nodate.hint_time('IMG_20230614.jpg'), '')
+        self.assertEqual(nodate.hint_time('20230614_2540.jpg'), '')
+        self.assertEqual(nodate.stamp('2018-06-03', '17:15:09'), '2018:06:03 17:15:09')
+
+    def test_every_file_can_be_dated_from_its_own_name_in_one_go(self):
+        self.put('_no_date/_inbox/loose/2018-06-03_17-15-00_000.jpg', 'A')
+        self.put('_no_date/_inbox/loose/Takeout/IMG_20230614.jpg', 'B')
+        self.put('_no_date/_inbox/loose/IMG_0001.jpg', 'C')                 # nothing in the name
+        self.put('_no_date/_inbox/loose/IMG_19501212.jpg', 'D')              # a year no photo has
+        self.sync_dates()
+        rels = ['_no_date/_inbox/loose/2018-06-03_17-15-00_000.jpg', '_no_date/_inbox/loose/Takeout/IMG_20230614.jpg',
+                '_no_date/_inbox/loose/IMG_0001.jpg', '_no_date/_inbox/loose/IMG_19501212.jpg']
+        self.app.jobs.start_set_dates(rels, '', '09:00', by_name=True)
+        job = self.wait()
+        self.assertEqual(job['state'], 'done', job)
+        written = json.loads((self.tmp / 'dates.json').read_text())
+        self.assertEqual(written[rels[0]], '2018:06:03 17:15:00')              # the time in the name
+        self.assertEqual(written[rels[1]], '2023:06:14 09:00:00')             # none in the name: the time given
+        failed = {f['src']: f['note'] for f in job['result']['failed']}
+        self.assertEqual(sorted(failed), sorted(rels[2:]))
+        self.assertIn('no date in the file name', failed[rels[2]])
+        self.assertEqual(self.tree(), ['_inbox/loose/2018-06-03_17-15-00_000.jpg', '_inbox/loose/IMG_20230614.jpg',
+                                       '_no_date/_inbox/loose/IMG_0001.jpg', '_no_date/_inbox/loose/IMG_19501212.jpg'])
+        run = self.app.jobs.run(self.app.jobs.runs()[-1]['id'])
+        self.assertTrue(run['dated_by_name'])
+        self.assertEqual(sorted(m['note'] for m in run['moves'] if m['status'] == 'moved'), ['date set to 2018-06-03 17:15:00', 'date set to 2023-06-14 09:00:00'])
+
+    def test_dating_from_names_needs_at_least_one_name_with_a_date(self):
+        self.put('_no_date/_inbox/loose/IMG_0001.jpg', 'C')
+        with self.assertRaises(ValueError):
+            self.app.jobs.start_set_dates(['_no_date/_inbox/loose/IMG_0001.jpg'], '', '', by_name=True)
+        self.assertIsNone(self.app.jobs.status())
+
     def test_only_files_set_aside_for_having_no_date_can_be_dated(self):
         self.put('library/2025/06/dated.jpg', 'x', '2025-06')
         self.put('_inbox/loose/new.jpg', 'y')

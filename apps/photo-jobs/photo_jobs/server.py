@@ -163,7 +163,7 @@ class App:
             paths = body.get('paths', [])
             if not isinstance(paths, list) or len(paths) > 2000:
                 raise ValueError('paths must be a list of up to 2000 files')
-            return 202, {'job': j.start_set_dates(paths, str(body.get('date', '')), str(body.get('time', '')))}
+            return 202, {'job': j.start_set_dates(paths, str(body.get('date', '')), str(body.get('time', '')), by_name=bool(body.get('by_name')))}
         if method == 'GET' and path == '/api/job':
             return 200, {'job': j.status()}
         if method == 'GET' and path == '/api/activity':
