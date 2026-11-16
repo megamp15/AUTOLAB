@@ -149,7 +149,7 @@ Copy from `infra/stacks/lab/terraform.tfvars.example` and edit locally.
 
 | Environment | Workflow | Holds |
 |-------------|----------|-------|
-| `lab` | Plan, Apply, Destroy, Builder when `environment: lab`; Publish COSMOS images | `COSMOS_DEPLOY_KEY`; everything else falls through to repository-level values |
+| `lab` | Plan, Apply, Destroy, Builder when `environment: lab`; Publish COSMOS images (alone or inside Release COSMOS) | `COSMOS_DEPLOY_KEY`; everything else falls through to repository-level values |
 | `qnta` | Plan, Apply, Destroy, Builder when `environment: qnta` | `TAILSCALE_VM_OAUTH_CLIENT_ID`, `TAILSCALE_VM_OAUTH_SECRET` from the tenant's tailnet; `NAS_SMB_PASSWORD`; variables `TAILSCALE_VM_TAG`, `NAS_SERVER`, `NAS_SMB_USERNAME` |
 | `autolab-plan`, `autolab-apply` | Not targeted | Retained; nothing reads them |
 
