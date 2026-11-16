@@ -56,8 +56,8 @@ A merge to COSMOS `main` releases itself:
    **COSMOS release** GitHub App and dispatches **Release COSMOS** here with
    the commit SHA. The app is installed on AUTOLAB only and has one
    permission, Actions read and write: it can start workflows here and
-   nothing else. Its client ID is the COSMOS variable
-   `COSMOS_RELEASE_APP_CLIENT_ID`, its private key the COSMOS secret
+   nothing else. Its numeric App ID is the COSMOS variable
+   `COSMOS_RELEASE_APP_ID`, its private key the COSMOS secret
    `COSMOS_RELEASE_APP_KEY`.
 2. **Release COSMOS** (`cosmos-release.yml`) runs three jobs in order:
    - **publish** calls "Publish COSMOS images" (`cosmos-publish.yml`). It builds
