@@ -823,7 +823,9 @@
     const look = kept ? () => openViewer([{ path: m.src, label: 'This copy (to be filed away)' }, { path: kept, label: 'The copy that stays' }], 'Is it the same photo?')
                       : () => openViewer([{ path: m.src, label: '' }], m.src.split('/').pop());
     const asFolder = m.kind === 'event';
-    row.append(box, thumb(m.src, asFolder ? () => openViewer([{ path: m.src, label: 'First photo in the folder', folder: true }], m.src.split('/').pop()) : look, { folder: asFolder }), el('span', 'tag', KIND_LABEL[m.kind] || m.kind), el('span', 'path', m.src), to, el('span', 'why', m.why));
+    const from = el('span', 'path', m.src);
+    if (asFolder) { const peek = el('button', 'btn small quiet', 'Look inside'); peek.type = 'button'; peek.style.marginTop = '8px'; peek.onclick = () => openEvent(m.src, m.why); from.append(el('div'), peek); }
+    row.append(box, thumb(m.src, asFolder ? () => openEvent(m.src, m.why) : look, { folder: asFolder }), el('span', 'tag', KIND_LABEL[m.kind] || m.kind), from, to, el('span', 'why', m.why));
     if (!sortIndex.has(key)) sortIndex.set(key, []);
     sortIndex.get(key).push({ m, row, box }); body.append(row);
   }
@@ -1417,6 +1419,45 @@
     nearEnd(list, () => { if (st.rows.length < st.total) fetchMore(false); });
     runview.replaceChildren(top, ...(said.length ? [note] : []), chips, list); paintChips();
     first.moves.forEach(addRow); st.rows = [...first.moves]; list.append(more); paint(); runview.showModal();
+  }
+  // Every photo in an event folder with the date it carries, so the month the sorter chose can be checked.
+  async function openEvent(rel, why) {
+    let first;
+    try { first = await api('/event?' + qs({ path: rel, limit: 100 })); } catch (e) { return fail(e); }
+    const st = { month: '', rows: [...first.files], total: first.matching, loading: false };
+    const top = el('div', 'row'), close = el('button', 'btn small quiet', 'Close'); close.onclick = () => runview.close();
+    top.append(el('h2', 'grow', base(rel)));
+    const fix = el('button', 'btn small', 'Fix the dates in these files…'); fix.title = 'Search these files in Find & edit, where the date can be written into them. Scan the Inbox again afterwards to file the event by its new date.';
+    fix.onclick = () => { runview.close(); Object.assign(state.meta, { q: rel, folder: '', kind: '', files: null }); state.tab = 'meta'; history.replaceState(null, '', '#meta'); render(); };
+    top.append(fix, close);
+    const month = m => m === 'none' ? 'no date' : m;
+    const spread = o => Object.entries(o).map(([k, v]) => `${month(k)} × ${v}`).join(', ');
+    const lines = el('dl', 'facts'); lines.style.cssText = 'grid-template-columns:max-content 1fr;column-gap:16px';
+    const fact = (k, v) => v && lines.append(el('dt', null, k), el('dd', null, v));
+    fact('Photos', `${first.total.toLocaleString()} in this folder`); fact('Dates inside the files', spread(first.months));
+    fact('The folder name says', first.name_says); fact('Files last changed', spread(first.changed)); if (why) fact('Why it goes where it does', why);
+    const chips = el('div', 'chips'), list = el('div', 'runrows'), more = el('div', 'muted'); more.style.padding = '8px 12px';
+    const addRow = r => {
+      const row = el('div', 'runrow'), what = el('div');
+      what.append(el('b', 'name', r.name), el('div', 'why path', r.path.split('/').slice(0, -1).join('/')));
+      const when = el('div', 'why', r.taken ? `taken ${r.taken}` : 'no date inside the file'); if (r.source) when.append(el('span', 'muted', ` (${r.source})`));
+      what.append(when, el('div', 'why', 'file changed ' + fmtDate(r.modified)));
+      row.append(thumb(r.path, () => openViewer([{ path: r.path, label: r.taken || '' }], r.name), { label: '' }), what, el('span', 'tag', r.taken ? r.taken.slice(0, 7) : 'no date')); list.append(row);
+    };
+    const paint = () => { more.textContent = st.rows.length < st.total ? 'Scroll for more…' : st.total ? '' : 'Nothing in this view.'; };
+    const fetchMore = async reset => {
+      if (st.loading) return; st.loading = true;
+      try {
+        const page = await api('/event?' + qs({ path: rel, month: st.month, offset: reset ? 0 : st.rows.length, limit: 100 }));
+        if (reset) { st.rows = []; list.replaceChildren(); list.scrollTop = 0; }
+        st.total = page.matching; st.rows.push(...page.files); page.files.forEach(addRow); list.append(more); paint();
+      } catch (e) { fail(e); } finally { st.loading = false; }
+    };
+    const paintChips = () => chips.replaceChildren(...[['All', first.total, ''], ...Object.entries(first.months).map(([k, n]) => [month(k), n, k])]
+      .map(([label, n, v]) => chip(label, n, st.month === v, async () => { st.month = v; paintChips(); await fetchMore(true); })));
+    nearEnd(list, () => { if (st.rows.length < st.total) fetchMore(false); });
+    runview.replaceChildren(top, lines, chips, list); paintChips();
+    first.files.forEach(addRow); list.append(more); paint(); runview.showModal();
   }
   function notice(text, title = 'Something went wrong') {
     dlg.replaceChildren(el('h2', null, title), el('p', 'muted', text));

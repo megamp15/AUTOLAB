@@ -733,7 +733,7 @@ class Previews(Library):
         self.put('a.jpg', 'twelve bytes', '2025-06')
         self.sync_dates()
         f = previews.facts(self.cfg, 'a.jpg')
-        self.assertEqual((f['size'], f['width'], f['camera'], f['taken'], f['video']), (12, 160, 'Demo camera', '2025-06', False))
+        self.assertEqual((f['size'], f['width'], f['camera'], f['taken'], f['video']), (12, 160, 'Demo camera', '2025-06-01 12:00:00', False))
 
 
 class NoDate(Library):
@@ -1175,6 +1175,34 @@ class KeepScanAfterApply(Library):
         self.assertEqual(len(reads), first)                              # nothing changed: nothing read
         core.plan_duplicates(self.cfg, full=True)
         self.assertGreater(len(reads), first)
+
+
+class LookInsideEvents(Library):
+    """An event can be opened before it is filed: each photo with its date, and a summary by month."""
+
+    def test_an_event_shows_every_photo_its_date_and_what_the_name_says(self):
+        for i in range(3):
+            self.put(f'_inbox/events/2022_10_Oct_Big_Bend/IMG_{i}.jpg', f'a{i}', '2016-01')
+        self.put('_inbox/events/2022_10_Oct_Big_Bend/IMG_9.jpg', 'a9', '2022-10')
+        self.put('_inbox/events/2022_10_Oct_Big_Bend/clip.jpg', 'nodate')           # carries no date
+        self.sync_dates()
+        app = server.App(self.cfg)
+        _, page = app.route('GET', '/api/event', {'path': ['_inbox/events/2022_10_Oct_Big_Bend']}, {})
+        self.assertEqual((page['total'], page['months'], page['name_says']), (5, {'2016-01': 3, '2022-10': 1, 'none': 1}, '2022-10'))
+        self.assertEqual([f['name'] for f in page['files']][-1], 'clip.jpg')          # undated last
+        self.assertEqual(page['files'][0]['source'], 'DateTimeOriginal')
+        _, only = app.route('GET', '/api/event', {'path': ['_inbox/events/2022_10_Oct_Big_Bend'], 'month': ['2016-01']}, {})
+        self.assertEqual((only['matching'], len(only['files'])), (3, 3))
+        _, none = app.route('GET', '/api/event', {'path': ['_inbox/events/2022_10_Oct_Big_Bend'], 'month': ['none']}, {})
+        self.assertEqual([f['name'] for f in none['files']], ['clip.jpg'])
+
+    def test_only_folders_inside_the_media_folder(self):
+        self.put('a.jpg', 'x')
+        app = server.App(self.cfg)
+        with self.assertRaises(ValueError):
+            app.route('GET', '/api/event', {'path': ['a.jpg']}, {})
+        with self.assertRaises(ValueError):
+            app.route('GET', '/api/event', {'path': ['../..']}, {})
 
 
 class RunDetails(Library):

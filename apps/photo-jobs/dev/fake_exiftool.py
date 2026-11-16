@@ -61,6 +61,7 @@ if writes:
     print('    1 image files updated')
     sys.exit(0)
 raw = '-n' in args
+full = '%Y-%m-%d %H:%M:%S' in args and not raw
 looks = '-ImageWidth' in args
 out = []
 for p in paths:
@@ -68,7 +69,10 @@ for p in paths:
     row = {'SourceFile': p}
     if rel in dates:
         v = dates[rel]
-        row['DateTimeOriginal'] = v if raw or len(v) == 7 else v[:4] + '-' + v[5:7]
+        if full:      # -d '%Y-%m-%d %H:%M:%S': a month alone is read as noon on the 1st
+            row['DateTimeOriginal'] = f'{v[:4]}-{v[5:7]}-01 12:00:00' if len(v) == 7 else f'{v[:4]}-{v[5:7]}-{v[8:10]} {v[11:19]}'
+        else:
+            row['DateTimeOriginal'] = v if raw or len(v) == 7 else v[:4] + '-' + v[5:7]
         if raw:
             row['CreateDate'] = row['DateTimeOriginal']
     m = meta.get(rel, {})
