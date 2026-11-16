@@ -140,8 +140,18 @@ tab shows them as a grid. Tick some, pick a day and a time, and **Set date** wri
 file (`DateTimeOriginal`, `CreateDate`, `ModifyDate`; videos also get their media dates) with
 ExifTool, then moves the file to `_inbox/loose`. The next Inbox scan files it by that date, with the
 usual duplicate and Live Photo handling. A file name that contains a date (`20230614`, `2023-06-14`)
-offers a one-click **Use** button. A file type that cannot hold a date (an animated GIF, say) is
-left where it is and reported. Undo in History moves the files back; the written date stays.
+offers a one-click **Use** button.
+
+For a big batch: the chips filter to **Date in the name** or **No date in the name**, the box at the
+top ticks everything shown, and **Use the date in each name** writes every ticked file its own date
+(and the time of day, when the name has one, as in `2018-06-03_17-15-00`; otherwise the time field).
+Ticked files with no date in their name are left where they are. The grid can be switched to a **List**
+with one line per file. To tick many at once, drag a box across them (Shift or Ctrl/Cmd adds to what is
+ticked, Esc cancels; dragging to the top or bottom edge keeps scrolling), or click one and Shift-click
+another to tick everything between.
+
+A file type that cannot hold a date (an animated GIF, say) is left where it is and reported. Undo in
+History moves the files back; the written date stays.
 
 "Set aside" on the Inbox page means exactly this: files an earlier run put in `_no_date` or
 `_duplicates`, outside the current plan.

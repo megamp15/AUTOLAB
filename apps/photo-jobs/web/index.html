@@ -208,6 +208,17 @@
   button.selbtn { background:transparent; color:inherit; border:1px solid var(--line); border-radius:4px; padding:6px 10px; font:inherit; font-size:12.5px; }
   button.selbtn:hover, button.selbtn[aria-expanded="true"] { border-color:var(--fg); } button.selbtn:focus-visible { outline:1px dashed var(--dim); outline-offset:3px; }
   .shots .empty { grid-column:1 / -1; }
+  .stickybar { position:sticky; top:0; z-index:5; background:var(--bg); padding:2px 0 4px; margin-bottom:6px; }
+  .stickybar .toolbar { margin-bottom:6px; }
+  .picker { user-select:none; -webkit-user-select:none; }
+  .marquee { position:fixed; z-index:50; pointer-events:none; border:1px solid var(--fg); border-radius:2px; background:color-mix(in srgb,var(--fg) 12%,transparent); }
+  .nrow { display:grid; grid-template-columns:28px 52px minmax(0,1fr) 170px 76px 100px; gap:4px 14px; align-items:center; padding:6px 12px; border-bottom:1px solid var(--soft); cursor:default; }
+  .nrow:not(.head):hover { background:var(--soft); } .nrow.on { background:var(--soft); }
+  .nrow .thumb { width:44px; height:44px; }
+  .nrow .name { overflow-wrap:anywhere; font-size:12.5px; } .nrow .where { font:10.5px 'IBM Plex Mono',monospace; color:var(--dim); overflow-wrap:anywhere; }
+  .nrow .num { font:11px 'IBM Plex Mono',monospace; color:var(--dim); }
+  .nrow.head { font:10.5px 'IBM Plex Mono',monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); border-bottom:1px solid var(--line); }
+  .nlist { margin-top:12px; border:1px solid var(--line); border-radius:5px; overflow:hidden; }
   .selbtn { display:inline-flex; align-items:center; justify-content:space-between; gap:12px; min-width:150px; cursor:pointer; text-align:left; }
   .selbtn svg { opacity:.65; flex:none; display:block; }
   .pop { position:fixed; z-index:60; background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:7px; box-shadow:0 14px 36px rgba(0,0,0,.5); padding:4px; font-size:13px; max-width:calc(100vw - 16px); }
@@ -291,7 +302,7 @@
   const state = { tab: location.hash.slice(1) || 'inbox', status: null, job: null, dark: true, runs: [], immichInfo: null, activity: [], loading: {},
                   sort: { plan: null, rows: [], total: 0, shown: 0, filter: { kind: '', pair: false, q: '' }, done: null },
                   dupes: { plan: null, groups: [], total: 0, q: '', scope: '', done: null },
-                  nodate: { files: null, checked: new Set(), q: '', date: '', time: '12:00', done: null, failed: [] },
+                  nodate: { files: null, checked: new Set(), q: '', date: '', time: '12:00', done: null, failed: [], view: 'tiles', filter: 'all' },
                   meta: { q: '', folder: '', kind: '', files: null, total: 0, folders: [], info: {}, checked: new Set(), ref: null, done: null, failed: [],
                           form: { date: '', time: '', loc: '', desc: '', dayOnly: true, copyLoc: true, copyDate: false, copyDesc: false } },
                   immich: { plan: null, rows: [], total: 0, selected: 0, selectable: 0, filter: { status: '', live: false, q: '' }, done: null },
@@ -300,7 +311,7 @@
   // What you were looking at: the filters and search boxes survive a reload. (The scans themselves are saved by the service.)
   const savedUI = (() => { try { return JSON.parse(localStorage.getItem('photos-ui')) || {}; } catch (e) { return {}; } })();
   const saveUI = () => { try { localStorage.setItem('photos-ui', JSON.stringify({ sort: state.sort.filter, dupesQ: state.dupes.q, dupesScope: state.dupes.scope, immich: state.immich.filter,
-    nodate: { q: state.nodate.q, date: state.nodate.date, time: state.nodate.time }, meta: { q: state.meta.q, folder: state.meta.folder, kind: state.meta.kind } })); } catch (e) {} };
+    nodate: { q: state.nodate.q, date: state.nodate.date, time: state.nodate.time, view: state.nodate.view, filter: state.nodate.filter }, meta: { q: state.meta.q, folder: state.meta.folder, kind: state.meta.kind } })); } catch (e) {} };
   Object.assign(state.nodate, savedUI.nodate || {}); Object.assign(state.meta, savedUI.meta || {});
   addEventListener('pagehide', () => saveUI());                              // filters change without a redraw, so save on the way out
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveUI(); });
@@ -722,6 +733,57 @@
     return box;
   }
   const spacer = () => el('span', 'grow');
+  // Drag a box across tiles or rows to tick what it touches, like a file manager. Near the top or bottom edge the
+  // page scrolls by itself. A plain drag replaces the ticks; with Shift, Ctrl or Cmd it adds to them; Esc cancels.
+  function dragSelect(area, { scroller = null, items, checked, repaint }) {
+    area.addEventListener('mousedown', e => {
+      if (e.button !== 0 || e.target.closest('button, input, a, select, textarea')) return;
+      e.preventDefault();                                              // no text selection or picture dragging
+      const add = e.shiftKey || e.ctrlKey || e.metaKey, base = new Set(checked);
+      const view = () => scroller ? scroller.getBoundingClientRect() : { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
+      const at = (cx, cy) => { const v = view(); return scroller ? { x: cx - v.left + scroller.scrollLeft, y: cy - v.top + scroller.scrollTop } : { x: cx + scrollX, y: cy + scrollY }; };
+      const from = at(e.clientX, e.clientY);
+      let rects = null, box = null, last = e, frame = 0, painted = 0, dragging = false;
+      const paint = () => { if (!painted) painted = requestAnimationFrame(() => { painted = 0; repaint(); }); };
+      const update = () => {
+        const cur = at(last.clientX, last.clientY), x1 = Math.min(from.x, cur.x), x2 = Math.max(from.x, cur.x), y1 = Math.min(from.y, cur.y), y2 = Math.max(from.y, cur.y);
+        checked.clear(); if (add) base.forEach(k => checked.add(k));
+        rects.forEach(r => { if (r.x1 < x2 && r.x2 > x1 && r.y1 < y2 && r.y2 > y1) checked.add(r.key); });
+        const v = view(), o = at(v.left, v.top), left = Math.max(v.left, x1 - o.x + v.left), top = Math.max(v.top, y1 - o.y + v.top);
+        const right = Math.min(v.right, x2 - o.x + v.left), bottom = Math.min(v.bottom, y2 - o.y + v.top);
+        Object.assign(box.style, { left: left + 'px', top: top + 'px', width: Math.max(0, right - left) + 'px', height: Math.max(0, bottom - top) + 'px' });
+        paint();
+      };
+      const tick = () => {
+        frame = 0; if (!dragging) return;
+        const v = view(), edge = 56; let dy = 0;
+        if (last.clientY > v.bottom - edge) dy = Math.min(30, (last.clientY - (v.bottom - edge)) / 3 + 4);
+        else if (last.clientY < v.top + edge) dy = -Math.min(30, (v.top + edge - last.clientY) / 3 + 4);
+        if (dy) { (scroller || window).scrollBy(0, dy); update(); frame = requestAnimationFrame(tick); }
+      };
+      const move = ev => {
+        last = ev;
+        if (!dragging) {
+          if (Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) < 5) return;
+          dragging = true; box = el('div', 'marquee'); document.body.append(box);
+          rects = items().map(({ el: node, key }) => { const r = node.getBoundingClientRect(), a = at(r.left, r.top), b = at(r.right, r.bottom); return { key, x1: a.x, y1: a.y, x2: b.x, y2: b.y }; });
+        }
+        update(); if (!frame) frame = requestAnimationFrame(tick);
+      };
+      const finish = cancel => {
+        removeEventListener('mousemove', move); removeEventListener('mouseup', up); removeEventListener('keydown', key, true);
+        cancelAnimationFrame(frame); if (box) box.remove();
+        if (cancel) { checked.clear(); base.forEach(k => checked.add(k)); }
+        if (dragging) {                                                 // the click that ends a drag is not a click on a tile
+          const swallow = ev => { ev.stopPropagation(); ev.preventDefault(); };
+          addEventListener('click', swallow, true); setTimeout(() => removeEventListener('click', swallow, true), 0);
+          repaint();
+        }
+      };
+      const up = () => finish(false), key = ev => { if (ev.key === 'Escape') { ev.preventDefault(); finish(true); } };
+      addEventListener('mousemove', move); addEventListener('mouseup', up); addEventListener('keydown', key, true);
+    });
+  }
   const searchBox = (value, oninput) => {
     const q = el('input', 'search'); q.placeholder = 'Filter by name or path'; q.value = value; let timer = 0;
     q.oninput = () => { clearTimeout(timer); timer = setTimeout(() => oninput(q.value), 250); }; return q;
@@ -982,45 +1044,90 @@
     }
     if (!n.files.length) { main.append(el('div', 'empty', 'Nothing is set aside for lack of a date.')); return; }
     const panel = el('div', 'panel'); panel.style.marginTop = '12px';
-    const tools = el('div', 'toolbar'), all = el('input', 'tick'), count = el('span', 'muted'), go = el('button', 'btn primary');
+    const bar = el('div', 'stickybar'), tools = el('div', 'toolbar'), acts = el('div', 'toolbar');
+    const all = el('input', 'tick'), count = el('span', 'muted'), go = el('button', 'btn primary'), byName = el('button', 'btn primary');
     all.type = 'checkbox'; all.title = 'Tick or untick every photo shown';
+    byName.type = 'button'; byName.title = 'Each ticked photo whose name holds a date gets that date, and the time of day from its name when it has one';
     const date = UI.date({ value: n.date, max: new Date().toISOString().slice(0, 10), label: 'The day these were taken', onchange: v => { n.date = v; paint(); } });
     const time = UI.time({ value: n.time, label: 'Time of day to write', onchange: v => { n.time = v; } });
     const search = searchBox(n.q, v => { n.q = v; render(); });
-    tools.append(all, count, spacer(), search, date.el, time.el, go);
-    const grid = el('div', 'shots'), shown = n.files.filter(f => !n.q || f.path.toLowerCase().includes(n.q.toLowerCase()));
-    const cards = new Map();
+    const looks = el('div', 'chips');
+    looks.append(...[['all', 'All', n.files.length, 'Every photo set aside'], ['named', 'Date in the name', named, 'The file name holds a date'], ['unnamed', 'No date in the name', n.files.length - named, 'Nothing in the name says when']]
+      .map(([v, l, c, hint]) => chip(l, c, n.filter === v, () => { n.filter = v; render(); }, hint)));
+    const view = segmented([['tiles', 'Tiles', 'Big pictures'], ['list', 'List', 'One line each']], n.view, v => { n.view = v; render(); });
+    tools.append(all, count, looks, spacer(), search, view);
+    acts.append(date.el, time.el, go, byName);
+    bar.append(tools, acts);
+    const q = n.q.toLowerCase(), shown = n.files.filter(f => (!q || f.path.toLowerCase().includes(q)) && (n.filter === 'all' || (n.filter === 'named') === !!f.hint));
+    const cards = new Map(), at = new Map(shown.map((f, i) => [f.path, i]));
+    let anchor = null;
+    const ticked = () => shown.filter(f => n.checked.has(f.path));
     const paint = () => {
-      const on = shown.filter(f => n.checked.has(f.path)).length;
-      all.checked = shown.length > 0 && on === shown.length; all.indeterminate = on > 0 && on < shown.length;
-      count.textContent = `${on.toLocaleString()} of ${shown.length.toLocaleString()} ticked`;
-      go.textContent = on ? `Set date on ${on.toLocaleString()}` : 'Set date'; go.disabled = busy() || !on || !n.date;
+      const on = ticked(), hinted = on.filter(f => f.hint).length;
+      all.checked = shown.length > 0 && on.length === shown.length; all.indeterminate = on.length > 0 && on.length < shown.length;
+      count.textContent = `${on.length.toLocaleString()} of ${shown.length.toLocaleString()} ticked`;
+      go.textContent = on.length ? `Set ${n.date || 'date'} on ${on.length.toLocaleString()}` : 'Set date'; go.disabled = busy() || !on.length || !n.date;
+      byName.textContent = hinted ? `Use the date in each name · ${hinted.toLocaleString()}` : 'Use the date in each name'; byName.disabled = busy() || !hinted;
       cards.forEach((c, path) => { c.card.classList.toggle('on', n.checked.has(path)); c.box.checked = n.checked.has(path); });
     };
-    shown.forEach(f => {
-      const card = el('div', 'shot'), box = el('input', 'tick'); box.type = 'checkbox';
-      box.onchange = () => { (box.checked ? n.checked.add(f.path) : n.checked.delete(f.path)); paint(); };
-      const look = () => openViewer([{ path: f.path, label: '' }], f.name);
-      card.append(box, thumb(f.path, look, { w: 640 }), el('div', 'name', f.name),
-                  el('div', 'meta', `${fmtGiB(f.size)} · file changed ${new Date(f.modified * 1000).toLocaleDateString()}`));
-      if (f.hint) { const h = el('button', 'chip', `Use ${f.hint}`); h.type = 'button'; h.title = 'The file name says this day; use it for this photo';
-        h.onclick = () => { n.date = f.hint; date.set(f.hint); n.checked.add(f.path); paint(); }; card.append(h); }
-      cards.set(f.path, { card, box }); grid.append(card);
-    });
+    // a click ticks one; Shift-click ticks everything from the last one clicked
+    const mark = (f, on, shift) => {
+      if (shift && anchor !== null) { const [x, y] = [anchor, at.get(f.path)].sort((p, q) => p - q); shown.slice(x, y + 1).forEach(g => (on ? n.checked.add(g.path) : n.checked.delete(g.path))); }
+      else (on ? n.checked.add(f.path) : n.checked.delete(f.path));
+      anchor = at.get(f.path); paint();
+    };
+    const wire = (card, box, f) => {
+      box.type = 'checkbox'; box.onclick = e => mark(f, box.checked, e.shiftKey);
+      card.onclick = e => { if (!e.target.closest('button, input, .thumb')) mark(f, !n.checked.has(f.path), e.shiftKey); };
+      cards.set(f.path, { card, box });
+    };
+    const look = f => () => openViewer([{ path: f.path, label: '' }], f.name);
+    const use = f => { const h = el('button', 'chip', `Use ${f.hint}`); h.type = 'button'; h.title = 'The file name says this day; use it for this photo';
+      h.onclick = () => { n.date = f.hint; date.set(f.hint); n.checked.add(f.path); paint(); }; return h; };
+    let body;
+    if (n.view === 'list') {
+      body = el('div', 'nlist picker');
+      const head = el('div', 'nrow head'); head.append(el('span'), el('span'), el('span', null, 'File'), el('span', null, 'Date in the name'), el('span', null, 'Size'), el('span', null, 'File changed'));
+      body.append(head);
+      shown.forEach(f => {
+        const row = el('div', 'nrow'), box = el('input', 'tick'), name = el('div'), folder = f.path.replace(/^_no_date\/(_inbox\/loose\/)?/, '').split('/').slice(0, -1).join('/');
+        name.append(el('div', 'name', f.name)); if (folder) name.append(el('div', 'where', folder));
+        row.title = f.path;
+        row.append(box, thumb(f.path, look(f), { w: 160 }), name, f.hint ? use(f) : el('span', 'num', '—'), el('span', 'num', fmtGiB(f.size)), el('span', 'num', new Date(f.modified * 1000).toLocaleDateString()));
+        if (f.hint_time) row.querySelector('.chip').textContent = `Use ${f.hint} ${f.hint_time.slice(0, 5)}`;
+        wire(row, box, f); body.append(row);
+      });
+    } else {
+      body = el('div', 'shots picker');
+      shown.forEach(f => {
+        const card = el('div', 'shot'), box = el('input', 'tick');
+        card.append(box, thumb(f.path, look(f), { w: 640 }), el('div', 'name', f.name), el('div', 'meta', `${fmtGiB(f.size)} · file changed ${new Date(f.modified * 1000).toLocaleDateString()}`));
+        if (f.hint) card.append(use(f));
+        wire(card, box, f); body.append(card);
+      });
+    }
+    if (!shown.length) body.append(el('div', 'empty', 'Nothing matches.'));
+    dragSelect(body, { items: () => [...cards].map(([key, c]) => ({ el: c.card, key })), checked: n.checked, repaint: paint });
     all.onchange = () => { shown.forEach(f => (all.checked ? n.checked.add(f.path) : n.checked.delete(f.path))); paint(); };
-    go.onclick = () => confirmDate([...n.checked]);
-    panel.append(tools, el('div', 'note', 'The date is written into each file’s metadata (taken date and created date; videos also get their media dates). The file is then moved to _inbox/loose, and the next Inbox scan files it by that date. Undo in History moves it back; the written date stays.'), grid);
+    go.onclick = () => confirmDate(ticked().map(f => f.path), false);
+    byName.onclick = () => confirmDate(ticked().filter(f => f.hint).map(f => f.path), true, ticked().filter(f => !f.hint).length, ticked().filter(f => f.hint && !f.hint_time).length);
+    panel.append(bar, el('div', 'note', 'Click or drag a box across photos to tick them (hold Shift to add; drag to the edge of the screen to keep scrolling). The date is written into each file’s metadata (taken date and created date; videos also get their media dates). The file is then moved to _inbox/loose, and the next Inbox scan files it by that date. Undo in History moves it back; the written date stays.'), body);
     main.append(panel); paint();
   }
-  function confirmDate(paths) {
-    const n = state.nodate;
-    dlg.replaceChildren(el('h2', null, `Write ${n.date} into ${paths.length.toLocaleString()} file${paths.length === 1 ? '' : 's'}?`));
-    const ul = el('ul'); ['The date is saved inside each photo or video, so it stays with the file everywhere it goes.',
+  function confirmDate(paths, byName, left = 0, noTime = 0) {
+    const n = state.nodate, s = x => x === 1 ? '' : 's';
+    dlg.replaceChildren(el('h2', null, byName ? `Write the date in each name into ${paths.length.toLocaleString()} file${s(paths.length)}?` : `Write ${n.date} into ${paths.length.toLocaleString()} file${s(paths.length)}?`));
+    const ul = el('ul'); (byName ? [
+      'The date is saved inside each photo or video, so it stays with the file everywhere it goes.',
+      'Each file gets the day written in its own name. Where the name also has a time, that time is used' + (noTime ? `; the other ${noTime.toLocaleString()} get ${n.time || '12:00'}.` : '.'),
+      ...(left ? [`${left.toLocaleString()} ticked file${s(left)} with no date in the name ${left === 1 ? 'is' : 'are'} left here.`] : []),
+      'A file that cannot hold a date is left here and reported.', 'The dated files move to _inbox/loose. Scan the Inbox to file them.'] : [
+      'The date is saved inside each photo or video, so it stays with the file everywhere it goes.',
       `Every file gets ${n.date} at ${n.time || '12:00'}; set them in separate batches if they differ.`,
-      'A file that cannot hold a date is left here and reported.', 'The dated files move to _inbox/loose. Scan the Inbox to file them.'].forEach(t => ul.append(el('li', null, t)));
+      'A file that cannot hold a date is left here and reported.', 'The dated files move to _inbox/loose. Scan the Inbox to file them.']).forEach(t => ul.append(el('li', null, t)));
     const row = el('div', 'row'); row.style.justifyContent = 'flex-end';
     const cancel = el('button', 'btn quiet', 'Cancel'), go = el('button', 'btn primary', 'Write the date'); cancel.onclick = () => dlg.close();
-    go.onclick = async () => { dlg.close(); try { watchJob((await api('/nodate/date', { method: 'POST', body: { paths, date: n.date, time: n.time } })).job); render(); } catch (e) { fail(e); } };
+    go.onclick = async () => { dlg.close(); try { watchJob((await api('/nodate/date', { method: 'POST', body: { paths, date: n.date, time: n.time, by_name: byName } })).job); render(); } catch (e) { fail(e); } };
     row.append(cancel, go); dlg.append(ul, row); dlg.showModal();
   }
 
@@ -1383,6 +1490,7 @@
     if (!first.undone && (c.moved || c.edited)) { const u = el('button', 'btn small', 'Undo'); u.disabled = busy(); u.onclick = () => { runview.close(); undo(id); }; top.append(u); }
     top.append(close);
     const said = [];
+    if (first.dated_by_name) said.push('Each file got the date written in its own name');
     if (first.dated) said.push(`Date written into each file: ${first.dated.slice(0, 10).replaceAll(':', '-')}`);
     if (spec.day) said.push(`Date set to ${spec.day}${spec.day_only ? ' (each photo kept its own time)' : spec.time ? ' ' + spec.time : ''}`);
     if (spec.lat !== undefined && spec.lat !== null) said.push(`Location set to ${spec.lat}, ${spec.lon}`);
