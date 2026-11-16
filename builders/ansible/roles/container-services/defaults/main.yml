@@ -116,6 +116,8 @@ autolab_services_images:
   # the nightly dump, not this line. docs/gitops/apps.md, "Sure upgrade".
   sure: "ghcr.io/we-promise/sure:2026.11.14-alpha"
   dash: "ghcr.io/gethomepage/homepage:v2.4.0"
+  # Both containers, one image: `hbbs` and `hbbr` are its two commands.
+  rustdesk: "rustdesk/rustdesk-server:1.1.16"
   # The connector for the Paradigm Prints tunnel, pinned with the same
   # version horizon's runs.
   paradigm_tunnel: "cloudflare/cloudflared:2026.9.1"
@@ -138,6 +140,14 @@ autolab_services_ports:
   linkace: "{{ autolab_service_catalog.linkace.port }}"
   sure: "{{ autolab_service_catalog.sure.port }}"
   qr: "{{ autolab_service_catalog.qr.port }}"
+
+# RustDesk is not HTTP, so it has no entry in the shared port catalog (the
+# ingress would try to route one). Its ports are the protocol's own, and the
+# clients are given only the ID server's name: they derive the rest.
+autolab_services_rustdesk_ports:
+  nat_test: 21115
+  id: 21116      # TCP and UDP
+  relay: 21117
 
 # gethomepage. The names it answers to (it refuses any other Host header), and
 # the zone and internal label its links are built from.

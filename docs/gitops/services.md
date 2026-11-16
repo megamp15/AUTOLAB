@@ -45,6 +45,7 @@ bump is a pull request.
 | `airtrail` | on [nebula](nebula.md): a personal flight log on a map — see [apps](apps.md) | 8102 |
 | `linkace` | on [nebula](nebula.md): bookmarks with tags and a link checker — see [apps](apps.md) | 8103 |
 | `sure` | on [nebula](nebula.md): personal finance — see [apps](apps.md) | 8104 |
+| `rustdesk` | remote desktop between your own machines, tailnet only, key-enforced — see [rustdesk](rustdesk.md) | 21115-21117 (TCP), 21116 (UDP) |
 | `qr` | QR codes whose destination can change after printing — see [qr](qr.md) | 8097 (admin) |
 | `paradigm-tunnel` | the connector for the tunnel in the Paradigm Prints Cloudflare account — see [qr](qr.md) | — |
 

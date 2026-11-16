@@ -1,0 +1,37 @@
+  # RustDesk's two halves. hbbs introduces clients to each other (it hands out
+  # IDs and helps them find a direct path); hbbr carries the session when no
+  # direct path exists. Both keep one keypair in the same directory: the public
+  # half is what every client must be given, and `-k _` makes both refuse a
+  # client that does not present it, so a stranger who finds the port gets
+  # nothing. A host directory, not a named volume: the image is `scratch` (no
+  # shell, no cat), so the key is read from the host, and it is in the VM's
+  # backups.
+  #
+  # Not HTTP, so there is no catalog port and no name under *.lab.<zone>:
+  # Traefik cannot carry RustDesk's raw TCP and UDP. Clients are given the
+  # MagicDNS name and reach it over the tailnet, which is the gate.
+  rustdesk-hbbr:
+    image: {{ autolab_services_images.rustdesk }}
+    restart: unless-stopped
+    command: hbbr -k _
+    volumes:
+      - {{ autolab_services_root }}/rustdesk:/root
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_rustdesk_ports.relay }}:21117"
+  rustdesk-hbbs:
+    image: {{ autolab_services_images.rustdesk }}
+    restart: unless-stopped
+    # -r is the relay's address as clients are told it. An address, not the
+    # MagicDNS name: hbbs resolves it once at start, inside this container, and
+    # silently drops a name it cannot resolve (relay-servers=[]), leaving
+    # sessions with no relay. The role renders the current tailnet address on
+    # every run, so a rebuilt machine is not a stale one.
+    command: hbbs -r {{ autolab_services_tailscale_ip }}:{{ autolab_services_rustdesk_ports.relay }} -k _
+    depends_on:
+      - rustdesk-hbbr
+    volumes:
+      - {{ autolab_services_root }}/rustdesk:/root
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_rustdesk_ports.nat_test }}:21115"
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_rustdesk_ports.id }}:21116"
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_rustdesk_ports.id }}:21116/udp"
