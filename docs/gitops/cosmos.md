@@ -49,31 +49,43 @@ decision for the MCP increment (see the COSMOS repo's `docs/deployment.md`).
 
 ## Releasing: build, publish, pin, deploy
 
-Four separate steps, each with its own control:
+A merge to COSMOS `main` releases itself:
 
-1. **Merge COSMOS work to `main`** in the COSMOS repo. CI there runs
-   `npm run check` and builds both images.
-2. **Run "Publish COSMOS images"** (`cosmos-publish.yml`, manual, AUTOLAB
-   `main` only) with the full commit SHA. It builds both images on the runner
-   *before* joining the tailnet, so Dockerfile `RUN` steps never execute with a
-   route to the lab. Only the registry steps then run on the tailnet. It
-   refuses to overwrite an existing tag. The tag
-   (`<sha>-<run id>-<attempt>`) is printed in the job summary.
-3. **Pin it**: a pull request changes `autolab_services_cosmos_image_tag` in
-   `roles/container-services/defaults/main.yml`. Same rule as every image in
-   this lab: a version bump is a diff.
-4. **Deploy**: after the merge, run `05 - Ansible Builder`, playbook
-   `services`, `confirm: apply`. The role verifies that the gateway refuses a
-   direct request and that an authenticated one reaches the API *and* the
-   database.
+1. **COSMOS CI** runs `npm run check` and builds both images. On a push to
+   `main` that passes, its `release` job takes a short-lived token from the
+   **COSMOS release** GitHub App and dispatches **Release COSMOS** here with
+   the commit SHA. The app is installed on AUTOLAB only and has one
+   permission, Actions read and write: it can start workflows here and
+   nothing else. Its client ID is the COSMOS variable
+   `COSMOS_RELEASE_APP_CLIENT_ID`, its private key the COSMOS secret
+   `COSMOS_RELEASE_APP_KEY`.
+2. **Release COSMOS** (`cosmos-release.yml`) runs three jobs in order:
+   - **publish** calls "Publish COSMOS images" (`cosmos-publish.yml`). It builds
+     both images on the runner *before* joining the tailnet, so Dockerfile
+     `RUN` steps never execute with a route to the lab, and refuses to
+     overwrite an existing tag (`<sha>-<run id>-<attempt>`).
+   - **pin** opens a pull request that changes `autolab_services_cosmos_image_tag`
+     in `roles/container-services/defaults/main.yml`, and merges it. Same rule
+     as every image in this lab: a version bump is a diff. This needs the
+     repository setting "Allow GitHub Actions to create and approve pull
+     requests".
+   - **deploy** runs `05 - Ansible Builder`, playbook `services`, limit `jwst`,
+     `confirm: apply`, and waits for it. The role verifies that the gateway
+     refuses a direct request and that an authenticated one reaches the API
+     *and* the database.
 
-Rollback is step 3 with the previous tag. The registry keeps every tag. The
+One release runs at a time; a newer one waiting replaces an older one that has
+not started. To release by hand, or to roll back, run Release COSMOS with any
+commit on COSMOS `main`. "Publish COSMOS images" still runs alone when only the
+images are wanted.
+
+Rollback is a release of an older commit, or a pin pull request with the previous tag followed by the services playbook. The registry keeps every tag. The
 database does not roll back with the code: while COSMOS has no migrations that
 does not matter, and once it does, a release that changed the schema must be
 backward compatible for one version.
 
 The web bundle inside the gateway image and the **installed iPhone app are
-different things**. Step 4 updates what a browser or home-screen web app loads.
+different things**. The deploy job updates what a browser or home-screen web app loads.
 A future Capacitor build carries its own copy of the UI and changes only when
 a new native build is installed. See the COSMOS repo.
 
@@ -100,8 +112,14 @@ Recorded 2026-11-08, accepted by the owner.
   acceptable the moment a second person or an untrusted automation can write to
   AUTOLAB `main`: revisit it then, starting with branch protection and a
   narrower tag for CI.
-- Mitigations in place: the publisher is manual-dispatch and refuses any ref but
-  `main`; builds run before the tailnet connection; the COSMOS checkout uses a
+- The release app can start *any* workflow here, Apply and Destroy included,
+  because GitHub has no per-workflow permission. Its key therefore lives in the
+  COSMOS `release` environment, which only `main` may use, so a branch or a
+  pull request cannot read it. Anyone who can push to COSMOS `main` can deploy
+  COSMOS, and whoever holds the key can dispatch lab workflows: both are the
+  owner alone today.
+- Mitigations in place: the publisher refuses any ref but AUTOLAB `main` and
+  takes only commits on COSMOS `main`; builds run before the tailnet connection; the COSMOS checkout uses a
   read-only deploy key; the app and API are reachable only on the tailnet, behind
   Pocket ID `admins` plus the proxy token.
 - GitHub's `lab` environment should be limited to the `main` branch. Check what
