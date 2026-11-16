@@ -733,7 +733,11 @@ groups:
               # on a coincidence — and when tested, it did not fire at all.
               # count_over_time keeps the container in view for an hour,
               # which is long enough to page and then to notice the page.
-              expr: '(count by (instance, name) (count_over_time(container_last_seen{name!=""}[1h])) unless count by (instance, name) (container_last_seen{name!=""})) and on (instance) (up{job="cadvisor"} == 1)'
+              #
+              # `docker compose run --rm` containers (<project>-<service>-run-<12 hex>)
+              # are one-off jobs meant to disappear: a maintenance script run
+              # through `compose run` paged once per run until they were left out.
+              expr: '(count by (instance, name) (count_over_time(container_last_seen{name!="",name!~".+-run-[0-9a-f]{12}"}[1h])) unless count by (instance, name) (container_last_seen{name!=""})) and on (instance) (up{job="cadvisor"} == 1)'
           - refId: THRESHOLD
             datasourceUid: __expr__
             model:
