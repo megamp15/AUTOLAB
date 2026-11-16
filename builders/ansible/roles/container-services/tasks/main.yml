@@ -142,6 +142,26 @@
     group: root
     mode: "0755"
 
+# RustDesk runs on the host network (see its template), where nothing but ufw
+# keeps its ports tailnet-only. Better to stop than to publish them to the LAN.
+- name: Read the firewall's state
+  ansible.builtin.command: ufw status verbose
+  register: autolab_rustdesk_ufw
+  changed_when: false
+  check_mode: false
+  when: "'rustdesk' in autolab_services_enabled"
+
+- name: Refuse RustDesk without an active default-deny firewall
+  ansible.builtin.assert:
+    that:
+      - "'Status: active' in autolab_rustdesk_ufw.stdout"
+      - "'deny (incoming)' in autolab_rustdesk_ufw.stdout"
+    fail_msg: >-
+      rustdesk runs on the host network, so ufw is what keeps 21115-21117 off the
+      LAN. ufw is not active with a default-deny incoming policy on this machine;
+      run the harden playbook first.
+  when: "'rustdesk' in autolab_services_enabled"
+
 # Holds the server's private key: nothing but root reads it.
 - name: Create RustDesk's key directory
   ansible.builtin.file:

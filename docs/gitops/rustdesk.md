@@ -18,10 +18,12 @@ your Mac ── RustDesk client ──┐                       ┌── lab PC
                          jwst :21115-21117 (hbbs introduces, hbbr relays)
 ```
 
-Enabled by `"rustdesk"` in jwst's `builder.services`. It binds the tailnet
-address only, so a machine that is not on the tailnet cannot reach it at all.
-There is no name under `*.lab.<zone>` and no login page: RustDesk speaks raw
-TCP and UDP, which Traefik cannot carry, so it is outside the ingress.
+Enabled by `"rustdesk"` in jwst's `builder.services`. It runs on the **host
+network**, so the ports listen on every interface and **ufw is what keeps them
+tailnet-only** (default deny incoming, allow on `tailscale0`). The role refuses
+to start it when ufw is not active. There is no name under `*.lab.<zone>` and no
+login page: RustDesk speaks raw TCP and UDP, which Traefik cannot carry, so it is
+outside the ingress.
 
 | port | what | |
 |---|---|---|
@@ -29,7 +31,8 @@ TCP and UDP, which Traefik cannot carry, so it is outside the ingress.
 | 21116 | TCP and UDP, ID registration and hole-punching | hbbs |
 | 21117 | TCP, relay | hbbr |
 
-The web-client ports (21118, 21119) are not published.
+hbbs and hbbr also open 21118 and 21119 (the web client). ufw lets the tailnet
+reach them; nothing uses them.
 
 ## The key
 
@@ -93,8 +96,15 @@ two machines are enrolled and can connect:
   The role passes the tailnet address for this reason, not the MagicDNS name.
 - **Clients only need the ID server.** They learn the relay from it. A relay
   address typed into a client is a second place to be wrong.
-- **Docker bypasses ufw.** The ports bind the tailnet address, never `0.0.0.0`,
-  for the same reason as every other service here.
+- **Published ports hide every client's address.** With ordinary `ports:` Docker's
+  userland proxy sits in front of hbbs, which then records every client as the
+  bridge gateway (`172.20.0.1`) and hands that to the other side as where to reach
+  it, so no direct connection forms and every session relays through jwst. That is
+  why this is the one service on the host network, against the rule everywhere else
+  that Docker bypasses ufw and ports bind the tailnet address. Host networking
+  does not bypass ufw, which is what makes the exception safe. Check it: the peer's
+  address in `db_v2.sqlite3` should be the client's tailnet address, and
+  `21116` must not answer on jwst's LAN address.
 
 ## Moving it to a VPS later
 
