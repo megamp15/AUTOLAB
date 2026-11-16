@@ -118,6 +118,7 @@ autolab_services_images:
   dash: "ghcr.io/gethomepage/homepage:v2.4.0"
   # Both containers, one image: `hbbs` and `hbbr` are its two commands.
   rustdesk: "rustdesk/rustdesk-server:1.1.16"
+  cosmos_db: "postgres:17.11-alpine"
   # The connector for the Paradigm Prints tunnel, pinned with the same
   # version horizon's runs.
   paradigm_tunnel: "cloudflare/cloudflared:2026.9.1"
@@ -140,6 +141,7 @@ autolab_services_ports:
   linkace: "{{ autolab_service_catalog.linkace.port }}"
   sure: "{{ autolab_service_catalog.sure.port }}"
   qr: "{{ autolab_service_catalog.qr.port }}"
+  cosmos: "{{ autolab_service_catalog.cosmos.port }}"
 
 # RustDesk is not HTTP, so it has no entry in the shared port catalog (the
 # ingress would try to route one). Its ports are the protocol's own, and the
@@ -327,6 +329,17 @@ autolab_services_qr_public_url: ""
 # so a new public service is a route there plus a container on the
 # paradigm-public network here. Required when the service is enabled.
 autolab_services_paradigm_tunnel_token: ""
+
+# COSMOS. Built in GitHub Actions by cosmos-publish.yml and pulled from the
+# lab's registry, never built on this host. The tag is the one that workflow
+# printed (<40-hex commit>-<run id>-<attempt>); a new release is a pull request
+# that changes it, like every other pin here. Empty is refused rather than
+# guessed, so the service cannot be enabled before the first publish.
+autolab_services_cosmos_registry: "registry.lab.pmahir.space"
+autolab_services_cosmos_image_tag: ""
+# Kept this many daily logical dumps of the database, on the host's disk. The
+# nightly Proxmox backup of the VM carries them to the NAS.
+autolab_services_cosmos_dump_keep: 14
 
 # Immich Public Proxy. The address shared links are opened at (Immich's own
 # External Domain must say the same), and where Immich answers on the tailnet:

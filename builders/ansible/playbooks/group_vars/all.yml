@@ -102,3 +102,10 @@ autolab_service_catalog:
   # containers meant to be public join that network.
   paradigm-tunnel:
     login: none
+  # COSMOS, the personal hub. Its gateway is the only container with a host
+  # port; the API and Postgres sit on an internal network. Reached at
+  # cosmos.<label>.<zone> by Pocket ID admins only, and the gateway refuses any
+  # request that did not come through Traefik's token. See docs/gitops/cosmos.md.
+  cosmos:
+    port: 8105
+    login: admin

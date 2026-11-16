@@ -84,6 +84,7 @@ Once the host is on Tailscale, work through the [phase 2 setup checklist](docs/g
 | `07 · Proxmox Node` | Bring the hypervisor under Ansible: repositories, accounts, backup target, login screen |
 | `08 · PBS Backup` | Back up a guest, or the nightly job's full scope, right now with the job's own settings |
 | `09 · PBS Restore` | Restore a guest from Proxmox Backup Server — `test` proves a backup boots, `replace` is the disaster button |
+| `Publish COSMOS images` | Manual, `main` only: build the COSMOS images, then push them to the lab registry. See [COSMOS](docs/gitops/cosmos.md) |
 | `99 · OpenTofu Destroy` | Tear the stack down, cleaning Tailscale device records |
 
 `90 · Scripts` and `98 · OpenTofu CI` run automatically on push and pull request.

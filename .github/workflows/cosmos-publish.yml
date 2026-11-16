@@ -1,0 +1,136 @@
+name: Publish COSMOS images
+
+on:
+  workflow_dispatch:
+    inputs:
+      cosmos_sha:
+        description: Full COSMOS commit SHA from main
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cosmos-publish-${{ inputs.cosmos_sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    name: Publish COSMOS ${{ inputs.cosmos_sha }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: lab
+    env:
+      COSMOS_SHA: ${{ inputs.cosmos_sha }}
+      COSMOS_IMAGE_TAG: ${{ inputs.cosmos_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      REGISTRY_HOST: registry.lab.pmahir.space
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate COSMOS commit input
+        shell: bash
+        run: |
+          if [[ ! "$COSMOS_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'cosmos_sha must be a full lowercase 40-character commit SHA' >&2
+            exit 1
+          fi
+
+      - name: Check out COSMOS read-only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: megamp15/COSMOS
+          ref: ${{ inputs.cosmos_sha }}
+          ssh-key: ${{ secrets.COSMOS_DEPLOY_KEY }}
+          path: cosmos
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Confirm commit is on COSMOS main
+        working-directory: cosmos
+        shell: bash
+        run: |
+          git show-ref --verify --quiet refs/remotes/origin/main
+          test "$(git rev-parse HEAD)" = "$COSMOS_SHA"
+          git merge-base --is-ancestor "$COSMOS_SHA" origin/main
+
+      - name: Create Buildx builder
+        run: |
+          docker buildx create --name cosmos-publisher --driver docker-container --use
+          docker buildx inspect --bootstrap
+
+      # Build before connecting Tailscale. Dockerfile RUN steps never get a route to the lab.
+      - name: Build API image locally
+        run: >-
+          docker buildx build
+          --platform linux/amd64
+          --file ./cosmos/Dockerfile
+          --target api
+          --tag "cosmos-api:${COSMOS_IMAGE_TAG}"
+          --provenance=false
+          --load
+          ./cosmos
+
+      - name: Build gateway image locally
+        run: >-
+          docker buildx build
+          --platform linux/amd64
+          --file ./cosmos/Dockerfile
+          --target gateway
+          --tag "cosmos-gateway:${COSMOS_IMAGE_TAG}"
+          --provenance=false
+          --load
+          ./cosmos
+
+      - name: Connect to the lab tailnet
+        uses: ./.github/actions/connect-tailscale
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+          tags: tag:ci-runner
+
+      - name: Verify private registry over TLS
+        run: curl --fail --silent --show-error "https://${REGISTRY_HOST}/v2/" --output /dev/null
+
+      - name: Refuse to overwrite an existing image tag
+        shell: bash
+        run: |
+          for image in cosmos-api cosmos-gateway; do
+            status="$(curl --silent --show-error --connect-timeout 10 --output /dev/null --write-out '%{http_code}' \
+              --header 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+              "https://${REGISTRY_HOST}/v2/${image}/manifests/${COSMOS_IMAGE_TAG}")"
+            if [[ "$status" == "200" ]]; then
+              echo "Refusing to overwrite ${image}:${COSMOS_IMAGE_TAG}" >&2
+              exit 1
+            fi
+            if [[ "$status" != "404" ]]; then
+              echo "Unexpected registry response while checking ${image}:${COSMOS_IMAGE_TAG}: HTTP ${status}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Push images from the runner Docker daemon
+        run: |
+          docker tag "cosmos-api:${COSMOS_IMAGE_TAG}" "${REGISTRY_HOST}/cosmos-api:${COSMOS_IMAGE_TAG}"
+          docker tag "cosmos-gateway:${COSMOS_IMAGE_TAG}" "${REGISTRY_HOST}/cosmos-gateway:${COSMOS_IMAGE_TAG}"
+          docker push "${REGISTRY_HOST}/cosmos-api:${COSMOS_IMAGE_TAG}"
+          docker push "${REGISTRY_HOST}/cosmos-gateway:${COSMOS_IMAGE_TAG}"
+
+      - name: Verify pushed manifests
+        run: |
+          docker buildx imagetools inspect "${REGISTRY_HOST}/cosmos-api:${COSMOS_IMAGE_TAG}"
+          docker buildx imagetools inspect "${REGISTRY_HOST}/cosmos-gateway:${COSMOS_IMAGE_TAG}"
+
+      - name: Record image tags
+        run: |
+          {
+            echo '### COSMOS images published'
+            echo "- COSMOS commit: ${COSMOS_SHA}"
+            echo "- Image tag: ${COSMOS_IMAGE_TAG}"
+            echo "- API image: ${REGISTRY_HOST}/cosmos-api:${COSMOS_IMAGE_TAG}"
+            echo "- Gateway image: ${REGISTRY_HOST}/cosmos-gateway:${COSMOS_IMAGE_TAG}"
+          } >> "$GITHUB_STEP_SUMMARY"

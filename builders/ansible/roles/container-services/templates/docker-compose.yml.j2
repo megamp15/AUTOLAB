@@ -34,10 +34,13 @@ volumes:
 {% if 'tandoor' in autolab_services_enabled %}
   tandoor-static:
 {% endif %}
+{% if 'cosmos' in autolab_services_enabled %}
+  cosmos-data:
+{% endif %}
 
-# Two bridges besides the default, each there to keep something away from
+# Bridges besides the default, each there to keep something away from
 # something else.
-{% if 'dockhand' in autolab_services_enabled or 'qr' in autolab_services_enabled or 'paradigm-tunnel' in autolab_services_enabled %}
+{% if 'dockhand' in autolab_services_enabled or 'qr' in autolab_services_enabled or 'paradigm-tunnel' in autolab_services_enabled or 'cosmos' in autolab_services_enabled %}
 networks:
 {% endif %}
 {% if 'dockhand' in autolab_services_enabled %}
@@ -50,4 +53,12 @@ networks:
   # to be public, nothing else. An admin page, which has no login of its own,
   # is never on it.
   paradigm-public:
+{% endif %}
+{% if 'cosmos' in autolab_services_enabled %}
+  # internal: true gives the API and database no route to the LAN or the
+  # internet. The gateway joins it and cosmos-edge, which is how its published
+  # port works: Docker will not publish a port from an internal-only container.
+  cosmos-backend:
+    internal: true
+  cosmos-edge:
 {% endif %}

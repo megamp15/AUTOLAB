@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Managed by Ansible - roles/container-services. Local edits are overwritten.
+#
+# A restorable dump of COSMOS's database. The file only gets its final name
+# after pg_restore can read it back, so a truncated dump is never mistaken for
+# a backup. The newest {{ autolab_services_cosmos_dump_keep }} are kept.
+set -euo pipefail
+umask 077
+
+dumps="{{ autolab_services_root }}/cosmos/dumps"
+compose=(docker compose --project-directory "{{ autolab_services_root }}")
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+partial="${dumps}/.cosmos-${stamp}.partial"
+trap 'rm -f "$partial"' EXIT
+
+# The single quotes are deliberate: the variables expand inside the container.
+# shellcheck disable=SC2016
+"${compose[@]}" exec -T cosmos-db sh -c 'pg_dump --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --format custom' > "$partial"
+test -s "$partial"
+"${compose[@]}" exec -T cosmos-db pg_restore --list < "$partial" > /dev/null
+mv "$partial" "${dumps}/cosmos-${stamp}.dump"
+
+# Keep the newest N. The names sort by time, so a plain sort is enough.
+find "$dumps" -maxdepth 1 -name 'cosmos-*.dump' | sort -r | tail -n "+$(({{ autolab_services_cosmos_dump_keep }} + 1))" | xargs -r rm --
+echo "COSMOS dump written: cosmos-${stamp}.dump"

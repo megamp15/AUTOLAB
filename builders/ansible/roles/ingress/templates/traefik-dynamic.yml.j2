@@ -47,7 +47,7 @@ http:
       rule: "Host(`{{ name }}.{{ lab }}`)"
       entryPoints: [tailnet-https]
 {%       if svc.login == 'admin' %}
-      middlewares: [oidc-admin, dockhand-upstream]
+      middlewares: [oidc-admin, {{ name }}-upstream]
 {%       elif svc.login == 'plugin' %}
       middlewares: [oidc]
 {%       endif %}
@@ -136,5 +136,11 @@ http:
       headers:
         customRequestHeaders:
           X-Autolab-Dockhand-Token: "{{ autolab_ingress_dockhand_token.content | b64decode | trim }}"
+{% endif %}
+{% if 'cosmos' in autolab_ingress_services %}
+    cosmos-upstream:
+      headers:
+        customRequestHeaders:
+          X-Autolab-Cosmos-Token: "{{ autolab_ingress_cosmos_token.content | b64decode | trim }}"
 {% endif %}
 {% endif %}
