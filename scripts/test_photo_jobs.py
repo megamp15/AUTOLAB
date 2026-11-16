@@ -844,6 +844,26 @@ class NoDate(Library):
             self.app.jobs.start_set_dates(['_no_date/_inbox/loose/IMG_0001.jpg'], '', '', by_name=True)
         self.assertIsNone(self.app.jobs.status())
 
+    def test_a_jpeg_named_cr2_gets_its_real_name_so_it_can_hold_a_date(self):
+        self.put('_no_date/_inbox/loose/2021-09-24_14-20-10_000.cr2', 'J')
+        self.put('_no_date/_inbox/loose/2021-09-24_14-20-11_000.cr2', 'K')
+        self.put('_no_date/_inbox/loose/2021-09-24_14-20-11_000.jpg', 'taken')     # its real name is already used here
+        self.sync_dates()
+        os.environ['FAKE_REALLY_JPEG'] = '.cr2'
+        self.addCleanup(os.environ.pop, 'FAKE_REALLY_JPEG', None)
+        rels = ['_no_date/_inbox/loose/2021-09-24_14-20-10_000.cr2', '_no_date/_inbox/loose/2021-09-24_14-20-11_000.cr2']
+        self.app.jobs.start_set_dates(rels, '', '', by_name=True)
+        job = self.wait()
+        self.assertEqual(job['state'], 'done', job)
+        self.assertEqual([f['src'] for f in job['result']['failed']], [rels[1]])       # the one that cannot be renamed stays and is reported
+        self.assertIn('looks more like', job['result']['failed'][0]['note'])
+        self.assertEqual(self.tree(), ['_inbox/loose/2021-09-24_14-20-10_000.jpg', '_no_date/_inbox/loose/2021-09-24_14-20-11_000.cr2',
+                                       '_no_date/_inbox/loose/2021-09-24_14-20-11_000.jpg'])
+        run = self.app.jobs.run(self.app.jobs.runs()[-1]['id'])
+        moved = [m for m in run['moves'] if m['status'] == 'moved'][0]
+        self.assertIn('date set to 2021-09-24 14:20:10', moved['note'])
+        self.assertIn('named 2021-09-24_14-20-10_000.cr2 but is really a JPG', moved['note'])
+
     def test_only_files_set_aside_for_having_no_date_can_be_dated(self):
         self.put('library/2025/06/dated.jpg', 'x', '2025-06')
         self.put('_inbox/loose/new.jpg', 'y')

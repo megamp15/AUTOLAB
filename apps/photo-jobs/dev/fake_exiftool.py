@@ -23,7 +23,13 @@ dates = json.load(open(dates_file))
 meta = json.load(open(meta_file)) if os.path.exists(meta_file) else {}
 paths = [p for p in args if not p.startswith('-') and p not in ('QuickTimeUTC', '%Y-%m', '%Y-%m-%d %H:%M:%S')]
 writes = [a[1:].split('=', 1) for a in args if re.match(r'^-[\w:-]+=', a)]
+if '-FileTypeExtension' in args:               # what the contents really are; the stand-in says every such file is a JPEG
+    print('jpg')
+    sys.exit(0)
 if writes:
+    if os.environ.get('FAKE_REALLY_JPEG') and any(p.lower().endswith(os.environ['FAKE_REALLY_JPEG']) for p in paths):
+        print('Error: Not a valid CR2 (looks more like a JPEG) - ' + paths[0], file=sys.stderr)
+        sys.exit(1)
     if os.environ.get('FAKE_CANNOT_WRITE') and any(p.endswith(os.environ['FAKE_CANNOT_WRITE']) for p in paths):
         print('Warning: Error writing: format not supported', file=sys.stderr)
         sys.exit(0)

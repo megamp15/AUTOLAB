@@ -95,6 +95,19 @@ def write_date(path, when):
     return ''
 
 
+def real_name(path):
+    """The path with the extension its contents call for, when the file is named as something it is
+    not (a JPEG called .cr2). '' when it is not that, or the right name is already taken."""
+    try:
+        got = subprocess.run(['exiftool', '-s3', '-FileTypeExtension', path], capture_output=True, text=True, timeout=120).stdout.strip().lower()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return ''
+    new = os.path.splitext(path)[0] + '.' + got
+    if not re.fullmatch(r'[a-z0-9]{2,5}', got) or new.lower() == path.lower() or os.path.lexists(new):
+        return ''
+    return new
+
+
 def name_dates(rels, time=''):
     """({rel: moment} for the files whose own name holds a date, [{'src', 'note'}] for the rest).
     The time of day comes from the name when it has one, else from `time`."""
@@ -115,12 +128,20 @@ def set_dates(cfg, rels, when, progress=core._noop, record=None, rejected=()):
     """Date each file, then move the dated ones into _inbox/loose. Returns a run, like an apply:
     the moves can be undone, the dates written stay. `when` is one moment for every file, or a
     {rel: moment} for each its own."""
-    done, failed = [], list(rejected)
+    done, failed, renamed, stamps = [], list(rejected), {}, {}
     for i, rel in enumerate(rels, 1):
         path = cfg.abs(rel)
         mine = when[rel] if isinstance(when, dict) else when
         why = write_date(path, mine) if os.path.isfile(path) else 'the file is no longer there'
+        if 'looks more like' in why:                 # a JPEG named .cr2: ExifTool will not write it until it has its real name
+            fixed = real_name(path)
+            if fixed and not os.rename(path, fixed):
+                renamed[cfg.rel(fixed)] = os.path.basename(path)
+                rel, path = cfg.rel(fixed), fixed
+                why = write_date(path, mine)
         (failed if why else done).append({'src': rel, 'note': why} if why else rel)
+        if not why:
+            stamps[rel] = mine
         progress(i, len(rels), 'writing dates')
     loose = os.path.join(cfg.root, *core.LOOSE)
     taken, moves = set(), []
@@ -132,12 +153,13 @@ def set_dates(cfg, rels, when, progress=core._noop, record=None, rejected=()):
             name = f'{b}_{n}{e}'
         taken.add(name.lower())
         moves.append({'src': rel, 'dst': cfg.rel(os.path.join(loose, name)), 'kind': 'dated',
-                      'why': f'date set to {(when[rel] if isinstance(when, dict) else when)[:10]}'})
+                      'why': f'date set to {stamps[rel][:10]}'})
     run = core.apply_moves(cfg, moves, progress, record)
-    if isinstance(when, dict):                       # each file its own date: say which, in the run
-        for m in run['moves']:
-            if m['status'] == 'moved' and m['src'] in when:
-                m['note'] = 'date set to ' + when[m['src']].replace(':', '-', 2)
+    for m in run['moves']:                           # say in the run which date each file got, and which were renamed
+        if m['status'] == 'moved' and m['src'] in renamed:
+            m['note'] = f'it was named {renamed[m["src"]]} but is really a {os.path.splitext(m["src"])[1][1:].upper()}, so it was renamed'
+        if m['status'] == 'moved' and isinstance(when, dict):
+            m['note'] = ('; '.join(x for x in (f'date set to {stamps[m["src"]].replace(":", "-", 2)}', m['note']) if x))
     run['moves'] += [{'src': f['src'], 'dst': '', 'kind': 'dated', 'status': 'error', 'note': f['note']} for f in failed]
     if isinstance(when, dict):
         run['dated_by_name'] = True
