@@ -1,7 +1,7 @@
 ---
 name: autolab
 description: "Explain and help operate the owner's homelab from the AUTOLAB repository checkout."
-version: 1.0.0
+version: 1.1.0
 author: AUTOLAB
 license: MIT
 platforms: [linux]
@@ -40,7 +40,19 @@ Prefer the docs over guessing from code; the docs say why.
   configured; alert state and metrics are read-only.
 - Tell the owner the exact workflow, inputs and order to run, and what to
   check first (`confirm: check` before `apply`, always).
-- Draft a change as a patch or a branch for the owner to review.
+- Describe a change in words for the owner or a coding agent to make. You
+  are the reader and explainer here; write patches or branches only when
+  the owner asks for one in the moment.
+
+## Drift
+
+`docs/gitops/definition-of-done.md` lists every surface that must agree
+with what is deployed: the home page, dash, the services table, each
+service's page. When you read the checkout and a surface disagrees with the
+machines map or the catalog (a service that runs but has no tile, a doc
+that names a removed container), tell the owner which surface and what it
+should say. When you explain how to add or change a service, give those
+surfaces as part of the steps.
 
 ## What you may not do
 

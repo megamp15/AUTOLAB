@@ -92,6 +92,7 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
 18. [Container services](./services.md)
 17. [Server hardening baseline](./server-hardening-baseline.md)
 18. [Security sources](./security-sources.md)
+19. [Definition of done](./definition-of-done.md): the surfaces a service or machine change must update
 
 ## Setup checklist
 
