@@ -450,7 +450,7 @@ autolab_services_registry_delete_enabled: true
 # same corruption story as Postgres). The vault is a git checkout under
 # hermes/vault; GitHub holds the durable copy, so neither needs the NAS.
 # Both are owned by the operator account, and the container runs as it.
-autolab_services_hermes_memory: 1536m
+autolab_services_hermes_memory: 2g
 autolab_services_hermes_cpus: 1
 # The notes vault Hermes works in: a private GitHub repository, cloned once
 # and pushed to by the agent. The token is a fine-grained PAT with Contents
@@ -474,15 +474,16 @@ autolab_services_hermes_whatsapp_number: ""
 autolab_services_hermes_sure_url: "{{ autolab_services_sure_public_url }}"
 autolab_services_hermes_sure_api_key: ""
 autolab_services_hermes_autolab_repo: "https://github.com/megamp15/AUTOLAB.git"
-# The dashboard: a second container, same image, `hermes dashboard` bound to
-# 0.0.0.0 inside, published on the tailnet address only, routed by Traefik
-# as hermes.<label>.<zone> behind Pocket ID. A non-loopback bind makes Hermes
-# insist on a login of its own: username and password, generated once on the
-# host into /etc/autolab/hermes-dashboard.env. public_url and trusted_proxies
-# tell it the name it is reached at and that Traefik's forwarded headers are
-# honest; the tailnet CGNAT range is the bounded CIDR, since horizon's
-# address is not known to this role.
-autolab_services_hermes_dashboard_memory: 512m
+# The dashboard: the same container as the gateway (HERMES_DASHBOARD), bound
+# to 0.0.0.0 inside, published on the tailnet address only, routed by Traefik
+# as hermes.<label>.<zone> behind Pocket ID. It was a second container once;
+# its Chat page attaches to the gateway over loopback, so it could not
+# connect. A non-loopback bind makes Hermes insist on a login of its own:
+# username and password, generated once on the host into
+# /etc/autolab/hermes-dashboard.env. public_url and trusted_proxies tell it
+# the name it is reached at and that Traefik's forwarded headers are honest;
+# the tailnet CGNAT range is the bounded CIDR, since horizon's address is not
+# known to this role.
 autolab_services_hermes_public_url: "https://hermes.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
 autolab_services_hermes_dashboard_user: megamp15
 autolab_services_hermes_trusted_proxies: ["100.64.0.0/10"]

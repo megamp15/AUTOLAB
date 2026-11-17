@@ -110,8 +110,8 @@ autolab_service_catalog:
     port: 8105
     login: admin
   # Hermes, the owner's agent. The gateway dials out (WhatsApp, the model
-  # provider, GitHub) and has no port; this port is its dashboard, a second
-  # container from the same image: sessions, chat, config, logs. Behind the
+  # provider, GitHub) and has no port; this port is its dashboard, run in
+  # the same container: sessions, chat, config, logs. Behind the
   # passkey and then its own login, because it edits the file that holds the
   # agent's keys. See docs/gitops/hermes.md.
   hermes:

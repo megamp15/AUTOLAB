@@ -1,8 +1,14 @@
-  # Hermes Agent: the owner's WhatsApp agent. Outbound only (WhatsApp over the
-  # Baileys bridge, the model provider, GitHub), so no port and no Traefik
-  # route. The gateway's own API server stays off. It runs as the operator
-  # account over two bind mounts: its state and the vault checkout. No Docker
-  # socket: an agent with a shell does not also get the daemon.
+  # Hermes Agent: the owner's WhatsApp agent. The gateway is outbound only
+  # (WhatsApp over the Baileys bridge, the model provider, GitHub) and its
+  # own API server stays off. It runs as the operator account over its state
+  # and the vault checkout. No Docker socket: an agent with a shell does not
+  # also get the daemon.
+  #
+  # The dashboard runs in this same container (HERMES_DASHBOARD, the image's
+  # own supervised slot), and is the one published port. It has to: its Chat
+  # page attaches to the gateway on a loopback port, which a sibling
+  # container cannot reach. Its own login sits on top of the passkey, because
+  # it reads and writes .env.
   # See docs/gitops/hermes.md.
   hermes:
     image: {{ autolab_services_images.hermes }}
@@ -13,12 +19,17 @@
     env_file:
       - path: {{ autolab_services_root }}/hermes/data/.env
         required: true
+      - path: /etc/autolab/hermes-dashboard.env
+        required: true
     environment:
       # The image remaps its internal user to these at start, so files it
       # writes stay the operator's on the host.
       HERMES_UID: "{{ ansible_facts.getent_passwd.megamp15[1] }}"
       HERMES_GID: "{{ ansible_facts.getent_group.megamp15[1] }}"
       TZ: "{{ autolab_services_timezone }}"
+      HERMES_DASHBOARD: "1"
+      HERMES_DASHBOARD_PORT: "9119"
+      HERMES_DASHBOARD_PUBLIC_URL: "{{ autolab_services_hermes_public_url }}"
       GIT_AUTHOR_NAME: "{{ autolab_services_hermes_git_name }}"
       GIT_AUTHOR_EMAIL: "{{ autolab_services_hermes_git_email }}"
       GIT_COMMITTER_NAME: "{{ autolab_services_hermes_git_name }}"
@@ -32,43 +43,10 @@
     mem_limit: {{ autolab_services_hermes_memory }}
     cpus: {{ autolab_services_hermes_cpus }}
     healthcheck:
-      test: ["CMD-SHELL", "hermes gateway status >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "hermes gateway status >/dev/null 2>&1 && curl -fsS -o /dev/null http://127.0.0.1:9119/api/status || exit 1"]
       start_period: 90s
       interval: 60s
       timeout: 15s
-      retries: 3
-
-  # The dashboard over the same state directory: sessions, chat, config,
-  # keys, logs, cron, skills. Its own login on top of the passkey, because
-  # it reads and writes .env. The gateway socket is in the shared mount, so
-  # its Chat page talks to the same agent WhatsApp does.
-  hermes-dashboard:
-    image: {{ autolab_services_images.hermes }}
-    restart: unless-stopped
-    command: ["dashboard", "--host", "0.0.0.0", "--port", "9119", "--no-open"]
-    security_opt:
-      - no-new-privileges
-    depends_on: [hermes]
-    env_file:
-      - path: {{ autolab_services_root }}/hermes/data/.env
-        required: true
-      - path: /etc/autolab/hermes-dashboard.env
-        required: true
-    environment:
-      HERMES_UID: "{{ ansible_facts.getent_passwd.megamp15[1] }}"
-      HERMES_GID: "{{ ansible_facts.getent_group.megamp15[1] }}"
-      TZ: "{{ autolab_services_timezone }}"
-      HERMES_DASHBOARD_PUBLIC_URL: "{{ autolab_services_hermes_public_url }}"
-    volumes:
-      - {{ autolab_services_root }}/hermes/data:/opt/data
-      - {{ autolab_services_root }}/hermes/vault:/workspace/vault
-      - {{ autolab_services_root }}/hermes/autolab:/workspace/autolab:ro
-    mem_limit: {{ autolab_services_hermes_dashboard_memory }}
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:9119/api/status || exit 1"]
-      start_period: 60s
-      interval: 60s
-      timeout: 10s
       retries: 3
     ports:
       - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.hermes }}:9119"
