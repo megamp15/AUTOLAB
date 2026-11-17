@@ -879,6 +879,26 @@
   notify: Restart the services stack
   when: "'hermes' in autolab_services_enabled"
 
+# The dashboard's own login, made once and kept: username, a password, and
+# the key its sessions are signed with. Rotating is deleting the file and
+# rerunning. Read it with `sudo cat /etc/autolab/hermes-dashboard.env`.
+- name: Create the Hermes dashboard login once
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      umask 077
+      f=$(mktemp /etc/autolab/.hermes-dashboard.XXXXXX)
+      trap 'rm -f "$f"' EXIT
+      {
+        echo "HERMES_DASHBOARD_BASIC_AUTH_USERNAME={{ autolab_services_hermes_dashboard_user }}"
+        echo "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=$(openssl rand -hex 16)"
+        echo "HERMES_DASHBOARD_BASIC_AUTH_SECRET=$(openssl rand -base64 32)"
+      } > "$f"
+      mv "$f" /etc/autolab/hermes-dashboard.env
+    creates: /etc/autolab/hermes-dashboard.env
+  no_log: true
+  when: "'hermes' in autolab_services_enabled"
+
 - name: Seed Hermes's configuration
   ansible.builtin.template:
     src: hermes/config.yaml.j2
@@ -887,6 +907,23 @@
     group: megamp15
     mode: "0600"
     force: false
+  when: "'hermes' in autolab_services_enabled"
+
+# The one part of config.yaml the role keeps owning after the seed: where the
+# dashboard is reached and which proxies it may believe. A marked block at
+# the end of the file, so Hermes's own edits above it are left alone.
+- name: Tell the Hermes dashboard its address
+  ansible.builtin.blockinfile:
+    path: "{{ autolab_services_root }}/hermes/data/config.yaml"
+    marker: "# {mark} ANSIBLE MANAGED: dashboard behind Traefik"
+    block: |
+      dashboard:
+        public_url: "{{ autolab_services_hermes_public_url }}"
+        trusted_proxies: {{ autolab_services_hermes_trusted_proxies | to_json }}
+    owner: megamp15
+    group: megamp15
+    mode: "0600"
+  notify: Restart the services stack
   when: "'hermes' in autolab_services_enabled"
 
 - name: Assemble the services compose file

@@ -37,3 +37,38 @@
       interval: 60s
       timeout: 15s
       retries: 3
+
+  # The dashboard over the same state directory: sessions, chat, config,
+  # keys, logs, cron, skills. Its own login on top of the passkey, because
+  # it reads and writes .env. The gateway socket is in the shared mount, so
+  # its Chat page talks to the same agent WhatsApp does.
+  hermes-dashboard:
+    image: {{ autolab_services_images.hermes }}
+    restart: unless-stopped
+    command: ["dashboard", "--host", "0.0.0.0", "--port", "9119", "--no-open"]
+    security_opt:
+      - no-new-privileges
+    depends_on: [hermes]
+    env_file:
+      - path: {{ autolab_services_root }}/hermes/data/.env
+        required: true
+      - path: /etc/autolab/hermes-dashboard.env
+        required: true
+    environment:
+      HERMES_UID: "{{ ansible_facts.getent_passwd.megamp15[1] }}"
+      HERMES_GID: "{{ ansible_facts.getent_group.megamp15[1] }}"
+      TZ: "{{ autolab_services_timezone }}"
+      HERMES_DASHBOARD_PUBLIC_URL: "{{ autolab_services_hermes_public_url }}"
+    volumes:
+      - {{ autolab_services_root }}/hermes/data:/opt/data
+      - {{ autolab_services_root }}/hermes/vault:/workspace/vault
+      - {{ autolab_services_root }}/hermes/autolab:/workspace/autolab:ro
+    mem_limit: {{ autolab_services_hermes_dashboard_memory }}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:9119/api/status || exit 1"]
+      start_period: 60s
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.hermes }}:9119"
