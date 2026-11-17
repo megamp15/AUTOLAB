@@ -845,9 +845,37 @@
     # The file tools may write the vault and nothing else; the shell is still
     # the operator account inside the container, see the doc.
     - {key: HERMES_WRITE_SAFE_ROOT, value: "/workspace/vault"}
+    # Sure, read-only: the finance skill reads these.
+    - {key: SURE_URL, value: "{{ autolab_services_hermes_sure_url }}"}
+    - {key: SURE_API_KEY, value: "{{ autolab_services_hermes_sure_api_key }}"}
   loop_control:
     label: "{{ item.key }}"
   no_log: true
+  notify: Restart the services stack
+  when: "'hermes' in autolab_services_enabled"
+
+# The public AUTOLAB repository, refreshed every run: the agent reads it
+# through a read-only mount and never commits there.
+- name: Refresh the AUTOLAB checkout for Hermes
+  ansible.builtin.git:
+    repo: "{{ autolab_services_hermes_autolab_repo }}"
+    dest: "{{ autolab_services_root }}/hermes/autolab"
+    version: main
+    depth: 1
+    force: true
+  become: true
+  become_user: megamp15
+  when: "'hermes' in autolab_services_enabled and not ansible_check_mode"
+
+# The lab's own skills, beside the bundled ones. A skill is a folder with a
+# SKILL.md; Hermes picks them up at the next gateway start.
+- name: Install the lab's Hermes skills
+  ansible.builtin.copy:
+    src: hermes/skills/
+    dest: "{{ autolab_services_root }}/hermes/data/skills/autolab-lab/"
+    owner: megamp15
+    group: megamp15
+    mode: "u=rwX,go="
   notify: Restart the services stack
   when: "'hermes' in autolab_services_enabled"
 

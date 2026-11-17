@@ -134,6 +134,41 @@ to the checkout by `HERMES_WRITE_SAFE_ROOT`. The shell is not: it is the
 operator account inside the container, which sees the two mounts and nothing
 else of the host.
 
+## Context
+
+The point of Hermes is to be the agent that knows the owner's context. What
+it reaches, and how, in order of trust:
+
+| what | how | credential |
+|---|---|---|
+| the vault | checkout at `/workspace/vault`, read and write | fine-grained PAT, one repo |
+| the owner's finances | Sure's API from the `finance-sure` skill; GETs only | `HERMES_SURE_API_KEY`, a **read-only** key |
+| the lab itself | the public AUTOLAB repository at `/workspace/autolab`, read-only mount, refreshed every run; the `autolab` skill | none |
+| Grafana, Prometheus, Loki | mcp-grafana, when wired into `mcp_servers` | the Viewer service account |
+
+The two lab skills are installed under `data/skills/autolab-lab/` from
+`files/hermes/skills/`, next to the bundled ones. They say what the agent may
+do and, more to the point, what it may not: no writes to Sure, no financial
+detail into the vault, no secrets, no pushing the lab from the checkout. It
+advises on AUTOLAB; the owner dispatches the workflows.
+
+What this costs, said once: every finance answer passes through the model
+provider, OpenAI for the main model. Read-only keys and mounts bound the
+damage from a prompt injected through a fetched page to disclosure, not
+change. Keep `approvals.mode: smart` on; it is the gate on dangerous shell
+commands.
+
+Not here yet: a read-only NAS mount (which shares is the owner's call), an
+Immich read key from a dedicated user, and a workflow-dispatch token for
+check-mode runs.
+
+### Sure's own assistant
+
+Separately from Hermes, Sure's in-app AI chat runs on any OpenAI-compatible
+endpoint. In Sure: Settings → Self-Hosting → AI: base URL
+`https://opencode.ai/zen/go/v1`, a Go service-account key of its own, model
+`kimi-k3`. No redeploy. A ChatGPT subscription cannot be used there.
+
 ## Secrets
 
 | secret | what |
@@ -141,6 +176,7 @@ else of the host.
 | `HERMES_OPENCODE_GO_API_KEY` | the OpenCode Go key, from opencode.ai after subscribing |
 | `HERMES_WHATSAPP_NUMBER` | the owner's number, country code first, digits only |
 | `COSMOS_VAULT_TOKEN` | GitHub fine-grained PAT, Contents read/write, `megamp15/cosmos-vault` only |
+| `HERMES_SURE_API_KEY` | a read-only API key from Sure, Settings → API keys |
 
 All three are repository-level secrets read by workflow 05 and only used on
 a machine whose services list has `hermes`. The Codex login and the WhatsApp

@@ -26,6 +26,9 @@
     volumes:
       - {{ autolab_services_root }}/hermes/data:/opt/data
       - {{ autolab_services_root }}/hermes/vault:/workspace/vault
+      # The lab's own repository, so the agent can explain it. Read-only: it
+      # advises; the owner runs the workflows.
+      - {{ autolab_services_root }}/hermes/autolab:/workspace/autolab:ro
     mem_limit: {{ autolab_services_hermes_memory }}
     cpus: {{ autolab_services_hermes_cpus }}
     healthcheck:

@@ -397,6 +397,7 @@ jobs:
           AUTOLAB_HERMES_OPENCODE_GO_API_KEY: ${{ secrets.HERMES_OPENCODE_GO_API_KEY }}
           AUTOLAB_HERMES_WHATSAPP_NUMBER: ${{ secrets.HERMES_WHATSAPP_NUMBER }}
           AUTOLAB_COSMOS_VAULT_TOKEN: ${{ secrets.COSMOS_VAULT_TOKEN }}
+          AUTOLAB_HERMES_SURE_API_KEY: ${{ secrets.HERMES_SURE_API_KEY }}
           # AdventureLog: Pocket ID's client for it, and the email of the
           # account that exists from its first boot (your Pocket ID email, so
           # the first sign-in attaches to it). Only matter on a machine whose
@@ -459,6 +460,7 @@ jobs:
               "autolab_services_hermes_opencode_go_api_key": os.environ.get("AUTOLAB_HERMES_OPENCODE_GO_API_KEY", ""),
               "autolab_services_hermes_whatsapp_number": os.environ.get("AUTOLAB_HERMES_WHATSAPP_NUMBER", ""),
               "autolab_services_hermes_vault_token": os.environ.get("AUTOLAB_COSMOS_VAULT_TOKEN", ""),
+              "autolab_services_hermes_sure_api_key": os.environ.get("AUTOLAB_HERMES_SURE_API_KEY", ""),
               "autolab_services_adventurelog_immich_api_key": os.environ.get("AUTOLAB_ADVENTURELOG_IMMICH_API_KEY", ""),
               "autolab_services_adventurelog_oidc_client_id": os.environ.get("AUTOLAB_ADVENTURELOG_OIDC_CLIENT_ID", ""),
               "autolab_services_adventurelog_oidc_client_secret": os.environ.get("AUTOLAB_ADVENTURELOG_OIDC_CLIENT_SECRET", ""),
