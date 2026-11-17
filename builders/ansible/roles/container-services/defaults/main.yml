@@ -466,6 +466,13 @@ autolab_services_hermes_model: "kimi-k3"
 # no plus (HERMES_WHATSAPP_NUMBER). A phone number is personal data, so a
 # secret rather than a variable.
 autolab_services_hermes_whatsapp_number: ""
+# Hermes's context. Sure's API with a read-only key (HERMES_SURE_API_KEY), so
+# it can answer money questions from the source of truth. Unset: the finance
+# skill is installed but the key is absent and the agent says so. The public
+# AUTOLAB repository, cloned read-only so it knows the lab.
+autolab_services_hermes_sure_url: "{{ autolab_services_sure_public_url }}"
+autolab_services_hermes_sure_api_key: ""
+autolab_services_hermes_autolab_repo: "https://github.com/megamp15/AUTOLAB.git"
 autolab_services_hermes_git_name: "Hermes"
 autolab_services_hermes_git_email: "hermes@jwst.lab"
 
