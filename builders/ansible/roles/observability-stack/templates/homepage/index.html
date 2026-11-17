@@ -257,6 +257,8 @@
   .ai .a-canvas[data-focus="sub"] .a-ai-sub, .ai .a-canvas[data-focus="sub"] .a-ai-sub-core, .ai .a-canvas[data-focus="sub"] .a-p-sub,
   .ai .a-canvas[data-focus="key"] .a-ai-key, .ai .a-canvas[data-focus="key"] .a-p-key,
   .ai .a-canvas[data-focus="ro"] .a-ai-ro, .ai .a-canvas[data-focus="none"] .a-ai-none { opacity:1; }
+  /* One column on a phone: a wire would run through the cards, so none. */
+  @media (max-width:900px) { .ai .a-wires { display:none; } .ai .a-row { margin-bottom:40px; } }
   .ai .a-row-edge { grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr)); }
   .ai .a-band { position:relative; z-index:2; font-size:10px; letter-spacing:.2em; text-transform:uppercase; opacity:.6; margin:0 0 8px; }
   .a-planned { border-style:dashed; opacity:.72; }
