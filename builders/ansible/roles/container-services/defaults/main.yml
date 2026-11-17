@@ -474,6 +474,14 @@ autolab_services_hermes_whatsapp_number: ""
 autolab_services_hermes_sure_url: "{{ autolab_services_sure_public_url }}"
 autolab_services_hermes_sure_api_key: ""
 autolab_services_hermes_autolab_repo: "https://github.com/megamp15/AUTOLAB.git"
+# Tier two: a fine-grained token with Actions read and write on the AUTOLAB
+# repository and nothing else (HERMES_AUTOLAB_DISPATCH_TOKEN). With it Hermes
+# may dispatch 03 and 05 and read runs; it cannot push, merge or read
+# secrets. GitHub cannot narrow a token to a workflow or to check mode, so
+# "only after the owner's yes for that run" is the skill's rule, not the
+# token's. Unset: the skill says there is no token and Hermes only advises.
+autolab_services_hermes_dispatch_token: ""
+autolab_services_hermes_dispatch_repo: "megamp15/AUTOLAB"
 # The dashboard: the same container as the gateway (HERMES_DASHBOARD), bound
 # to 0.0.0.0 inside, published on the tailnet address only, routed by Traefik
 # as hermes.<label>.<zone> behind Pocket ID. It was a second container once;

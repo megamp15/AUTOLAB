@@ -848,6 +848,9 @@
     # Sure, read-only: the finance skill reads these.
     - {key: SURE_URL, value: "{{ autolab_services_hermes_sure_url }}"}
     - {key: SURE_API_KEY, value: "{{ autolab_services_hermes_sure_api_key }}"}
+    # Workflow dispatch on the lab's repository; the autolab skill has the rules.
+    - {key: AUTOLAB_REPO, value: "{{ autolab_services_hermes_dispatch_repo }}"}
+    - {key: AUTOLAB_DISPATCH_TOKEN, value: "{{ autolab_services_hermes_dispatch_token }}"}
   loop_control:
     label: "{{ item.key }}"
   no_log: true

@@ -176,13 +176,33 @@ it reaches, and how, in order of trust:
 | the vault | checkout at `/workspace/vault`, read and write | fine-grained PAT, one repo |
 | the owner's finances | Sure's API from the `finance-sure` skill; GETs only | `HERMES_SURE_API_KEY`, a **read-only** key |
 | the lab itself | the public AUTOLAB repository at `/workspace/autolab`, read-only mount, refreshed every run; the `autolab` skill | none |
+| the lab's workflows | dispatch 03 and 05 and read runs, each run on the owner's yes in the chat | `HERMES_AUTOLAB_DISPATCH_TOKEN`, Actions read and write on this repository only |
 | Grafana, Prometheus, Loki | mcp-grafana, when wired into `mcp_servers` | the Viewer service account |
 
 The two lab skills are installed under `data/skills/autolab-lab/` from
 `files/hermes/skills/`, next to the bundled ones. They say what the agent may
 do and, more to the point, what it may not: no writes to Sure, no financial
-detail into the vault, no secrets, no pushing the lab from the checkout. It
-advises on AUTOLAB; the owner dispatches the workflows.
+detail into the vault, no secrets, no pushing the lab from the checkout.
+
+### Dispatching workflows
+
+So the owner can merge a pull request and say "deploy it" on WhatsApp rather
+than open GitHub. Hermes states the workflow, the inputs and what will
+change, waits for a yes to that one run, runs check, reports, and asks again
+before apply. Only 03 and 05; 04, the node and the backup workflows stay
+with the owner.
+
+The gate is soft. A fine-grained token cannot be limited to one workflow or
+to check mode, so the yes-per-run rule lives in the `autolab` skill and in
+the owner's standing boundary in Hermes's memory, not in GitHub. The worst
+case is a fetched page talking the agent into an apply. The hard version,
+if it is ever wanted: put the apply jobs behind a GitHub environment with
+the owner as required reviewer, one tap in the mobile app per apply.
+
+The token: github.com → Settings → Developer settings → Fine-grained tokens;
+repository access `megamp15/AUTOLAB` only; permissions Actions: read and
+write, nothing else. Then `gh secret set HERMES_AUTOLAB_DISPATCH_TOKEN` and
+a `05 services` run.
 
 What this costs, said once: every finance answer passes through the model
 provider, OpenAI for the main model. Read-only keys and mounts bound the
@@ -190,9 +210,8 @@ damage from a prompt injected through a fetched page to disclosure, not
 change. Keep `approvals.mode: smart` on; it is the gate on dangerous shell
 commands.
 
-Not here yet: a read-only NAS mount (which shares is the owner's call), an
-Immich read key from a dedicated user, and a workflow-dispatch token for
-check-mode runs.
+Not here yet: a read-only NAS mount (which shares is the owner's call) and
+an Immich read key from a dedicated user.
 
 ### Sure's own assistant
 
@@ -209,8 +228,9 @@ endpoint. In Sure: Settings → Self-Hosting → AI: base URL
 | `HERMES_WHATSAPP_NUMBER` | the owner's number, country code first, digits only |
 | `COSMOS_VAULT_TOKEN` | GitHub fine-grained PAT, Contents read/write, `megamp15/cosmos-vault` only |
 | `HERMES_SURE_API_KEY` | a read-only API key from Sure, Settings → API keys |
+| `HERMES_AUTOLAB_DISPATCH_TOKEN` | GitHub fine-grained PAT, Actions read/write, `megamp15/AUTOLAB` only |
 
-All three are repository-level secrets read by workflow 05 and only used on
+All are repository-level secrets read by workflow 05 and only used on
 a machine whose services list has `hermes`. The Codex login and the WhatsApp
 session are created on the host and never pass through GitHub.
 
