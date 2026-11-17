@@ -24,8 +24,9 @@ this is how.
    Neither is generated from the catalog. A service with a page a person
    opens has both; a service without one has neither.
 3. A card's access label ("Tailscale + Pocket ID", "Public + Pocket ID") is
-   worked out from its URL. A service reachable two ways gets a card per
-   way, so the page says so.
+   worked out from its URL, so link the one name people use. A service has
+   one name: when it moves from `*.lab` to a public name, the card, the
+   tile and `CTR_APPS` move with it.
 4. A card's `check` runs from jwst against the tailnet address: `http` when
    a health path answers without a login, `tcp` when it answers only to its
    own name or behind a token.

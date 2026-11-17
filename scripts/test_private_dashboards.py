@@ -109,6 +109,12 @@ class PrivateDashboardTests(unittest.TestCase):
         role = (ROLE / "defaults/main.yml").read_text() + (ROLE / "templates/traefik-dynamic.yml.j2").read_text()
         self.assertNotIn("paradigm", role)
 
+    def test_a_service_moved_to_a_public_name_has_no_lab_name(self):
+        config = self.render(service_hosts={"qr": "jwst.tail.example", "dash": "jwst.tail.example"})
+        self.assertNotIn("lab-qr", config["routers"])
+        self.assertNotIn("lab-qr", config["services"])
+        self.assertIn("lab-dash", config["routers"])
+
     def test_home_has_no_route_without_login(self):
         self.assertNotIn("lab-home", self.render(plugin=False)["routers"])
 

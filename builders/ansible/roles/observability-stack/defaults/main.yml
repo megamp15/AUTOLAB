@@ -447,27 +447,18 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.hermes.port }}/api/status"
+  # Public, behind the passkey: the people who use it are not on the tailnet.
+  # The check is the app's own port on the tailnet, so the row says whether
+  # the app is up, not whether the tunnel is (the Pocket ID row says that).
   - name: QR codes
     group: services
     meta: redirects
-    url: "{{ autolab_obs_lab_url.format(name='qr', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog.qr.port) }}"
+    url: "https://qr.{{ autolab_obs_public_zone }}"
     icon: repo
     enabled: "{{ 'qr' in ((autolab_builder | default({})).services | default([])) }}"
     check:
       type: tcp
       target: "{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.qr.port }}"
-  # The same admin page from off the tailnet, for the Paradigm Prints people:
-  # through the tunnel, behind the passkey. Probed through Cloudflare like the
-  # Pocket ID row: the plugin's 401 is up, a dead tunnel's 530 is down.
-  - name: QR codes · public
-    group: services
-    meta: off the tailnet
-    url: "https://qr.{{ autolab_obs_public_zone }}"
-    icon: repo
-    enabled: "{{ 'qr' in ((autolab_builder | default({})).services | default([])) and autolab_obs_public_zone | length > 0 }}"
-    check:
-      type: http
-      target: "https://qr.{{ autolab_obs_public_zone }}/healthz"
   # Immich runs in the NAS's own Docker and signs people in through Pocket
   # ID itself; the ingress role's NAS apps give it its name.
   - name: Immich

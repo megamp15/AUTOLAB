@@ -18,7 +18,8 @@ through the Cloudflare tunnel.
 | an app in the NAS's own Docker | `autolab_ingress_nas_apps` |
 | something in another Stack the lab inventory cannot see | `autolab_ingress_extra_routes` in `playbooks/ingress.yml` |
 | public, no login (a shared link) | `autolab_ingress_public_routes`, plus the label in `infra/stacks/cloudflare/ingress.auto.tfvars` |
-| public, behind the passkey | the same, with `groups`: `docs/gitops/ingress.md`, "A public name behind the passkey" |
+| public under the Paradigm Prints domain | the container joins the `paradigm-public` network; the hostname is added by hand in that Cloudflare account (`docs/gitops/qr.md`, "The Paradigm tunnel"). Nothing sits in front of it, so only a container that is safe to be public |
+| public, behind the passkey | the same, with `groups`, and `lab: false` on its catalog entry so it has one name: `docs/gitops/ingress.md`, "A public name behind the passkey" |
 
 Names: a hypervisor by its node name, everything else by what it is
 (`pbs`, `nas`, `home`), never by the machine it happens to be on.

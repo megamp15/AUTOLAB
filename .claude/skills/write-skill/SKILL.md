@@ -72,8 +72,11 @@ Blocks, called by the tasks:
 | `surfaces` | home, dash and the docs agree with what is deployed |
 | `secret` | a secret or variable from GitHub to the role that reads it |
 | `observe` | a machine or container shows up in Grafana, alerts and home |
+| `inspect-host` | look at a running machine without changing it |
+| `prove` | break it on purpose and see it caught |
+| `record-decision` | an ADR, a term, the roadmap |
 
-Tasks:
+Building and changing the lab:
 
 | skill | the job |
 |---|---|
@@ -81,9 +84,28 @@ Tasks:
 | `service` | add, change, move or remove a container service |
 | `route` | a name under `*.lab` or on the internet for something that runs |
 | `pocket-id` | groups, logins, users, a refused sign-in |
-| `updates` | package updates and reboots, VMs and nodes |
-| `backup-restore` | back up now, prove a restore, find why a backup failed |
 | `proxmox-node` | configure a hypervisor, onboard a new one, build a template |
 | `nas` | the NAS's Docker projects, mounts and export rules |
 | `tailnet-access` | who can reach what over Tailscale |
 | `tenant` | someone else's VMs on these hypervisors |
+| `ansible-role` | a new role or playbook in the house style |
+
+Keeping it running:
+
+| skill | the job |
+|---|---|
+| `updates` | package updates and reboots, VMs and nodes |
+| `bump-version` | a pinned image, plugin, provider or action |
+| `backup-restore` | back up now, prove a restore, find why a backup failed |
+| `alert` | an alert fired or something is down |
+| `recover` | rebuild or restore a lost machine, node or identity |
+
+What runs on it:
+
+| skill | the job |
+|---|---|
+| `homepage` | the lab's own home page |
+| `app-fork` | a change to an upstream app's code, through Forgejo |
+| `cosmos-release` | release or roll back COSMOS |
+| `hermes-agent` | what the WhatsApp agent knows and reaches |
+| `finance-upkeep` | the recurring chores on the deployed Sure |

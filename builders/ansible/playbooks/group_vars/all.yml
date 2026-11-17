@@ -54,15 +54,17 @@ autolab_service_catalog:
   dash:
     port: 8096
     login: plugin
-  # QR codes that redirect. The admin page is the catalog port, behind the
-  # passkey at qr.<label>.<zone> and, for the Paradigm Prints people, at the
-  # public qr.<zone> (the ingress playbook). The redirect side has no port on the host at
-  # all: it joins the paradigm-public network, where paradigm-tunnel carries it
-  # out through a tunnel in another Cloudflare account, never touching
-  # horizon's Traefik.
+  # QR codes that redirect. The admin page is the catalog port, reached only
+  # at the public qr.<zone>, behind the passkey (the ingress playbook's public
+  # routes): the people who use it are not on the tailnet, and one name is
+  # one thing to manage. `lab: false` keeps it from also getting a *.lab
+  # name. The redirect side has no port on the host at all: it joins the
+  # paradigm-public network, where paradigm-tunnel carries it out through a
+  # tunnel in another Cloudflare account, never touching horizon's Traefik.
   qr:
     port: 8097
     login: plugin
+    lab: false
   # AdventureLog: the travel log. `own`, not `plugin`: it keeps a user per
   # person (their adventures, their Immich key), so it signs people in itself
   # with Pocket ID's OpenID Connect and the plugin in front would be a second,
