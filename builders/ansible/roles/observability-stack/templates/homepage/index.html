@@ -594,7 +594,7 @@
     const CTR_APPS = { grafana: () => byName.Grafana, loki: () => byName.Loki, prometheus: () => labUrl('prometheus'),
       homepage: () => labUrl('home'), 'code-server': () => labUrl('code-server'), dockhand: () => labUrl('dockhand'),
       registry: () => labUrl('registry-ui'), 'registry-ui': () => labUrl('registry-ui'), dash: () => labUrl('dash'),
-      qr: () => labUrl('qr'), adventurelog: () => labUrl('adventurelog'), forgejo: () => labUrl('forgejo'), tandoor: () => labUrl('tandoor'), airtrail: () => labUrl('airtrail'), linkace: () => labUrl('linkace'), sure: () => labUrl('sure'), cosmos: () => labUrl('cosmos'), pihole: () => byName['Pi-hole'], 'pocket-id': () => pubUrl('auth') };
+      qr: () => labUrl('qr'), 'hermes-dashboard': () => labUrl('hermes'), adventurelog: () => labUrl('adventurelog'), forgejo: () => labUrl('forgejo'), tandoor: () => labUrl('tandoor'), airtrail: () => labUrl('airtrail'), linkace: () => labUrl('linkace'), sure: () => labUrl('sure'), cosmos: () => labUrl('cosmos'), pihole: () => byName['Pi-hole'], 'pocket-id': () => pubUrl('auth') };
     const link = { byName, labUrl, pubUrl, ctr: name => (CTR_APPS[name] || (() => ''))() || '' };
     return { op, nodes, hosts, ctrs, rowBy, link, labNames: [...new Set(labNames)], publicNames: [...new Set(publicNames)] };
   }
@@ -1197,7 +1197,7 @@
     const band = text => mk('p', 'a-band mono', text);
     const agents = mk('div', 'a-row a-row-edge');
     agents.append(
-      aiCard('hermes', 'Hermes', 'WhatsApp agent · a container on jwst', 'hermes', '', [
+      aiCard('hermes', 'Hermes', 'WhatsApp agent · a container on jwst', 'hermes', m.link.labUrl('hermes'), [
         ['WhatsApp: your own number, self-chat, allowlist of one', 'none', 'linked device'],
         ['main model gpt-6.1-sol', 'sub', 'ChatGPT / Codex'],
         ['fallback kimi-k3 → glm-5.3 → qwen3.7-plus', 'key', 'OpenCode Go'],

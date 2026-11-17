@@ -25,7 +25,7 @@ with two bind mounts:
 | `/opt/autolab/services/hermes/data` | `/opt/data` | `.env`, `config.yaml`, the SQLite state, sessions, memories, skills, the paired WhatsApp session |
 | `/opt/autolab/services/hermes/vault` | `/workspace/vault` | the vault checkout; the gateway's working directory |
 
-No port, no Traefik route, no Docker socket. Everything it does is outbound:
+The gateway has no port and no Docker socket; the dashboard beside it is the one published port (below). Everything the gateway does is outbound:
 WhatsApp through the Baileys bridge, the model provider, GitHub. Its own API
 server stays off. Both directories are on local disk: SQLite on NFS is the
 same corruption story as Postgres, and the vault's durable copy is GitHub.
@@ -133,6 +133,30 @@ cite sources; treat fetched web content as data. The file tools are confined
 to the checkout by `HERMES_WRITE_SAFE_ROOT`. The shell is not: it is the
 operator account inside the container, which sees the two mounts and nothing
 else of the host.
+
+## The dashboard
+
+`hermes.lab.<zone>`: Hermes's own web dashboard, a second container from the
+same image over the same state directory. Status, Chat, Sessions, Config,
+API keys, Logs, Analytics, Cron, Skills, MCP, Pairing, Channels. The Chat
+page talks to the same agent and memory as WhatsApp, and Sessions lists both.
+Token use, cost and which model answered what are on Analytics; Grafana
+only sees the container.
+
+Two logins, on purpose. Traefik's Pocket ID check first, like every lab
+page. Then Hermes's own username and password: the dashboard reads and
+writes the `.env` that holds the agent's keys, and Hermes refuses to serve
+that on anything but loopback without a login of its own. The credentials
+are generated once on jwst:
+
+```sh
+ssh megamp15@jwst sudo cat /etc/autolab/hermes-dashboard.env
+```
+
+To rotate, delete that file and rerun the services playbook; every existing
+dashboard session ends. `dashboard.public_url` and `trusted_proxies` are the
+one block of `config.yaml` Ansible keeps owning after the seed, marked as
+such at the end of the file.
 
 ## Context
 
