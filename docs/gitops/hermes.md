@@ -162,9 +162,12 @@ the status read "Gateway: Stopped". The reconnect loop is in
 dashboard and the gateway restart together.
 
 To rotate, delete that file and rerun the services playbook; every existing
-dashboard session ends. `dashboard.public_url` and `trusted_proxies` are the
-one block of `config.yaml` Ansible keeps owning after the seed, marked as
-such at the end of the file.
+dashboard session ends. `dashboard.public_url` and `trusted_proxies` are
+seeded with the rest of `config.yaml`, and the URL is also passed as
+`HERMES_DASHBOARD_PUBLIC_URL`. To change the proxies on a running install:
+`hermes config set dashboard.trusted_proxies '["100.64.0.0/10"]'`. Ansible
+does not own any part of the file after the seed: it tried, with a marked
+block, and reverted the theme on every run.
 
 ## Context
 

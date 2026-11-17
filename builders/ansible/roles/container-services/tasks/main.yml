@@ -909,21 +909,16 @@
     force: false
   when: "'hermes' in autolab_services_enabled"
 
-# The one part of config.yaml the role keeps owning after the seed: where the
-# dashboard is reached and which proxies it may believe. A marked block at
-# the end of the file, so Hermes's own edits above it are left alone.
-- name: Tell the Hermes dashboard its address
-  ansible.builtin.blockinfile:
+# The role once kept a marked block at the end of config.yaml for the
+# dashboard's address. Hermes writes its own settings into whatever section
+# they belong to, markers or not (the theme, the telemetry answer), so every
+# run reverted them and restarted the stack. The address is in the seed now;
+# this only removes the old markers and leaves what is between them.
+- name: Hand the dashboard block in Hermes's configuration back to Hermes
+  ansible.builtin.lineinfile:
     path: "{{ autolab_services_root }}/hermes/data/config.yaml"
-    marker: "# {mark} ANSIBLE MANAGED: dashboard behind Traefik"
-    block: |
-      dashboard:
-        public_url: "{{ autolab_services_hermes_public_url }}"
-        trusted_proxies: {{ autolab_services_hermes_trusted_proxies | to_json }}
-    owner: megamp15
-    group: megamp15
-    mode: "0600"
-  notify: Restart the services stack
+    regexp: '^# (BEGIN|END) ANSIBLE MANAGED: dashboard behind Traefik$'
+    state: absent
   when: "'hermes' in autolab_services_enabled"
 
 - name: Assemble the services compose file
