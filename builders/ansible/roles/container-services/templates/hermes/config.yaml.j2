@@ -1,0 +1,23 @@
+# Seeded once by Ansible — roles/container-services. Hermes owns this file
+# after that: `hermes model`, `hermes tools` and the agent itself write to it,
+# and the role does not overwrite it. Delete it to reseed.
+#
+# Main model: OpenCode Go to start (key in .env). Switch to the ChatGPT/Codex
+# subscription with `hermes model` once the gateway is up; then move the
+# opencode-go line below into fallback_providers so quota exhaustion falls
+# back to the cheap plan instead of failing. docs/gitops/hermes.md.
+model:
+  provider: opencode-go
+  default: {{ autolab_services_hermes_model }}
+
+terminal:
+  backend: local
+  # Where shell commands and file tools start: the vault checkout.
+  cwd: /workspace/vault
+  timeout: 180
+
+approvals:
+  mode: smart
+
+whatsapp:
+  group_policy: pairing

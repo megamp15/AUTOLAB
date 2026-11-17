@@ -84,7 +84,7 @@
     key: megamp15
     fail_key: false
   loop: [passwd, group]
-  when: "'code-server' in autolab_services_enabled"
+  when: "'code-server' in autolab_services_enabled or 'hermes' in autolab_services_enabled"
 
 # A missing key comes back as null rather than absent, so `is defined` would
 # pass and the compose template would index null. Test the value.
@@ -94,9 +94,9 @@
       - ansible_facts.getent_passwd.megamp15 is not none
       - ansible_facts.getent_group.megamp15 is not none
     fail_msg: >-
-      code-server requires the interactive operator account megamp15 on this
-      host. Run the harden playbook first, which creates it.
-  when: "'code-server' in autolab_services_enabled"
+      code-server and hermes require the interactive operator account megamp15
+      on this host. Run the harden playbook first, which creates it.
+  when: "'code-server' in autolab_services_enabled or 'hermes' in autolab_services_enabled"
 
 # The NAS share, before anything that stores state on it. A directory standing
 # where the share should be would take uploads onto the local disk and look
@@ -765,6 +765,101 @@
     state: started
     daemon_reload: true
   when: "'cosmos' in autolab_services_enabled and not ansible_check_mode"
+
+# Hermes: the WhatsApp agent. Its secrets are the operator's, from GitHub, and
+# land in the gateway's own .env, which Hermes also writes to (`hermes config
+# set`, OAuth logins). Managed line by line so both can own the file.
+- name: Require Hermes's secrets
+  ansible.builtin.assert:
+    that:
+      - autolab_services_hermes_opencode_go_api_key | length > 0
+      - autolab_services_hermes_whatsapp_number is match('^[0-9]{8,15}$')
+      - autolab_services_hermes_vault_token | length > 0
+    fail_msg: >-
+      hermes needs three GitHub secrets: HERMES_OPENCODE_GO_API_KEY (the
+      OpenCode Go key), HERMES_WHATSAPP_NUMBER (the owner's number, country
+      code, digits only) and COSMOS_VAULT_TOKEN (a fine-grained PAT with
+      Contents read/write on the vault repository). See docs/gitops/hermes.md.
+  no_log: true
+  when: "'hermes' in autolab_services_enabled"
+
+- name: Create Hermes's directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: megamp15
+    group: megamp15
+    mode: "0700"
+  loop:
+    - "{{ autolab_services_root }}/hermes"
+    - "{{ autolab_services_root }}/hermes/data"
+  when: "'hermes' in autolab_services_enabled"
+
+# Cloned once. `update: false` because the agent commits here: a reset on
+# every run would throw away work it had not pushed yet.
+- name: Clone the vault for Hermes
+  ansible.builtin.git:
+    repo: "{{ autolab_services_hermes_vault_repo | regex_replace('^https://', 'https://x-access-token:' ~ autolab_services_hermes_vault_token ~ '@') }}"
+    dest: "{{ autolab_services_root }}/hermes/vault"
+    version: main
+    update: false
+  become: true
+  become_user: megamp15
+  no_log: true
+  when: "'hermes' in autolab_services_enabled and not ansible_check_mode"
+
+# The token sits in the checkout's remote URL (the directory is 0700, the
+# operator's). Rewritten every run so a rotated secret takes effect.
+- name: Point the vault at the current token
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ autolab_services_root }}/hermes/vault"
+      - remote
+      - set-url
+      - origin
+      - "{{ autolab_services_hermes_vault_repo | regex_replace('^https://', 'https://x-access-token:' ~ autolab_services_hermes_vault_token ~ '@') }}"
+  become: true
+  become_user: megamp15
+  no_log: true
+  changed_when: false
+  when: "'hermes' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Write Hermes's managed settings
+  ansible.builtin.lineinfile:
+    path: "{{ autolab_services_root }}/hermes/data/.env"
+    create: true
+    owner: megamp15
+    group: megamp15
+    mode: "0600"
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+  loop:
+    - {key: OPENCODE_GO_API_KEY, value: "{{ autolab_services_hermes_opencode_go_api_key }}"}
+    - {key: WHATSAPP_ENABLED, value: "true"}
+    # The owner messages themself; nobody else is let in.
+    - {key: WHATSAPP_MODE, value: "self-chat"}
+    - {key: WHATSAPP_ALLOWED_USERS, value: "{{ autolab_services_hermes_whatsapp_number }}"}
+    - {key: WHATSAPP_GROUP_POLICY, value: "pairing"}
+    # The file tools may write the vault and nothing else; the shell is still
+    # the operator account inside the container, see the doc.
+    - {key: HERMES_WRITE_SAFE_ROOT, value: "/workspace/vault"}
+  loop_control:
+    label: "{{ item.key }}"
+  no_log: true
+  notify: Restart the services stack
+  when: "'hermes' in autolab_services_enabled"
+
+- name: Seed Hermes's configuration
+  ansible.builtin.template:
+    src: hermes/config.yaml.j2
+    dest: "{{ autolab_services_root }}/hermes/data/config.yaml"
+    owner: megamp15
+    group: megamp15
+    mode: "0600"
+    force: false
+  when: "'hermes' in autolab_services_enabled"
 
 - name: Assemble the services compose file
   ansible.builtin.template:

@@ -122,6 +122,9 @@ autolab_services_images:
   # The connector for the Paradigm Prints tunnel, pinned with the same
   # version horizon's runs.
   paradigm_tunnel: "cloudflare/cloudflared:2026.9.1"
+  # Hermes Agent, the official image: Python runtime, Node for the WhatsApp
+  # bridge, git, and s6 to keep the gateway up. A release tag, never `latest`.
+  hermes: "nousresearch/hermes-agent:v0.23.2"
 
 # Host ports come from the shared catalog in playbooks/group_vars/all.yml,
 # because the ingress role on another machine routes to the same numbers.
@@ -439,6 +442,33 @@ autolab_services_registry_delete_enabled: true
 # Diun watches the images this lab runs and says when a newer tag exists. It
 # never updates anything: versions are pinned in git, and an image that
 # changed under you is the thing this lab is built to avoid.
+# Hermes. See docs/gitops/hermes.md.
+#
+# The gateway process and its SQLite state, sessions, memories and the paired
+# WhatsApp session live under hermes/data on local disk (SQLite on NFS is the
+# same corruption story as Postgres). The vault is a git checkout under
+# hermes/vault; GitHub holds the durable copy, so neither needs the NAS.
+# Both are owned by the operator account, and the container runs as it.
+autolab_services_hermes_memory: 1536m
+autolab_services_hermes_cpus: 1
+# The notes vault Hermes works in: a private GitHub repository, cloned once
+# and pushed to by the agent. The token is a fine-grained PAT with Contents
+# read and write on that one repository (COSMOS_VAULT_TOKEN).
+autolab_services_hermes_vault_repo: "https://github.com/megamp15/cosmos-vault.git"
+autolab_services_hermes_vault_token: ""
+# OpenCode Go: the $10/month key for open-weight models, the model Hermes
+# starts on (HERMES_OPENCODE_GO_API_KEY). The owner switches the main model
+# to the ChatGPT/Codex subscription interactively; see the doc. Never an
+# Anthropic credential: the owner's Claude plan is for Claude Code only.
+autolab_services_hermes_opencode_go_api_key: ""
+autolab_services_hermes_model: "kimi-k3"
+# The one WhatsApp number allowed to talk to it: the owner's, country code,
+# no plus (HERMES_WHATSAPP_NUMBER). A phone number is personal data, so a
+# secret rather than a variable.
+autolab_services_hermes_whatsapp_number: ""
+autolab_services_hermes_git_name: "Hermes"
+autolab_services_hermes_git_email: "hermes@jwst.lab"
+
 autolab_services_diun_schedule: "0 8 * * *"
 autolab_services_diun_ntfy_topic: "{{ autolab_obs_ntfy_topic | default('') }}"
 autolab_services_diun_ntfy_url: "{{ autolab_obs_ntfy_url | default('https://ntfy.sh') }}"

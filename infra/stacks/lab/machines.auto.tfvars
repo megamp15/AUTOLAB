@@ -151,7 +151,7 @@ machines = {
       # and code-server for the operator workspace. The applications people use
       # run on nebula (edge stack). Moving a service is a line in another
       # machine's map.
-      services = ["dockhand", "registry", "registry-ui", "diun", "code-server", "immich-share", "dash", "qr", "paradigm-tunnel", "rustdesk", "cosmos"]
+      services = ["dockhand", "registry", "registry-ui", "diun", "code-server", "immich-share", "dash", "qr", "paradigm-tunnel", "rustdesk", "cosmos", "hermes"]
       # Grafana is reached over the tailnet, which the baseline already allows
       # on tailscale0. Nothing is opened to the LAN.
       #
