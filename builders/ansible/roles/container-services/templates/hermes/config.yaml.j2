@@ -21,3 +21,34 @@ approvals:
 
 whatsapp:
   group_policy: pairing
+
+# Model roles, all on OpenCode Go. Spreading them across vendors stretches
+# the plan: each model has its own monthly allowance there.
+fallback_providers:
+  - provider: opencode-go
+    model: glm-5.3
+  - provider: opencode-go
+    model: qwen3.7-plus
+
+# Subagents: narrow tasks on a cheap, fast model with tool calling.
+delegation:
+  provider: opencode-go
+  model: deepseek-v4.1-flash
+  fallback_providers:
+    - provider: opencode-go
+      model: glm-5.3-flash
+
+# Side jobs: the cheapest fast model that does the job.
+auxiliary:
+  compression:
+    provider: opencode-go
+    model: glm-5.3-flash
+    fallback_chain:
+      - provider: opencode-go
+        model: minimax-m3.1-flash
+  title_generation:
+    provider: opencode-go
+    model: glm-5.3-flash
+  vision:
+    provider: opencode-go
+    model: gemini-4-argon
