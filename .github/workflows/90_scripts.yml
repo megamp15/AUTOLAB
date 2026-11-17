@@ -62,6 +62,10 @@ jobs:
           sudo apt-get install -y -qq xorriso
 
       - name: Validate generated Packer artifacts
+        # packer init asks GitHub for the plugin's tags. Unauthenticated, that
+        # shares the runner address's rate limit and fails for no fault of ours.
+        env:
+          PACKER_GITHUB_API_TOKEN: ${{ github.token }}
         run: |
           ssh-keygen -q -t ed25519 -N '' -f /tmp/validation-bastion-key
           # Validate every catalog entry with status: implemented. The resolver
