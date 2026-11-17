@@ -7,13 +7,15 @@ audience: operator
 # Ingress
 
 Home, Grafana and administrative pages require Tailscale. Public Cloudflare
-routes are limited to `auth.<zone>` for Pocket ID and `share.<zone>` for shared
-photo links. There are no public DNS records or tunnel ingress rules for Home
+routes are limited to `auth.<zone>` for Pocket ID, `share.<zone>` for shared
+photo links and `qr.<zone>` for the QR admin page behind the passkey. There
+are no public DNS records or tunnel ingress rules for Home
 or Grafana, and Traefik has no public router for either dashboard.
 
 ## The shape
 
 - Public internet → Cloudflare tunnel → Traefik → Pocket ID or shared links.
+- Public internet → the same tunnel → Traefik → the passkey → the QR admin page.
 - Tailscale → horizon HTTPS → `home.lab.<zone>` or `grafana.lab.<zone>`.
 - Home requires Pocket ID through Traefik; Grafana handles its own Pocket ID login.
 - Loki is private. Its browser link opens Explore in the private Grafana.
@@ -159,9 +161,35 @@ arrives; `start cloudflared` clears it.
 
 ## Adding a public hostname
 
-A line in `ingress.auto.tfvars` and its Traefik route on horizon. Removing one
+A line in `ingress.auto.tfvars` and its Traefik route on horizon
+(`autolab_ingress_public_routes` in `playbooks/ingress.yml`). Removing one
 is the reverse. The tunnel config's catch-all means a hostname that exists in
 DNS but not in Traefik gets a 404, not a service.
+
+### A public name behind the passkey
+
+A public route with `groups` gets the plugin in front, for people who are not
+on the tailnet. `qr.<zone>` is the only one: the QR admin page, for Pocket ID
+groups `admins` and `paradigm` (see [qr](qr.md)). Operator dashboards do not
+get this; they stay on `*.lab`.
+
+What keeps such a route from opening anything else:
+
+- **Its own groups.** The group it names (`paradigm`) is on no other route.
+- **Its own session.** The cookie has its own name and no `Domain`, so the
+  browser sends it to that one host. The internal routes' cookie is a
+  different one.
+- **Groups checked on every request** (`CheckOnEveryRequest`), on every
+  middleware. The plugin otherwise decides once at login and keeps the answer
+  in the session, so a session made on one route would pass another route
+  with stricter groups.
+- **Its own callback**, `https://<name>.<zone>/oidc/callback`, added to the
+  `traefik` client by `pocketid-clients.json`.
+- **No login, no route.** Until the plugin's client is configured the name
+  answers 404.
+
+If the `traefik` client in Pocket ID restricts user groups, add the new group
+there by hand: that list is not managed from here.
 
 ## Proxmox and PBS on the same login
 

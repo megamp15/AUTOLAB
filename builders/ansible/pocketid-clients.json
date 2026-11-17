@@ -1,8 +1,8 @@
 {
   "traefik": {
     "id_variable": "autolab_ingress_traefik_client_id",
-    "callbackURLs": ["https://{home}.{internal}.{zone}/oidc/callback"],
-    "logoutCallbackURLs": ["https://{home}.{internal}.{zone}/oidc/callback"],
+    "callbackURLs": ["https://{home}.{internal}.{zone}/oidc/callback", "https://qr.{zone}/oidc/callback"],
+    "logoutCallbackURLs": ["https://{home}.{internal}.{zone}/oidc/callback", "https://qr.{zone}/oidc/callback"],
     "launchURL": "https://{home}.{internal}.{zone}"
   },
   "grafana": {

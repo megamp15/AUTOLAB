@@ -116,9 +116,12 @@ autolab_ingress_extra_routes: {}
 # The photo service's second lock (a route may carry token_header and token):
 # Traefik adds it after Pocket ID has let an admin in. Empty = no photos route.
 autolab_ingress_photos_token: ""
-# Public routes through the tunnel with no login in front: name -> upstream,
-# where name is a label in the Cloudflare stack's public_hostnames. For things
-# meant to open without an account, like a shared link. Empty for a tenant.
+# Public routes through the tunnel: name -> {upstream, groups}, where name is a
+# label in the Cloudflare stack's public_hostnames. Without `groups` there is
+# no login in front: for things meant to open without an account, like a
+# shared link. With `groups`, the passkey is in front and only those Pocket ID
+# groups get in; the route does not exist until the plugin's client is set.
+# Empty for a tenant.
 autolab_ingress_public_routes: {}
 # The services host, and which of the catalog's services it runs. Supplied by
 # the playbook from the machines map; empty means no service routes.

@@ -15,10 +15,13 @@ http:
       rule: "Host(`{{ auth_host }}`)"
       entryPoints: [web]
       service: pocket-id
-{% for name, route in autolab_ingress_public_routes.items() %}
+{% for name, route in autolab_ingress_public_routes.items() if route.groups is not defined or plugin_on %}
     public-{{ name }}:
       rule: "Host(`{{ name }}.{{ zone }}`)"
       entryPoints: [web]
+{%   if route.groups is defined %}
+      middlewares: [oidc-public-{{ name }}]
+{%   endif %}
       service: public-{{ name }}
 {% endfor %}
 {% if tailnet_on %}
@@ -62,7 +65,7 @@ http:
 {% endif %}
 
   services:
-{% for name, route in autolab_ingress_public_routes.items() %}
+{% for name, route in autolab_ingress_public_routes.items() if route.groups is not defined or plugin_on %}
     public-{{ name }}:
       loadBalancer:
         servers:
@@ -105,6 +108,9 @@ http:
 
   # One login for internal services. The callback is private too, and the
   # cookie remains scoped to the zone so existing internal services share it.
+  # The plugin decides who is allowed once, at login, and keeps the answer in
+  # the session; CheckOnEveryRequest makes each middleware ask its own groups
+  # again, so a session one of them made opens nothing another would refuse.
   middlewares:
 {% for middleware, groups in [('oidc', autolab_ingress_homepage_groups), ('oidc-admin', ['admins'])] %}
     {{ middleware }}:
@@ -124,6 +130,31 @@ http:
             AssertClaims:
               - Name: groups
                 AnyOf: {{ groups | to_json }}
+            CheckOnEveryRequest: true
+{% endfor %}
+{% for name, route in autolab_ingress_public_routes.items() if route.groups is defined %}
+    # A public name behind the passkey. Its own callback on its own host and
+    # its own cookie, never sent to another name: someone let in here holds
+    # nothing that an internal route would read.
+    oidc-public-{{ name }}:
+      plugin:
+        traefik-oidc-auth:
+          Secret: "{{ autolab_ingress_oidc_plugin_secret }}"
+          CallbackUri: "https://{{ name }}.{{ zone }}/oidc/callback"
+          CookieNamePrefix: "AutolabPublic{{ name | capitalize }}"
+          Provider:
+            Url: "https://{{ auth_host }}/"
+            ClientId: "{{ autolab_ingress_traefik_client_id }}"
+            ClientSecret: "{{ autolab_ingress_traefik_client_secret }}"
+          Scopes: ["openid", "profile", "email", "groups"]
+          SessionCookie:
+            SameSite: lax
+            MaxAge: {{ autolab_ingress_session_max_age }}
+          Authorization:
+            AssertClaims:
+              - Name: groups
+                AnyOf: {{ route.groups | to_json }}
+            CheckOnEveryRequest: true
 {% endfor %}
 {% for name, route in autolab_ingress_internal_routes.items() if route.token_header is defined %}
     lab-{{ name }}-token:

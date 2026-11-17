@@ -46,7 +46,7 @@ bump is a pull request.
 | `karakeep` | on [nebula](nebula.md): bookmarks that fetch the page and the video and tag themselves, Pocket ID sign-in — see [karakeep](karakeep.md) | 8107 |
 | `sure` | on [nebula](nebula.md): personal finance — see [apps](apps.md) | 8104 |
 | `rustdesk` | remote desktop between your own machines, tailnet only, key-enforced — see [rustdesk](rustdesk.md) | 21115-21117 (TCP), 21116 (UDP) |
-| `qr` | QR codes whose destination can change after printing — see [qr](qr.md) | 8097 (admin) |
+| `qr` | QR codes whose destination can change after printing; the admin page is also public behind the passkey at `qr.<zone>` — see [qr](qr.md) | 8097 (admin) |
 | `paradigm-tunnel` | the connector for the tunnel in the Paradigm Prints Cloudflare account — see [qr](qr.md) | — |
 | `cosmos` | the owner's personal hub: gateway, API and Postgres, Pocket ID admins only — see [cosmos](cosmos.md) | 8105 |
 | `hermes` | the owner's agent on WhatsApp, working in a checkout of the notes vault; the port is its dashboard — see [hermes](hermes.md) | 8106 |
