@@ -126,36 +126,10 @@ The admin password remains available for recovery.
 
 ### Client configuration as code
 
-`builders/ansible/pocketid-clients.json` owns the existing Traefik and Grafana
-clients' callback URLs, logout callback URLs and launch URLs. Client IDs come
-from the existing GitHub secrets. The workflow adopts those clients and keeps
-their credentials and other settings. It never creates replacement clients or
-rotates secrets.
-
-A client with `allowedUserGroups` also has its groups owned here: the run
-creates any that are missing and makes the list the only groups that may sign
-in through that client. The Traefik client declares `admins`, `viewers` and
-`paradigm`, so a user in none of them is refused by Pocket ID before Traefik
-is asked. A client without the key (Grafana) keeps whatever Pocket ID has.
-Groups are never deleted from here, and who is in a group is never touched.
-
-| what | where it is managed |
-|---|---|
-| which groups exist; which may use the plugin's login | `pocketid-clients.json` |
-| which groups open which name | the route: `autolab_ingress_homepage_groups`, a public route's `groups` |
-| users, passkeys, who is in a group | Pocket ID's admin page |
-
-Create a Pocket ID administration API key once and store it in repository
-secret `POCKETID_API_KEY`. Renew the secret before the key expires. The key is
-available only to the runner steps calling Pocket ID, never written to a host
-or committed. Users, passkeys and recovery remain managed in Pocket ID.
-
-Ingress and observability runs read the declared clients before deploying.
-Check mode reports differences without changing Pocket ID. Apply adds the new
-callbacks before deployment; once Ansible succeeds it reconciles the exact
-private URLs and removes obsolete callbacks. The public Pocket ID issuer stays
-unchanged. For the initial migration deploy ingress, then scoped observability
-`homepage,grafana`, then apply Cloudflare to remove public DNS and tunnel rules.
+Groups, each client's URLs and which groups may sign in through it are
+declared in the repository and applied by the ingress and observability runs.
+Users and who is in a group stay in Pocket ID. What is code, what is by hand
+and how to change either: [Pocket ID](./pocket-id.md).
 
 ## Watching the tunnel
 
@@ -202,7 +176,7 @@ What keeps such a route from opening anything else:
   answers 404.
 
 A new group for such a route goes in `allowedUserGroups` of the `traefik`
-client in `pocketid-clients.json`; see "Client configuration as code" above.
+client; see [Pocket ID](./pocket-id.md).
 
 ## Proxmox and PBS on the same login
 

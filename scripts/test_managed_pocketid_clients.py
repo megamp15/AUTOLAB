@@ -39,6 +39,9 @@ class FakeApi:
             return {'id': 'secret-id'}
         if method == 'GET':
             return self.client
+        if method == 'DELETE':
+            self.client = None
+            return None
         if method == 'PUT':
             self.client.update(data)
             return self.client
@@ -56,6 +59,24 @@ class ProvisioningTest(unittest.TestCase):
         self.assertEqual(state['adventurelog']['secret_id'], 'secret-id')
         self.assertFalse(module.reconcile(api, self.policy, state, save))
         self.assertEqual(len(api.secrets), 1)
+
+    def test_a_client_whose_app_is_gone_is_deleted(self):
+        api, state = FakeApi(), {}
+        module.reconcile(api, self.policy, state, lambda _: None)
+        empty = {'group': 'admins', 'clients': {}}
+        self.assertTrue(module.reconcile(api, empty, state, lambda _: None))
+        self.assertIsNone(api.client)
+        self.assertEqual(state, {})
+        self.assertFalse(module.reconcile(api, empty, state, lambda _: None))
+
+    def test_a_stale_id_now_owned_by_another_client_is_left_alone(self):
+        api = FakeApi()
+        api.client = {'name': 'Someone else'}
+        state = {'linkace': {'id': 'x', 'secret': 'private', 'secret_id': 's'}}
+        with self.assertRaisesRegex(RuntimeError, 'owned by another'):
+            module.reconcile(api, {'group': 'admins', 'clients': {}}, state, lambda _: None)
+        self.assertEqual(api.client, {'name': 'Someone else'})
+        self.assertIn('linkace', state)
 
     def test_unknown_secret_is_never_replaced(self):
         api = FakeApi()

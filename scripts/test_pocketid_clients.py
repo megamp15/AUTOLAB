@@ -48,24 +48,33 @@ class PocketIdClientsTests(unittest.TestCase):
             "autolab_ingress_traefik_client_id": "existing-traefik",
             "autolab_obs_grafana_oidc_client_id": "existing-grafana",
         }
-        clients = desired_clients(variables, json.loads(POLICY.read_text()))
+        policy = json.loads(POLICY.read_text())
+        # Without a way to ask Pocket ID, clients adopted by name are left out.
+        self.assertEqual(set(desired_clients(variables, policy)), {"traefik", "grafana"})
+        clients = desired_clients(variables, policy, find=lambda name: "found-" + name)
         self.assertEqual(clients["traefik"][0], "existing-traefik")
         self.assertEqual(clients["grafana"][0], "existing-grafana")
+        for name in ("traefik", "grafana"):
+            self.assertIn(".lab.example.test", clients[name][1]["launchURL"])
         for _, settings, _ in clients.values():
-            self.assertIn(".lab.example.test", settings["launchURL"])
             self.assertNotIn("allowedUserGroups", settings)
         # The plugin's client declares who may sign in through it; Grafana's
         # declares nothing, so its groups stay as Pocket ID has them.
-        self.assertEqual(clients["traefik"][2], ["admins", "viewers", "paradigm"])
-        self.assertIsNone(clients["grafana"][2])
+        self.assertEqual(clients["traefik"][2], ["admins", "paradigm"])
+        # Hand-made clients no secret of ours names: adopted by display name,
+        # groups only, so their URLs stay as Pocket ID has them.
+        for name, display in (("proxmox", "Proxmox"), ("immich", "Immich")):
+            self.assertEqual(clients[name], ("found-" + display, {}, ["admins"]))
+        self.assertEqual(clients["grafana"][2], ["admins"])
+        self.assertEqual(set(desired_clients(variables, policy, find=lambda name: "x", only={"immich"})), {"immich"})
         self.assertIn("https://qr.example.test/oidc/callback", clients["traefik"][1]["callbackURLs"])
         variables["autolab_ingress_internal_label"] = ""
         with self.assertRaises(ValueError):
-            desired_clients(variables, json.loads(POLICY.read_text()))
+            desired_clients(variables, policy)
 
     def test_declared_groups_are_created_and_made_the_only_ones_allowed(self):
         existing = [{"id": "1", "name": "admins"}, {"id": "2", "name": "viewers"}]
-        wanted = ["admins", "viewers", "paradigm"]
+        wanted = ["admins", "viewers", "paradigm"]  # any list; the policy's own is checked above
         client = {"isGroupRestricted": True, "allowedUserGroups": existing}
         self.assertEqual(group_changes(existing, wanted, client), (["paradigm"], True))
         everyone = existing + [{"id": "3", "name": "paradigm"}]

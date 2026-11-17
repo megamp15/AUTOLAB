@@ -9,4 +9,6 @@ deploy. Changes go through a pull request, squash-merged.
   its port, login or what an agent reaches: follow
   `docs/gitops/definition-of-done.md` so home, dash and the docs match what
   is deployed.
+- Pocket ID groups, logins and users, and which of them are code:
+  `docs/gitops/pocket-id.md`.
 - Contribution rules, commits, docs style: `CONTRIBUTING.md`.

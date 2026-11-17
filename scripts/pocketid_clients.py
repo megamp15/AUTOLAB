@@ -25,7 +25,13 @@ import urllib.request
 POLICY = Path(__file__).resolve().parents[1] / "builders/ansible/pocketid-clients.json"
 
 
-def desired_clients(variables, policy):
+def desired_clients(variables, policy, find=None, only=None):
+    """Each declared client as (id, URL settings, allowed groups or None).
+
+    A client is adopted by the ID a variable holds (`id_variable`), or, when
+    no secret of ours carries its ID, by its display name in Pocket ID
+    (`name`), which `find` turns into an ID. Without `find` those are left out.
+    """
     labels = variables["autolab_ingress_hostnames"]
     names = dict(labels, zone=variables["autolab_ingress_zone"],
                  internal=variables["autolab_ingress_internal_label"])
@@ -33,12 +39,17 @@ def desired_clients(variables, policy):
         raise ValueError("Private dashboard zone and internal label are required")
     clients = {}
     for name, fields in policy.items():
-        client_id = variables.get(fields["id_variable"], "")
+        if only and name not in only:
+            continue
+        if "name" in fields:
+            client_id = find(fields["name"]) if find else ""
+        else:
+            client_id = variables.get(fields["id_variable"], "")
         if not client_id:
             continue
         settings = {}
         for key, value in fields.items():
-            if key not in ("id_variable", "allowedUserGroups"):
+            if key not in ("id_variable", "name", "allowedUserGroups"):
                 settings[key] = ([url.format(**names) for url in value]
                                  if isinstance(value, list) else value.format(**names))
         clients[name] = (client_id, settings, fields.get("allowedUserGroups"))
@@ -71,6 +82,14 @@ class Api:
 
     def request(self, method, client_id, body=None, suffix=""):
         return self.call(method, "/api/oidc/clients/" + urllib.parse.quote(client_id, safe="") + suffix, body)
+
+    def find_client(self, name):
+        query = urllib.parse.urlencode({"search": name, "pagination[limit]": 100})
+        matches = [client["id"] for client in self.call("GET", "/api/oidc/clients?" + query)["data"]
+                   if client.get("name") == name]
+        if len(matches) != 1:
+            raise RuntimeError(f"Expected exactly one Pocket ID client named {name}, found {len(matches)}")
+        return matches[0]
 
     def call(self, method, path, body=None):
         url = self.base_url + path
@@ -131,16 +150,19 @@ def reconcile_groups(api, name, client_id, wanted, args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--variables", required=True, type=Path)
-    parser.add_argument("--client", choices=("traefik", "grafana"))
+    policy = json.loads(POLICY.read_text())
+    parser.add_argument("--client", nargs="+", choices=sorted(policy))
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--prepare", action="store_true")
     mode.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     variables = json.loads(args.variables.read_text())
-    clients = desired_clients(variables, json.loads(POLICY.read_text()))
-    if args.client:
-        clients = {name: value for name, value in clients.items() if name == args.client}
-    if not clients:
+    # Anything to do is known before Pocket ID is asked: a client adopted by
+    # name always is, one adopted by ID only when its variable is set.
+    selected = {name: fields for name, fields in policy.items()
+                if (not args.client or name in args.client)
+                and ("name" in fields or variables.get(fields["id_variable"], ""))}
+    if not selected:
         print("No configured Pocket ID clients to manage")
         return
     token = os.environ.get("POCKETID_API_KEY", "").strip()
@@ -149,6 +171,7 @@ def main():
     labels = variables["autolab_ingress_hostnames"]
     base_url = "https://" + labels["auth"] + "." + variables["autolab_ingress_zone"]
     api = Api(base_url, token)
+    clients = desired_clients(variables, policy, find=api.find_client, only=set(selected))
     # Read every client before changing any. Missing clients are an error;
     # this migration never creates replacements or rotates their secrets.
     existing = {name: api.request("GET", client_id) for name, (client_id, _, _) in clients.items()}
@@ -161,7 +184,7 @@ def main():
             current = api.request("GET", client_id)
         payload = reconcile(current, desired, prepare=args.prepare)
         if payload == current:
-            print(f"{name}: unchanged")
+            print(f"{name}: URLs unchanged")
             continue
         if not (args.apply or args.prepare):
             print(f"{name}: URL configuration would change")

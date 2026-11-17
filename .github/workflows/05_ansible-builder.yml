@@ -528,14 +528,14 @@ jobs:
 
       # Add the private callbacks before services switch URLs. The old callbacks
       # stay valid until the playbook succeeds, so a failed deploy is recoverable.
-      - name: Prepare declared Pocket ID client URLs
+      - name: Prepare declared Pocket ID clients and groups
         if: env.BUILDER_ENVIRONMENT == 'lab' && (env.BUILDER_PLAYBOOK == 'ingress' || env.BUILDER_PLAYBOOK == 'observability')
         env:
           POCKETID_API_KEY: ${{ secrets.POCKETID_API_KEY }}
         run: |
-          client=grafana
-          if [ "$BUILDER_PLAYBOOK" = "ingress" ]; then client=traefik; fi
-          args=(--variables "$RUNNER_TEMP/ingress-vars.json" --client "$client")
+          clients=(grafana)
+          if [ "$BUILDER_PLAYBOOK" = "ingress" ]; then clients=(traefik proxmox immich); fi
+          args=(--variables "$RUNNER_TEMP/ingress-vars.json" --client "${clients[@]}")
           if [ "$BUILDER_CONFIRM" = "apply" ]; then args+=(--prepare); fi
           python3 scripts/pocketid_clients.py "${args[@]}"
 
@@ -554,14 +554,14 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: 'true'
           ANSIBLE_SSH_COMMON_ARGS: '-o StrictHostKeyChecking=yes'
 
-      - name: Reconcile declared Pocket ID client URLs
+      - name: Reconcile declared Pocket ID clients and groups
         if: env.BUILDER_ENVIRONMENT == 'lab' && (env.BUILDER_PLAYBOOK == 'ingress' || env.BUILDER_PLAYBOOK == 'observability') && env.BUILDER_CONFIRM == 'apply'
         env:
           POCKETID_API_KEY: ${{ secrets.POCKETID_API_KEY }}
         run: |
-          client=grafana
-          if [ "$BUILDER_PLAYBOOK" = "ingress" ]; then client=traefik; fi
-          python3 scripts/pocketid_clients.py --variables "$RUNNER_TEMP/ingress-vars.json" --client "$client" --apply
+          clients=(grafana)
+          if [ "$BUILDER_PLAYBOOK" = "ingress" ]; then clients=(traefik proxmox immich); fi
+          python3 scripts/pocketid_clients.py --variables "$RUNNER_TEMP/ingress-vars.json" --client "${clients[@]}" --apply
 
       # The file holds a Proxmox token and the ntfy topic; the runner is
       # ephemeral but the step is cheap and makes the lifetime explicit.
