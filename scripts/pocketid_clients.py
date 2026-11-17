@@ -1,8 +1,14 @@
-"""Adopt existing Pocket ID clients and reconcile declared browser URLs.
+"""Adopt existing Pocket ID clients and reconcile what the policy declares.
 
-Prepare adds callbacks without breaking the running configuration. Apply after
-service deployment removes obsolete callbacks. Client credentials, groups,
-consent settings and other undeclared fields stay as returned by Pocket ID.
+Declared: browser URLs, and for a client with `allowedUserGroups`, the user
+groups that may sign in through it. Those groups are created when missing.
+Who is in a group is never touched: that stays in Pocket ID.
+
+Prepare adds callbacks and missing groups without breaking the running
+configuration. Apply after service deployment removes obsolete callbacks and
+sets the allowed groups. Client credentials, consent settings and other
+undeclared fields stay as returned by Pocket ID; so do the groups of a client
+that declares none.
 """
 
 import argparse
@@ -32,11 +38,19 @@ def desired_clients(variables, policy):
             continue
         settings = {}
         for key, value in fields.items():
-            if key != "id_variable":
+            if key not in ("id_variable", "allowedUserGroups"):
                 settings[key] = ([url.format(**names) for url in value]
                                  if isinstance(value, list) else value.format(**names))
-        clients[name] = (client_id, settings)
+        clients[name] = (client_id, settings, fields.get("allowedUserGroups"))
     return clients
+
+
+def group_changes(existing, wanted, client):
+    """What a client's declared groups need: (groups to create, whether its access differs)."""
+    known = {group["name"] for group in existing}
+    allowed = {group["name"] for group in client.get("allowedUserGroups") or []}
+    missing = [name for name in wanted if name not in known]
+    return missing, allowed != set(wanted) or not client.get("isGroupRestricted")
 
 
 def reconcile(current, desired, prepare=False):
@@ -55,8 +69,11 @@ class Api:
         self.base_url = base_url
         self.token = token
 
-    def request(self, method, client_id, body=None):
-        url = self.base_url + "/api/oidc/clients/" + urllib.parse.quote(client_id, safe="")
+    def request(self, method, client_id, body=None, suffix=""):
+        return self.call(method, "/api/oidc/clients/" + urllib.parse.quote(client_id, safe="") + suffix, body)
+
+    def call(self, method, path, body=None):
+        url = self.base_url + path
         request = urllib.request.Request(
             url, method=method, data=json.dumps(body).encode() if body is not None else None,
             headers={"X-API-KEY": self.token, "Content-Type": "application/json",
@@ -75,6 +92,40 @@ class Api:
             raise RuntimeError(f"Pocket ID {method} failed with HTTP {error.code}") from None
         except urllib.error.URLError:
             raise RuntimeError("Pocket ID is unreachable") from None
+
+
+def reconcile_groups(api, name, client_id, wanted, args):
+    """Create the declared groups and make them the only ones the client admits.
+
+    The groups are set first and the restriction turned on last, so no step
+    in between leaves the client admitting nobody. (Pocket ID clears the
+    allowed groups of a client it is told is not restricted, so the other
+    order, or a later update from a stale copy, would undo this.)
+    """
+    if not wanted:
+        raise ValueError(f"{name}: allowedUserGroups is empty; that would lock everyone out")
+    groups = api.call("GET", "/api/user-groups?pagination%5Blimit%5D=100")["data"]
+    client = api.request("GET", client_id)
+    missing, differs = group_changes(groups, wanted, client)
+    if not (args.apply or args.prepare):
+        for group in missing:
+            print(f"{name}: group {group} would be created")
+        print(f"{name}: allowed groups {'would change' if differs else 'unchanged'}")
+        return
+    for group in missing:
+        groups.append(api.call("POST", "/api/user-groups", {"name": group, "friendlyName": group.capitalize()}))
+        print(f"{name}: group {group} created")
+    if args.prepare or not differs:
+        return
+    ids = [group["id"] for group in groups if group["name"] in wanted]
+    api.request("PUT", client_id, {"userGroupIds": ids}, suffix="/allowed-user-groups")
+    client = api.request("GET", client_id)
+    if not client.get("isGroupRestricted"):
+        api.request("PUT", client_id, dict(client, isGroupRestricted=True))
+        client = api.request("GET", client_id)
+    if group_changes(groups, wanted, client)[1]:
+        raise RuntimeError(f"{name}: allowed groups verification failed")
+    print(f"{name}: allowed groups applied")
 
 
 def main():
@@ -100,9 +151,14 @@ def main():
     api = Api(base_url, token)
     # Read every client before changing any. Missing clients are an error;
     # this migration never creates replacements or rotates their secrets.
-    existing = {name: api.request("GET", client_id) for name, (client_id, _) in clients.items()}
-    for name, (client_id, desired) in clients.items():
+    existing = {name: api.request("GET", client_id) for name, (client_id, _, _) in clients.items()}
+    for name, (client_id, desired, wanted) in clients.items():
         current = existing[name]
+        if wanted is not None:
+            reconcile_groups(api, name, client_id, wanted, args)
+            # Read again: the URL update below sends the client back whole, and
+            # a stale copy saying "not restricted" would clear its groups.
+            current = api.request("GET", client_id)
         payload = reconcile(current, desired, prepare=args.prepare)
         if payload == current:
             print(f"{name}: unchanged")

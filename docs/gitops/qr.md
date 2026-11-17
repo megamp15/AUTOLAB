@@ -51,19 +51,16 @@ Who gets in: Pocket ID groups `admins` and `paradigm`. `paradigm` is named on
 no other route, so an account in that group alone opens this page and nothing
 else in the lab.
 
-To let someone in:
+The group and the right to sign in with it are code: the ingress run creates
+`paradigm` in Pocket ID and allows it on the `traefik` client. Who is in the
+group is yours, in Pocket ID (`https://auth.<zone>`):
 
-1. Pocket ID (`https://auth.<zone>`) → *User Groups* → create `paradigm`,
-   once.
-2. *OIDC Clients* → `traefik`: if it lists allowed user groups, add
-   `paradigm`. Pocket ID refuses the login before Traefik ever sees it
-   otherwise.
-3. *Users* → *Add*: the person (or one shared `paradigm` account), in the
+1. *Users* → *Add*: the person (or one shared `paradigm` account), in the
    `paradigm` group only. Not `admins`, not `viewers`.
-4. Open that user → create a one-time sign-in link. Open the link in a
+2. Open that user → create a one-time sign-in link. Open the link in a
    browser where the Paradigm Prints Bitwarden is unlocked, and when Pocket
    ID asks for a passkey, save it to that vault.
-5. `https://qr.<zone>` → the passkey → the page.
+3. `https://qr.<zone>` → the passkey → the page.
 
 To take access away, remove the user from the group or delete the user. It
 takes effect on their next request once their token renews, within the hour.

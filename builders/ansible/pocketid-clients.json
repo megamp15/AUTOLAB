@@ -3,7 +3,8 @@
     "id_variable": "autolab_ingress_traefik_client_id",
     "callbackURLs": ["https://{home}.{internal}.{zone}/oidc/callback", "https://qr.{zone}/oidc/callback"],
     "logoutCallbackURLs": ["https://{home}.{internal}.{zone}/oidc/callback", "https://qr.{zone}/oidc/callback"],
-    "launchURL": "https://{home}.{internal}.{zone}"
+    "launchURL": "https://{home}.{internal}.{zone}",
+    "allowedUserGroups": ["admins", "viewers", "paradigm"]
   },
   "grafana": {
     "id_variable": "autolab_obs_grafana_oidc_client_id",

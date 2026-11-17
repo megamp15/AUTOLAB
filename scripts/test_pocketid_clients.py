@@ -4,7 +4,9 @@ import copy
 import json
 import unittest
 
-from pocketid_clients import POLICY, desired_clients, reconcile
+from types import SimpleNamespace
+
+from pocketid_clients import POLICY, desired_clients, group_changes, reconcile, reconcile_groups
 
 
 class PocketIdClientsTests(unittest.TestCase):
@@ -49,11 +51,80 @@ class PocketIdClientsTests(unittest.TestCase):
         clients = desired_clients(variables, json.loads(POLICY.read_text()))
         self.assertEqual(clients["traefik"][0], "existing-traefik")
         self.assertEqual(clients["grafana"][0], "existing-grafana")
-        for _, settings in clients.values():
+        for _, settings, _ in clients.values():
             self.assertIn(".lab.example.test", settings["launchURL"])
+            self.assertNotIn("allowedUserGroups", settings)
+        # The plugin's client declares who may sign in through it; Grafana's
+        # declares nothing, so its groups stay as Pocket ID has them.
+        self.assertEqual(clients["traefik"][2], ["admins", "viewers", "paradigm"])
+        self.assertIsNone(clients["grafana"][2])
+        self.assertIn("https://qr.example.test/oidc/callback", clients["traefik"][1]["callbackURLs"])
         variables["autolab_ingress_internal_label"] = ""
         with self.assertRaises(ValueError):
             desired_clients(variables, json.loads(POLICY.read_text()))
+
+    def test_declared_groups_are_created_and_made_the_only_ones_allowed(self):
+        existing = [{"id": "1", "name": "admins"}, {"id": "2", "name": "viewers"}]
+        wanted = ["admins", "viewers", "paradigm"]
+        client = {"isGroupRestricted": True, "allowedUserGroups": existing}
+        self.assertEqual(group_changes(existing, wanted, client), (["paradigm"], True))
+        everyone = existing + [{"id": "3", "name": "paradigm"}]
+        self.assertEqual(group_changes(everyone, wanted, dict(client, allowedUserGroups=everyone)), ([], False))
+        # The right groups on a client that admits anyone is still a difference.
+        open_client = {"isGroupRestricted": False, "allowedUserGroups": everyone}
+        self.assertEqual(group_changes(everyone, wanted, open_client), ([], True))
+        # A group allowed in Pocket ID but not declared is a difference too.
+        extra = everyone + [{"id": "4", "name": "guests"}]
+        self.assertTrue(group_changes(extra, wanted, dict(client, allowedUserGroups=extra))[1])
+
+    def fake_pocket_id(self):
+        """Pocket ID as far as groups go, with its habit of clearing an unrestricted client's groups."""
+        test = self
+
+        class Fake:
+            def __init__(self):
+                self.groups = [{"id": "1", "name": "admins"}, {"id": "2", "name": "viewers"}]
+                self.client = {"id": "c", "isGroupRestricted": False, "allowedUserGroups": []}
+                self.writes = []
+
+            def call(self, method, path, body=None):
+                if method == "GET":
+                    return {"data": list(self.groups)}
+                self.writes.append("create " + body["name"])
+                self.groups.append({"id": str(len(self.groups) + 1), "name": body["name"]})
+                return self.groups[-1]
+
+            def request(self, method, client_id, body=None, suffix=""):
+                if method == "PUT" and suffix:
+                    self.writes.append("allow")
+                    self.client["allowedUserGroups"] = [g for g in self.groups if g["id"] in body["userGroupIds"]]
+                elif method == "PUT":
+                    self.writes.append("restrict")
+                    test.assertTrue(body["isGroupRestricted"])
+                    self.client = copy.deepcopy(body)
+                return copy.deepcopy(self.client)
+
+        return Fake()
+
+    def test_group_reconcile_by_mode(self):
+        wanted = ["admins", "viewers", "paradigm"]
+        check = self.fake_pocket_id()
+        reconcile_groups(check, "traefik", "c", wanted, SimpleNamespace(apply=False, prepare=False))
+        self.assertEqual(check.writes, [])
+        prepare = self.fake_pocket_id()
+        reconcile_groups(prepare, "traefik", "c", wanted, SimpleNamespace(apply=False, prepare=True))
+        self.assertEqual(prepare.writes, ["create paradigm"])
+        apply = self.fake_pocket_id()
+        mode = SimpleNamespace(apply=True, prepare=False)
+        reconcile_groups(apply, "traefik", "c", wanted, mode)
+        # Groups before the restriction: never a restricted client with none.
+        self.assertEqual(apply.writes, ["create paradigm", "allow", "restrict"])
+        self.assertEqual({g["name"] for g in apply.client["allowedUserGroups"]}, set(wanted))
+        apply.writes.clear()
+        reconcile_groups(apply, "traefik", "c", wanted, mode)
+        self.assertEqual(apply.writes, [])
+        with self.assertRaises(ValueError):
+            reconcile_groups(apply, "traefik", "c", [], mode)
 
 
 if __name__ == "__main__":

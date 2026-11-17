@@ -129,8 +129,21 @@ The admin password remains available for recovery.
 `builders/ansible/pocketid-clients.json` owns the existing Traefik and Grafana
 clients' callback URLs, logout callback URLs and launch URLs. Client IDs come
 from the existing GitHub secrets. The workflow adopts those clients and keeps
-their credentials, group restrictions and other settings. It never creates
-replacement clients or rotates secrets.
+their credentials and other settings. It never creates replacement clients or
+rotates secrets.
+
+A client with `allowedUserGroups` also has its groups owned here: the run
+creates any that are missing and makes the list the only groups that may sign
+in through that client. The Traefik client declares `admins`, `viewers` and
+`paradigm`, so a user in none of them is refused by Pocket ID before Traefik
+is asked. A client without the key (Grafana) keeps whatever Pocket ID has.
+Groups are never deleted from here, and who is in a group is never touched.
+
+| what | where it is managed |
+|---|---|
+| which groups exist; which may use the plugin's login | `pocketid-clients.json` |
+| which groups open which name | the route: `autolab_ingress_homepage_groups`, a public route's `groups` |
+| users, passkeys, who is in a group | Pocket ID's admin page |
 
 Create a Pocket ID administration API key once and store it in repository
 secret `POCKETID_API_KEY`. Renew the secret before the key expires. The key is
@@ -188,8 +201,8 @@ What keeps such a route from opening anything else:
 - **No login, no route.** Until the plugin's client is configured the name
   answers 404.
 
-If the `traefik` client in Pocket ID restricts user groups, add the new group
-there by hand: that list is not managed from here.
+A new group for such a route goes in `allowedUserGroups` of the `traefik`
+client in `pocketid-clients.json`; see "Client configuration as code" above.
 
 ## Proxmox and PBS on the same login
 
