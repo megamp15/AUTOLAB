@@ -242,9 +242,23 @@
   /* AI: who the agents are, what each one can reach, and on whose account.
      Same cards as the architecture; no wires, the credential chips say how. */
   .ai { display:flex; flex-direction:column; gap:12px; }
-  .ai .a-row { margin-bottom:26px; }
+  .ai .a-canvas { padding:6px 2px 2px; }
+  .ai .a-row { margin-bottom:72px; }
+  .ai .a-row:last-of-type { margin-bottom:0; }
+  /* The wires say on whose credential: double for a subscription, solid for
+     an API key, dotted for a read-only token, faint for none. */
+  .a-ai-sub { stroke-opacity:.9; stroke-width:3.2; }
+  .a-ai-sub-core { stroke:var(--sg-bg); stroke-width:1.2; }
+  .a-ai-key { stroke-opacity:.85; stroke-width:1.4; }
+  .a-ai-ro { stroke-opacity:.7; stroke-width:2.4; stroke-dasharray:0.1 6; stroke-linecap:round; animation:a-flow-dots 2.4s linear infinite; }
+  .a-ai-none { stroke-opacity:.28; stroke-width:1; stroke-dasharray:4 5; }
+  .a-ai-planned { stroke-opacity:.22; stroke-dasharray:2 6; animation:none; }
+  .ai .a-canvas[data-focus] .a-wire, .ai .a-canvas[data-focus] .a-packet { opacity:.1; transition:opacity .25s; }
+  .ai .a-canvas[data-focus="sub"] .a-ai-sub, .ai .a-canvas[data-focus="sub"] .a-ai-sub-core, .ai .a-canvas[data-focus="sub"] .a-p-sub,
+  .ai .a-canvas[data-focus="key"] .a-ai-key, .ai .a-canvas[data-focus="key"] .a-p-key,
+  .ai .a-canvas[data-focus="ro"] .a-ai-ro, .ai .a-canvas[data-focus="none"] .a-ai-none { opacity:1; }
   .ai .a-row-edge { grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr)); }
-  .ai .a-band { font-size:10px; letter-spacing:.2em; text-transform:uppercase; opacity:.55; margin:0 0 -14px; }
+  .ai .a-band { position:relative; z-index:2; font-size:10px; letter-spacing:.2em; text-transform:uppercase; opacity:.6; margin:0 0 8px; }
   .a-planned { border-style:dashed; opacity:.72; }
   .a-planned::before { display:none; }
   .a-cred { font:10px 'IBM Plex Mono',monospace; padding:1px 6px; border-radius:999px; margin-left:6px; vertical-align:1px;
@@ -1163,9 +1177,18 @@
     intro.append(mk('p', 'muted a-live mono', 'LIVE · every 30 s'));
     intro.title = 'Container state from cAdvisor; everything else is how the lab is wired, from AUTOLAB';
     const legend = mk('div', 'a-legend mono');
+    const canvas = mk('div', 'a-canvas');
+    const wires = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); wires.classList.add('a-wires'); wires.setAttribute('aria-hidden', 'true');
+    canvas.append(wires);
     [['sub', 'subscription', 'A personal plan signed in by OAuth; no API key on disk'], ['key', 'API key', 'A key in a root-only env file on the host'],
      ['ro', 'read-only token', 'A token that can look and not change'], ['none', 'no credential', 'Reached without one: the tailnet or a local process']].forEach(([k, label, hint]) => {
-      const item = mk('span', 'a-key'); item.title = hint; item.append(cred(k, label)); legend.append(item);
+      const item = mk('span', 'a-key'); item.title = hint; item.tabIndex = 0; item.dataset.kind = k;
+      item.innerHTML = `<svg width="44" height="10" viewBox="0 0 44 10" aria-hidden="true"><path class="a-wire a-ai-${k}" d="M2 5 H42"/>${k === 'sub' ? '<path class="a-wire a-ai-sub-core" d="M2 5 H42"/>' : ''}</svg>`;
+      item.append(cred(k, label));
+      const on = () => canvas.dataset.focus = k, off = () => delete canvas.dataset.focus;
+      item.addEventListener('mouseenter', on); item.addEventListener('mouseleave', off);
+      item.addEventListener('focus', on); item.addEventListener('blur', off);
+      legend.append(item);
     });
     bar.append(intro, legend); root.append(bar);
 
@@ -1224,9 +1247,48 @@
         ['a linked device on your phone’s account', 'none', 'Baileys bridge'],
         'the session lives on jwst and grants the whole account; it is never copied'], []),
     );
-    root.append(band('agents'), agents, band('what they reach'), reach, band('outside the lab'), outside);
-    root.append(mk('p', 'a-access', 'Every agent runs on the tailnet side. Hermes answers one phone number; its file tools are confined to the vault checkout and its container has no Docker socket. Fetched web content is data to it, never instructions. Dashed cards are planned and not running.'));
+    canvas.append(band('outside the lab'), outside, band('agents'), agents, band('what they reach'), reach);
+    canvas.append(mk('p', 'a-access', 'Every agent runs on the tailnet side. Hermes answers one phone number; its file tools are confined to the vault checkout and its container has no Docker socket. Fetched web content is data to it, never instructions. Dashed cards and wires are planned, not running.'));
+    root.append(canvas);
     return root;
+  }
+  // Who reaches what, on which credential. Providers feed the agents; the
+  // agents reach the data. Drawn through the gutter between neighbouring
+  // bands: down from a card's bottom edge to a bus, along it, up into the
+  // target. Several wires from one card leave it at spaced points, so they
+  // read as separate lines rather than one.
+  const AI_EDGES = [
+    ['openai', 'hermes', 'sub'], ['openai', 'coder', 'sub'], ['opencode', 'hermes', 'key'], ['anthropic', 'coder', 'sub'], ['whatsapp', 'hermes', 'none'],
+    ['hermes', 'vault', 'key'], ['hermes', 'cosmos', 'ro', true], ['hermes', 'karakeep', 'key', true],
+    ['coder', 'signals', 'ro'], ['coder', 'vault', 'none'], ['coder', 'karakeep', 'key', true],
+    ['cosmos-mcp', 'cosmos', 'ro'],
+  ];
+  function drawAiWires() {
+    const canvas = rowsEl.querySelector('.ai .a-canvas'); if (!canvas) return;
+    const svg = canvas.querySelector('.a-wires');
+    const W = canvas.offsetWidth, H = canvas.offsetHeight;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
+    const pos = e => { let x = 0, y = 0, n = e; while (n && n !== canvas) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+      const w = e.offsetWidth, h = e.offsetHeight; return { x, y, w, h, r: x + w, b: y + h, cx: x + w / 2, cy: y + h / 2 }; };
+    const at = {}; canvas.querySelectorAll('[data-wire]').forEach(e => at[e.dataset.wire] = pos(e));
+    const edges = AI_EDGES.filter(([a, b]) => at[a] && at[b] && at[b].y > at[a].b);
+    // Spread the exits and entries along each card's edge.
+    const outs = {}, ins = {};
+    edges.forEach(([a, b]) => { (outs[a] = outs[a] || []).push(b); (ins[b] = ins[b] || []).push(a); });
+    const slot = (list, who, box) => box.x + box.w * (list.indexOf(who) + 1) / (list.length + 1);
+    const html = edges.map(([a, b, kind, planned], i) => {
+      const A = at[a], B = at[b];
+      const x1 = slot(outs[a], b, A), x2 = slot(ins[b], a, B);
+      // One bus per gap, each wire on its own lane so parallel runs stay apart.
+      const lane = (i % 5) - 2;
+      const bus = (A.b + B.y) / 2 + lane * 7;
+      const d = roundedPath([[x1, A.b], [x1, bus], [x2, bus], [x2, B.y]]);
+      const cls = `a-wire a-ai-${kind}${planned ? ' a-ai-planned' : ''}`;
+      const packet = !lessMotion.matches && !planned && (kind === 'sub' || kind === 'key')
+        ? `<circle class="a-packet a-p-${kind}" r="${kind === 'sub' ? 2.4 : 1.8}"><animateMotion dur="${(2.6 + (i % 3) * 0.5).toFixed(1)}s" begin="${(i * 0.37).toFixed(2)}s" repeatCount="indefinite"><mpath href="#a-ai-w${i}"/></animateMotion></circle>` : '';
+      return `<path id="a-ai-w${i}" class="${cls}" d="${d}"/>` + (kind === 'sub' ? `<path class="a-wire a-ai-sub-core${planned ? ' a-ai-planned' : ''}" d="${d}"/>` : '') + packet;
+    }).join('');
+    if (svg.innerHTML !== html) svg.innerHTML = html;
   }
   function updateAiLive(m) {
     const ctrs = Object.values(m.ctrs).flat();
@@ -1253,9 +1315,12 @@
     if (sig !== arch.aiSig || !rowsEl.querySelector('.ai')) {
       const scroll = rowsEl.scrollTop; arch.aiSig = sig;
       rowsEl.replaceChildren(buildAi(m)); rowsEl.scrollTop = scroll;
+      if (aiWireObserver) { aiWireObserver.disconnect(); aiWireObserver.observe(rowsEl.querySelector('.ai .a-canvas')); }
     }
     updateAiLive(m);
+    requestAnimationFrame(drawAiWires);
   }
+  const aiWireObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => requestAnimationFrame(drawAiWires)) : null;
 
   function renderArchitecture() {
     if (detailView.active()) { detailView.refresh(); return; }
