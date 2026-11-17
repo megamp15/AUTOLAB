@@ -425,6 +425,37 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog['code-server'].port }}/healthz"
+  # COSMOS, the owner's hub. A port check: its gateway answers only to
+  # requests that carry Traefik's token.
+  - name: COSMOS
+    group: services
+    meta: personal hub
+    url: "{{ autolab_obs_lab_url.format(name='cosmos', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog.cosmos.port) }}"
+    icon: map
+    enabled: "{{ 'cosmos' in ((autolab_builder | default({})).services | default([])) }}"
+    check:
+      type: tcp
+      target: "{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.cosmos.port }}"
+  # Hermes's dashboard: sessions, chat, config. /api/status answers without
+  # the login.
+  - name: Hermes
+    group: services
+    meta: agent dashboard
+    url: "{{ autolab_obs_lab_url.format(name='hermes', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog.hermes.port) }}"
+    icon: logs
+    enabled: "{{ 'hermes' in ((autolab_builder | default({})).services | default([])) }}"
+    check:
+      type: http
+      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.hermes.port }}/api/status"
+  - name: QR codes
+    group: services
+    meta: redirects
+    url: "{{ autolab_obs_lab_url.format(name='qr', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog.qr.port) }}"
+    icon: repo
+    enabled: "{{ 'qr' in ((autolab_builder | default({})).services | default([])) }}"
+    check:
+      type: tcp
+      target: "{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.qr.port }}"
   # Immich runs in the NAS's own Docker and signs people in through Pocket
   # ID itself; the ingress role's NAS apps give it its name.
   - name: Immich

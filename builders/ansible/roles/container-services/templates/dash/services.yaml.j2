@@ -39,6 +39,24 @@
         href: https://sure.{{ lab }}
         description: Finances
         siteMonitor: http://nebula.{{ tn }}:8104/up
+    - Photos:
+        icon: mdi-image-multiple
+        href: https://photos.{{ lab }}
+        description: Sort and tidy photos
+        siteMonitor: http://singularity.{{ tn }}:8099/
+{% if 'cosmos' in autolab_services_enabled %}
+    - COSMOS:
+        icon: mdi-creation
+        href: https://cosmos.{{ lab }}
+        description: Personal hub
+{% endif %}
+{% if 'hermes' in autolab_services_enabled %}
+    - Hermes:
+        icon: mdi-robot-outline
+        href: https://hermes.{{ lab }}
+        description: Agent dashboard
+        siteMonitor: http://jwst.{{ tn }}:{{ autolab_services_ports.hermes }}/api/status
+{% endif %}
     - Pi-hole:
         icon: pi-hole.png
         href: https://pihole.{{ lab }}/admin/
