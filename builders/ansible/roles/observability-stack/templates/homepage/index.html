@@ -594,7 +594,7 @@
     const CTR_APPS = { grafana: () => byName.Grafana, loki: () => byName.Loki, prometheus: () => labUrl('prometheus'),
       homepage: () => labUrl('home'), 'code-server': () => labUrl('code-server'), dockhand: () => labUrl('dockhand'),
       registry: () => labUrl('registry-ui'), 'registry-ui': () => labUrl('registry-ui'), dash: () => labUrl('dash'),
-      qr: () => labUrl('qr'), hermes: () => labUrl('hermes'), adventurelog: () => labUrl('adventurelog'), forgejo: () => labUrl('forgejo'), tandoor: () => labUrl('tandoor'), airtrail: () => labUrl('airtrail'), linkace: () => labUrl('linkace'), sure: () => labUrl('sure'), cosmos: () => labUrl('cosmos'), pihole: () => byName['Pi-hole'], 'pocket-id': () => pubUrl('auth') };
+      qr: () => labUrl('qr'), hermes: () => labUrl('hermes'), adventurelog: () => labUrl('adventurelog'), forgejo: () => labUrl('forgejo'), tandoor: () => labUrl('tandoor'), airtrail: () => labUrl('airtrail'), karakeep: () => labUrl('karakeep'), sure: () => labUrl('sure'), cosmos: () => labUrl('cosmos'), pihole: () => byName['Pi-hole'], 'pocket-id': () => pubUrl('auth') };
     const link = { byName, labUrl, pubUrl, ctr: name => (CTR_APPS[name] || (() => ''))() || '' };
     return { op, nodes, hosts, ctrs, rowBy, link, labNames: [...new Set(labNames)], publicNames: [...new Set(publicNames)] };
   }
@@ -1227,9 +1227,9 @@
       aiCard('cosmos', 'COSMOS', 'the personal hub · API and Postgres on jwst', 'cosmos', m.link.labUrl('cosmos'), [
         ['status, later notes, tasks and habits', 'ro', 'MCP token'],
         'the browser path is Pocket ID; agents never use it'], []),
-      aiCard('karakeep', 'Karakeep', 'bookmarks with AI tags · replaces LinkAce', 'karakeep', m.link.labUrl('karakeep'), [
-        ['tagging', 'key', 'OpenCode Go'],
-        ['Hermes and Claude Code through its MCP server', 'key', 'Karakeep API key'],
+      aiCard('karakeep', 'Karakeep', 'bookmarks that fetch and tag themselves · on nebula', 'karakeep', m.link.labUrl('karakeep'), [
+        ['tagging and summaries, once its key is set', 'key', 'OpenCode Go'],
+        ['Hermes and Claude Code through its API, not wired yet', 'key', 'Karakeep API key'],
         ['sign-in', 'none', 'Pocket ID']], [], !has('karakeep')),
     );
     const outside = mk('div', 'a-row a-row-edge');

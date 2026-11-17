@@ -43,7 +43,7 @@ bump is a pull request.
 | `forgejo` | on [nebula](nebula.md): the lab's git host — mirrors of upstream and our forks, Pocket ID sign-in — see [forgejo](forgejo.md) | 8100 |
 | `tandoor` | on [nebula](nebula.md): recipes, meal plans, shopping lists — see [apps](apps.md) | 8101 |
 | `airtrail` | on [nebula](nebula.md): a personal flight log on a map — see [apps](apps.md) | 8102 |
-| `linkace` | on [nebula](nebula.md): bookmarks with tags and a link checker — see [apps](apps.md) | 8103 |
+| `karakeep` | on [nebula](nebula.md): bookmarks that fetch the page and the video and tag themselves, Pocket ID sign-in — see [karakeep](karakeep.md) | 8107 |
 | `sure` | on [nebula](nebula.md): personal finance — see [apps](apps.md) | 8104 |
 | `rustdesk` | remote desktop between your own machines, tailnet only, key-enforced — see [rustdesk](rustdesk.md) | 21115-21117 (TCP), 21116 (UDP) |
 | `qr` | QR codes whose destination can change after printing — see [qr](qr.md) | 8097 (admin) |

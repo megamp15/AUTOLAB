@@ -93,7 +93,7 @@ machines = {
       # What it runs. The names are the catalog's (playbooks/group_vars/all.yml)
       # and must equal autolab_remote_services.nebula there; a test fails the
       # build if they drift.
-      services = ["adventurelog", "forgejo", "tandoor", "airtrail", "linkace", "sure"]
+      services = ["adventurelog", "forgejo", "tandoor", "airtrail", "karakeep", "sure"]
       # Temporarily share the existing export; isolate PBS into its own share later.
       storage = [
         { protocol = "nfs", server = "singularity", share = "/volume1/autolab", path = "/mnt/apps", directories = ["backups"], mode = "0755" },

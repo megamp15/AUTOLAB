@@ -88,7 +88,7 @@ class PolicyTest(unittest.TestCase):
         template = (path.parent.parent / 'templates/managed-pocketid-policy.json.j2').read_text()
         env = jinja2.Environment()
         env.filters['to_json'] = json.dumps
-        names = ['adventurelog', 'forgejo', 'tandoor', 'airtrail', 'linkace', 'sure']
+        names = ['adventurelog', 'forgejo', 'tandoor', 'airtrail', 'karakeep', 'sure']
         values = {f'autolab_services_{name}_public_url': f'https://{name}.example.test' for name in names}
         values.update(autolab_services_enabled=names, autolab_services_oidc_issuer='https://auth.example.test', autolab_services_pocketid_group='admins')
         policy = json.loads(env.from_string(template).render(**values))

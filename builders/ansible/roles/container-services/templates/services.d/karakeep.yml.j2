@@ -1,0 +1,69 @@
+  # Karakeep: bookmarks that fetch themselves. A saved link gets its page
+  # text, a screenshot and, for a reel or a short, the video; a model tags it
+  # when a key is set. Replaces LinkAce. The database is SQLite on local disk
+  # (SQLite on NFS is the Postgres story again); the fetched assets are on
+  # the NAS. Pocket ID sign-in. docs/gitops/karakeep.md.
+  karakeep:
+    image: {{ autolab_services_images.karakeep }}
+    restart: unless-stopped
+    depends_on:
+      - karakeep-meili
+      - karakeep-chrome
+    env_file:
+      - /etc/autolab/karakeep.env
+      - /etc/autolab/karakeep-oidc.env
+      - /etc/autolab/karakeep-ai.env
+    environment:
+      NEXTAUTH_URL: "{{ autolab_services_karakeep_public_url }}"
+      # Sign-in only at its own name; the default trusts any Host it is sent.
+      AUTH_TRUSTED_ORIGINS: ""
+      DATA_DIR: /data
+      ASSETS_DIR: /assets
+      MEILI_ADDR: http://karakeep-meili:7700
+      BROWSER_WEB_URL: http://karakeep-chrome:9222
+      LOG_LEVEL: info
+      # Reels and shorts are the point: keep the video, up to the cap, in MB.
+      CRAWLER_VIDEO_DOWNLOAD: "true"
+      CRAWLER_VIDEO_DOWNLOAD_MAX_SIZE: "{{ autolab_services_karakeep_video_max_mb }}"
+      CRAWLER_FULL_PAGE_ARCHIVE: "true"
+      CRAWLER_FULL_PAGE_ARCHIVE_MAX_SIZE_MB: "50"
+    volumes:
+      - karakeep-data:/data
+      - type: bind
+        source: {{ autolab_services_data_root }}/karakeep/assets
+        target: /assets
+        bind:
+          create_host_path: false
+    mem_limit: {{ autolab_services_memory.karakeep }}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/health || exit 1"]
+      start_period: 90s
+      interval: 30s
+      timeout: 10s
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.karakeep }}:3000"
+
+  # The browser Karakeep drives to render a page before it reads it. No port
+  # on the host; only Karakeep talks to it.
+  karakeep-chrome:
+    image: {{ autolab_services_images.karakeep_chrome }}
+    restart: unless-stopped
+    init: true
+    command:
+      - --disable-gpu
+      - --disable-dev-shm-usage
+      - --hide-scrollbars
+      - --disable-blink-features=AutomationControlled
+      - --window-size=1440,900
+    mem_limit: {{ autolab_services_memory.karakeep_chrome }}
+
+  # Search. The index is rebuilt from the database, so it is not backed up.
+  karakeep-meili:
+    image: {{ autolab_services_images.karakeep_meili }}
+    restart: unless-stopped
+    env_file: /etc/autolab/karakeep-meili.env
+    environment:
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - karakeep-meili:/meili_data
+    mem_limit: {{ autolab_services_memory.karakeep_meili }}

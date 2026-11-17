@@ -20,7 +20,7 @@ autolab_services_data_root: /mnt/apps
 # Services with a directory under the data root. A machine that runs one of
 # these refuses to start the stack while the share is not mounted, so nothing
 # can write into an empty local directory standing where the NAS should be.
-autolab_services_nas_backed: [adventurelog, forgejo, tandoor, airtrail, sure]
+autolab_services_nas_backed: [adventurelog, forgejo, tandoor, airtrail, karakeep, sure]
 # Directories to create under the data root, per enabled service.
 autolab_services_nas_dirs: >-
   {{ autolab_services_nas_dir_catalog | selectattr('service', 'in', autolab_services_enabled) | list }}
@@ -31,6 +31,7 @@ autolab_services_nas_dir_catalog:
   - {service: forgejo, path: forgejo/data, owner: "1000", group: "1000"}
   - {service: tandoor, path: tandoor/media, owner: root, group: root}
   - {service: airtrail, path: airtrail/uploads, owner: root, group: root}
+  - {service: karakeep, path: karakeep/assets, owner: root, group: root}
   # Sure's image runs as 1000:1000.
   - {service: sure, path: sure/storage, owner: "1000", group: "1000"}
 # The Postgres behind each service that has one: dumped nightly, restored
@@ -61,13 +62,6 @@ autolab_services_databases:
     user: sure
     db: sure
     image: "{{ autolab_services_images.postgres }}"
-  # MariaDB, dumped by the container's own client (see autolab-db-backup).
-  linkace:
-    kind: mariadb
-    container: linkace-db
-    user: linkace
-    db: linkace
-    image: "{{ autolab_services_images.mariadb }}"
 autolab_services_db_backup:
   keep_daily: 14
   keep_weekly_days: 60
@@ -106,8 +100,12 @@ autolab_services_images:
   redis: "redis:8.2"
   tandoor: "vabene1111/recipes:2.7.2"
   airtrail: "johly/airtrail:v3.14.0"
-  # The release before 2.6.3 carried a critical Docker-setup flaw; this is the fix.
-  linkace: "linkace/linkace:v2.6.3"
+  # Karakeep publishes its browser image only as `release`, so that one is
+  # pinned by digest. Meilisearch is the version Karakeep's own compose file
+  # names; moving it needs their one-time index upgrade.
+  karakeep: "ghcr.io/karakeep-app/karakeep:0.35.0"
+  karakeep_chrome: "ghcr.io/karakeep-app/karakeep-chrome@sha256:00fb4fa9c37aa74c58e74d0bdd16c4e3b81dddb5f264917c879f9579c3b3ad95"
+  karakeep_meili: "getmeili/meilisearch:v1.55.0"
   # A prerelease, on purpose: 0.7.6-hotfix.1 has no statement vault and no
   # /api/v1/version, which the finance backfill uses to file each Nelnet
   # statement PDF under its loan. Sure publishes no stable release newer than
@@ -141,7 +139,7 @@ autolab_services_ports:
   forgejo: "{{ autolab_service_catalog.forgejo.port }}"
   tandoor: "{{ autolab_service_catalog.tandoor.port }}"
   airtrail: "{{ autolab_service_catalog.airtrail.port }}"
-  linkace: "{{ autolab_service_catalog.linkace.port }}"
+  karakeep: "{{ autolab_service_catalog.karakeep.port }}"
   sure: "{{ autolab_service_catalog.sure.port }}"
   qr: "{{ autolab_service_catalog.qr.port }}"
   cosmos: "{{ autolab_service_catalog.cosmos.port }}"
@@ -219,7 +217,7 @@ autolab_services_sources:
 # the host (autolab-gen-credentials) and never leave it.
 autolab_services_tandoor_public_url: "https://tandoor.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
 autolab_services_airtrail_public_url: "https://airtrail.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
-autolab_services_linkace_public_url: "https://linkace.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+autolab_services_karakeep_public_url: "https://karakeep.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
 autolab_services_sure_public_url: "https://sure.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
 autolab_services_oidc_issuer: "https://auth.{{ autolab_services_dash_zone }}"
 autolab_services_pocketid_api_key: ""
@@ -228,13 +226,13 @@ autolab_services_tandoor_oidc_client_id: ""
 autolab_services_tandoor_oidc_client_secret: ""
 autolab_services_airtrail_oidc_client_id: ""
 autolab_services_airtrail_oidc_client_secret: ""
-autolab_services_linkace_oidc_client_id: ""
-autolab_services_linkace_oidc_client_secret: ""
+autolab_services_karakeep_oidc_client_id: ""
+autolab_services_karakeep_oidc_client_secret: ""
 autolab_services_sure_oidc_client_id: ""
 autolab_services_sure_oidc_client_secret: ""
 autolab_services_tandoor_password_login: true
 autolab_services_airtrail_password_login: true
-autolab_services_linkace_password_login: true
+autolab_services_karakeep_password_login: true
 autolab_services_sure_password_login: true
 # Limits, not reservations. Measured idle: Tandoor ~850 MB (its workers), Sure's
 # web and worker ~375 MB each, the rest well under 400 MB.
@@ -243,9 +241,9 @@ autolab_services_memory:
   tandoor_db: 256m
   airtrail: 512m
   airtrail_db: 256m
-  linkace: 512m
-  linkace_db: 384m
-  linkace_redis: 96m
+  karakeep: 1024m
+  karakeep_chrome: 768m
+  karakeep_meili: 384m
   sure: 768m
   sure_worker: 768m
   sure_db: 384m
@@ -265,14 +263,12 @@ autolab_services_credential_specs:
         lines: [POSTGRES_DB=airtrail, POSTGRES_USER=airtrail, "POSTGRES_PASSWORD={PW}"]
       - path: /etc/autolab/airtrail.env
         lines: ["DB_URL=postgres://airtrail:{PW}@airtrail-db:5432/airtrail"]
-  - service: linkace
+  - service: karakeep
     files:
-      - path: /etc/autolab/linkace-db.env
-        lines: [MARIADB_USER=linkace, MARIADB_DATABASE=linkace, "MARIADB_PASSWORD={PW}", "MARIADB_ROOT_PASSWORD={HEX16}"]
-      - path: /etc/autolab/linkace-redis.env
-        lines: ["REDIS_PASSWORD={PW}"]
-      - path: /etc/autolab/linkace.env
-        lines: ["APP_KEY={APPKEY}", "DB_PASSWORD={PW}", "REDIS_PASSWORD={PW}", "LINKACE_ADMIN_PASSWORD={HEX16}"]
+      - path: /etc/autolab/karakeep-meili.env
+        lines: ["MEILI_MASTER_KEY={PW}"]
+      - path: /etc/autolab/karakeep.env
+        lines: ["NEXTAUTH_SECRET={HEX32}", "MEILI_MASTER_KEY={PW}"]
   - service: sure
     files:
       - path: /etc/autolab/sure-db.env
@@ -285,6 +281,18 @@ autolab_services_credential_specs:
           - "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY={HEX32}"
           - "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY={HEX32}"
           - "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT={HEX32}"
+
+# Karakeep's tagging and summaries: any OpenAI-compatible endpoint. A key of
+# its own on OpenCode Go (KARAKEEP_OPENCODE_GO_API_KEY), not Hermes's, so one
+# can be revoked without the other. Unset: links are saved and fetched,
+# nothing is tagged. Never an Anthropic credential. docs/gitops/karakeep.md.
+autolab_services_karakeep_ai_api_key: ""
+autolab_services_karakeep_ai_base_url: "https://opencode.ai/zen/go/v1"
+autolab_services_karakeep_ai_text_model: "kimi-k3"
+autolab_services_karakeep_ai_image_model: "gemini-4-argon"
+# The largest video kept with a bookmark, in MB. Reels and shorts are a few
+# MB; this stops a two-hour stream from filling the share.
+autolab_services_karakeep_video_max_mb: 200
 
 # AdventureLog. See docs/gitops/adventurelog.md.
 #
