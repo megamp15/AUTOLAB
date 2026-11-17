@@ -53,14 +53,27 @@ Anthropic credential.**
   # pick "ChatGPT or Codex Subscription", follow the device code on your Mac
   ```
 
-  Then make OpenCode Go the fallback, so a used-up Codex quota degrades to
-  the cheap plan rather than silence. Edit `data/config.yaml` and add:
+  Then make `kimi-k3` the first entry of `fallback_providers` in
+  `data/config.yaml`, so a used-up Codex quota degrades to the cheap plan
+  rather than silence.
 
-  ```yaml
-  fallback_providers:
-    - provider: opencode-go
-      model: kimi-k3
-  ```
+### Which model does what
+
+One conversation, several models, by role. The seeded config sets them all on
+OpenCode Go; each model there has its own monthly allowance, so spreading the
+roles across vendors stretches the plan rather than just diversifying it.
+
+| role | model | why |
+|---|---|---|
+| main | `kimi-k3`, then the Codex subscription | the strongest agentic open-weight on the list; Codex once logged in |
+| main fallback | `glm-5.3`, then `qwen3.7-plus` | top tool-use scorers, other vendors than the main |
+| delegation (subagents) | `deepseek-v4.1-flash` | cheap, fast, native tool calling; subtasks are narrow |
+| compression, titles | `glm-5.3-flash` | throwaway work on the cheapest fast model |
+| vision | `gemini-4-argon` | the open models on the list are text-only |
+
+Nothing ending in `-contributor` or `-free`: the vendor may train on those
+prompts, and Hermes refuses them unattended anyway. Not `claude-haiku-5-5`
+either, although Go resells it, so the Anthropic rule stays simple.
 
 `config.yaml` is seeded once by Ansible and then belongs to Hermes:
 `hermes model`, `hermes tools` and the agent itself write to it. The role
@@ -92,17 +105,15 @@ operator's, and is never copied anywhere. If WhatsApp unlinks it (phone
 reset, app update), run the same command again. Use a terminal at least 60
 columns wide or the QR will not render.
 
-Not verified yet, the first things to check on bring-up:
+Not verified yet, the first thing to check at pairing:
 
 - that the bridge's Node dependencies install inside the container's
   writable `/opt/data` rather than the read-only image. If `hermes whatsapp`
   fails there, the fix is a derived image with them baked in, the way
   code-server is built;
-- that `opencode-go` is accepted as the main `model.provider` in the seeded
-  config (the docs list it in the provider registry and name its key
-  variable; the main-model path was not exercised). If the gateway log
-  rejects it, `hermes model` → Custom endpoint,
-  `https://opencode.ai/zen/go/v1`, same key.
+
+Verified on bring-up (2026-11-16): `opencode-go` is accepted as the main
+`model.provider`; the gateway log warms `kimi-k3` with a 1M context.
 
 ## The vault
 
