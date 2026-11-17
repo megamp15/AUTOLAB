@@ -53,9 +53,11 @@ Anthropic credential.**
   # pick "ChatGPT or Codex Subscription", follow the device code on your Mac
   ```
 
-  Then make `kimi-k3` the first entry of `fallback_providers` in
-  `data/config.yaml`, so a used-up Codex quota degrades to the cheap plan
-  rather than silence.
+  Pick `gpt-6.1-sol` (not the `-900k` variant: same model, a far larger
+  context budget re-read on every turn) and reasoning `medium`. Then make
+  `kimi-k3` the first entry of `fallback_providers` in `data/config.yaml`,
+  so a used-up Codex quota degrades to the cheap plan rather than silence.
+  Done 2026-11-16; the gateway warms `gpt-6.1-sol` with a 500K context.
 
 ### Which model does what
 
@@ -65,8 +67,8 @@ roles across vendors stretches the plan rather than just diversifying it.
 
 | role | model | why |
 |---|---|---|
-| main | `kimi-k3`, then the Codex subscription | the strongest agentic open-weight on the list; Codex once logged in |
-| main fallback | `glm-5.3`, then `qwen3.7-plus` | top tool-use scorers, other vendors than the main |
+| main | `gpt-6.1-sol` on the Codex subscription, reasoning `medium` | the newest Codex model; `kimi-k3` until the login is done |
+| main fallback | `kimi-k3`, `glm-5.3`, `qwen3.7-plus` | a used-up Codex quota drops to the cheap plan; three vendors |
 | delegation (subagents) | `deepseek-v4.1-flash` | cheap, fast, native tool calling; subtasks are narrow |
 | compression, titles | `glm-5.3-flash` | throwaway work on the cheapest fast model |
 | vision | `gemini-4-argon` | the open models on the list are text-only |
