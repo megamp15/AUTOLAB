@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Provision restricted Pocket ID clients with recoverable root-only state."""
+"""Provision restricted Pocket ID clients with recoverable root-only state.
+
+A client this host made and no longer declares (its app was removed) is
+deleted from Pocket ID, after checking it still carries the managed name.
+"""
 import fcntl
 import json
 import os
@@ -115,6 +119,16 @@ def reconcile(api, policy, state, save):
             entry['secret_id'] = created['id']
             save(state)
             changed = True
+    for name in [name for name in state if name not in policy['clients']]:
+        path = '/oidc/clients/' + urllib.parse.quote(state[name]['id'], safe='')
+        current = api.request('GET', path, allow_missing=True)
+        if current is not None:
+            if current.get('name') != 'AUTOLAB ' + name:
+                raise RuntimeError('Managed client ID is owned by another client')
+            api.request('DELETE', path)
+        del state[name]
+        save(state)
+        changed = True
     return changed
 
 

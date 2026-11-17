@@ -1,8 +1,14 @@
-"""Adopt existing Pocket ID clients and reconcile declared browser URLs.
+"""Adopt existing Pocket ID clients and reconcile what the policy declares.
 
-Prepare adds callbacks without breaking the running configuration. Apply after
-service deployment removes obsolete callbacks. Client credentials, groups,
-consent settings and other undeclared fields stay as returned by Pocket ID.
+Declared: browser URLs, and for a client with `allowedUserGroups`, the user
+groups that may sign in through it. Those groups are created when missing.
+Who is in a group is never touched: that stays in Pocket ID.
+
+Prepare adds callbacks and missing groups without breaking the running
+configuration. Apply after service deployment removes obsolete callbacks and
+sets the allowed groups. Client credentials, consent settings and other
+undeclared fields stay as returned by Pocket ID; so do the groups of a client
+that declares none.
 """
 
 import argparse
@@ -19,7 +25,13 @@ import urllib.request
 POLICY = Path(__file__).resolve().parents[1] / "builders/ansible/pocketid-clients.json"
 
 
-def desired_clients(variables, policy):
+def desired_clients(variables, policy, find=None, only=None):
+    """Each declared client as (id, URL settings, allowed groups or None).
+
+    A client is adopted by the ID a variable holds (`id_variable`), or, when
+    no secret of ours carries its ID, by its display name in Pocket ID
+    (`name`), which `find` turns into an ID. Without `find` those are left out.
+    """
     labels = variables["autolab_ingress_hostnames"]
     names = dict(labels, zone=variables["autolab_ingress_zone"],
                  internal=variables["autolab_ingress_internal_label"])
@@ -27,16 +39,29 @@ def desired_clients(variables, policy):
         raise ValueError("Private dashboard zone and internal label are required")
     clients = {}
     for name, fields in policy.items():
-        client_id = variables.get(fields["id_variable"], "")
+        if only and name not in only:
+            continue
+        if "name" in fields:
+            client_id = find(fields["name"]) if find else ""
+        else:
+            client_id = variables.get(fields["id_variable"], "")
         if not client_id:
             continue
         settings = {}
         for key, value in fields.items():
-            if key != "id_variable":
+            if key not in ("id_variable", "name", "allowedUserGroups"):
                 settings[key] = ([url.format(**names) for url in value]
                                  if isinstance(value, list) else value.format(**names))
-        clients[name] = (client_id, settings)
+        clients[name] = (client_id, settings, fields.get("allowedUserGroups"))
     return clients
+
+
+def group_changes(existing, wanted, client):
+    """What a client's declared groups need: (groups to create, whether its access differs)."""
+    known = {group["name"] for group in existing}
+    allowed = {group["name"] for group in client.get("allowedUserGroups") or []}
+    missing = [name for name in wanted if name not in known]
+    return missing, allowed != set(wanted) or not client.get("isGroupRestricted")
 
 
 def reconcile(current, desired, prepare=False):
@@ -55,8 +80,19 @@ class Api:
         self.base_url = base_url
         self.token = token
 
-    def request(self, method, client_id, body=None):
-        url = self.base_url + "/api/oidc/clients/" + urllib.parse.quote(client_id, safe="")
+    def request(self, method, client_id, body=None, suffix=""):
+        return self.call(method, "/api/oidc/clients/" + urllib.parse.quote(client_id, safe="") + suffix, body)
+
+    def find_client(self, name):
+        query = urllib.parse.urlencode({"search": name, "pagination[limit]": 100})
+        matches = [client["id"] for client in self.call("GET", "/api/oidc/clients?" + query)["data"]
+                   if client.get("name") == name]
+        if len(matches) != 1:
+            raise RuntimeError(f"Expected exactly one Pocket ID client named {name}, found {len(matches)}")
+        return matches[0]
+
+    def call(self, method, path, body=None):
+        url = self.base_url + path
         request = urllib.request.Request(
             url, method=method, data=json.dumps(body).encode() if body is not None else None,
             headers={"X-API-KEY": self.token, "Content-Type": "application/json",
@@ -77,19 +113,56 @@ class Api:
             raise RuntimeError("Pocket ID is unreachable") from None
 
 
+def reconcile_groups(api, name, client_id, wanted, args):
+    """Create the declared groups and make them the only ones the client admits.
+
+    The groups are set first and the restriction turned on last, so no step
+    in between leaves the client admitting nobody. (Pocket ID clears the
+    allowed groups of a client it is told is not restricted, so the other
+    order, or a later update from a stale copy, would undo this.)
+    """
+    if not wanted:
+        raise ValueError(f"{name}: allowedUserGroups is empty; that would lock everyone out")
+    groups = api.call("GET", "/api/user-groups?pagination%5Blimit%5D=100")["data"]
+    client = api.request("GET", client_id)
+    missing, differs = group_changes(groups, wanted, client)
+    if not (args.apply or args.prepare):
+        for group in missing:
+            print(f"{name}: group {group} would be created")
+        print(f"{name}: allowed groups {'would change' if differs else 'unchanged'}")
+        return
+    for group in missing:
+        groups.append(api.call("POST", "/api/user-groups", {"name": group, "friendlyName": group.capitalize()}))
+        print(f"{name}: group {group} created")
+    if args.prepare or not differs:
+        return
+    ids = [group["id"] for group in groups if group["name"] in wanted]
+    api.request("PUT", client_id, {"userGroupIds": ids}, suffix="/allowed-user-groups")
+    client = api.request("GET", client_id)
+    if not client.get("isGroupRestricted"):
+        api.request("PUT", client_id, dict(client, isGroupRestricted=True))
+        client = api.request("GET", client_id)
+    if group_changes(groups, wanted, client)[1]:
+        raise RuntimeError(f"{name}: allowed groups verification failed")
+    print(f"{name}: allowed groups applied")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--variables", required=True, type=Path)
-    parser.add_argument("--client", choices=("traefik", "grafana"))
+    policy = json.loads(POLICY.read_text())
+    parser.add_argument("--client", nargs="+", choices=sorted(policy))
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--prepare", action="store_true")
     mode.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     variables = json.loads(args.variables.read_text())
-    clients = desired_clients(variables, json.loads(POLICY.read_text()))
-    if args.client:
-        clients = {name: value for name, value in clients.items() if name == args.client}
-    if not clients:
+    # Anything to do is known before Pocket ID is asked: a client adopted by
+    # name always is, one adopted by ID only when its variable is set.
+    selected = {name: fields for name, fields in policy.items()
+                if (not args.client or name in args.client)
+                and ("name" in fields or variables.get(fields["id_variable"], ""))}
+    if not selected:
         print("No configured Pocket ID clients to manage")
         return
     token = os.environ.get("POCKETID_API_KEY", "").strip()
@@ -98,14 +171,20 @@ def main():
     labels = variables["autolab_ingress_hostnames"]
     base_url = "https://" + labels["auth"] + "." + variables["autolab_ingress_zone"]
     api = Api(base_url, token)
+    clients = desired_clients(variables, policy, find=api.find_client, only=set(selected))
     # Read every client before changing any. Missing clients are an error;
     # this migration never creates replacements or rotates their secrets.
-    existing = {name: api.request("GET", client_id) for name, (client_id, _) in clients.items()}
-    for name, (client_id, desired) in clients.items():
+    existing = {name: api.request("GET", client_id) for name, (client_id, _, _) in clients.items()}
+    for name, (client_id, desired, wanted) in clients.items():
         current = existing[name]
+        if wanted is not None:
+            reconcile_groups(api, name, client_id, wanted, args)
+            # Read again: the URL update below sends the client back whole, and
+            # a stale copy saying "not restricted" would clear its groups.
+            current = api.request("GET", client_id)
         payload = reconcile(current, desired, prepare=args.prepare)
         if payload == current:
-            print(f"{name}: unchanged")
+            print(f"{name}: URLs unchanged")
             continue
         if not (args.apply or args.prepare):
             print(f"{name}: URL configuration would change")

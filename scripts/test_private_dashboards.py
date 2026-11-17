@@ -14,7 +14,7 @@ ROLE = ROOT / "builders/ansible/roles/ingress"
 
 
 class PrivateDashboardTests(unittest.TestCase):
-    def render(self, plugin=True, tailnet=True, service_hosts=None):
+    def render(self, plugin=True, tailnet=True, service_hosts=None, public=None):
         env = jinja2.Environment(undefined=jinja2.StrictUndefined)
         env.filters.update(bool=bool, to_json=json.dumps)
         defaults = yaml.safe_load((ROLE / "defaults/main.yml").read_text())
@@ -27,7 +27,7 @@ class PrivateDashboardTests(unittest.TestCase):
             autolab_ingress_traefik_client_secret="test-only",
             autolab_ingress_oidc_plugin_secret="test-only",
             autolab_ingress_grafana_route=True,
-            autolab_ingress_public_routes={"share": {"upstream": "http://share:3000"}},
+            autolab_ingress_public_routes=public or {"share": {"upstream": "http://share:3000"}},
             autolab_ingress_internal_routes=defaults["autolab_ingress_service_routes"],
             autolab_ingress_services=list(service_hosts or {}),
             autolab_ingress_service_hosts=service_hosts or {},
@@ -73,6 +73,42 @@ class PrivateDashboardTests(unittest.TestCase):
         public = {key for key, r in config["routers"].items() if "web" in r["entryPoints"]}
         self.assertEqual(public, {"auth", "public-share"})
 
+    def test_public_route_with_groups_is_behind_its_own_login(self):
+        public = {"share": {"upstream": "http://share:3000"},
+                  "qr": {"upstream": "http://jwst:8097", "groups": ["admins", "paradigm"]}}
+        config = self.render(public=public)
+        self.assertEqual(config["routers"]["public-qr"]["middlewares"], ["oidc-public-qr"])
+        self.assertNotIn("middlewares", config["routers"]["public-share"])
+        auth = config["middlewares"]["oidc-public-qr"]["plugin"]["traefik-oidc-auth"]
+        self.assertEqual(auth["CallbackUri"], "https://qr.example.test/oidc/callback")
+        self.assertEqual(auth["Authorization"]["AssertClaims"],
+                         [{"Name": "groups", "AnyOf": ["admins", "paradigm"]}])
+        # Its session is its own: another cookie name, and no Domain, so the
+        # browser sends it to this one host and no internal route reads it.
+        self.assertNotEqual(auth["CookieNamePrefix"], "TraefikOidcAuth")
+        self.assertNotIn("Domain", auth["SessionCookie"])
+        # No login configured: no route at all, never an open page.
+        bare = self.render(plugin=False, public=public)
+        self.assertNotIn("public-qr", bare["routers"])
+        self.assertNotIn("public-qr", bare["services"])
+        self.assertIn("public-share", bare["routers"])
+
+    def test_every_login_checks_its_groups_on_each_request(self):
+        # The plugin caches "allowed" in the session at login. Without this a
+        # session made by one middleware passes another with stricter groups.
+        public = {"qr": {"upstream": "http://jwst:8097", "groups": ["admins", "paradigm"]}}
+        middlewares = self.render(public=public)["middlewares"]
+        for name in ("oidc", "oidc-admin", "oidc-public-qr"):
+            auth = middlewares[name]["plugin"]["traefik-oidc-auth"]
+            self.assertIs(auth["Authorization"]["CheckOnEveryRequest"], True, name)
+
+    def test_the_paradigm_group_opens_only_the_qr_page(self):
+        play = yaml.safe_load((ROOT / "builders/ansible/playbooks/ingress.yml").read_text())[0]["vars"]
+        self.assertEqual(play["autolab_ingress_public_routes"]["qr"]["groups"], ["admins", "paradigm"])
+        self.assertNotIn("groups", play["autolab_ingress_public_routes"]["share"])
+        role = (ROLE / "defaults/main.yml").read_text() + (ROLE / "templates/traefik-dynamic.yml.j2").read_text()
+        self.assertNotIn("paradigm", role)
+
     def test_home_has_no_route_without_login(self):
         self.assertNotIn("lab-home", self.render(plugin=False)["routers"])
 
@@ -86,7 +122,7 @@ class PrivateDashboardTests(unittest.TestCase):
     def test_cloudflare_public_allowlist(self):
         source = (ROOT / "infra/stacks/cloudflare/ingress.auto.tfvars").read_text()
         labels = set(re.findall(r"^\s*(\w+)\s*=\s*\{\s*comment", source, re.MULTILINE))
-        self.assertEqual(labels, {"auth", "share"})
+        self.assertEqual(labels, {"auth", "share", "qr"})
 
 
 if __name__ == "__main__":

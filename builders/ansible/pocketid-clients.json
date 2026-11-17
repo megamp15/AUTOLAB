@@ -1,14 +1,24 @@
 {
   "traefik": {
     "id_variable": "autolab_ingress_traefik_client_id",
-    "callbackURLs": ["https://{home}.{internal}.{zone}/oidc/callback"],
-    "logoutCallbackURLs": ["https://{home}.{internal}.{zone}/oidc/callback"],
-    "launchURL": "https://{home}.{internal}.{zone}"
+    "callbackURLs": ["https://{home}.{internal}.{zone}/oidc/callback", "https://qr.{zone}/oidc/callback"],
+    "logoutCallbackURLs": ["https://{home}.{internal}.{zone}/oidc/callback", "https://qr.{zone}/oidc/callback"],
+    "launchURL": "https://{home}.{internal}.{zone}",
+    "allowedUserGroups": ["admins", "paradigm"]
   },
   "grafana": {
     "id_variable": "autolab_obs_grafana_oidc_client_id",
     "callbackURLs": ["https://{grafana}.{internal}.{zone}/login/generic_oauth"],
     "logoutCallbackURLs": ["https://{grafana}.{internal}.{zone}/login"],
-    "launchURL": "https://{grafana}.{internal}.{zone}"
+    "launchURL": "https://{grafana}.{internal}.{zone}",
+    "allowedUserGroups": ["admins"]
+  },
+  "proxmox": {
+    "name": "Proxmox",
+    "allowedUserGroups": ["admins"]
+  },
+  "immich": {
+    "name": "Immich",
+    "allowedUserGroups": ["admins"]
   }
 }

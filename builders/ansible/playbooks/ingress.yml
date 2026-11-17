@@ -23,9 +23,15 @@
     # OpenID login of its own, so the plugin is its login, as for Prometheus.
     # Public, no login: Immich's shared links through the public proxy on the
     # services host. Immich itself stays on the tailnet.
+    # Public, behind the passkey (a route with `groups`): the QR admin page,
+    # for the people in Pocket ID's `paradigm` group, who are not on the
+    # tailnet. That group is named on no other route, so it opens only this.
     autolab_ingress_public_routes:
       share:
         upstream: "http://{{ autolab_ingress_services_fqdn }}:{{ autolab_service_catalog['immich-share'].port }}"
+      qr:
+        upstream: "http://{{ autolab_ingress_services_fqdn }}:{{ autolab_service_catalog.qr.port }}"
+        groups: [admins, paradigm]
 
     # Photo Jobs on the NAS: Pocket ID admins only, and only once the shared
     # token exists, so the route never points at a service that would answer

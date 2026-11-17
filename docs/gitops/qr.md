@@ -17,8 +17,8 @@ phone scans  →  https://go.paradigm-prints.com/signup
                  paradigm-tunnel ──▶ qr-public:8080   302 → the Google Form
                                           │
                                    one SQLite file          ◀── qr (admin page)
-                                                               qr.lab.<zone>
-                                                               tailnet + passkey
+                                                               qr.lab.<zone>   tailnet + passkey
+                                                               qr.<zone>       public + passkey
 ```
 
 ## Two containers, one image
@@ -26,10 +26,11 @@ phone scans  →  https://go.paradigm-prints.com/signup
 | container | listens | reachable from |
 |---|---|---|
 | `qr-public` | `GET /<name>` → 302, `GET /healthz`. Nothing else: no page, no API | the `paradigm-public` network, where the tunnel connector is |
-| `qr` | the page and its API, plus the PNG and SVG of each code | jwst's tailnet address, port 8097, behind the passkey at `qr.lab.<zone>` |
+| `qr` | the page and its API, plus the PNG and SVG of each code | jwst's tailnet address, port 8097, behind the passkey at `qr.lab.<zone>` and at the public `qr.<zone>` |
 
-The admin page has no login of its own, so it must never be somewhere a tunnel
-can reach. It is on the default network only; the connector and `qr-public`
+The admin page has no login of its own, so it must never be somewhere the
+Paradigm tunnel can reach: that tunnel lands on containers with nothing in
+front. It is on the default network only; the connector and `qr-public`
 are on `paradigm-public` only. Proved on a built stack: from `paradigm-public`,
 `qr:8081` does not resolve and `qr-public:8080/api/links` is 404.
 
@@ -37,6 +38,25 @@ Both containers run as an unprivileged user in a read-only filesystem with no
 capabilities, and share `/opt/autolab/services/qr/data/qr.db` (SQLite, WAL).
 The public one writes to it too, to count scans. The directory belongs to uid
 10001, the account inside the image.
+
+## The admin page from outside the tailnet
+
+`https://qr.<zone>` is the same admin page through the lab's own tunnel:
+Cloudflare → horizon's Traefik → the Pocket ID passkey → jwst. It exists for
+the people at Paradigm Prints, who are not on the tailnet. See
+[ingress](ingress.md), "A public name behind the passkey", for how the route
+is locked.
+
+Who gets in: Pocket ID groups `admins` and `paradigm`. `paradigm` is named on
+no other route, so an account in that group alone opens this page and nothing
+else in the lab.
+
+The group and the right to sign in with it are code: the ingress run creates
+`paradigm` in Pocket ID and allows it on the `traefik` client. Who is in the
+group is yours: add the person (or one shared account) to `paradigm` only,
+and have the passkey saved in the Paradigm Prints Bitwarden. The steps, and
+how to take access away: [Pocket ID](./pocket-id.md), "By hand: add a
+person".
 
 ## The Paradigm tunnel
 
@@ -70,7 +90,7 @@ error. That is expected.
 
 ## Using it
 
-Open `https://qr.lab.<zone>`, press **New QR code**, give it a name, the
+Open `https://qr.lab.<zone>` (or `https://qr.<zone>` off the tailnet), press **New QR code**, give it a name, the
 destination and, if you like, a short address (random otherwise). The card shows
 the code with PNG and SVG downloads (SVG for print shops), the scan count and
 the last scan. **Edit** changes the name and destination; the short address is

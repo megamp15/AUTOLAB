@@ -55,7 +55,8 @@ autolab_service_catalog:
     port: 8096
     login: plugin
   # QR codes that redirect. The admin page is the catalog port, behind the
-  # passkey at qr.<label>.<zone>. The redirect side has no port on the host at
+  # passkey at qr.<label>.<zone> and, for the Paradigm Prints people, at the
+  # public qr.<zone> (the ingress playbook). The redirect side has no port on the host at
   # all: it joins the paradigm-public network, where paradigm-tunnel carries it
   # out through a tunnel in another Cloudflare account, never touching
   # horizon's Traefik.
