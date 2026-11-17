@@ -447,10 +447,13 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.hermes.port }}/api/status"
+  # Public, behind the passkey: the people who use it are not on the tailnet.
+  # The check is the app's own port on the tailnet, so the row says whether
+  # the app is up, not whether the tunnel is (the Pocket ID row says that).
   - name: QR codes
     group: services
     meta: redirects
-    url: "{{ autolab_obs_lab_url.format(name='qr', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog.qr.port) }}"
+    url: "https://qr.{{ autolab_obs_public_zone }}"
     icon: repo
     enabled: "{{ 'qr' in ((autolab_builder | default({})).services | default([])) }}"
     check:

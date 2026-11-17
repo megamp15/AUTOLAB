@@ -17,8 +17,8 @@ phone scans  →  https://go.paradigm-prints.com/signup
                  paradigm-tunnel ──▶ qr-public:8080   302 → the Google Form
                                           │
                                    one SQLite file          ◀── qr (admin page)
-                                                               qr.lab.<zone>   tailnet + passkey
-                                                               qr.<zone>       public + passkey
+                                                               qr.<zone>
+                                                               public + passkey
 ```
 
 ## Two containers, one image
@@ -26,7 +26,7 @@ phone scans  →  https://go.paradigm-prints.com/signup
 | container | listens | reachable from |
 |---|---|---|
 | `qr-public` | `GET /<name>` → 302, `GET /healthz`. Nothing else: no page, no API | the `paradigm-public` network, where the tunnel connector is |
-| `qr` | the page and its API, plus the PNG and SVG of each code | jwst's tailnet address, port 8097, behind the passkey at `qr.lab.<zone>` and at the public `qr.<zone>` |
+| `qr` | the page and its API, plus the PNG and SVG of each code | jwst's tailnet address, port 8097, behind the passkey at the public `qr.<zone>` |
 
 The admin page has no login of its own, so it must never be somewhere the
 Paradigm tunnel can reach: that tunnel lands on containers with nothing in
@@ -41,9 +41,10 @@ The public one writes to it too, to count scans. The directory belongs to uid
 
 ## The admin page from outside the tailnet
 
-`https://qr.<zone>` is the same admin page through the lab's own tunnel:
-Cloudflare → horizon's Traefik → the Pocket ID passkey → jwst. It exists for
-the people at Paradigm Prints, who are not on the tailnet. See
+`https://qr.<zone>` is the admin page's only name. It goes through the lab's
+own tunnel: Cloudflare → horizon's Traefik → the Pocket ID passkey → jwst.
+It is public because the people at Paradigm Prints are not on the tailnet,
+and it has no `*.lab` name beside it: one name is one thing to manage. See
 [ingress](ingress.md), "A public name behind the passkey", for how the route
 is locked.
 
@@ -90,7 +91,7 @@ error. That is expected.
 
 ## Using it
 
-Open `https://qr.lab.<zone>` (or `https://qr.<zone>` off the tailnet), press **New QR code**, give it a name, the
+Open `https://qr.<zone>`, press **New QR code**, give it a name, the
 destination and, if you like, a short address (random otherwise). The card shows
 the code with PNG and SVG downloads (SVG for print shops), the scan count and
 the last scan. **Edit** changes the name and destination; the short address is

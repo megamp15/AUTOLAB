@@ -157,7 +157,8 @@ DNS but not in Traefik gets a 404, not a service.
 
 A public route with `groups` gets the plugin in front, for people who are not
 on the tailnet. `qr.<zone>` is the only one: the QR admin page, for Pocket ID
-groups `admins` and `paradigm` (see [qr](qr.md)). Operator dashboards do not
+groups `admins` and `paradigm` (see [qr](qr.md)). A service that moves out
+like this sets `lab: false` in the catalog, so it has one name, not two. Operator dashboards do not
 get this; they stay on `*.lab`.
 
 What keeps such a route from opening anything else:

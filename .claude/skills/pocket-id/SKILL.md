@@ -33,29 +33,15 @@ over the hand side as numbered steps.
    by Pocket ID.
 3. Check least privilege: a new group is named on exactly the routes it is
    for. `grep -rn "<group>" builders/ansible docs/gitops` shows every place.
-4. Run `python3 -m unittest discover -s scripts -p 'test_*.py'`. Done when it
-   exits 0. `test_private_dashboards.py` and `test_pocketid_clients.py` pin
-   the public allowlist and the declared groups: a deliberate change there
-   means updating the test in the same commit.
-5. Open the pull request with a "To deploy" section listing the runs in
-   order.
-6. After merge, when the user asks for the deploy, run check mode first and
-   read its Pocket ID lines before applying:
-
-   ```
-   gh workflow run 05_ansible-builder.yml -f environment=lab -f playbook=ingress -f confirm=check
-   gh workflow run 05_ansible-builder.yml -f environment=lab -f playbook=ingress -f confirm=apply
-   ```
-
-   | changed | run |
-   |---|---|
-   | Traefik, Proxmox or Immich in `pocketid-clients.json`; any route | `05`, `lab`, `ingress` |
-   | Grafana in `pocketid-clients.json` | `05`, `lab`, `observability` |
-   | a public hostname | `05` `ingress`, then `10_cloudflare.yml -f confirm=apply` |
-   | `managed-pocketid-policy.json.j2` | `05`, `edge`, `services`, limit the apps host |
-
-   Done when the apply's log shows `allowed groups applied` or `unchanged`
-   for each client, and the proof below passes.
+4. `pull-request`. `test_private_dashboards.py` and
+   `test_pocketid_clients.py` pin the public allowlist and the declared
+   groups: a deliberate change there means updating the test in the same
+   commit.
+5. `run-workflow`, when the user asks for the deploy. The run for each kind
+   of change is in the doc's table. Read the check run's Pocket ID lines
+   (`group X would be created`, `allowed groups would change`) before
+   applying. Done when the apply's log shows `allowed groups applied` or
+   `unchanged` for each client, and the proof below passes.
 
 ## Proof
 

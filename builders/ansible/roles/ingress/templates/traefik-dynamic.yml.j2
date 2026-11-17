@@ -45,7 +45,7 @@ http:
 {%   endfor %}
 {%   for name in autolab_ingress_service_hosts %}
 {%     set svc = autolab_service_catalog[name] %}
-{%     if svc.port is defined and (svc.login not in ['plugin', 'admin'] or plugin_on) %}
+{%     if svc.port is defined and svc.lab | default(true) and (svc.login not in ['plugin', 'admin'] or plugin_on) %}
     lab-{{ name }}:
       rule: "Host(`{{ name }}.{{ lab }}`)"
       entryPoints: [tailnet-https]
@@ -89,7 +89,7 @@ http:
 {%   endfor %}
 {%   for name in autolab_ingress_service_hosts %}
 {%     set svc = autolab_service_catalog[name] %}
-{%     if svc.port is defined and (svc.login not in ['plugin', 'admin'] or plugin_on) %}
+{%     if svc.port is defined and svc.lab | default(true) and (svc.login not in ['plugin', 'admin'] or plugin_on) %}
     lab-{{ name }}:
       loadBalancer:
         servers:
