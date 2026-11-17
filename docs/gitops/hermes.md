@@ -17,15 +17,16 @@ on the Mac through Obsidian.
 ## What runs
 
 One container, `hermes`, from the official image, pinned by release tag. It
-runs `gateway run` under the image's own supervisor, as the operator account,
-with two bind mounts:
+runs `gateway run` and the dashboard under the image's own supervisor, as the
+operator account, with two bind mounts:
 
 | host | container | holds |
 |---|---|---|
 | `/opt/autolab/services/hermes/data` | `/opt/data` | `.env`, `config.yaml`, the SQLite state, sessions, memories, skills, the paired WhatsApp session |
 | `/opt/autolab/services/hermes/vault` | `/workspace/vault` | the vault checkout; the gateway's working directory |
 
-The gateway has no port and no Docker socket; the dashboard beside it is the one published port (below). Everything the gateway does is outbound:
+The gateway has no port and no Docker socket; the dashboard, in the same
+container, is the one published port (below). Everything the gateway does is outbound:
 WhatsApp through the Baileys bridge, the model provider, GitHub. Its own API
 server stays off. Both directories are on local disk: SQLite on NFS is the
 same corruption story as Postgres, and the vault's durable copy is GitHub.
@@ -136,8 +137,8 @@ else of the host.
 
 ## The dashboard
 
-`hermes.lab.<zone>`: Hermes's own web dashboard, a second container from the
-same image over the same state directory. Status, Chat, Sessions, Config,
+`hermes.lab.<zone>`: Hermes's own web dashboard, run inside the gateway's
+container by `HERMES_DASHBOARD=1`, the image's own supervised slot. Status, Chat, Sessions, Config,
 API keys, Logs, Analytics, Cron, Skills, MCP, Pairing, Channels. The Chat
 page talks to the same agent and memory as WhatsApp, and Sessions lists both.
 Token use, cost and which model answered what are on Analytics; Grafana
@@ -152,6 +153,13 @@ are generated once on jwst:
 ```sh
 ssh megamp15@jwst sudo cat /etc/autolab/hermes-dashboard.env
 ```
+
+It was a second container until 2026-11-17. That does not work: the Chat
+page attaches to the gateway on a loopback port (`ws://127.0.0.1:<port>`),
+which a sibling container cannot reach, so Chat sat on "reconnecting" and
+the status read "Gateway: Stopped". The reconnect loop is in
+`data/logs/tui_gateway_crash.log`. The cost of one container is that the
+dashboard and the gateway restart together.
 
 To rotate, delete that file and rerun the services playbook; every existing
 dashboard session ends. `dashboard.public_url` and `trusted_proxies` are the
