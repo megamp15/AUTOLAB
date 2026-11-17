@@ -49,6 +49,7 @@ bump is a pull request.
 | `qr` | QR codes whose destination can change after printing — see [qr](qr.md) | 8097 (admin) |
 | `paradigm-tunnel` | the connector for the tunnel in the Paradigm Prints Cloudflare account — see [qr](qr.md) | — |
 | `cosmos` | the owner's personal hub: gateway, API and Postgres, Pocket ID admins only — see [cosmos](cosmos.md) | 8105 |
+| `hermes` | the owner's WhatsApp agent, working in a checkout of the notes vault — see [hermes](hermes.md) | — |
 
 ## Where they are reachable
 
