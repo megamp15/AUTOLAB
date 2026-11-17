@@ -28,9 +28,13 @@ volumes:
 {% if 'forgejo' in autolab_services_enabled %}
   forgejo-db:
 {% endif %}
-{% for app in ['tandoor', 'airtrail', 'linkace', 'sure'] if app in autolab_services_enabled %}
+{% for app in ['tandoor', 'airtrail', 'sure'] if app in autolab_services_enabled %}
   {{ app }}-db:
 {% endfor %}
+{% if 'karakeep' in autolab_services_enabled %}
+  karakeep-data:
+  karakeep-meili:
+{% endif %}
 {% if 'tandoor' in autolab_services_enabled %}
   tandoor-static:
 {% endif %}

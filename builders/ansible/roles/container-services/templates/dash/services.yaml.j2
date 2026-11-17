@@ -29,11 +29,11 @@
         href: https://airtrail.{{ lab }}
         description: Flights
         siteMonitor: http://nebula.{{ tn }}:8102/
-    - LinkAce:
+    - Karakeep:
         icon: mdi-bookmark-multiple
-        href: https://linkace.{{ lab }}
-        description: Bookmarks
-        siteMonitor: https://linkace.{{ lab }}/login
+        href: https://karakeep.{{ lab }}
+        description: Bookmarks that fetch and tag themselves
+        siteMonitor: http://nebula.{{ tn }}:{{ autolab_service_catalog.karakeep.port }}/api/health
     - Sure:
         icon: mdi-finance
         href: https://sure.{{ lab }}

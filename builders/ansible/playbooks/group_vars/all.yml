@@ -14,7 +14,7 @@
 # service stays true: the machines map says where it runs, this says who has to
 # be told.
 autolab_remote_services:
-  nebula: [adventurelog, forgejo, tandoor, airtrail, linkace, sure]
+  nebula: [adventurelog, forgejo, tandoor, airtrail, karakeep, sure]
 
 # Every container service the lab knows, what it listens on, and how a person
 # gets in:
@@ -84,8 +84,11 @@ autolab_service_catalog:
   airtrail:
     port: 8102
     login: own
-  linkace:
-    port: 8103
+  # Karakeep: bookmarks that fetch and tag themselves; took LinkAce's place
+  # (and not its port, so a stale route cannot land on the wrong app). `own`:
+  # it keeps a user per person and signs them in with Pocket ID itself.
+  karakeep:
+    port: 8107
     login: own
   sure:
     port: 8104

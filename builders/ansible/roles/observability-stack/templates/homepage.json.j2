@@ -20,7 +20,7 @@
 {% set declared.rows = declared.rows + [{'name': 'PBS garbage collection', 'host': 'ark', 'schedule': ds.gc_schedule, 'timezone': 'ark local time', 'enabled': true, 'details': 'Configured in pbs role defaults; datastore ' ~ ds.name}] %}
 {% endfor %}
 {% set declared.rows = declared.rows + [{'name': 'Pending updates report', 'host': 'all managed VMs and nodes', 'schedule': update_defaults.autolab_updates_report_on_calendar, 'timezone': 'each host local time', 'enabled': true, 'details': 'Configured baseline; randomized delay ' ~ update_defaults.autolab_updates_report_randomized_delay ~ '. Reports only; upgrades are separate.'}, {'name': 'PBS access check', 'host': 'ark', 'schedule': 'every ' ~ pbs_defaults.autolab_pbs_access_interval, 'timezone': 'elapsed time', 'enabled': true, 'details': 'Configured baseline; checks and repairs NAS datastore access.'}] %}
-{{ {'links': ns.rows, 'alerts': alerts.rows, 'services': ((autolab_builder | default({})).services | default([])),
+{{ {'links': ns.rows, 'alerts': alerts.rows, 'services': (((autolab_builder | default({})).services | default([])) + (autolab_remote_services | default({}) | dict2items | map(attribute='value') | flatten)) | unique,
     'backup_max_age_hours': autolab_obs_alert_backup_max_age_hours,
     'digest_schedule': autolab_obs_digest_on_calendar,
     'snapshot_schedule': autolab_obs_backup_on_calendar,
