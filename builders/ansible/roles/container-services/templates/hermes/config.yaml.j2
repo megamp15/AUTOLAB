@@ -52,3 +52,8 @@ auxiliary:
   vision:
     provider: opencode-go
     model: gemini-4-argon
+# Where the dashboard is reached and which proxies it may believe. Seeded
+# like the rest; change it later with `hermes config set`.
+dashboard:
+  public_url: "{{ autolab_services_hermes_public_url }}"
+  trusted_proxies: {{ autolab_services_hermes_trusted_proxies | to_json }}
