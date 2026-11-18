@@ -115,6 +115,9 @@ autolab_service_catalog:
   cosmos:
     port: 8105
     login: admin
+    # The iPhone shortcut posts Apple Health here with COSMOS's ingest token.
+    # A shortcut cannot do the passkey login, so this path skips it.
+    token_paths: ["/api/ingest/"]
   # Hermes, the owner's agent. The gateway dials out (WhatsApp, the model
   # provider, GitHub) and has no port; this port is its dashboard, run in
   # the same container: sessions, chat, config, logs. Behind the

@@ -16,7 +16,7 @@ ROLE = ROOT / "builders/ansible/roles/ingress"
 class PrivateDashboardTests(unittest.TestCase):
     def render(self, plugin=True, tailnet=True, service_hosts=None, public=None):
         env = jinja2.Environment(undefined=jinja2.StrictUndefined)
-        env.filters.update(bool=bool, to_json=json.dumps)
+        env.filters.update(bool=bool, to_json=json.dumps, b64decode=lambda value: value, trim=str.strip)
         defaults = yaml.safe_load((ROLE / "defaults/main.yml").read_text())
         defaults.update(
             autolab_ingress_zone="example.test",
@@ -30,6 +30,7 @@ class PrivateDashboardTests(unittest.TestCase):
             autolab_ingress_public_routes=public or {"share": {"upstream": "http://share:3000"}},
             autolab_ingress_internal_routes=defaults["autolab_ingress_service_routes"],
             autolab_ingress_services=list(service_hosts or {}),
+            autolab_ingress_cosmos_token={"content": "test-only"},
             autolab_ingress_service_hosts=service_hosts or {},
             autolab_service_catalog=yaml.safe_load(
                 (ROOT / "builders/ansible/playbooks/group_vars/all.yml").read_text())["autolab_service_catalog"],
@@ -72,6 +73,21 @@ class PrivateDashboardTests(unittest.TestCase):
                          [{"url": "http://jwst.tail.example:8082"}])
         public = {key for key, r in config["routers"].items() if "web" in r["entryPoints"]}
         self.assertEqual(public, {"auth", "public-share"})
+
+    def test_cosmos_ingest_skips_the_passkey_and_nothing_else_does(self):
+        config = self.render(service_hosts={"cosmos": "jwst.tail.example"})
+        site = config["routers"]["lab-cosmos"]
+        self.assertEqual(site["rule"], "Host(`cosmos.lab.example.test`)")
+        self.assertEqual(site["middlewares"], ["oidc-admin", "cosmos-upstream"])
+        ingest = config["routers"]["lab-cosmos-token-paths"]
+        self.assertEqual(ingest["rule"], "Host(`cosmos.lab.example.test`) && (PathPrefix(`/api/ingest/`))")
+        # No login, but still the tailnet, the certificate and the gateway's credential.
+        self.assertEqual(ingest["middlewares"], ["cosmos-upstream"])
+        self.assertEqual(ingest["entryPoints"], ["tailnet-https"])
+        self.assertEqual(ingest["service"], "lab-cosmos")
+        self.assertIn("tls", ingest)
+        # Without the login plugin the site has no route, so the open path has none either.
+        self.assertNotIn("lab-cosmos-token-paths", self.render(plugin=False, service_hosts={"cosmos": "jwst.tail.example"})["routers"])
 
     def test_public_route_with_groups_is_behind_its_own_login(self):
         public = {"share": {"upstream": "http://share:3000"},

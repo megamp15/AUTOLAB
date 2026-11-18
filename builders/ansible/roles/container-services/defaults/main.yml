@@ -352,6 +352,9 @@ autolab_services_cosmos_image_tag: "a1101685cc30d81b64d04d5ccaffca64b8f7507f-442
 # Kept this many daily logical dumps of the database, on the host's disk. The
 # nightly Proxmox backup of the VM carries them to the NAS.
 autolab_services_cosmos_dump_keep: 14
+# The owner's time zone. Apple Health's shortcut sends times without a zone,
+# and a day of steps or a night of sleep is a day on this clock.
+autolab_services_cosmos_timezone: "America/Chicago"
 
 # Immich Public Proxy. The address shared links are opened at (Immich's own
 # External Domain must say the same), and where Immich answers on the tailnet:
