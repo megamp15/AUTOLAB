@@ -8,7 +8,9 @@ audience: operator
 
 The owner's personal hub (the app lives in the COSMOS repository). AUTOLAB
 runs it as a container service on jwst, publishes its images from CI, and puts
-it behind the passkey login. Nothing here is public.
+it behind the passkey login. Nothing here is public. One path, `/api/ingest/`,
+skips the passkey so the iPhone's shortcut can post Apple Health to it; it is
+still tailnet only and needs COSMOS's ingest token.
 
 ```
 iPhone / browser ──▶ cosmos.lab.<zone> ──▶ horizon: Traefik + Pocket ID (admins only)
@@ -34,7 +36,7 @@ the service is enabled, the same way Dockhand's does.
 
 | secret | made by | lives | never in |
 |---|---|---|---|
-| database password, proxy token, MCP token | the services role, once, `openssl rand -hex 32` | `/etc/autolab/cosmos/` on jwst (`0700` root); each container's env file is `0600` and holds only what that container uses | GitHub, git, logs |
+| database password, proxy token, MCP token, ingest token | the services role, once, `openssl rand -hex 32` | `/etc/autolab/cosmos/` on jwst (`0700` root); each container's env file is `0600` and holds only what that container uses | GitHub, git, logs |
 | proxy token handoff to horizon | the ingress role reads it over SSH and writes it into Traefik's dynamic config | horizon, `0600` | the browser; the web bundle |
 | `COSMOS_DEPLOY_KEY` | you, once: an SSH key pair, public half added to the COSMOS repo as a **read-only deploy key** | GitHub secret on AUTOLAB (`lab` environment) | the COSMOS repo (the private half) |
 
@@ -42,6 +44,16 @@ Re-running the playbook never rotates a generated secret (`creates:`), so it
 cannot desync the database password from the data directory. To rotate the
 proxy token, delete its file and run the `ingress` and `services` playbooks in
 that order, then check the gateway answers 403 without it.
+
+The ingest token is the one secret that leaves jwst: the owner copies it into
+the iPhone shortcut's `Authorization: Bearer` header, and into the Mac's
+`.env` to import a Health export. Read it with
+`ssh jwst sudo cat /etc/autolab/cosmos/ingest-token`. It can only add health
+records; it reads nothing. To rotate it, delete the file, run the `services`
+playbook, and paste the new value into the shortcut.
+
+`autolab_services_cosmos_timezone` (role defaults) is the clock a day is
+counted on: the shortcut sends times with no zone.
 
 The MCP token exists because the API refuses to start without one. It is not
 yet reachable from outside: how a local MCP process gets to the API is a

@@ -635,7 +635,7 @@
       openssl rand -hex 32 > "$credential_file"
       mv "$credential_file" /etc/autolab/cosmos/{{ item }}
     creates: /etc/autolab/cosmos/{{ item }}
-  loop: [db-password, proxy-token, mcp-token]
+  loop: [db-password, proxy-token, mcp-token, ingest-token]
   loop_control:
     label: "{{ item }}"
   no_log: true
@@ -644,7 +644,7 @@
 - name: Read COSMOS's credentials
   ansible.builtin.slurp:
     src: "/etc/autolab/cosmos/{{ item }}"
-  loop: [db-password, proxy-token, mcp-token]
+  loop: [db-password, proxy-token, mcp-token, ingest-token]
   loop_control:
     label: "{{ item }}"
   register: autolab_cosmos_credentials
@@ -666,6 +666,7 @@
     autolab_cosmos_db_password: "{{ autolab_cosmos_credentials.results[0].content | b64decode | trim }}"
     autolab_cosmos_proxy_token: "{{ autolab_cosmos_credentials.results[1].content | b64decode | trim }}"
     autolab_cosmos_mcp_token: "{{ autolab_cosmos_credentials.results[2].content | b64decode | trim }}"
+    autolab_cosmos_ingest_token: "{{ autolab_cosmos_credentials.results[3].content | b64decode | trim }}"
   no_log: true
   when: "'cosmos' in autolab_services_enabled and not ansible_check_mode"
 
@@ -694,6 +695,8 @@
         COSMOS_PROXY_TOKEN={{ autolab_cosmos_proxy_token }}
         COSMOS_MCP_TOKEN={{ autolab_cosmos_mcp_token }}
         COSMOS_MCP_SCOPES=system:read
+        COSMOS_INGEST_TOKEN={{ autolab_cosmos_ingest_token }}
+        COSMOS_TIMEZONE={{ autolab_services_cosmos_timezone }}
     - name: cosmos-gateway
       content: |
         COSMOS_PROXY_TOKEN={{ autolab_cosmos_proxy_token }}

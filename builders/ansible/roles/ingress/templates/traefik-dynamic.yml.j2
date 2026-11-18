@@ -60,6 +60,21 @@ http:
         domains:
           - main: "{{ lab }}"
             sans: ["*.{{ lab }}"]
+{%       if svc.login == 'admin' and svc.token_paths is defined %}
+    # Paths a script calls with the service's own bearer token, so they skip
+    # the passkey: a script cannot log in. Still tailnet only, and Traefik
+    # still adds the upstream credential. The longer rule wins over the host's.
+    lab-{{ name }}-token-paths:
+      rule: "Host(`{{ name }}.{{ lab }}`) && ({% for path in svc.token_paths %}PathPrefix(`{{ path }}`){{ ' || ' if not loop.last else '' }}{% endfor %})"
+      entryPoints: [tailnet-https]
+      middlewares: [{{ name }}-upstream]
+      service: lab-{{ name }}
+      tls:
+        certResolver: letsencrypt
+        domains:
+          - main: "{{ lab }}"
+            sans: ["*.{{ lab }}"]
+{%       endif %}
 {%     endif %}
 {%   endfor %}
 {% endif %}
