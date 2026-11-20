@@ -4,7 +4,7 @@
 autolab_nas_root: /volume1/docker/autolab-observability
 autolab_nas_project: autolab-observability
 autolab_nas_alloy_image: grafana/alloy:v1.22.0
-autolab_nas_cadvisor_image: gcr.io/cadvisor/cadvisor:v0.55.1
+autolab_nas_cadvisor_image: ghcr.io/google/cadvisor:v0.61.1
 autolab_nas_cadvisor_port: 19081
 autolab_nas_stack_host: jwst
 # What Alloy actually dials. The play replaces this with the stack host's tailnet IP, looked up

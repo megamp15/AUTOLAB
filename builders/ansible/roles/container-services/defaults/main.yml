@@ -77,28 +77,31 @@ autolab_services_enabled: "{{ (autolab_builder | default({})).services | default
 # Pinned, like every other image in this lab: a management UI that upgrades
 # itself overnight is a management UI that broke itself overnight.
 autolab_services_images:
-  dockhand: "fnsys/dockhand:v1.0.57"
-  dockhand_proxy: "nginx:1.31.6-alpine"
-  registry: "registry:3.1.1"
-  registry_ui: "ghcr.io/eznix86/docker-registry-ui:1.6.0"
-  diun: "crazymax/diun:4.33.0"
+  dockhand: "fnsys/dockhand:v1.0.58"
+  dockhand_proxy: "nginx:1.31.9-alpine"
+  registry: "registry:3.1.2"
+  registry_ui: "ghcr.io/eznix86/docker-registry-ui:1.8.0"
+  diun: "crazymax/diun:4.34.0"
   # The base only: the editor runs an image built on the host from this, with
   # the tools below baked in. See templates/code-server/Dockerfile.j2.
   code_server: "codercom/code-server:4.145.2"
-  immich_share: "alangrainger/immich-public-proxy:4.1.2"
+  immich_share: "alangrainger/immich-public-proxy:4.2.0"
   # One image holds the web app, the API, nginx and a cache; PostGIS is the
   # only other container.
   adventurelog: "ghcr.io/seanmorley15/adventurelog:v0.13.1"
+  # 16-3.7 moves the image from Debian bullseye (glibc 2.31) to trixie (2.41):
+  # text indexes need REINDEX + REFRESH COLLATION VERSION, and PostGIS wants
+  # postgis_extensions_upgrade(). Its own change, not a plain bump.
   adventurelog_db: "postgis/postgis:16-3.5"
   # The long-term-support line: 17.0.0 shipped with a warning against
   # upgrading to it. The rootless image runs as uid 1000 and is the one the
   # docs recommend for repositories on NFS.
-  forgejo: "codeberg.org/forgejo/forgejo:15.0.11-rootless"
-  postgres: "postgres:16.15-alpine"
+  forgejo: "codeberg.org/forgejo/forgejo:15.0.12-rootless"
+  postgres: "postgres:16.16-alpine"
   forgejo_db: "{{ autolab_services_images.postgres }}"
-  mariadb: "mariadb:12.0"
-  redis: "redis:8.2"
-  tandoor: "vabene1111/recipes:2.7.2"
+  mariadb: "mariadb:12.3"
+  redis: "redis:8.10"
+  tandoor: "vabene1111/recipes:2.7.6"
   airtrail: "johly/airtrail:v3.14.0"
   # Karakeep publishes its browser image only as `release`, so that one is
   # pinned by digest. Meilisearch is the version Karakeep's own compose file
@@ -109,20 +112,19 @@ autolab_services_images:
   # A prerelease, on purpose: 0.7.6-hotfix.1 has no statement vault and no
   # /api/v1/version, which the finance backfill uses to file each Nelnet
   # statement PDF under its loan. Sure publishes no stable release newer than
-  # 0.7.6-hotfix.1. This tag is immutable and is the same image as `latest`
-  # (sha256:e9aad2206132...). Migrations only go forward, so the way back is
-  # the nightly dump, not this line. docs/gitops/apps.md, "Sure upgrade".
-  sure: "ghcr.io/we-promise/sure:2026.11.14-alpha"
-  dash: "ghcr.io/gethomepage/homepage:v2.4.0"
+  # 0.7.6-hotfix.1. Alpha tags are immutable. Migrations only go forward,
+  # so the way back is the nightly dump, not this line. docs/gitops/apps.md, "Sure upgrade".
+  sure: "ghcr.io/we-promise/sure:2026.11.17-alpha"
+  dash: "ghcr.io/gethomepage/homepage:v2.8.0"
   # Both containers, one image: `hbbs` and `hbbr` are its two commands.
   rustdesk: "rustdesk/rustdesk-server:1.1.16"
-  cosmos_db: "postgres:17.11-alpine"
+  cosmos_db: "postgres:17.12-alpine"
   # The connector for the Paradigm Prints tunnel, pinned with the same
   # version horizon's runs.
-  paradigm_tunnel: "cloudflare/cloudflared:2026.9.1"
+  paradigm_tunnel: "cloudflare/cloudflared:2026.11.1"
   # Hermes Agent, the official image: Python runtime, Node for the WhatsApp
   # bridge, git, and s6 to keep the gateway up. A release tag, never `latest`.
-  hermes: "nousresearch/hermes-agent:v0.23.2"
+  hermes: "nousresearch/hermes-agent:v0.23.3"
 
 # Host ports come from the shared catalog in playbooks/group_vars/all.yml,
 # because the ingress role on another machine routes to the same numbers.

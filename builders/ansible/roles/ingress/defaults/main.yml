@@ -16,9 +16,9 @@ autolab_ingress_state_dir: /etc/autolab/ingress
 # Pinned. The plugin version is also pinned in Traefik's static config, and
 # Traefik fetches it at start, so a bump is a restart away.
 autolab_ingress_images:
-  cloudflared: "cloudflare/cloudflared:2026.9.1"
-  traefik: "traefik:v3.7.13"
-  pocket_id: "pocketid/pocket-id:v2.16.0"
+  cloudflared: "cloudflare/cloudflared:2026.11.1"
+  traefik: "traefik:v3.7.19"
+  pocket_id: "pocketid/pocket-id:v2.19.3"
 autolab_ingress_oidc_plugin_version: "v0.21.0"
 
 # Telemetry, all off by default. A metrics port publishes Traefik's
