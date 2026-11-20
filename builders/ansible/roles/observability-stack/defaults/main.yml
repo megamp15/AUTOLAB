@@ -17,7 +17,7 @@ autolab_obs_images:
   grafana: "grafana/grafana:13.2.2"
   pve_exporter: "prompve/prometheus-pve-exporter:3.10.0"
   homepage: "nginx:1.31.6-alpine"
-  tempo: "grafana/tempo:2.10.8"
+  tempo: "grafana/tempo:3.1.1"
 
 # Metrics live on local disk. A TSDB does heavy random I/O with mmap and file
 # locking, which NFS handles poorly — Prometheus documents non-POSIX

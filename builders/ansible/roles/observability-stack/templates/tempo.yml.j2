@@ -5,6 +5,12 @@
 # error and latency series (span metrics) and caller -> callee edges (service
 # graph) and writes them to Prometheus, so traced services get RED metrics
 # without exporting any of their own.
+#
+# Tempo 3: there are no ingesters. In one process the distributor hands spans
+# to the live store (recent traces, search and TraceQL metrics) and the
+# metrics generator directly, no Kafka. Retention belongs to the backend
+# scheduler and worker. A trace shows in search once it is complete, about a
+# minute after its last span; lookup by ID works at once.
 stream_over_http_enabled: true
 
 server:
@@ -20,10 +26,13 @@ distributor:
         grpc:
           endpoint: 0.0.0.0:4317
 
-ingester:
-  max_block_duration: 5m
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        block_retention: {{ autolab_obs_tempo_retention }}
 
-compactor:
+backend_worker:
   compaction:
     block_retention: {{ autolab_obs_tempo_retention }}
 
@@ -36,8 +45,6 @@ metrics_generator:
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true
-  traces_storage:
-    path: /var/tempo/generator/traces
 {% if autolab_obs_tempo_span_dimensions | length > 0 %}
   # Span attributes promoted to labels on the span metrics, e.g. the HTTP
   # status code, so "requests that returned 401" is a series. Each one
@@ -58,4 +65,4 @@ storage:
 overrides:
   defaults:
     metrics_generator:
-      processors: [service-graphs, span-metrics, local-blocks]
+      processors: [service-graphs, span-metrics]
