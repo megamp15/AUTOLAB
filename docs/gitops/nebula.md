@@ -79,3 +79,92 @@ agent on each, registered by Ansible through Dockhand's API. nebula joins by
 being `docker_enabled` and running `docker-management` (environment `edge`).
 Containers can be inspected, restarted and read from there; anything *defined*
 there is outside git, and the next Ansible run overwrites it.
+
+## Things that will mislead you
+
+Each of these cost a fix or a wrong turn between the first design and a working
+deploy. They are recorded because each looked like something else.
+
+**A test that builds its own input proves the test.** The database backup passed
+every local run with a hand-written config, and the rendered config silently
+dropped `kind`, so LinkAce's MariaDB would have been dumped with `pg_dump` (#263).
+Test the file the role actually renders. `scripts/test_db_backup_config.py`
+does.
+
+**A setting that is not in the workflow's extra-vars never reaches Ansible.**
+The workflow turns repository secrets into one JSON of role variables, and the
+five Pocket ID client pairs were wired into the environment but not into that
+JSON, so every app deployed with no login (#261). Nothing fails: the role simply
+sees an empty client and skips Pocket ID.
+`scripts/test_workflow_extra_vars.py` now fails when a role variable ending in
+`_oidc_client_id`/`_secret` has no entry in the workflow.
+
+**Some apps answer 400 to the tailnet name.** Tandoor (`ALLOWED_HOSTS`) and
+LinkAce refuse a request whose `Host` is `nebula.<tailnet>:810x`, so a monitor or
+healthcheck that dials the machine by name reports a healthy app as down. Dash
+checks use the public `<app>.lab.<zone>` name (#264); the containers' own
+healthchecks send their public `Host` (LinkAce) or list `127.0.0.1` in
+`ALLOWED_HOSTS` (Tandoor).
+
+**Healthcheck tools differ by image.** Sure has `curl` and no `wget`; LinkAce
+and Tandoor have `wget`, and LinkAce's busybox `wget` mishandles a `Host`
+header, so it uses `curl`. AdventureLog has neither and uses Python. Look in the
+image before writing the check, and read `docker inspect` health output when a
+container is "unhealthy" for no visible reason.
+
+**Mounting a share that is not there writes to the local disk.** `hard` NFS and
+Docker's restart policy race at boot: containers start before the mount, and
+Docker will happily create the missing source directory on the VM's disk, so uploads
+land where the NAS will never see them. The service refuses to run without
+the mount, its bind mounts use `create_host_path: false`, and the boot unit
+`RequiresMountsFor` the share.
+
+**The NAS's NFS rules can disappear on a reload.** UGOS can reload NFS while
+Tailscale DNS is unavailable and omit hostname-based rules from the active
+exports, so a mount that worked yesterday is refused today (#266). The NFS
+export guard on the NAS notices and restores the missing rule from
+`/etc/exports`; see [NAS storage](nas-storage.md).
+
+**nebula currently shares the PBS datastore's export (#262).** The `apps` share
+was not created, so nebula mounts `/volume1/autolab`, the same share that holds
+the PBS datastore. A compromised app VM could delete the backups. This is a
+known, temporary exposure; the cure is a separate share for the apps and a
+PBS-only export for ark, planned around stopped backup jobs and a verified
+restore before the old copy goes. Until then treat nebula's NFS access as access
+to the backups.
+
+**Pocket ID says emails are unverified.** Apps that match by email, or refuse
+unverified ones, then misbehave in different ways. See
+[Verified emails](apps.md#verified-emails).
+
+**The first-run of each app is not the same.** LinkAce's tables do not exist
+until `migrate` (the setup wizard runs it; a headless setup must). Tandoor 2 runs
+allauth headless, so its classic `/accounts/oidc/<id>/login/` answers 404 and the
+proof that Pocket ID is configured is its provider list. AdventureLog creates
+its administrator only on the first boot (the email is baked in then) and needs
+~2 GB once while it downloads region data. Sure's sign-in is a CSRF-protected
+POST with `Secure` cookies, so it cannot be driven with `curl` over plain HTTP;
+the page carrying the button is the proof.
+
+**Image tags are not always the release tag.** Sure's release `v0.7.6-hotfix.1`
+is the image tag `0.7.6-hotfix.1` (no `v`). Check with `docker manifest inspect`
+before pinning. Forgejo's newest line (v17.0.0) shipped with a warning against
+upgrading to it; the lab runs the LTS.
+
+**Forgejo's API is partly asynchronous.** Creating a fork answers `202`, not
+`201`; a bootstrap that only accepts 200/201 reports success as failure.
+Pull-mirror creation is synchronous and slow for large repositories.
+
+**Cloudflare in front of Pocket ID rejects some clients.** Scripts that call
+Pocket ID's API must send a recognizable `User-Agent`; a bare Python one is
+challenged (#268).
+
+**Local testing quirks (Apple Silicon).** A Node build step in AdventureLog's
+Dockerfile dies with exit 132 (illegal instruction) natively and works as
+`--platform linux/amd64`, which is also what nebula is. `postgis/postgis` has no
+arm64 image; `imresamu/postgis` stands in locally. In an Ansible test harness,
+`vars_files` outrank play `vars`; pass test values with `-e`.
+
+**Pocket ID needs a passkey, so a person creates what it holds.** Client
+provisioning is automated through its API (see [AdventureLog](adventurelog.md)),
+but the API key itself is created by hand and stored as a repository secret.

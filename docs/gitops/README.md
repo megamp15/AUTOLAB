@@ -91,6 +91,7 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
 17. [Ingress](./ingress.md)
     - [Pocket ID](./pocket-id.md): what is code, what is by hand
 18. [Container services](./services.md)
+    - [nebula, where the apps run](./nebula.md): [Forgejo](./forgejo.md), [AdventureLog](./adventurelog.md), [Tandoor, AirTrail, LinkAce and Sure](./apps.md)
 17. [Server hardening baseline](./server-hardening-baseline.md)
 18. [Security sources](./security-sources.md)
 19. [Definition of done](./definition-of-done.md): the surfaces a service or machine change must update

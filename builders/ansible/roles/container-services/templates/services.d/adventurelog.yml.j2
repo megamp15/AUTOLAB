@@ -36,8 +36,9 @@
       GUNICORN_WORKERS: "{{ autolab_services_adventurelog_workers }}"
       # Nobody signs themselves up with a password. A Pocket ID account that
       # Pocket ID lets through (the client's allowed groups) gets an
-      # AdventureLog account on first sign-in, and one whose email matches an
-      # existing account is attached to it rather than duplicated.
+      # AdventureLog account on first sign-in. One whose email matches an
+      # existing account is attached to it only if Pocket ID says the email is
+      # verified; otherwise it is linked by hand (docs/gitops/adventurelog.md).
       DISABLE_REGISTRATION: "true"
       SOCIALACCOUNT_ALLOW_SIGNUP: "true"
       SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT: "true"
