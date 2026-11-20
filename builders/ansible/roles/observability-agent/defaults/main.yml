@@ -67,5 +67,5 @@ autolab_alloy_package_state: latest
 
 # Per-container metrics. cAdvisor runs as a container on every Docker host,
 # publishing on loopback for this host's Alloy alone.
-autolab_obs_cadvisor_image: "gcr.io/cadvisor/cadvisor:v0.55.1"
+autolab_obs_cadvisor_image: "ghcr.io/google/cadvisor:v0.61.1"
 autolab_obs_cadvisor_port: 8081
