@@ -1,0 +1,58 @@
+name: 96 - Renovate
+
+# Renovate, run here rather than by a hosted service: nothing outside GitHub
+# reads these repositories. It reads renovate.json, looks up newer releases
+# and opens pull requests; nothing merges on its own.
+#
+# The token comes from a private GitHub App owned by this repository's owner
+# and installed on this repository only. Each run mints a token that expires
+# within the hour. Not GITHUB_TOKEN: pull requests opened with it never trigger
+# workflows, so Renovate's would arrive without CI.
+#
+# Daily, so the Dependency Dashboard stays current; renovate.json's schedule
+# (Mondays before 6am UTC) decides when pull requests are actually opened.
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      log_level:
+        description: Renovate log level
+        required: false
+        default: info
+        type: choice
+        options: [info, debug]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Mint a short-lived token from the Renovate app
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.RENOVATE_APP_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+
+      - name: Renovate
+        uses: renovatebot/github-action@6d26fcf0275dc65624cbc3d51fe78bc773f98321 # v46.3.6
+        with:
+          token: ${{ steps.app.outputs.token }}
+          # The action's default floats on the major version; pinned like
+          # everything else here, and bumped by Renovate itself.
+          renovate-version: 44.126.0
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_ONBOARDING: "false"
+          RENOVATE_REQUIRE_CONFIG: required
+          # Commits go through the API, so GitHub signs them as the app.
+          RENOVATE_PLATFORM_COMMIT: enabled
+          LOG_LEVEL: ${{ inputs.log_level || 'info' }}
