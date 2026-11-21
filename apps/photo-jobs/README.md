@@ -88,7 +88,10 @@ stay on disk. The **Immich trash** tab reads Immich's trash (it needs an API key
 `asset.read` permission and changes nothing in Immich) and shows each asset with where its
 file is in the library: **still on disk**, **not on disk** (already gone), or **in Immich's
 own storage** (not this folder, so it is removed by emptying Immich's trash). A Live Photo's
-still is shown with its clip, and they are removed together. You can **move** the files to
+still is shown with its clip, and they are removed together. The clip is the one Immich
+linked to the still, whatever it is called (`IMG_6093.JPG` with `IMG_0239.MP4`), or failing
+that the `.MOV` of the same name. A clip that a photo you kept also plays (you trashed
+`IMG_1.jpeg` and kept `IMG_1.HEIC`) stays where it is, and the row says so. You can **move** the files to
 `_trash/` (undo puts them back) or **delete** them for good.
 
 The path Immich reports (`/mnt/mahir-personal/...`) is mapped to this folder with
