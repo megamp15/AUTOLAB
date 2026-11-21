@@ -8,7 +8,7 @@ inputs:
     description: OpenTofu version to install
     required: false
     # renovate: datasource=github-releases depName=opentofu/opentofu extractVersion=^v(?<version>.+)$
-    default: '1.12.6'
+    default: '1.13.9'
 
 runs:
   using: composite
@@ -21,7 +21,7 @@ runs:
       uses: terramate-io/terramate-action@1cc78a548efefaab7762f4d06f51aa6de06ce201 # v3.3.0
       with:
         # renovate: datasource=github-releases depName=terramate-io/terramate extractVersion=^v(?<version>.+)$
-        version: '0.6.0'
+        version: '0.17.3'
 
     - name: Generate Terramate configs
       shell: bash
