@@ -97,6 +97,19 @@
         "hashicorp/terraform"
       ],
       "enabled": false
+    },
+    {
+      "description": "A database major needs its data upgraded (pg_upgrade, dump and restore, or the engine's own upgrade); that is planned work, never a version bump.",
+      "matchDepNames": [
+        "postgres",
+        "postgis/postgis",
+        "ghcr.io/immich-app/postgres",
+        "mariadb"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
     }
   ]
 }
