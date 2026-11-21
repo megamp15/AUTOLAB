@@ -96,7 +96,7 @@ autolab_services_images:
   # The long-term-support line: 17.0.0 shipped with a warning against
   # upgrading to it. The rootless image runs as uid 1000 and is the one the
   # docs recommend for repositories on NFS.
-  forgejo: "codeberg.org/forgejo/forgejo:15.0.12-rootless"
+  forgejo: "codeberg.org/forgejo/forgejo:17.0.2-rootless"
   postgres: "postgres:16.16-alpine"
   forgejo_db: "{{ autolab_services_images.postgres }}"
   mariadb: "mariadb:12.3"
