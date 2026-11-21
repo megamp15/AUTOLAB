@@ -456,7 +456,8 @@ class ImmichTrash(ImmichBase):
         self.assertEqual(len(plan['items']), 1)
         bodies = [c[2] for c in self.fake.calls if c[1] == '/api/search/metadata']
         self.assertIn('filter', bodies[0])
-        self.assertTrue(bodies[-1]['withDeleted'])
+        self.assertTrue(bodies[1]['withDeleted'])                  # the trash, read the older way
+        self.assertIn('filter', bodies[-1])                        # what is staying cannot be asked: pairing is by name
 
     def test_every_page_of_the_trash_is_read_and_the_key_is_sent(self):
         self.fake = FakeImmich([self.asset(str(i), f'library/2025/06/p{i}.jpg') for i in range(7)])
@@ -488,6 +489,54 @@ class ImmichTrash(ImmichBase):
         self.assertEqual([i['id'] for i in plan['items']], ['s1', 's2'])
         self.assertEqual([i['clip']['rel'] for i in plan['items']], ['library/2025/06/IMG_1.MOV', 'library/2025/06/IMG_2.MOV'])
         self.assertEqual(plan['stats']['live'], 2)
+
+    def test_a_clip_immich_hid_behind_its_still_is_not_in_the_trash_but_still_comes_with_it(self):
+        self.put('library/2025/06/IMG_6093.JPG', 'still')
+        self.put('library/2025/06/IMG_0239.MP4', 'clip')     # another name, another extension: only Immich knows
+        plan = self.plan([
+            self.asset('s1', 'library/2025/06/IMG_6093.JPG', 'still', livePhotoVideoId='c1'),
+            self.asset('c1', 'library/2025/06/IMG_0239.MP4', 'clip', type='VIDEO', isTrashed=False)])
+        self.assertEqual(plan['items'][0]['clip']['rel'], 'library/2025/06/IMG_0239.MP4')
+        core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
+        self.assertEqual(self.tree(), ['_trash/library/2025/06/IMG_0239.MP4', '_trash/library/2025/06/IMG_6093.JPG'])
+
+    def test_a_clip_a_kept_photo_plays_in_immich_stays(self):
+        self.put('library/2025/06/IMG_1 (1).jpeg', 'copy')
+        self.put('library/2025/06/IMG_1 (1)_1.jpeg', 'kept')
+        self.put('library/2025/06/IMG_1 (1).MOV', 'clip')
+        plan = self.plan([
+            self.asset('s1', 'library/2025/06/IMG_1 (1).jpeg', 'copy'),                    # trashed; the clip has its name
+            self.asset('s2', 'library/2025/06/IMG_1 (1)_1.jpeg', 'kept', isTrashed=False, livePhotoVideoId='c1'),
+            self.asset('c1', 'library/2025/06/IMG_1 (1).MOV', 'clip', type='VIDEO', isTrashed=False)])
+        item = plan['items'][0]
+        self.assertIsNone(item['clip'])
+        self.assertEqual(item['clip_kept'], {'rel': 'library/2025/06/IMG_1 (1).MOV', 'by': 'library/2025/06/IMG_1 (1)_1.jpeg'})
+        self.assertEqual(plan['stats']['live'], 0)
+        core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
+        self.assertEqual(self.tree(), ['_trash/library/2025/06/IMG_1 (1).jpeg', 'library/2025/06/IMG_1 (1).MOV', 'library/2025/06/IMG_1 (1)_1.jpeg'])
+
+    def test_a_clip_stays_when_a_kept_photo_has_its_name_even_if_immich_linked_the_trashed_copy(self):
+        self.put('library/2025/06/IMG_1.jpeg', 'copy')
+        self.put('library/2025/06/IMG_1.HEIC', 'kept')
+        self.put('library/2025/06/IMG_1.MOV', 'clip')
+        plan = self.plan([
+            self.asset('s1', 'library/2025/06/IMG_1.jpeg', 'copy', livePhotoVideoId='c1'),
+            self.asset('s2', 'library/2025/06/IMG_1.HEIC', 'kept', isTrashed=False),
+            self.asset('c1', 'library/2025/06/IMG_1.MOV', 'clip', type='VIDEO', isTrashed=False)])
+        self.assertEqual(plan['items'][0]['clip_kept'], {'rel': 'library/2025/06/IMG_1.MOV', 'by': 'library/2025/06/IMG_1.HEIC'})
+        core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
+        self.assertEqual(self.tree(), ['_trash/library/2025/06/IMG_1.jpeg', 'library/2025/06/IMG_1.HEIC', 'library/2025/06/IMG_1.MOV'])
+
+    def test_both_copies_trashed_takes_the_clip_too(self):
+        self.put('library/2025/06/IMG_1.jpeg', 'copy')
+        self.put('library/2025/06/IMG_1.HEIC', 'orig')
+        self.put('library/2025/06/IMG_1.MOV', 'clip')
+        plan = self.plan([
+            self.asset('s1', 'library/2025/06/IMG_1.jpeg', 'copy'),
+            self.asset('s2', 'library/2025/06/IMG_1.HEIC', 'orig', livePhotoVideoId='c1'),
+            self.asset('c1', 'library/2025/06/IMG_1.MOV', 'clip', type='VIDEO', isTrashed=False)])
+        core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
+        self.assertEqual([t for t in self.tree() if not t.startswith('_trash/')], [])
 
     def test_removing_files_moves_them_aside_and_undo_puts_them_back(self):
         self.put('library/2025/06/IMG_1.HEIC', 'still1')

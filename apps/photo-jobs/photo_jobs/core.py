@@ -639,12 +639,44 @@ def _immich_file(cfg, immich_path):
     return ('file' if os.path.isfile(path) else 'missing'), rel
 
 
+def _kept_still(cfg, clip_rel, trashed):
+    """A photo that is staying and has this clip's name (IMG_1.HEIC kept, IMG_1.jpeg trashed):
+    the clip is its motion too, so it stays. Returns that photo's path, or None."""
+    folder, name = os.path.split(cfg.abs(clip_rel))
+    stem = os.path.splitext(name)[0].lower()
+    try:
+        names = sorted(os.listdir(folder))
+    except OSError:
+        return None
+    for n in names:
+        s, ext = os.path.splitext(n)
+        rel = cfg.rel(os.path.join(folder, n))
+        if s.lower() == stem and ext.lower() in live_photos.STILLS and rel not in trashed:
+            return rel
+    return None
+
+
 def plan_immich(cfg, client, progress=_noop):
     """Every asset in Immich's trash, and where its file is in this library. A Live Photo's clip
-    is shown with its still. Changes nothing here or in Immich."""
+    is shown with its still: the clip Immich linked (whatever it is called, IMG_6093.JPG with
+    IMG_0239.MP4), or failing that the .MOV of the same name. A clip a photo that is staying
+    also uses is left where it is. Changes nothing here or in Immich."""
     assets = client.trashed(progress)
     by_id = {a['id']: a for a in assets}
     clip_ids = {a['livePhotoVideoId'] for a in assets if a.get('livePhotoVideoId') in by_id}
+    # What is staying: it names the clips that are not in the trash themselves (Immich hides a
+    # clip behind its still, so trashing the still leaves the clip untrashed) and which clips a
+    # kept photo still plays.
+    try:
+        staying = client.search_assets({'originalPath': {'startsWith': cfg.immich_prefix + '/'}}) if assets else []
+    except immich_api.ImmichError as e:
+        if ' 400 ' not in str(e):
+            raise
+        staying = []   # an older Immich without this search: clips are paired by name alone
+    staying_by_id = {a['id']: a for a in staying}
+    staying_by_path = {a.get('originalPath'): a for a in staying}
+    used = {a['livePhotoVideoId']: a for a in staying if a.get('livePhotoVideoId')}   # clip id -> a kept photo playing it
+    trashed_rels = {rel for rel in (_immich_file(cfg, a.get('originalPath'))[1] for a in assets) if rel}
     items, seen = [], set()
     for a in assets:
         if a['id'] in clip_ids:
@@ -655,19 +687,28 @@ def plan_immich(cfg, client, progress=_noop):
         seen.add(rel)
         item = {'id': a['id'], 'name': a.get('originalFileName') or os.path.basename(a.get('originalPath') or ''),
                 'immich_path': a.get('originalPath'), 'type': a.get('type'), 'status': status, 'rel': rel,
-                'size': 0, 'sha1': immich_api.checksum_hex(a.get('checksum')), 'clip': None}
+                'size': 0, 'sha1': immich_api.checksum_hex(a.get('checksum')), 'clip': None, 'clip_kept': None}
         if status == 'file':
             item['size'] = os.path.getsize(cfg.abs(rel))
-            clip = by_id.get(a.get('livePhotoVideoId'))
+            vid = a.get('livePhotoVideoId')
+            clip, found = by_id.get(vid) or staying_by_id.get(vid), None
             if clip:
                 cstatus, crel = _immich_file(cfg, clip.get('originalPath'))
                 if cstatus == 'file':
-                    item['clip'] = {'rel': crel, 'size': os.path.getsize(cfg.abs(crel)),
-                                    'sha1': immich_api.checksum_hex(clip.get('checksum'))}
-            if not item['clip'] and a.get('type') == 'IMAGE':
+                    found = {'rel': crel, 'size': os.path.getsize(cfg.abs(crel)),
+                             'sha1': immich_api.checksum_hex(clip.get('checksum')), 'id': clip['id']}
+            if not found and a.get('type') == 'IMAGE':
                 half = live_photos.partner(cfg.abs(rel))   # its clip, found by name
                 if half and os.path.isfile(half) and half.lower().endswith('.mov'):
-                    item['clip'] = {'rel': cfg.rel(half), 'size': os.path.getsize(half), 'sha1': ''}
+                    known = staying_by_path.get(cfg.immich_prefix + '/' + cfg.rel(half))
+                    found = {'rel': cfg.rel(half), 'size': os.path.getsize(half), 'sha1': '', 'id': known and known['id']}
+            if found:
+                keeper = used.get(found.pop('id'))
+                kept = (_immich_file(cfg, keeper.get('originalPath'))[1] if keeper else None) or _kept_still(cfg, found['rel'], trashed_rels)
+                if kept:
+                    item['clip_kept'] = {'rel': found['rel'], 'by': kept}
+                else:
+                    item['clip'] = found
         items.append(item)
     kinds = collections.Counter(i['status'] for i in items)
     on_disk = [i for i in items if i['status'] == 'file']
