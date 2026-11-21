@@ -6,11 +6,11 @@ generate_hcl "versions.tf" {
       required_providers {
         proxmox = {
           source  = "bpg/proxmox"
-          version = "~> 0.113"
+          version = "~> 0.120"
         }
         tailscale = {
           source  = "tailscale/tailscale"
-          version = "0.29.2"
+          version = "0.29.3"
         }
       }
 
