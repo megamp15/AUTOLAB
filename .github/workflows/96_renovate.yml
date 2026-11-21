@@ -25,6 +25,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: renovate
@@ -56,3 +57,25 @@ jobs:
           # Commits go through the API, so GitHub signs them as the app.
           RENOVATE_PLATFORM_COMMIT: enabled
           LOG_LEVEL: ${{ inputs.log_level || 'info' }}
+
+      # One ntfy message per run, to the topic Grafana's alerts use: whether it
+      # worked and which Renovate pull requests are open.
+      - name: Tell ntfy
+        if: always()
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          RESULT: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          [ -n "$NTFY_TOPIC" ] || { echo "No NTFY_TOPIC; nothing sent."; exit 0; }
+          prs=$(gh pr list -R "$GITHUB_REPOSITORY" --label dependencies --json number,title \
+                  -q '.[] | "#\(.number) \(.title)"' 2>/dev/null || true)
+          if [ "$RESULT" = success ]; then
+            title="Renovate ran on ${GITHUB_REPOSITORY#*/}"; prio=default; tags=package
+          else
+            title="Renovate failed on ${GITHUB_REPOSITORY#*/}"; prio=high; tags=warning
+          fi
+          body=$(printf '%s\n\n%s' "${prs:-No update pull requests open.}" "$RUN_URL")
+          curl -fsS -H "Title: $title" -H "Priority: $prio" -H "Tags: $tags" -H "Click: $RUN_URL" \
+            -d "$body" "https://ntfy.sh/$NTFY_TOPIC" >/dev/null
