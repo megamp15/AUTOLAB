@@ -1,0 +1,67 @@
+  # Novaflix: a private tracker of what a few friends watch. Our own app, built
+  # in CI from its repository and pulled from the lab's registry by a pinned
+  # tag. It signs people in itself, so this gateway is its public face: the
+  # tunnel reaches it, and nothing sits in front. Making accounts is answered
+  # only by the second gateway, novaflix-admin. docs/gitops/novaflix.md
+  novaflix-db:
+    image: {{ autolab_services_images.novaflix_db }}
+    labels:
+      dockhand.tags: novaflix
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges
+    env_file: [./novaflix-db.env]
+    volumes:
+      - novaflix-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    networks: [novaflix-backend]
+
+  novaflix-server:
+    image: {{ autolab_services_novaflix_registry }}/novaflix-server:{{ autolab_services_novaflix_image_tag }}
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges
+    labels:
+      dockhand.tags: novaflix
+      diun.enable: "false"
+    env_file: [./novaflix-server.env]
+    depends_on:
+      novaflix-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/live').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    # The backend alone has no route out. The server also joins the edge
+    # network, because it asks TMDB about titles.
+    networks:
+      novaflix-backend:
+        aliases: [server]
+      novaflix-edge:
+
+  novaflix-gateway:
+    image: {{ autolab_services_novaflix_registry }}/novaflix-gateway:{{ autolab_services_novaflix_image_tag }}
+    restart: unless-stopped
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID, NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges
+    labels:
+      dockhand.tags: novaflix
+      diun.enable: "false"
+    depends_on:
+      novaflix-server:
+        condition: service_healthy
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.novaflix }}:80"
+    networks:
+      - novaflix-backend
+      - novaflix-edge

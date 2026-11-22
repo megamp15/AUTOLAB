@@ -96,6 +96,7 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
 19. [Definition of done](./definition-of-done.md): the surfaces a service or machine change must update
 20. [Karakeep](./karakeep.md): bookmarks that fetch and tag themselves, and where a saved link ends up
 21. [Our own apps](./own-apps.md): the template a new app starts from, and how one is released
+22. [Novaflix](./novaflix.md): our own app with a public name and its own sign-in
 
 ## Setup checklist
 

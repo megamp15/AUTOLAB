@@ -5,7 +5,8 @@ tunnel_name = "autolab"
 # people who are not on the tailnet). Operator dashboards use the private
 # *.lab names and have no Cloudflare DNS record or tunnel ingress rule.
 public_hostnames = {
-  auth  = { comment = "Pocket ID, the login page itself" }
-  share = { comment = "Immich shared links only, through Immich Public Proxy" }
-  qr    = { comment = "QR code admin page, behind the Pocket ID passkey" }
+  auth     = { comment = "Pocket ID, the login page itself" }
+  share    = { comment = "Immich shared links only, through Immich Public Proxy" }
+  qr       = { comment = "QR code admin page, behind the Pocket ID passkey" }
+  novaflix = { comment = "Novaflix, which signs its own users in" }
 }

@@ -122,6 +122,18 @@ class PrivateDashboardTests(unittest.TestCase):
         play = yaml.safe_load((ROOT / "builders/ansible/playbooks/ingress.yml").read_text())[0]["vars"]
         self.assertEqual(play["autolab_ingress_public_routes"]["qr"]["groups"], ["admins", "paradigm"])
         self.assertNotIn("groups", play["autolab_ingress_public_routes"]["share"])
+
+    def test_the_public_names_are_exactly_these(self):
+        # A name goes public by being added here on purpose, and no other way.
+        play = yaml.safe_load((ROOT / "builders/ansible/playbooks/ingress.yml").read_text())[0]["vars"]
+        self.assertEqual(set(play["autolab_ingress_public_routes"]), {"share", "qr", "novaflix"})
+        # Novaflix signs its own users in, so nothing sits in front of it; its
+        # account management is a different, tailnet-only name.
+        self.assertNotIn("groups", play["autolab_ingress_public_routes"]["novaflix"])
+        self.assertIn("catalog.novaflix.port", play["autolab_ingress_public_routes"]["novaflix"]["upstream"])
+        catalog = yaml.safe_load((ROOT / "builders/ansible/playbooks/group_vars/all.yml").read_text())["autolab_service_catalog"]
+        self.assertIs(catalog["novaflix"]["lab"], False)
+        self.assertEqual(catalog["novaflix-admin"]["login"], "plugin")
         role = (ROLE / "defaults/main.yml").read_text() + (ROLE / "templates/traefik-dynamic.yml.j2").read_text()
         self.assertNotIn("paradigm", role)
 
@@ -144,7 +156,7 @@ class PrivateDashboardTests(unittest.TestCase):
     def test_cloudflare_public_allowlist(self):
         source = (ROOT / "infra/stacks/cloudflare/ingress.auto.tfvars").read_text()
         labels = set(re.findall(r"^\s*(\w+)\s*=\s*\{\s*comment", source, re.MULTILINE))
-        self.assertEqual(labels, {"auth", "share", "qr"})
+        self.assertEqual(labels, {"auth", "share", "qr", "novaflix"})
 
 
 if __name__ == "__main__":

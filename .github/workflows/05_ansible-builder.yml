@@ -391,6 +391,7 @@ jobs:
           # whose services list has qr and paradigm-tunnel.
           AUTOLAB_QR_PUBLIC_URL: ${{ vars.QR_PUBLIC_URL }}
           AUTOLAB_PARADIGM_TUNNEL_TOKEN: ${{ secrets.PARADIGM_TUNNEL_TOKEN }}
+          AUTOLAB_NOVAFLIX_TMDB_TOKEN: ${{ secrets.NOVAFLIX_TMDB_TOKEN }}
           # Hermes, the WhatsApp agent: its model key, the one number allowed to
           # talk to it, and the token that lets it push to the notes vault.
           # Only matter on a machine whose services list has hermes.
@@ -459,6 +460,7 @@ jobs:
               "autolab_pihole_web_password": os.environ.get("AUTOLAB_PIHOLE_WEB_PASSWORD", ""),
               "autolab_services_qr_public_url": os.environ.get("AUTOLAB_QR_PUBLIC_URL", ""),
               "autolab_services_paradigm_tunnel_token": os.environ.get("AUTOLAB_PARADIGM_TUNNEL_TOKEN", ""),
+              "autolab_services_novaflix_tmdb_token": os.environ.get("AUTOLAB_NOVAFLIX_TMDB_TOKEN", ""),
               "autolab_services_hermes_opencode_go_api_key": os.environ.get("AUTOLAB_HERMES_OPENCODE_GO_API_KEY", ""),
               "autolab_services_hermes_whatsapp_number": os.environ.get("AUTOLAB_HERMES_WHATSAPP_NUMBER", ""),
               "autolab_services_hermes_vault_token": os.environ.get("AUTOLAB_COSMOS_VAULT_TOKEN", ""),

@@ -49,6 +49,8 @@ bump is a pull request.
 | `qr` | QR codes whose destination can change after printing; the admin page is public behind the passkey at `qr.<zone>`, with no `*.lab` name — see [qr](qr.md) | 8097 (admin) |
 | `paradigm-tunnel` | the connector for the tunnel in the Paradigm Prints Cloudflare account — see [qr](qr.md) | — |
 | `cosmos` | the owner's personal hub: gateway, API and Postgres, Pocket ID admins only — see [cosmos](cosmos.md) | 8105 |
+| `novaflix` | a private tracker of what a few friends watch, our own app: public gateway, server and Postgres; it signs its own users in, at `novaflix.<zone>` with no `*.lab` name — see [novaflix](novaflix.md) | 8108 |
+| `novaflix-admin` | the same app's account management, which the public gateway does not answer; tailnet-only behind the passkey — see [novaflix](novaflix.md) | 8109 |
 | `hermes` | the owner's agent on WhatsApp, working in a checkout of the notes vault; the port is its dashboard — see [hermes](hermes.md) | 8106 |
 
 ## Where they are reachable
