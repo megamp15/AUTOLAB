@@ -166,7 +166,13 @@ jobs:
           for target in $TARGETS; do
             image="${APP}-${target}"
             docker tag "${image}:${IMAGE_TAG}" "${REGISTRY_HOST}/${image}:${IMAGE_TAG}"
-            docker push "${REGISTRY_HOST}/${image}:${IMAGE_TAG}"
+            # An upload over the tailnet sometimes drops mid-layer. The layers
+            # that arrived stay, so another try sends only the rest.
+            for try in 1 2 3 4; do
+              if docker push "${REGISTRY_HOST}/${image}:${IMAGE_TAG}"; then break; fi
+              if [ "$try" = 4 ]; then echo "Pushing ${image} failed four times" >&2; exit 1; fi
+              sleep 10
+            done
             docker buildx imagetools inspect "${REGISTRY_HOST}/${image}:${IMAGE_TAG}"
           done
 

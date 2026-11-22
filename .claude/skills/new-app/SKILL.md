@@ -90,6 +90,7 @@ has its own address and database.
 | a theme rule has no effect on a shadcn component | the rule is in a layer and the component's own utility classes win | write the override outside any `@layer` |
 | a provider button is missing on the sign-in page | its client id or secret is not in the server's environment | set both, and `PUBLIC_URL` |
 | `05` `ingress` apply fails at "Reconcile declared Pocket ID clients" with `HTTP 404`, Ansible itself green | Traefik had just restarted for the new route and the login service was briefly unreachable | re-run the failed job |
+| **Release app** fails in publish at "Push and verify each image" with `invalid content range`, about a minute into the step | a layer took longer to upload than Traefik's read timeout on the tailnet door | raise `autolab_ingress_tailnet_read_timeout` in the ingress role, then `05` `ingress`; a re-run alone rebuilds the layers and hits the same limit |
 | Google's screen names another app | the OAuth client is in a Google project whose consent screen has that name | rename it under Google Auth Platform, Branding, or make the client in a project of the app's own |
 | the Pocket ID button is missing after a deploy | the services run had no `POCKETID_API_KEY` (only `edge` and `lab` services runs get it), or the app has no line in the managed policy | add the line, or the environment in `05`'s condition |
 | the app's CI has no `release` job run | `RELEASE_APP_CLIENT_ID` is not set on its repository | `own-apps.md`, "An app that releases itself" |
