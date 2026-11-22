@@ -12,6 +12,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist/src ./dist/src
+# For `node dist/scripts/add-user.js`, which makes the first admin on a deployed server.
+COPY --from=build /app/dist/scripts ./dist/scripts
 USER node
 CMD ["node", "dist/src/server/main.js"]
 

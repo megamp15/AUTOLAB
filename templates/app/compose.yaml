@@ -32,6 +32,9 @@ services:
     profiles: ["stack"]
     build: { context: ., target: gateway }
     restart: unless-stopped
+    # Locally one gateway is both faces. Deployed, the public one runs without this.
+    environment:
+      ADMIN_FACE: "1"
     ports:
       - "127.0.0.1:${PORT:-__STACK_PORT__}:80"
     depends_on: [server]
