@@ -55,3 +55,6 @@ config.json
 # Local tool indexes
 .codegraph/
 .slim/deepwork/
+
+# ansible-lint installs collections here when run locally; never commit them.
+builders/ansible/.ansible/
