@@ -58,6 +58,7 @@ it resets when the container restarts.
 |---|---|---|
 | database password | the services role, once, `openssl rand -hex 32` | `/etc/autolab/novaflix/db-password` on jwst (`0700` root); the two env files that carry it are `0600` |
 | `NOVAFLIX_TMDB_TOKEN` | you, on themoviedb.org | GitHub secret, `lab` environment; optional |
+| `NOVAFLIX_GOOGLE_CLIENT_ID`, `NOVAFLIX_GOOGLE_CLIENT_SECRET` | you, in the Google Cloud console (Google Auth Platform, a Web application client, redirect `https://novaflix.<zone>/api/auth/oidc/google/callback`, app published) | GitHub secrets; optional. Google sign-in works on the public name only: the admin name is signed in to with a password |
 | `NOVAFLIX_DEPLOY_KEY` | you, once | GitHub secret, `lab` environment; its public half is a read-only deploy key on the Novaflix repository |
 
 Re-running the playbook never rotates the database password (`creates:`).

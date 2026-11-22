@@ -368,6 +368,14 @@ autolab_services_novaflix_image_tag: ""
 # Optional. A TMDB read token, for titles, artwork and suggestions; without it
 # the app runs and those are absent. The NOVAFLIX_TMDB_TOKEN secret.
 autolab_services_novaflix_tmdb_token: ""
+# The address people open it at, which is also where a sign-in provider sends
+# them back: <this>/api/auth/oidc/<provider>/callback.
+autolab_services_novaflix_public_url: "https://novaflix.{{ autolab_services_dash_zone }}"
+# Optional. "Sign in with Google", for emails that already have an account: a
+# Google OAuth client's id and secret. Both empty, and the button is absent.
+# The NOVAFLIX_GOOGLE_CLIENT_ID and NOVAFLIX_GOOGLE_CLIENT_SECRET secrets.
+autolab_services_novaflix_google_client_id: ""
+autolab_services_novaflix_google_client_secret: ""
 # Kept this many daily logical dumps of the database, on the host's disk. The
 # nightly Proxmox backup of the VM carries them to the NAS.
 autolab_services_cosmos_dump_keep: 14
