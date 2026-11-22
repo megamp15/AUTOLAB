@@ -58,6 +58,7 @@ over the hand side as numbered steps.
 | 404 | the route does not exist: the name is missing from `playbooks/ingress.yml`, or the plugin's client is not configured | code |
 | Cloudflare error page | no DNS record or tunnel rule: `10 - Cloudflare` not applied | code |
 | the run fails with `HTTP 401` from Pocket ID | `POCKETID_API_KEY` expired | hand |
+| a services run fails at "Reconcile restricted Pocket ID clients" (output hidden); `/run/autolab-pocketid-error` on the host says `Unrecorded Pocket ID secret exists` | a managed client has a secret the host's state does not record: a run died between making the client and recording it | hand: delete that `AUTOLAB <app>` client in Pocket ID, then re-run; the state keeps its id |
 | `Expected exactly one Pocket ID client named X` | a hand-made client was renamed or deleted in Pocket ID | hand |
 
 ## Guardrails

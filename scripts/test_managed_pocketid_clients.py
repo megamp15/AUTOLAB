@@ -60,6 +60,24 @@ class ProvisioningTest(unittest.TestCase):
         self.assertFalse(module.reconcile(api, self.policy, state, save))
         self.assertEqual(len(api.secrets), 1)
 
+    def test_a_secret_made_with_the_client_is_the_one_kept(self):
+        api, state = FakeApi(), {}
+        original = api.request
+
+        def request(method, path, data=None, allow_missing=False):
+            result = original(method, path, data, allow_missing)
+            if path == '/oidc/clients' and method == 'POST':
+                api.secrets = [{'id': 'made-with-client', 'expiresAt': None}]
+                return dict(result, createdSecret={'id': 'made-with-client', 'secret': 'from-pocket-id'})
+            return result
+
+        api.request = request
+        self.assertTrue(module.reconcile(api, self.policy, state, lambda _: None))
+        self.assertEqual(state['adventurelog']['secret'], 'from-pocket-id')
+        self.assertEqual(state['adventurelog']['secret_id'], 'made-with-client')
+        self.assertEqual(api.secrets, [{'id': 'made-with-client', 'expiresAt': None}])
+        self.assertFalse(module.reconcile(api, self.policy, state, lambda _: None))
+
     def test_a_client_whose_app_is_gone_is_deleted(self):
         api, state = FakeApi(), {}
         module.reconcile(api, self.policy, state, lambda _: None)
