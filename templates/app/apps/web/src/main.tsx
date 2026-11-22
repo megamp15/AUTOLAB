@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Settings as SettingsIcon } from "lucide-react";
 import { Centrepiece } from "./centrepiece.js";
 import { Intro } from "./intro.js";
+import { Waiting } from "./loader.js";
 import { Backdrop } from "./backdrop.js";
 import { Settings } from "./settings.js";
 import { Boot, ICON_BUTTON, ThemeToggle, Wordmark } from "./theme.js";
@@ -118,11 +119,11 @@ function App() {
   useEffect(() => {
     api<{ user: User }>("GET", "/auth/me").then((reply) => setUser(reply.user), () => setUser(null));
   }, []);
-  if (user === undefined) return null;
   // One backdrop under every screen, so it carries on undisturbed as they change.
   return <><Backdrop />{screen(user)}</>;
 
-  function screen(user: User | null) {
+  function screen(user: User | null | undefined) {
+    if (user === undefined) return <Waiting className="min-h-svh" />;
     if (user === null && !entered) return <Intro action="Enter" ready="Standing by" leaving="Entering" onEnter={enter}><Centrepiece /></Intro>;
     if (user === null) return <Centered><Boot className="w-full max-w-sm"><SignIn onUser={setUser} /></Boot></Centered>;
     if (user.mustChange) return <Centered><Boot className="w-full max-w-sm"><ChoosePassword user={user} onUser={setUser} /></Boot></Centered>;

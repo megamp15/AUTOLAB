@@ -3,6 +3,7 @@
 import { LogOut, ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, api } from "./api.js";
+import { Waiting } from "./loader.js";
 import { Problem, say, type User } from "./parts.js";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -35,7 +36,8 @@ function Account({ user, onSignedOut }: { user: User; onSignedOut: () => void })
 
 /** Who may sign in. Adding a person here is the only way an account comes to exist. */
 function UserAccess({ me }: { me: User }) {
-  const [users, setUsers] = useState<User[]>([]);
+  // null: not loaded yet.
+  const [users, setUsers] = useState<User[] | null>(null);
   const [given, setGiven] = useState<{ email: string; password: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
@@ -66,6 +68,7 @@ function UserAccess({ me }: { me: User }) {
     setRemoving(null);
     setGiven(null);
   });
+  if (!users) return error ? <Problem>{error}</Problem> : <Waiting />;
   return (
     <>
       <Heading count={users.length}>User access</Heading>
