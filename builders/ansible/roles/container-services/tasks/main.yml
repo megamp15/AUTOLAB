@@ -842,9 +842,13 @@
         DB_USER=novaflix
         DB_PASSWORD={{ autolab_novaflix_db_password_raw.content | b64decode | trim }}
         TMDB_TOKEN={{ autolab_services_novaflix_tmdb_token }}
-        PUBLIC_URL={{ autolab_services_novaflix_public_url }}
+        PUBLIC_URL={{ ([autolab_services_novaflix_public_url] + ([autolab_services_novaflix_admin_url] if 'novaflix-admin' in autolab_services_enabled else [])) | join(',') }}
         GOOGLE_CLIENT_ID={{ autolab_services_novaflix_google_client_id }}
         GOOGLE_CLIENT_SECRET={{ autolab_services_novaflix_google_client_secret }}
+        POCKETID_ISSUER={{ autolab_services_oidc_issuer }}
+        POCKETID_CLIENT_ID={{ autolab_services_novaflix_oidc_client_id }}
+        POCKETID_CLIENT_SECRET={{ autolab_services_novaflix_oidc_client_secret }}
+        FIRST_ADMIN_EMAIL={{ autolab_services_admin_email }}
   loop_control:
     label: "{{ item.name }}"
   no_log: true

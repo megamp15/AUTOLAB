@@ -41,15 +41,23 @@ has its own address and database.
    address is `<PUBLIC_URL>/api/auth/oidc/<google|pocketid>/callback`. The
    Google client is by hand (console.cloud.google.com: Google Auth Platform,
    a Web application client with that redirect address, then Audience,
-   Publish app); its id and secret arrive through `secret`. The first
-   account is made on the host with `node dist/scripts/add-user.js <email>
-   "<name>" --admin` in the server container. Done when a sign-in with an
-   address not under User access comes back refused.
+   Publish app); its id and secret arrive through `secret`. Name the
+   Google project's consent screen after the app, or give the app its own
+   project: the name on Google's screen is the project's, shared by every
+   client in it. The Pocket ID client is code: a line for the app in
+   `managed-pocketid-policy.json.j2` and `POCKETID_*` in the server's
+   environment, as Novaflix has (`pocket-id` skill). The first account is
+   code too: `FIRST_ADMIN_EMAIL` in the server's environment, set from
+   `autolab_services_admin_email`, makes it on an empty database. Done when a
+   sign-in with an address not under User access comes back refused.
 5. **Register for release.** An entry in `.github/apps.json`, and a default
    `autolab_services_<app>_image_tag: ""` in
    `roles/container-services/defaults/main.yml`. By hand: a read-only deploy
    key on the app's repository, its private half as the secret named in
    `deploy_key`. Give the person the numbered steps from `own-apps.md`.
+   Then the steps in "An app that releases itself" there, so a push to the
+   app's `main` releases without a run started by hand: one key to generate
+   and four commands, the person's to do. Until they have, release by hand.
 6. **Define the service** with `service`, in Novaflix's shape: a compose
    fragment with database, server and gateway on an internal network, the
    database password generated on the host, a catalog entry, the database in
@@ -82,6 +90,9 @@ has its own address and database.
 | a theme rule has no effect on a shadcn component | the rule is in a layer and the component's own utility classes win | write the override outside any `@layer` |
 | a provider button is missing on the sign-in page | its client id or secret is not in the server's environment | set both, and `PUBLIC_URL` |
 | `05` `ingress` apply fails at "Reconcile declared Pocket ID clients" with `HTTP 404`, Ansible itself green | Traefik had just restarted for the new route and the login service was briefly unreachable | re-run the failed job |
+| Google's screen names another app | the OAuth client is in a Google project whose consent screen has that name | rename it under Google Auth Platform, Branding, or make the client in a project of the app's own |
+| the Pocket ID button is missing after a deploy | the services run had no `POCKETID_API_KEY` (only `edge` and `lab` services runs get it), or the app has no line in the managed policy | add the line, or the environment in `05`'s condition |
+| the app's CI has no `release` job run | `RELEASE_APP_CLIENT_ID` is not set on its repository | `own-apps.md`, "An app that releases itself" |
 | Google refuses with a redirect mismatch | the address in the browser is not the one registered | open the app at exactly `PUBLIC_URL` |
 
 ## How far this is proven

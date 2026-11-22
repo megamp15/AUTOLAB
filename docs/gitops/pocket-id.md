@@ -21,7 +21,7 @@ For how it is deployed and how a login reaches a page, see
 | which groups may sign in through a client | the same lists | same |
 | Traefik's and Grafana's callback, logout and launch URLs | the same file | same |
 | which groups open which name | the route: `autolab_ingress_homepage_groups` in the ingress role, `groups` on a public route in `playbooks/ingress.yml` | `05` `ingress` |
-| the apps' own clients (named `AUTOLAB <app>`): created, secret generated, restricted to `admins`, deleted when the app is removed | `templates/managed-pocketid-policy.json.j2` in the container-services role | `05` `services` on `edge` |
+| the apps' own clients (named `AUTOLAB <app>`): created, secret generated, restricted to `admins`, deleted when the app is removed | `templates/managed-pocketid-policy.json.j2` in the container-services role | `05` `services`, on the machine the app runs on (`edge`; `lab` for Novaflix) |
 | users, and who is in which group | Pocket ID, *Users* and *User Groups* | by hand |
 | passkeys | the person's device or password manager | by hand; cannot be code |
 | the first admin and the API key | Pocket ID's one-time setup, then *API Keys* | by hand; code needs them to start |
@@ -61,7 +61,7 @@ request.
 | add a group, or let a group use a client | the client's `allowedUserGroups` in `pocketid-clients.json` | `05` `ingress`, check then apply (`observability` for Grafana) |
 | let a group open a name | the route's groups | `05` `ingress` |
 | put a new name on the internet behind the passkey | [ingress](./ingress.md), "A public name behind the passkey" | `05` `ingress`, then `10 - Cloudflare` |
-| give a new app its own login | a line in `managed-pocketid-policy.json.j2` | `05` `services` on `edge` |
+| give a new app its own login | a line in `managed-pocketid-policy.json.j2` | `05` `services` on the app's machine |
 | adopt another hand-made client | an entry with `"name": "<its name in Pocket ID>"` and its groups | `05` `ingress` |
 
 Check mode prints what would change and writes nothing: `group X would be

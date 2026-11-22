@@ -70,6 +70,19 @@ export async function createUser(database: Database, input: { email: string; nam
   return rows[0] ? { user: toUser(rows[0]), password } : null;
 }
 
+/**
+ * The owner's account, made when the app first starts on an empty database, so a new
+ * deployment needs no command run by hand. It has no password and is signed in to through
+ * a provider, which is why it is only made when one is set up. True when it made one.
+ */
+export async function ensureFirstAdmin(database: Database, email: string | undefined, hasProvider: boolean): Promise<boolean> {
+  if (!email?.trim() || !hasProvider) return false;
+  const { rows } = await database.query("SELECT 1 FROM users LIMIT 1");
+  if (rows.length) return false;
+  const made = await createUser(database, { email, name: normalEmail(email).split("@")[0] || "Admin", isAdmin: true, password: false });
+  return made !== null;
+}
+
 /** Gives an account a new random password and signs it out everywhere. Null when there is no such account. */
 export async function resetPassword(database: Database, userId: string): Promise<string | null> {
   const password = randomPassword();

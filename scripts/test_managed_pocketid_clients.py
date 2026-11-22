@@ -105,15 +105,23 @@ class ProvisioningTest(unittest.TestCase):
 
 
 class PolicyTest(unittest.TestCase):
-    def test_policy_renders_six_restricted_client_callbacks(self):
+    def test_policy_renders_each_restricted_client_callback(self):
         template = (path.parent.parent / 'templates/managed-pocketid-policy.json.j2').read_text()
         env = jinja2.Environment()
         env.filters['to_json'] = json.dumps
-        names = ['adventurelog', 'forgejo', 'tandoor', 'airtrail', 'karakeep', 'sure']
+        names = ['adventurelog', 'forgejo', 'tandoor', 'airtrail', 'karakeep', 'sure', 'novaflix']
         values = {f'autolab_services_{name}_public_url': f'https://{name}.example.test' for name in names}
+        values['autolab_services_novaflix_admin_url'] = 'https://novaflix-admin.example.test'
         values.update(autolab_services_enabled=names, autolab_services_oidc_issuer='https://auth.example.test', autolab_services_pocketid_group='admins')
         policy = json.loads(env.from_string(template).render(**values))
         self.assertEqual(set(policy['clients']), set(names))
         self.assertEqual(policy['group'], 'admins')
         self.assertEqual(policy['clients']['forgejo']['callbacks'], ['https://forgejo.example.test/user/oauth2/PocketID/callback'])
         self.assertEqual(policy['clients']['adventurelog']['callbacks'], ['https://adventurelog.example.test/accounts/oidc/pocketid/login/callback/'])
+        # Novaflix's admin face is a second address for the same client, only when it runs.
+        self.assertEqual(policy['clients']['novaflix']['callbacks'], ['https://novaflix.example.test/api/auth/oidc/pocketid/callback'])
+        values['autolab_services_enabled'] = names + ['novaflix-admin']
+        policy = json.loads(env.from_string(template).render(**values))
+        self.assertEqual(policy['clients']['novaflix']['callbacks'], [
+            'https://novaflix.example.test/api/auth/oidc/pocketid/callback',
+            'https://novaflix-admin.example.test/api/auth/oidc/pocketid/callback'])

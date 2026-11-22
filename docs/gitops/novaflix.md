@@ -58,7 +58,8 @@ it resets when the container restarts.
 |---|---|---|
 | database password | the services role, once, `openssl rand -hex 32` | `/etc/autolab/novaflix/db-password` on jwst (`0700` root); the two env files that carry it are `0600` |
 | `NOVAFLIX_TMDB_TOKEN` | you, on themoviedb.org | GitHub secret, `lab` environment; optional |
-| `NOVAFLIX_GOOGLE_CLIENT_ID`, `NOVAFLIX_GOOGLE_CLIENT_SECRET` | you, in the Google Cloud console (Google Auth Platform, a Web application client, redirect `https://novaflix.<zone>/api/auth/oidc/google/callback`, app published) | GitHub secrets; optional. Google sign-in works on the public name only: the admin name is signed in to with a password |
+| `NOVAFLIX_GOOGLE_CLIENT_ID`, `NOVAFLIX_GOOGLE_CLIENT_SECRET` | you, in the Google Cloud console (Google Auth Platform, a Web application client, redirect `https://novaflix.<zone>/api/auth/oidc/google/callback`, app published) | GitHub secrets; optional. Google sign-in works on the public name only, unless the admin name's redirect address is added to the same Google client |
+| Pocket ID client `AUTOLAB novaflix` | the services role, with `POCKETID_API_KEY` | id and secret in `/etc/autolab/managed-pocketid-clients.json` on jwst (`0600` root). Restricted to `admins`; sends a sign-in back to the public or the admin name |
 | `NOVAFLIX_DEPLOY_KEY` | you, once | GitHub secret, `lab` environment; its public half is a read-only deploy key on the Novaflix repository |
 
 Re-running the playbook never rotates the database password (`creates:`).
@@ -79,14 +80,18 @@ tag.
    `services` in `infra/stacks/lab/machines.auto.tfvars`.
 4. `03` plan and `04` apply for the `lab` Stack; `05` `services` with
    `limit=jwst`; `05` `ingress`; `10` plan and apply for the public name.
-5. Make the first admin: on jwst,
+5. Nothing by hand for the first admin: on an empty database the server
+   makes an admin account for `APPS_ADMIN_EMAIL` (the email of your Pocket ID
+   user), without a password. Sign in at the admin name with Pocket ID, or
+   with Google if that is the same address. Everyone else is made in the
+   app, under User access. An account with a password, should one be
+   wanted, is still
    `docker compose --project-directory /opt/autolab/services exec novaflix-server node dist/scripts/add-user.js <email> "<name>" --admin`
-   prints a one-time password. Everyone else is made in the app, at the
-   admin name.
+   on jwst.
 
-So that later merges to Novaflix `main` release themselves, its CI needs a
-GitHub App that may start workflows here, as COSMOS has (`cosmos.md`,
-"Releasing"). Until then, release by hand with step 2.
+A push to Novaflix `main` that passes its CI releases itself: its `release`
+job starts **Release app** here (`own-apps.md`, "An app that releases
+itself").
 
 ## Backups
 
