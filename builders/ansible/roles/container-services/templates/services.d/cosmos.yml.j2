@@ -33,9 +33,14 @@
       dockhand.tags: cosmos
       diun.enable: "false"
     env_file: [./cosmos-api.env]
+    volumes:
+      - cosmos-vault:/vault
     depends_on:
       cosmos-db:
         condition: service_healthy
+      # Started, not healthy: a GitHub outage at boot must not keep COSMOS down.
+      cosmos-vault-sync:
+        condition: service_started
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/live').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 10s
@@ -45,6 +50,36 @@
       cosmos-backend:
         # The gateway's nginx config proxies to the name `api`.
         aliases: [api]
+
+  # The one COSMOS container that reaches the internet, and the only one holding
+  # COSMOS_VAULT_TOKEN. It pulls and pushes the vault when cosmos-api asks
+  # (the Notes app opening, a note saved), never on a timer. Same image as the
+  # API, another command. See COSMOS docs/notes.md.
+  cosmos-vault-sync:
+    image: {{ autolab_services_cosmos_registry }}/cosmos-api:{{ autolab_services_cosmos_image_tag }}
+    command: ["node", "dist/src/vault-sync/main.js"]
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges
+    labels:
+      dockhand.tags: cosmos
+      diun.enable: "false"
+    env_file: [./cosmos-vault-sync.env]
+    volumes:
+      - cosmos-vault:/vault
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/health/live').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 60s
+    networks:
+      cosmos-backend:
+        aliases: [vault-sync]
+      cosmos-sync:
 
   cosmos-gateway:
     image: {{ autolab_services_cosmos_registry }}/cosmos-gateway:{{ autolab_services_cosmos_image_tag }}

@@ -40,6 +40,9 @@ volumes:
 {% endif %}
 {% if 'cosmos' in autolab_services_enabled %}
   cosmos-data:
+  # The notes vault checkout cosmos-api reads and writes; GitHub holds the
+  # durable copy (megamp15/cosmos-vault), so it needs no backup of its own.
+  cosmos-vault:
 {% endif %}
 {% if 'novaflix' in autolab_services_enabled %}
   novaflix-data:
@@ -68,6 +71,8 @@ networks:
   cosmos-backend:
     internal: true
   cosmos-edge:
+  # Only cosmos-vault-sync is on this one: its route to GitHub.
+  cosmos-sync:
 {% endif %}
 {% if 'novaflix' in autolab_services_enabled %}
   # The database is on the internal network alone: no route to the LAN or the

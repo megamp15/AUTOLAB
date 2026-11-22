@@ -19,6 +19,8 @@ iPhone / browser ──▶ cosmos.lab.<zone> ──▶ horizon: Traefik + Pocket
                        jwst :8105  cosmos-gateway (nginx: web build, /api proxy)
                                                │  internal Docker network, no route out
                                   cosmos-api ──┴── cosmos-db (Postgres 17)
+                                       │ volume cosmos-vault
+                               cosmos-vault-sync ──▶ github.com (megamp15/cosmos-vault)
 ```
 
 | container | does | reachable from |
@@ -26,6 +28,7 @@ iPhone / browser ──▶ cosmos.lab.<zone> ──▶ horizon: Traefik + Pocket
 | `cosmos-gateway` | serves the web build, proxies `/api/`, refuses any request without Traefik's token (403) | jwst's tailnet address, port 8105 |
 | `cosmos-api` | Fastify API; read-only filesystem, no capabilities, uid 1000 | the gateway only |
 | `cosmos-db` | Postgres 17 on the named volume `cosmos-data` | the API only |
+| `cosmos-vault-sync` | the cosmos-api image running `vault-sync`: pulls and pushes the notes vault (volume `cosmos-vault`, shared with the API) when the API asks, never on a timer. The only COSMOS container with a route out (`cosmos-sync` network) and the only one holding `COSMOS_VAULT_TOKEN` | the API only |
 
 Defined in `roles/container-services/templates/services.d/cosmos.yml.j2`. The
 port and the `admin` login (Pocket ID `admins` group) are in the service
@@ -38,6 +41,7 @@ the service is enabled, the same way Dockhand's does.
 |---|---|---|---|
 | database password, proxy token, MCP token, ingest token | the services role, once, `openssl rand -hex 32` | `/etc/autolab/cosmos/` on jwst (`0700` root); each container's env file is `0600` and holds only what that container uses | GitHub, git, logs |
 | proxy token handoff to horizon | the ingress role reads it over SSH and writes it into Traefik's dynamic config | horizon, `0600` | the browser; the web bundle |
+| `COSMOS_VAULT_TOKEN` (shared with Hermes) | you: a fine-grained PAT, Contents read/write on `megamp15/cosmos-vault` | GitHub secret; on jwst only in `cosmos-vault-sync.env` (`0600`), passed to git through a credential helper | the vault checkout's `.git/config`, the API, logs |
 | `COSMOS_DEPLOY_KEY` | you, once: an SSH key pair, public half added to the COSMOS repo as a **read-only deploy key** | GitHub secret on AUTOLAB (`lab` environment) | the COSMOS repo (the private half) |
 
 Re-running the playbook never rotates a generated secret (`creates:`), so it
@@ -55,7 +59,8 @@ playbook, and paste the new value into the shortcut.
 `autolab_services_cosmos_timezone` (role defaults) is the clock a day is
 counted on: the shortcut sends times with no zone.
 
-The MCP token exists because the API refuses to start without one. It is not
+The MCP token carries the scopes `system:read notes:read notes:write`.
+It exists because the API refuses to start without one. It is not
 yet reachable from outside: how a local MCP process gets to the API is a
 decision for the MCP increment (see the COSMOS repo's `docs/deployment.md`).
 
