@@ -52,7 +52,7 @@ export function Wordmark({ className = "", decode = false }: { className?: strin
   const shown = useDecoded(NAME, decode, 760);
   return (
     <span className={`inline-block min-h-[1lh] font-mono font-bold tracking-[0.18em] uppercase ${className}`} aria-label={NAME}>
-      <span aria-hidden="true">{shown.slice(0, ACCENT_FROM)}<span className="text-primary">{shown.slice(ACCENT_FROM)}_</span></span>
+      <span aria-hidden="true">{shown.slice(0, ACCENT_FROM)}<span className="text-primary">{shown.slice(ACCENT_FROM)}<span className="blink">_</span></span></span>
     </span>
   );
 }
