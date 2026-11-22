@@ -93,6 +93,24 @@ A push to Novaflix `main` that passes its CI releases itself: its `release`
 job starts **Release app** here (`own-apps.md`, "An app that releases
 itself").
 
+## Pocket ID sign-in
+
+Built and declared, and switched off for now. The first services run with
+the API key (2026-11-22) made the client `AUTOLAB novaflix`, and Pocket ID
+2.19 made a secret with it that the provisioning script did not expect, so
+the run failed with `Unrecorded Pocket ID secret exists` and so did every
+services run on jwst after it, COSMOS's included. The script now keeps the
+secret Pocket ID makes. To switch it on:
+
+1. By hand, in Pocket ID: OIDC Clients → `AUTOLAB novaflix` → delete. The
+   script never deletes a client whose secret it did not record.
+2. A pull request adding `|| inputs.environment == 'lab'` back to
+   `AUTOLAB_SERVICES_POCKETID_API_KEY` in `05_ansible-builder.yml`.
+3. `05` `services`, `limit=jwst`. The state on jwst still holds the client's
+   id, so the run makes it again under the same id and records its secret.
+
+Until then jwst's services runs skip Pocket ID and the button is absent.
+
 ## Backups
 
 `novaflix-db` is in `autolab_services_databases`, so the shared database

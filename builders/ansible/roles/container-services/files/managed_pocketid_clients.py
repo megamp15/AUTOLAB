@@ -87,7 +87,14 @@ def reconcile(api, policy, state, save):
         if current is None:
             if entry.get('secret_id'):
                 raise RuntimeError('A managed Pocket ID client was deleted; restore or reconcile manually')
-            api.request('POST', '/oidc/clients', desired)
+            created = api.request('POST', '/oidc/clients', desired) or {}
+            # Pocket ID 2.19 makes a secret along with the client and shows its
+            # value only here. Keep that one; making a second would leave this
+            # one unrecorded, which every later run refuses to touch.
+            made = created.get('createdSecret')
+            if made:
+                entry['secret'], entry['secret_id'] = made['secret'], made['id']
+                save(state)
             current = api.request('GET', path)
             changed = True
         elif current.get('name') != desired['name']:
