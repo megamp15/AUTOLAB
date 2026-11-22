@@ -1,0 +1,139 @@
+name: Release app
+
+# One of our own apps, released in one run: publish its images, pin the tag in
+# a pull request that merges itself, then run the services playbook on the
+# machine it runs on. The app's own CI dispatches this after a push to its
+# main passes its checks, through a GitHub App that may only start workflows
+# here. Run it by hand to release (or roll back to) any commit on that main.
+# docs/gitops/own-apps.md
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: The app's name in .github/apps.json
+        required: true
+        type: string
+      sha:
+        description: Full commit SHA on the app repository's main
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# One release of an app at a time. A newer release waiting here replaces an
+# older one that has not started, so a burst of merges ships only the last.
+concurrency:
+  group: app-release-${{ inputs.app }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/app-publish.yml
+    with:
+      app: ${{ inputs.app }}
+      sha: ${{ inputs.sha }}
+    secrets: inherit
+
+  pin:
+    name: Pin the tag
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      APP: ${{ inputs.app }}
+      APP_SHA: ${{ inputs.sha }}
+      IMAGE_TAG: ${{ needs.publish.outputs.image_tag }}
+      TAG_VARIABLE: ${{ needs.publish.outputs.tag_variable }}
+      DEFAULTS: builders/ansible/roles/container-services/defaults/main.yml
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+
+      - name: Open and merge the pin pull request
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$IMAGE_TAG" =~ ^[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]; then
+            echo "Unexpected image tag: ${IMAGE_TAG}" >&2
+            exit 1
+          fi
+          if [[ ! "$TAG_VARIABLE" =~ ^autolab_services_[a-z0-9_]+_image_tag$ ]]; then
+            echo "Unexpected tag variable: ${TAG_VARIABLE}" >&2
+            exit 1
+          fi
+          grep --quiet "^${TAG_VARIABLE}: " "$DEFAULTS" || {
+            echo "${TAG_VARIABLE} is not in ${DEFAULTS}" >&2
+            exit 1
+          }
+          sed -i "s/^${TAG_VARIABLE}: .*/${TAG_VARIABLE}: \"${IMAGE_TAG}\"/" "$DEFAULTS"
+          if git diff --quiet; then
+            echo 'Tag already pinned.'
+            exit 0
+          fi
+          short="${APP_SHA:0:7}"
+          branch="${APP}/release-${short}-${GITHUB_RUN_ID}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git commit -am "chore(services): release ${APP} ${short}" -m "Pins the tag published by run ${GITHUB_RUN_ID} for ${APP} commit ${APP_SHA}. Only the image changes."
+          git push origin "$branch"
+          url="$(gh pr create --base main --head "$branch" \
+            --title "chore(services): release ${APP} ${short}" \
+            --body "Pins \`${TAG_VARIABLE}\` to \`${IMAGE_TAG}\`. Opened and merged by [Release app](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}).")"
+          # A new pull request can report its merge state as unknown for a moment.
+          for _ in 1 2 3 4 5 6; do
+            if gh pr merge "$url" --squash --delete-branch; then
+              echo "### Pinned in ${url}" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Could not merge ${url}" >&2
+          exit 1
+
+  deploy:
+    name: Deploy to ${{ needs.publish.outputs.host }}
+    needs: [publish, pin]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: write
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      HOST: ${{ needs.publish.outputs.host }}
+    steps:
+      - name: Run the services playbook and wait for it
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$HOST" =~ ^[a-z][a-z0-9-]{1,30}$ ]]; then
+            echo "Unexpected host: ${HOST}" >&2
+            exit 1
+          fi
+          started="$(date -u -d '-30 seconds' +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run 05_ansible-builder.yml --ref main \
+            -f environment=lab -f playbook=services -f limit="$HOST" -f confirm=apply
+          run=''
+          for _ in $(seq 1 30); do
+            run="$(gh run list --workflow 05_ansible-builder.yml --event workflow_dispatch \
+              --user 'github-actions[bot]' --limit 10 --json databaseId,createdAt \
+              --jq "[.[] | select(.createdAt >= \"${started}\")][0].databaseId // empty")"
+            [[ -n "$run" ]] && break
+            sleep 5
+          done
+          if [[ -z "$run" ]]; then
+            echo 'The services run did not appear.' >&2
+            exit 1
+          fi
+          echo "### Deploy: ${GITHUB_SERVER_URL}/${GH_REPO}/actions/runs/${run}" >> "$GITHUB_STEP_SUMMARY"
+          gh run watch "$run" --exit-status --interval 30

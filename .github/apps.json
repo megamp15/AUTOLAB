@@ -1,0 +1,9 @@
+{
+  "novaflix": {
+    "repository": "megamp15/novaflix",
+    "targets": ["server", "gateway"],
+    "deploy_key": "NOVAFLIX_DEPLOY_KEY",
+    "tag_variable": "autolab_services_novaflix_image_tag",
+    "host": "jwst"
+  }
+}
