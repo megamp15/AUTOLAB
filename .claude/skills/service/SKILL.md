@@ -21,6 +21,8 @@ written down: `docs/gitops/definition-of-done.md`.
      Docker's rules sit ahead of ufw's;
    - `read_only`, `cap_drop: [ALL]`, `no-new-privileges` when the app
      allows it; a healthcheck;
+   - a `dockhand.tags` label naming the app, the same on its database and
+     workers, so Dockhand groups them (`docs/gitops/docker-management.md`);
    - data under `{{ autolab_services_root }}/<name>/`; a database on the
      host's disk, files that must outlive the VM on the NAS mount.
 3. **The catalog**: `autolab_service_catalog` in

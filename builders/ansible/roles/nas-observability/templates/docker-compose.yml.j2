@@ -2,6 +2,8 @@
 services:
   alloy:
     image: {{ autolab_nas_alloy_image }}
+    labels:
+      dockhand.tags: observability
     restart: unless-stopped
     network_mode: host
     pid: host
@@ -21,6 +23,8 @@ services:
       - ./textfile:/var/lib/autolab/textfile:ro
   cadvisor:
     image: {{ autolab_nas_cadvisor_image }}
+    labels:
+      dockhand.tags: observability
     restart: unless-stopped
     privileged: true
     command: [--docker_only=true, --housekeeping_interval=15s]

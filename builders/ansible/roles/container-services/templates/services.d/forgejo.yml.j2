@@ -4,6 +4,8 @@
   # See docs/gitops/forgejo.md.
   forgejo:
     image: {{ autolab_services_images.forgejo }}
+    labels:
+      dockhand.tags: forgejo
     restart: unless-stopped
     depends_on:
       forgejo-db:
@@ -51,6 +53,8 @@
 
   forgejo-db:
     image: {{ autolab_services_images.forgejo_db }}
+    labels:
+      dockhand.tags: forgejo
     restart: unless-stopped
     env_file: /etc/autolab/forgejo-db.env
     volumes:

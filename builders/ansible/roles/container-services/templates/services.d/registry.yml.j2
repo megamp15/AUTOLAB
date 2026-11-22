@@ -1,5 +1,7 @@
   registry:
     image: {{ autolab_services_images.registry }}
+    labels:
+      dockhand.tags: docker
     restart: unless-stopped
     environment:
       # Deleting a tag only unlinks it; garbage collection reclaims the space

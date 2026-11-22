@@ -5,6 +5,8 @@
 services:
   cadvisor:
     image: {{ autolab_obs_cadvisor_image }}
+    labels:
+      dockhand.tags: observability
     restart: unless-stopped
     # Reading every container's cgroup accounting is a privileged act on a
     # host with cgroup v2 under systemd; the alternative was an exporter that

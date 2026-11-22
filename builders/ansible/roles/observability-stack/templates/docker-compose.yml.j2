@@ -7,6 +7,8 @@
 services:
   prometheus:
     image: {{ autolab_obs_images.prometheus }}
+    labels:
+      dockhand.tags: observability
     restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -25,6 +27,8 @@ services:
 
   loki:
     image: {{ autolab_obs_images.loki }}
+    labels:
+      dockhand.tags: observability
     restart: unless-stopped
     command: -config.file=/etc/loki/loki.yml
     volumes:
@@ -39,6 +43,8 @@ services:
   # it the image's own user (10001) on first use.
   tempo:
     image: {{ autolab_obs_images.tempo }}
+    labels:
+      dockhand.tags: observability
     restart: unless-stopped
     command: -config.file=/etc/tempo/tempo.yml
     depends_on: [prometheus]
@@ -51,6 +57,8 @@ services:
 {% endif %}
   grafana:
     image: {{ autolab_obs_images.grafana }}
+    labels:
+      dockhand.tags: observability
     restart: unless-stopped
     depends_on: [prometheus, loki{{ ', tempo' if autolab_obs_tempo_enabled | bool else '' }}]
     environment:
@@ -107,6 +115,8 @@ services:
   # The API has no published port and inherits the homepage ingress policy.
   homepage-api:
     image: {{ autolab_obs_images.homepage_api }}
+    labels:
+      dockhand.tags: home
     restart: unless-stopped
     command: [python, /app/homepage_api.py]
     user: "65534:65534"
@@ -125,6 +135,8 @@ services:
   homepage:
     depends_on: [homepage-api]
     image: {{ autolab_obs_images.homepage }}
+    labels:
+      dockhand.tags: home
     restart: unless-stopped
     volumes:
       - ./homepage/site:/usr/share/nginx/html:ro
@@ -138,6 +150,8 @@ services:
   # published: only Prometheus in this compose network talks to it.
   pve-exporter:
     image: {{ autolab_obs_images.pve_exporter }}
+    labels:
+      dockhand.tags: observability
     restart: unless-stopped
     volumes:
       - ./pve.yml:/etc/prometheus/pve.yml:ro

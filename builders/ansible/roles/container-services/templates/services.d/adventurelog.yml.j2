@@ -9,6 +9,8 @@
 {% if src.mode == 'fork' %}
     # Built here from our fork at the pinned ref; the tag is the commit built.
     image: autolab/adventurelog:{{ autolab_services_source_tags.adventurelog }}
+    labels:
+      dockhand.tags: adventurelog
     build:
       context: ./src/adventurelog
       dockerfile: {{ src.dockerfile }}
@@ -64,6 +66,8 @@
 
   adventurelog-db:
     image: {{ autolab_services_images.adventurelog_db }}
+    labels:
+      dockhand.tags: adventurelog
     restart: unless-stopped
     env_file: /etc/autolab/adventurelog-db.env
     volumes:

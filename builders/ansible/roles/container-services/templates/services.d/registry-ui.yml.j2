@@ -1,5 +1,7 @@
   registry-ui:
     image: {{ autolab_services_images.registry_ui }}
+    labels:
+      dockhand.tags: docker
     restart: unless-stopped
     depends_on: [registry]
     # eznix86/docker-registry-ui (AGPL-3.0, run unmodified) reads the registry

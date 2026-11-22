@@ -1,5 +1,7 @@
   immich-share:
     image: {{ autolab_services_images.immich_share }}
+    labels:
+      dockhand.tags: immich
     restart: unless-stopped
     # Asks Immich, over the tailnet, for one shared link at a time and renders
     # it; it has no route to Immich's login, library or API. Read-only and with

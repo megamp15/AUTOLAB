@@ -1,5 +1,7 @@
   dash:
     image: {{ autolab_services_images.dash }}
+    labels:
+      dockhand.tags: home
     restart: unless-stopped
     environment:
       HOMEPAGE_ALLOWED_HOSTS: "dash.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
