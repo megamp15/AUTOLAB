@@ -83,9 +83,7 @@ keeps every tag. The database does not roll back with the code.
 COSMOS predates this and still releases through its own two workflows
 (`cosmos.md`). It moves here once an app has released this way.
 
-## Not yet proven
+## Proven
 
-As of this page's first version nothing has been released through
-`app-release.yml`: a workflow only runs once it is on `main`. The first
-release of the first app is the proof, and this section goes when it has
-happened.
+Novaflix was first released through **Release app** on 2026-11-22: publish,
+pin (#331) and deploy all passed on the first run.

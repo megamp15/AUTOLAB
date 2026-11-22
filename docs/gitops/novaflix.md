@@ -94,8 +94,15 @@ GitHub App that may start workflows here, as COSMOS has (`cosmos.md`,
 dump covers it (`backups.md`), and the nightly Proxmox backup of jwst
 carries the dumps and the volume.
 
-## Not yet proven
+## Proven
 
-Nothing here has been deployed. This section goes when the first deploy has
-run and the proofs in the pull request that added the service have been
-seen.
+First deployed on 2026-11-22, by the steps above. Seen from outside the lab:
+
+- `https://novaflix.<zone>/api/status` answers `database: connected`.
+- `https://novaflix.<zone>/api/admin/users` answers 404.
+- `https://novaflix.<zone>/api/auth/oidc/google` redirects to Google with the
+  public callback address.
+- The admin name answers 401 before the passkey.
+
+Not yet seen: a full Google sign-in on the deployed app, and the admin name
+used after the passkey.

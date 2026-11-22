@@ -81,15 +81,13 @@ has its own address and database.
 | shadcn's CLI cannot place a component | it reads the `@/` path from the root `tsconfig.json` | keep that file; it exists only for the CLI |
 | a theme rule has no effect on a shadcn component | the rule is in a layer and the component's own utility classes win | write the override outside any `@layer` |
 | a provider button is missing on the sign-in page | its client id or secret is not in the server's environment | set both, and `PUBLIC_URL` |
+| `05` `ingress` apply fails at "Reconcile declared Pocket ID clients" with `HTTP 404`, Ansible itself green | Traefik had just restarted for the new route and the login service was briefly unreachable | re-run the failed job |
 | Google refuses with a redirect mismatch | the address in the browser is not the one registered | open the app at exactly `PUBLIC_URL` |
 
-## Not yet proven
+## How far this is proven
 
-Steps 1 to 4 were done for Novaflix and work locally; a fresh app generated
-from the template passes its checks and runs as built images. No app has been
-released through **Release app** or run on its host from these steps; treat
-steps 5 to 9 as written from the design, and correct this skill on the first
-real release.
+All nine steps were done for Novaflix, which was released and deployed with
+them on 2026-11-22. A second app has not yet been taken through them.
 
 ## Guardrails
 

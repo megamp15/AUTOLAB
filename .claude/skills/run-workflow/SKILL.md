@@ -78,6 +78,7 @@ run). Pass `-f bootstrap=false` on every later run.
 | a tenant VM unreachable over Tailscale | correct: tenant hosts are reached through the node | see `docs/gitops/tenants.md`, "Things that will mislead you" |
 | `Pocket ID ... HTTP 401` | `POCKETID_API_KEY` expired | by hand: `pocket-id` |
 | check mode fails on a host that has never been applied | a task reads a file the apply would create | apply once with `limit=<host>`, or add the stat guard the role's other tasks use |
+| `Pocket ID GET failed with HTTP 404` after an `ingress` apply whose Ansible recap is clean | Traefik restarted for a route change and the login service was briefly unreachable through it | `gh run rerun <id> --failed` |
 | `API rate limit exceeded` in a CI job | GitHub limited the runner's address | re-run the job later |
 
 ## Guardrails
