@@ -614,6 +614,15 @@
       <40-hex commit>-<run id>-<attempt>. Publish first, then enable the service.
   when: "'cosmos' in autolab_services_enabled"
 
+- name: Require the vault token for COSMOS's Notes sync
+  ansible.builtin.assert:
+    that: autolab_services_hermes_vault_token | length > 0
+    fail_msg: >-
+      cosmos-vault-sync needs the COSMOS_VAULT_TOKEN GitHub secret (a
+      fine-grained PAT with Contents read/write on the vault repository).
+  no_log: true
+  when: "'cosmos' in autolab_services_enabled"
+
 - name: Create COSMOS's credential directory
   ansible.builtin.file:
     path: /etc/autolab/cosmos
@@ -694,9 +703,17 @@
         COSMOS_DB_PASSWORD={{ autolab_cosmos_db_password }}
         COSMOS_PROXY_TOKEN={{ autolab_cosmos_proxy_token }}
         COSMOS_MCP_TOKEN={{ autolab_cosmos_mcp_token }}
-        COSMOS_MCP_SCOPES=system:read
+        COSMOS_MCP_SCOPES=system:read notes:read notes:write
         COSMOS_INGEST_TOKEN={{ autolab_cosmos_ingest_token }}
         COSMOS_TIMEZONE={{ autolab_services_cosmos_timezone }}
+        COSMOS_VAULT_DIR=/vault
+        COSMOS_VAULT_SYNC_URL=http://vault-sync:3100
+    - name: cosmos-vault-sync
+      content: |
+        VAULT_DIR=/vault
+        VAULT_REMOTE={{ autolab_services_hermes_vault_repo }}
+        VAULT_TOKEN={{ autolab_services_hermes_vault_token }}
+        PORT=3100
     - name: cosmos-gateway
       content: |
         COSMOS_PROXY_TOKEN={{ autolab_cosmos_proxy_token }}
