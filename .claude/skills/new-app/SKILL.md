@@ -28,7 +28,8 @@ has its own address and database.
    per app is listed in `own-apps.md`, "The template". In
    `apps/web/src/`: the colours in `tailwind.css`; `NAME` and `ACCENT_FROM`
    in `theme.tsx`; the centrepiece in `centrepiece.tsx`, drawn from the
-   brief in the comment at its top; the three words passed to `Intro` in
+   brief in the comment at its top, and `loader.tsx` to match it; the three
+   words passed to `Intro` in
    `main.tsx`; `backdrop.tsx` when stars do not suit. Before designing a
    screen, read the owner's reference list in the vault
    (`areas/homelab/ui-component-libraries.md`); add components with
