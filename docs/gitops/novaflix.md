@@ -95,21 +95,16 @@ itself").
 
 ## Pocket ID sign-in
 
-Built and declared, and switched off for now. The first services run with
-the API key (2026-11-22) made the client `AUTOLAB novaflix`, and Pocket ID
-2.19 made a secret with it that the provisioning script did not expect, so
-the run failed with `Unrecorded Pocket ID secret exists` and so did every
-services run on jwst after it, COSMOS's included. The script now keeps the
-secret Pocket ID makes. To switch it on:
+The services role makes the client `AUTOLAB novaflix`, for the `admins`
+group, and it works on the public and the admin name.
 
-1. By hand, in Pocket ID: OIDC Clients → `AUTOLAB novaflix` → delete. The
-   script never deletes a client whose secret it did not record.
-2. A pull request adding `|| inputs.environment == 'lab'` back to
-   `AUTOLAB_SERVICES_POCKETID_API_KEY` in `05_ansible-builder.yml`.
-3. `05` `services`, `limit=jwst`. The state on jwst still holds the client's
-   id, so the run makes it again under the same id and records its secret.
-
-Until then jwst's services runs skip Pocket ID and the button is absent.
+The first run that tried (2026-11-22) failed, and so did every services run
+on jwst after it, COSMOS's included: Pocket ID 2.19 makes a secret with a
+new client, and the provisioning script refused the secret it had not
+recorded. The script now keeps that secret. The half-made client was deleted
+by hand in Pocket ID, and the next run made it again under the id the host
+had kept. If a run ever dies in that window again, the `pocket-id` skill has
+the row.
 
 ## Backups
 

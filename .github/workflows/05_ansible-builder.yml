@@ -405,10 +405,9 @@ jobs:
           # account that exists from its first boot (your Pocket ID email, so
           # the first sign-in attaches to it). Only matter on a machine whose
           # services list has adventurelog. The API key goes to services runs
-          # alone: the role makes each app's own client with it. Lab (Novaflix)
-          # is off until its half-made client is deleted in Pocket ID:
-          # docs/gitops/novaflix.md, "Pocket ID sign-in".
-          AUTOLAB_SERVICES_POCKETID_API_KEY: ${{ inputs.environment == 'edge' && inputs.playbook == 'services' && secrets.POCKETID_API_KEY || '' }}
+          # alone: the role makes each app's own client with it (edge: the six
+          # apps; lab: Novaflix).
+          AUTOLAB_SERVICES_POCKETID_API_KEY: ${{ (inputs.environment == 'edge' || inputs.environment == 'lab') && inputs.playbook == 'services' && secrets.POCKETID_API_KEY || '' }}
           AUTOLAB_ADVENTURELOG_IMMICH_API_KEY: ${{ secrets.ADVENTURELOG_IMMICH_API_KEY }}
           AUTOLAB_ADVENTURELOG_OIDC_CLIENT_ID: ${{ secrets.ADVENTURELOG_OIDC_CLIENT_ID }}
           AUTOLAB_ADVENTURELOG_OIDC_CLIENT_SECRET: ${{ secrets.ADVENTURELOG_OIDC_CLIENT_SECRET }}
