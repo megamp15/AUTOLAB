@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { createApp } from "./app.js";
+import { ensureFirstAdmin } from "./auth.js";
 import { ensureSchema } from "./db.js";
 import { providersFromEnv } from "./oidc.js";
 
@@ -19,7 +20,10 @@ const database = new Pool({
 await ensureSchema(database);
 // PUBLIC_URL: this app's address as browsers see it, several separated by commas.
 const publicUrls = (process.env.PUBLIC_URL ?? "").split(",").map((url) => url.trim().replace(/\/$/, "")).filter(Boolean);
-const app = createApp({ database, providers: providersFromEnv(process.env), publicUrls });
+const providers = providersFromEnv(process.env);
+const app = createApp({ database, providers, publicUrls });
+// FIRST_ADMIN_EMAIL: on an empty database, the owner's account, signed in to through a provider.
+if (await ensureFirstAdmin(database, process.env.FIRST_ADMIN_EMAIL, providers.length > 0)) app.log.info("Made the first admin account");
 app.addHook("onClose", async () => database.end());
 
 try {

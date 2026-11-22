@@ -80,12 +80,42 @@ One release of an app runs at a time; a newer one waiting replaces an older
 one that has not started. To roll back, release an older commit: the registry
 keeps every tag. The database does not roll back with the code.
 
+### An app that releases itself
+
+The template's CI has a `release` job: after a push to the app's `main`
+passes, it starts **Release app** here with that commit. It signs in as the
+GitHub App `cosmos-release-megamp15`, which is installed on AUTOLAB alone and
+may only start workflows. One app serves every own app; each repository holds
+its own copy of the key. The job is skipped until the variable exists, so a
+new app's CI is green before this is set up.
+
+By hand, once per app (a private key cannot be read back, so each app gets a
+new one):
+
+1. github.com → Settings → Developer settings → GitHub Apps →
+   `cosmos-release-megamp15` → **Generate a private key**. A `.pem` file
+   downloads.
+2. From a terminal signed in to `gh`, with the app's repository in place of
+   `<repo>`:
+
+   ```sh
+   gh api -X PUT repos/megamp15/<repo>/environments/release --input - <<<'{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}'
+   gh api -X POST repos/megamp15/<repo>/environments/release/deployment-branch-policies -f name=main -f type=branch
+   gh secret set RELEASE_APP_KEY --env release -R megamp15/<repo> < /path/to/key.pem
+   gh variable set RELEASE_APP_CLIENT_ID -R megamp15/<repo> -b '<the app's Client ID>'
+   ```
+
+   The Client ID is on the app's General page and in the COSMOS repository's
+   `docs/release-automation.md`. Set the variable last: it is the switch.
+3. Delete the `.pem` file.
+
+Done when the next push to the app's `main` shows a `release` job, and a
+**Release app** run here started by the app.
+
 COSMOS predates this and still releases through its own two workflows
 (`cosmos.md`). It moves here once an app has released this way.
 
-## Not yet proven
+## Proven
 
-As of this page's first version nothing has been released through
-`app-release.yml`: a workflow only runs once it is on `main`. The first
-release of the first app is the proof, and this section goes when it has
-happened.
+Novaflix was first released through **Release app** on 2026-11-22: publish,
+pin (#331) and deploy all passed on the first run.

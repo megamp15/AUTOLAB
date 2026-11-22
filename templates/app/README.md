@@ -22,6 +22,12 @@ npm run user:add -- you@example.com "Your Name" --admin
 
 An admin makes everyone else's account inside the app, in Settings under User access.
 
+A deployment needs no command: with `FIRST_ADMIN_EMAIL` set and a sign-in provider configured, the server makes that admin account, without a password, the first time it starts on an empty database.
+
+## Releasing
+
+A push to `main` that passes CI starts AUTOLAB's **Release app**, which publishes the images, pins the tag and deploys. The `release` job in `.github/workflows/ci.yml` does it with a GitHub App that may only start workflows in AUTOLAB: its client ID is the repository variable `RELEASE_APP_CLIENT_ID`, and its private key is the secret `RELEASE_APP_KEY` in the `release` environment, which only `main` can read. Without the variable the job is skipped.
+
 `npm run check` runs lint, types, tests and a build. The tests use the Postgres from `docker compose up -d db`, each in a schema of its own.
 
 `docker compose --profile stack up --build` runs the built images the way they are deployed, on http://127.0.0.1:__STACK_PORT__.

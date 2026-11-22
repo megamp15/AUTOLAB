@@ -371,6 +371,19 @@ autolab_services_novaflix_tmdb_token: ""
 # The address people open it at, which is also where a sign-in provider sends
 # them back: <this>/api/auth/oidc/<provider>/callback.
 autolab_services_novaflix_public_url: "https://novaflix.{{ autolab_services_dash_zone }}"
+# The admin face's address, on the tailnet behind the passkey. Pocket ID may
+# send a sign-in back to either address.
+autolab_services_novaflix_admin_url: "https://novaflix-admin.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
+# Every address the app is opened at; the first is where a sign-in started
+# anywhere else is sent back to.
+autolab_services_novaflix_origins: >-
+  {{ [autolab_services_novaflix_public_url]
+     + ([autolab_services_novaflix_admin_url] if 'novaflix-admin' in autolab_services_enabled else []) }}
+# "Sign in with Pocket ID", for the `admins` group. The client is made by this
+# role (managed-pocketid-policy.json.j2) and these are filled from its state on
+# the host; they stay empty, and the button absent, without POCKETID_API_KEY.
+autolab_services_novaflix_oidc_client_id: ""
+autolab_services_novaflix_oidc_client_secret: ""
 # Optional. "Sign in with Google", for emails that already have an account: a
 # Google OAuth client's id and secret. Both empty, and the button is absent.
 # The NOVAFLIX_GOOGLE_CLIENT_ID and NOVAFLIX_GOOGLE_CLIENT_SECRET secrets.

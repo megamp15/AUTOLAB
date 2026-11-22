@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createApp } from "../src/server/app.js";
-import { createLimiter, createUser, hashPassword, randomPassword, verifyPassword } from "../src/server/auth.js";
+import { createLimiter, createUser, ensureFirstAdmin, hashPassword, randomPassword, verifyPassword } from "../src/server/auth.js";
 import { testDatabase } from "./helpers.js";
 
 const json = { "content-type": "application/json" };
@@ -102,6 +102,20 @@ test("signing in is refused after five wrong passwords, even with the right one"
     assert.deepEqual([(await attempt(made.password!)).statusCode, (await attempt(made.password!)).json()], [429, { error: "too_many_attempts" }]);
   } finally {
     await app.close();
+    await close();
+  }
+});
+
+test("the first admin is made once, on an empty database, and only when a provider can sign them in", async () => {
+  const { database, close } = await testDatabase();
+  try {
+    assert.equal(await ensureFirstAdmin(database, "Owner@Example.com", false), false, "no provider: a password-less account would be locked out");
+    assert.equal(await ensureFirstAdmin(database, "", true), false);
+    assert.equal(await ensureFirstAdmin(database, "Owner@Example.com", true), true);
+    const { rows } = await database.query("SELECT email, name, is_admin, password_hash FROM users");
+    assert.deepEqual(rows, [{ email: "owner@example.com", name: "owner", is_admin: true, password_hash: null }]);
+    assert.equal(await ensureFirstAdmin(database, "other@example.com", true), false, "never a second one");
+  } finally {
     await close();
   }
 });

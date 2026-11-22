@@ -25,3 +25,28 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: docker compose --profile stack build
+
+  # A push to main that passes releases itself: AUTOLAB's "Release app" publishes
+  # the images, pins the tag and deploys. The app token can only start workflows
+  # in AUTOLAB, and the `release` environment that holds its key is open to main
+  # alone. Skipped until the RELEASE_APP_CLIENT_ID variable is set.
+  release:
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RELEASE_APP_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: app
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_KEY }}
+          owner: megamp15
+          repositories: AUTOLAB
+          permission-actions: write
+      - name: Start Release app in AUTOLAB
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          gh workflow run app-release.yml --repo megamp15/AUTOLAB --ref main -f app=__app__ -f sha="$GITHUB_SHA"
+          echo "### Release started: https://github.com/megamp15/AUTOLAB/actions/workflows/app-release.yml" >> "$GITHUB_STEP_SUMMARY"
