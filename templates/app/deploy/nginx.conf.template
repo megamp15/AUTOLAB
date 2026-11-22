@@ -1,3 +1,12 @@
+# nginx fills the dollar-brace variable from the container's environment at start.
+# The same image is run twice when deployed: once as the public face, and once, with
+# ADMIN_FACE=1, on an address only admins can reach. Making accounts and resetting
+# passwords is answered by the second and not by the first.
+map "${ADMIN_FACE}" $admin_face {
+    default 0;
+    "1" 1;
+}
+
 server {
     listen 80;
     server_name _;
@@ -10,6 +19,14 @@ server {
     gzip_proxied any;
     gzip_vary on;
     gzip_types text/css application/javascript application/json image/svg+xml text/plain;
+
+    location /api/admin/ {
+        if ($admin_face = 0) { return 404; }
+        proxy_pass http://server:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+    }
 
     location /api/ {
         client_max_body_size 4m;

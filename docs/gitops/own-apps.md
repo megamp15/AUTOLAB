@@ -17,9 +17,19 @@ run from someone else's image (`services.md`, `apps.md`).
 
 ## The template
 
-`templates/app/` is the starting point: a Fastify server, PostgreSQL, a React
-web app styled with Tailwind CSS and shadcn/ui, tests that run against a real Postgres, and a `Dockerfile` with two
-targets:
+`templates/app/` is the starting point, and it is a whole small app, not a
+blank page:
+
+| part | what a new app starts with |
+|---|---|
+| server | Fastify and PostgreSQL, tests that run against a real Postgres |
+| accounts | no sign-up; an admin adds each person; email and password, plus Google and Pocket ID for emails already on the list |
+| web | React with Tailwind CSS and shadcn/ui, one theme file, dark and light |
+| shell | an opening screen, a sign-in panel that switches on, a header with the theme switch, Settings with a grouped menu and User access |
+| per app | the colours, the wordmark, the opening screen's centrepiece and its three words |
+
+It was lifted from Novaflix, the first app built this way; a part improved
+in one app is copied back here by hand. The `Dockerfile` has two targets:
 
 | target | image | does |
 |---|---|---|
