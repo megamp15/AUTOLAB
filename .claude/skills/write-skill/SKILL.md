@@ -106,6 +106,7 @@ What runs on it:
 |---|---|
 | `homepage` | the lab's own home page |
 | `app-fork` | a change to an upstream app's code, through Forgejo |
+| `new-app` | an app of our own, from the template to released |
 | `cosmos-release` | release or roll back COSMOS |
 | `hermes-agent` | what the WhatsApp agent knows and reaches |
 | `finance-upkeep` | the recurring chores on the deployed Sure |

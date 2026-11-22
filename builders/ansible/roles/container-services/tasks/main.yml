@@ -746,6 +746,94 @@
     daemon_reload: true
   when: "'cosmos' in autolab_services_enabled and not ansible_check_mode"
 
+# Novaflix. Its database password is generated here, once, and stays on this
+# host. It keeps its own users and signs them in itself, so there is no proxy
+# token: the public gateway answers anyone, with the app's sign-in page.
+- name: Require a Novaflix image tag
+  ansible.builtin.assert:
+    that: autolab_services_novaflix_image_tag is match('^[0-9a-f]{40}-[0-9]+-[0-9]+$')
+    fail_msg: >-
+      The novaflix service needs autolab_services_novaflix_image_tag set to a
+      published tag (<40-hex commit>-<run id>-<attempt>). Run "Release app" for
+      novaflix first, then enable the service. docs/gitops/novaflix.md
+  when: "'novaflix' in autolab_services_enabled"
+
+- name: Require Novaflix before its admin face
+  ansible.builtin.assert:
+    that: "'novaflix' in autolab_services_enabled"
+    fail_msg: novaflix-admin is a second gateway onto novaflix; enable both on the same machine.
+  when: "'novaflix-admin' in autolab_services_enabled"
+
+- name: Create Novaflix's credential directory
+  ansible.builtin.file:
+    path: /etc/autolab/novaflix
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: "'novaflix' in autolab_services_enabled"
+
+# Generated once; creates makes every later run a no-op, so a re-run can never
+# rotate the database password out from under the data directory.
+- name: Create Novaflix's database password once
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      umask 077
+      credential_file=$(mktemp /etc/autolab/novaflix/.credential.XXXXXX)
+      trap 'rm -f "$credential_file"' EXIT
+      openssl rand -hex 32 > "$credential_file"
+      mv "$credential_file" /etc/autolab/novaflix/db-password
+    creates: /etc/autolab/novaflix/db-password
+  no_log: true
+  when: "'novaflix' in autolab_services_enabled"
+
+- name: Read Novaflix's database password
+  ansible.builtin.slurp:
+    src: /etc/autolab/novaflix/db-password
+  register: autolab_novaflix_db_password_raw
+  no_log: true
+  when: "'novaflix' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Require a valid Novaflix database password
+  ansible.builtin.assert:
+    that: (autolab_novaflix_db_password_raw.content | b64decode | trim) is match('^[0-9a-f]{64}$')
+    fail_msg: Novaflix's database password is invalid; refusing to render the containers' environment.
+  no_log: true
+  when: "'novaflix' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Write Novaflix's container environments
+  ansible.builtin.copy:
+    content: "{{ item.content }}"
+    dest: "{{ autolab_services_root }}/{{ item.name }}.env"
+    owner: root
+    group: root
+    mode: "0600"
+  loop:
+    - name: novaflix-db
+      content: |
+        POSTGRES_DB=novaflix
+        POSTGRES_USER=novaflix
+        POSTGRES_PASSWORD={{ autolab_novaflix_db_password_raw.content | b64decode | trim }}
+    - name: novaflix-server
+      content: |
+        HOST=0.0.0.0
+        PORT=3000
+        DB_HOST=novaflix-db
+        DB_PORT=5432
+        DB_NAME=novaflix
+        DB_USER=novaflix
+        DB_PASSWORD={{ autolab_novaflix_db_password_raw.content | b64decode | trim }}
+        TMDB_TOKEN={{ autolab_services_novaflix_tmdb_token }}
+        PUBLIC_URL={{ autolab_services_novaflix_public_url }}
+        GOOGLE_CLIENT_ID={{ autolab_services_novaflix_google_client_id }}
+        GOOGLE_CLIENT_SECRET={{ autolab_services_novaflix_google_client_secret }}
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+  notify: Restart the services stack
+  when: "'novaflix' in autolab_services_enabled and not ansible_check_mode"
+
 # Hermes: the WhatsApp agent. Its secrets are the operator's, from GitHub, and
 # land in the gateway's own .env, which Hermes also writes to (`hermes config
 # set`, OAuth logins). Managed line by line so both can own the file.
@@ -1285,6 +1373,34 @@
     - "'sure' in autolab_services_enabled"
     - autolab_services_sure_oidc_client_id | length > 0
     - not ansible_check_mode
+
+- name: Verify Novaflix answers and reaches its database
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.novaflix }}/api/status"
+    return_content: true
+    status_code: [200]
+  register: autolab_novaflix_ready
+  until: autolab_novaflix_ready.status == 200
+  retries: 30
+  delay: 3
+  when: "'novaflix' in autolab_services_enabled and not ansible_check_mode"
+
+# The point of the second gateway: the public one has no account management in it.
+- name: Verify Novaflix's public face does not answer account management
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.novaflix }}/api/admin/users"
+    status_code: [404]
+  when: "'novaflix' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Verify Novaflix's admin face asks for a sign-in
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.novaflix_admin }}/api/admin/users"
+    status_code: [401]
+  register: autolab_novaflix_admin_ready
+  until: autolab_novaflix_admin_ready.status == 401
+  retries: 20
+  delay: 3
+  when: "'novaflix-admin' in autolab_services_enabled and not ansible_check_mode"
 
 - name: Verify direct COSMOS access is denied
   ansible.builtin.uri:

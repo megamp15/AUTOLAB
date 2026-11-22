@@ -436,6 +436,16 @@ autolab_obs_homepage_links:
     check:
       type: tcp
       target: "{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.cosmos.port }}"
+  # Novaflix, public at its own name. /api/status answers without a sign-in.
+  - name: Novaflix
+    group: services
+    meta: what friends watch
+    url: "https://novaflix.{{ autolab_obs_public_zone }}"
+    icon: map
+    enabled: "{{ 'novaflix' in ((autolab_builder | default({})).services | default([])) }}"
+    check:
+      type: http
+      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.novaflix.port }}/api/status"
   # Hermes's dashboard: sessions, chat, config. /api/status answers without
   # the login.
   - name: Hermes

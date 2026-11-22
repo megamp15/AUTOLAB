@@ -118,6 +118,20 @@ autolab_service_catalog:
     # The iPhone shortcut posts Apple Health here with COSMOS's ingest token.
     # A shortcut cannot do the passkey login, so this path skips it.
     token_paths: ["/api/ingest/"]
+  # Novaflix: a private tracker of what a few friends watch, our own app. It
+  # keeps a user per person and signs them in itself, and the friends are not
+  # on the tailnet, so its one name is public (`lab: false`; the route is in
+  # playbooks/ingress.yml). See docs/gitops/novaflix.md.
+  novaflix:
+    port: 8108
+    login: own
+    lab: false
+  # The same app's account management (who has an account, a password reset),
+  # which the public gateway does not answer. Tailnet-only, behind the passkey,
+  # and then the app's own admin sign-in.
+  novaflix-admin:
+    port: 8109
+    login: plugin
   # Hermes, the owner's agent. The gateway dials out (WhatsApp, the model
   # provider, GitHub) and has no port; this port is its dashboard, run in
   # the same container: sessions, chat, config, logs. Behind the
