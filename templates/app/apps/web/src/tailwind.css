@@ -262,3 +262,17 @@
 @media (prefers-reduced-motion: reduce) {
   .intro, .intro-spin, .intro-spin-back, .intro-pulse, .intro-cursor, .blink { animation: none; }
 }
+
+/* The loader (loader.tsx): a quicker turn, and a ring that grows out of the centre and fades. */
+.intro-spin-fast,
+.loader-ping {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.intro-spin-fast { animation: intro-spin 1.4s linear infinite; }
+.loader-ping { animation: loader-ping 1.6s cubic-bezier(0.2, 0.6, 0.4, 1) infinite; }
+@keyframes loader-ping { from { transform: scale(0.15); opacity: 1; } to { transform: scale(1); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .intro-spin-fast { animation-duration: 6s; }
+  .loader-ping { animation: none; opacity: 0.4; }
+}
