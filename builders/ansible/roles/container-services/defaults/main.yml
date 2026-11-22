@@ -358,7 +358,7 @@ autolab_services_paradigm_tunnel_token: ""
 # that changes it, like every other pin here. Empty is refused rather than
 # guessed, so the service cannot be enabled before the first publish.
 autolab_services_cosmos_registry: "registry.lab.pmahir.space"
-autolab_services_cosmos_image_tag: "4ca92b0ae73f454190dc89cc76e6dd6a22722fb4-44828179849-1"
+autolab_services_cosmos_image_tag: "51ede8b2acb0216f82006d114fba1bd638d08172-45064735172-1"
 # Novaflix. Our own app, built by app-publish.yml from its repository and
 # pulled from the lab's registry (docs/gitops/own-apps.md). The tag is pinned
 # by app-release.yml in a pull request, like every other pin here. Empty is
