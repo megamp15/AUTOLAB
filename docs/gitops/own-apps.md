@@ -18,7 +18,7 @@ run from someone else's image (`services.md`, `apps.md`).
 ## The template
 
 `templates/app/` is the starting point: a Fastify server, PostgreSQL, a React
-web app, tests that run against a real Postgres, and a `Dockerfile` with two
+web app styled with Tailwind CSS and shadcn/ui, tests that run against a real Postgres, and a `Dockerfile` with two
 targets:
 
 | target | image | does |

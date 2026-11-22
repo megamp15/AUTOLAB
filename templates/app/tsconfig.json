@@ -1,0 +1,5 @@
+{
+  "//": "Only for the shadcn CLI, which reads the '@/' path here to know where components go. The real settings are tsconfig.server.json and apps/web/tsconfig.json.",
+  "files": [],
+  "compilerOptions": { "baseUrl": ".", "paths": { "@/*": ["./apps/web/src/*"] } }
+}

@@ -1,0 +1,65 @@
+/* Tailwind and the shadcn base, in this app's colours.
+
+   Components from shadcn and the collections built on it (Magic UI, Cult UI, Skiper UI)
+   read their look from the names below, so they arrive in these colours without being
+   edited. To change the look of the whole app, change the values here. */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  color-scheme: dark;
+  --radius: 0.625rem;
+  --background: #0b0b10;
+  --foreground: #f2f2f5;
+  --card: #15151d;
+  --card-foreground: #f2f2f5;
+  --popover: #15151d;
+  --popover-foreground: #f2f2f5;
+  --primary: #8ab4ff;
+  --primary-foreground: #06101f;
+  --secondary: #20202b;
+  --secondary-foreground: #f2f2f5;
+  --muted: #20202b;
+  --muted-foreground: #9a9aa8;
+  --accent: #20202b;
+  --accent-foreground: #f2f2f5;
+  --destructive: #ff8a8a;
+  --border: #2a2a36;
+  --input: #2a2a36;
+  --ring: #8ab4ff;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply min-h-svh bg-background text-foreground antialiased;
+  }
+}
