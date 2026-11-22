@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Starts a new app of our own from templates/app: Fastify, PostgreSQL, React, two images
+# Starts a new app of our own from templates/app: Fastify, PostgreSQL, React with
+# Tailwind and shadcn/ui, two images
 # and CI. It writes the app into a new directory, makes its first commit there, and
 # stops. Putting it on the lab is docs/gitops/own-apps.md.
 #
