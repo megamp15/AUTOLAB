@@ -1,0 +1,185 @@
+name: Publish app images
+
+# Builds one of our own apps from its repository and pushes its images to the
+# lab's registry. Which apps exist, and what each one builds, is .github/apps.json.
+# docs/gitops/own-apps.md
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: The app's name in .github/apps.json
+        required: true
+        type: string
+      sha:
+        description: Full commit SHA on the app repository's main
+        required: true
+        type: string
+  # "Release app" calls this, then pins and deploys the tag it returns.
+  workflow_call:
+    inputs:
+      app:
+        description: The app's name in .github/apps.json
+        required: true
+        type: string
+      sha:
+        description: Full commit SHA on the app repository's main
+        required: true
+        type: string
+    outputs:
+      image_tag:
+        description: The tag every image was pushed under
+        value: ${{ jobs.publish.outputs.image_tag }}
+      tag_variable:
+        description: The role default that pins this app's tag
+        value: ${{ jobs.publish.outputs.tag_variable }}
+      host:
+        description: The machine the app runs on
+        value: ${{ jobs.publish.outputs.host }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-publish-${{ inputs.app }}-${{ inputs.sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    name: Publish ${{ inputs.app }} ${{ inputs.sha }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: lab
+    outputs:
+      image_tag: ${{ steps.record.outputs.image_tag }}
+      tag_variable: ${{ steps.app.outputs.tag_variable }}
+      host: ${{ steps.app.outputs.host }}
+    env:
+      APP: ${{ inputs.app }}
+      APP_SHA: ${{ inputs.sha }}
+      IMAGE_TAG: ${{ inputs.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      REGISTRY_HOST: registry.lab.pmahir.space
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate the inputs and read the app's entry
+        id: app
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$APP" =~ ^[a-z][a-z0-9-]{1,30}$ ]]; then
+            echo 'app must be a lowercase name from .github/apps.json' >&2
+            exit 1
+          fi
+          if [[ ! "$APP_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'sha must be a full lowercase 40-character commit SHA' >&2
+            exit 1
+          fi
+          entry="$(jq --exit-status --arg app "$APP" '.[$app]' .github/apps.json)" || {
+            echo "No app named ${APP} in .github/apps.json" >&2
+            exit 1
+          }
+          {
+            echo "repository=$(jq --raw-output --exit-status '.repository' <<<"$entry")"
+            echo "deploy_key=$(jq --raw-output --exit-status '.deploy_key' <<<"$entry")"
+            echo "tag_variable=$(jq --raw-output --exit-status '.tag_variable' <<<"$entry")"
+            echo "host=$(jq --raw-output --exit-status '.host' <<<"$entry")"
+            echo "targets=$(jq --raw-output --exit-status '.targets | join(" ")' <<<"$entry")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check out the app read-only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.app.outputs.repository }}
+          ref: ${{ inputs.sha }}
+          ssh-key: ${{ secrets[steps.app.outputs.deploy_key] }}
+          path: app
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Confirm the commit is on the app's main
+        working-directory: app
+        shell: bash
+        run: |
+          git show-ref --verify --quiet refs/remotes/origin/main
+          test "$(git rev-parse HEAD)" = "$APP_SHA"
+          git merge-base --is-ancestor "$APP_SHA" origin/main
+
+      - name: Create Buildx builder
+        run: |
+          docker buildx create --name app-publisher --driver docker-container --use
+          docker buildx inspect --bootstrap
+
+      # Build before connecting Tailscale. Dockerfile RUN steps never get a route to the lab.
+      - name: Build each image locally
+        shell: bash
+        env:
+          TARGETS: ${{ steps.app.outputs.targets }}
+        run: |
+          set -euo pipefail
+          for target in $TARGETS; do
+            docker buildx build --platform linux/amd64 --file ./app/Dockerfile --target "$target" \
+              --tag "${APP}-${target}:${IMAGE_TAG}" --provenance=false --load ./app
+          done
+
+      - name: Connect to the lab tailnet
+        uses: ./.github/actions/connect-tailscale
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+          tags: tag:ci-runner
+
+      - name: Verify private registry over TLS
+        run: curl --fail --silent --show-error "https://${REGISTRY_HOST}/v2/" --output /dev/null
+
+      - name: Refuse to overwrite an existing image tag
+        shell: bash
+        env:
+          TARGETS: ${{ steps.app.outputs.targets }}
+        run: |
+          set -euo pipefail
+          for target in $TARGETS; do
+            image="${APP}-${target}"
+            status="$(curl --silent --show-error --connect-timeout 10 --output /dev/null --write-out '%{http_code}' \
+              --header 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+              "https://${REGISTRY_HOST}/v2/${image}/manifests/${IMAGE_TAG}")"
+            if [[ "$status" == "200" ]]; then
+              echo "Refusing to overwrite ${image}:${IMAGE_TAG}" >&2
+              exit 1
+            fi
+            if [[ "$status" != "404" ]]; then
+              echo "Unexpected registry response while checking ${image}:${IMAGE_TAG}: HTTP ${status}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Push and verify each image
+        shell: bash
+        env:
+          TARGETS: ${{ steps.app.outputs.targets }}
+        run: |
+          set -euo pipefail
+          for target in $TARGETS; do
+            image="${APP}-${target}"
+            docker tag "${image}:${IMAGE_TAG}" "${REGISTRY_HOST}/${image}:${IMAGE_TAG}"
+            docker push "${REGISTRY_HOST}/${image}:${IMAGE_TAG}"
+            docker buildx imagetools inspect "${REGISTRY_HOST}/${image}:${IMAGE_TAG}"
+          done
+
+      - name: Record the image tag
+        id: record
+        shell: bash
+        env:
+          TARGETS: ${{ steps.app.outputs.targets }}
+        run: |
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### ${APP} images published"
+            echo "- Commit: ${APP_SHA}"
+            echo "- Image tag: ${IMAGE_TAG}"
+            for target in $TARGETS; do echo "- ${REGISTRY_HOST}/${APP}-${target}:${IMAGE_TAG}"; done
+          } >> "$GITHUB_STEP_SUMMARY"

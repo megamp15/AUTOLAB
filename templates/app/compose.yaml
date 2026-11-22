@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-__app__}
+      POSTGRES_USER: ${DB_USER:-__app__}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+    volumes:
+      - __app__-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${DB_PUBLISH_PORT:-__DB_PORT__}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  server:
+    profiles: ["stack"]
+    build: { context: ., target: server }
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-__app__}
+      DB_USER: ${DB_USER:-__app__}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+    depends_on:
+      db: { condition: service_healthy }
+
+  gateway:
+    profiles: ["stack"]
+    build: { context: ., target: gateway }
+    restart: unless-stopped
+    # Locally one gateway is both faces. Deployed, the public one runs without this.
+    environment:
+      ADMIN_FACE: "1"
+    ports:
+      - "127.0.0.1:${PORT:-__STACK_PORT__}:80"
+    depends_on: [server]
+
+volumes:
+  __app__-data:
