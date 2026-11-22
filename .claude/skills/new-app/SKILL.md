@@ -23,22 +23,27 @@ has its own address and database.
 2. **Repository.** A private GitHub repository under the owner's account,
    `main` pushed, all later work on `feature/<name>` branches through pull
    requests. Done when its CI run is green.
-3. **Look.** Change only `apps/web/src/tailwind.css` (colours, corners,
-   type) and the wordmark; add components with `npx shadcn@latest add`.
-   Before designing a screen, read the owner's reference list in the vault
-   (`areas/homelab/ui-component-libraries.md`). Copy the shared shell from
-   Novaflix until it is in the template: `theme.tsx` (theme switch that
-   follows the device, then remembers), `settings.tsx` (grouped menu),
-   `components/ui/ticker.tsx` (numbers that run up). Done when the screens
-   have been looked at in dark and light at 393 and 1280 wide.
-4. **Sign-in, when anyone but the owner uses it.** Copy from Novaflix:
-   `src/server/auth.ts` and `oidc.ts`, their tests, and the tables in
-   `db.ts`. Accounts are made by an admin only; Google and Pocket ID sign in
-   an email that already has an account. Each provider's redirect address is
-   `<PUBLIC_URL>/api/auth/oidc/<google|pocketid>/callback`; the Google client
-   is by hand (step list in the app's README), its id and secret arrive
-   through `secret`. Done when the copied tests pass and a sign-in with an
-   address not on the list is refused.
+3. **Make it this app's own.** The template is already a whole small app
+   (accounts, sign-in, Settings, the theme, an opening screen); what changes
+   per app is listed in `own-apps.md`, "The template". In
+   `apps/web/src/`: the colours in `tailwind.css`; `NAME` and `ACCENT_FROM`
+   in `theme.tsx`; the centrepiece in `centrepiece.tsx`, drawn from the
+   brief in the comment at its top; the three words passed to `Intro` in
+   `main.tsx`; `backdrop.tsx` when stars do not suit. Before designing a
+   screen, read the owner's reference list in the vault
+   (`areas/homelab/ui-component-libraries.md`); add components with
+   `npx shadcn@latest add`. Done when the opening screen, sign-in and
+   Settings have been looked at in dark and light at 393 and 1280 wide, and
+   the way in has been watched, not only screenshotted.
+4. **Sign-in providers, when anyone but the owner uses it.** The code is in
+   the template; each provider is switched on by its settings. The redirect
+   address is `<PUBLIC_URL>/api/auth/oidc/<google|pocketid>/callback`. The
+   Google client is by hand (console.cloud.google.com: Google Auth Platform,
+   a Web application client with that redirect address, then Audience,
+   Publish app); its id and secret arrive through `secret`. The first
+   account is made on the host with `node dist/scripts/add-user.js <email>
+   "<name>" --admin` in the server container. Done when a sign-in with an
+   address not under User access comes back refused.
 5. **Register for release.** An entry in `.github/apps.json`, and a default
    `autolab_services_<app>_image_tag: ""` in
    `roles/container-services/defaults/main.yml`. By hand: a read-only deploy
@@ -79,7 +84,8 @@ has its own address and database.
 
 ## Not yet proven
 
-Steps 1 to 4 were done for Novaflix and work locally. No app has been
+Steps 1 to 4 were done for Novaflix and work locally; a fresh app generated
+from the template passes its checks and runs as built images. No app has been
 released through **Release app** or run on its host from these steps; treat
 steps 5 to 9 as written from the design, and correct this skill on the first
 real release.
