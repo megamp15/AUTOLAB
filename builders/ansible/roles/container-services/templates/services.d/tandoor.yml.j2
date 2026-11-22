@@ -2,6 +2,8 @@
   # on the NAS, the database local and dumped nightly. docs/gitops/apps.md.
   tandoor:
     image: {{ autolab_services_images.tandoor }}
+    labels:
+      dockhand.tags: tandoor
     restart: unless-stopped
     depends_on:
       tandoor-db:
@@ -48,6 +50,8 @@
 
   tandoor-db:
     image: {{ autolab_services_images.postgres }}
+    labels:
+      dockhand.tags: tandoor
     restart: unless-stopped
     env_file: /etc/autolab/tandoor-db.env
     volumes:

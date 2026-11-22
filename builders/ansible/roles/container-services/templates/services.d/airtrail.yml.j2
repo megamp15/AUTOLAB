@@ -2,6 +2,8 @@
   # the NAS, the database local and dumped nightly. docs/gitops/apps.md.
   airtrail:
     image: {{ autolab_services_images.airtrail }}
+    labels:
+      dockhand.tags: airtrail
     restart: unless-stopped
     depends_on:
       airtrail-db:
@@ -27,6 +29,8 @@
 
   airtrail-db:
     image: {{ autolab_services_images.postgres }}
+    labels:
+      dockhand.tags: airtrail
     restart: unless-stopped
     env_file: /etc/autolab/airtrail-db.env
     volumes:

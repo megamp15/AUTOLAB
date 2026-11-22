@@ -25,6 +25,8 @@
   # role refuses to start these two when ufw is not active.
   rustdesk-hbbr:
     image: {{ autolab_services_images.rustdesk }}
+    labels:
+      dockhand.tags: rustdesk
     restart: unless-stopped
     network_mode: host
     command: hbbr -k _
@@ -32,6 +34,8 @@
       - {{ autolab_services_root }}/rustdesk:/root
   rustdesk-hbbs:
     image: {{ autolab_services_images.rustdesk }}
+    labels:
+      dockhand.tags: rustdesk
     restart: unless-stopped
     network_mode: host
     # -r is the relay's address as clients are told it. An address, not the

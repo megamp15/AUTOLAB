@@ -5,6 +5,8 @@
   # the NAS. Pocket ID sign-in. docs/gitops/karakeep.md.
   karakeep:
     image: {{ autolab_services_images.karakeep }}
+    labels:
+      dockhand.tags: karakeep
     restart: unless-stopped
     depends_on:
       - karakeep-meili
@@ -47,6 +49,8 @@
   # on the host; only Karakeep talks to it.
   karakeep-chrome:
     image: {{ autolab_services_images.karakeep_chrome }}
+    labels:
+      dockhand.tags: karakeep
     restart: unless-stopped
     init: true
     command:
@@ -60,6 +64,8 @@
   # Search. The index is rebuilt from the database, so it is not backed up.
   karakeep-meili:
     image: {{ autolab_services_images.karakeep_meili }}
+    labels:
+      dockhand.tags: karakeep
     restart: unless-stopped
     env_file: /etc/autolab/karakeep-meili.env
     environment:

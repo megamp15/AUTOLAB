@@ -1,5 +1,7 @@
   diun:
     image: {{ autolab_services_images.diun }}
+    labels:
+      dockhand.tags: docker
     restart: unless-stopped
     command: serve
     environment:

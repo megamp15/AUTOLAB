@@ -27,6 +27,25 @@ anonymous Docker API requests must return 401. Registration is tested through
 Dockhand before the play succeeds. Application projects are not redeployed by
 this playbook. Immich's external media mount stays read-only.
 
+## Tags
+
+Every container the repository deploys carries a `dockhand.tags` label, so
+**Group by tag** on the Containers page puts what belongs together in one
+band. The tag names what the container is part of:
+
+| tag | containers |
+| --- | --- |
+| the app's name (`cosmos`, `sure`, `forgejo`, ...) | an app and its own database, worker, cache or search |
+| `qr` | `qr`, `qr-public` and the tunnel connector that reaches it |
+| `home` | the home page, its API, dash |
+| `observability` | Prometheus, Loki, Tempo, Grafana, exporters, cAdvisor, Alloy |
+| `docker` | Dockhand and its proxy, Hawser, the registry and its UI, Diun |
+
+The label is in each service's compose template. A tag added by hand in
+Dockhand stays in Dockhand's own database and is not in the repository.
+Containers the repository does not deploy (Immich on the NAS) show as
+Untagged until tagged there.
+
 ## Registry
 
 The AUTOLAB connection uses the existing Distribution registry at

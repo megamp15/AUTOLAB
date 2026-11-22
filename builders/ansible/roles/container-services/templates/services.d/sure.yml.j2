@@ -5,6 +5,8 @@
   # docs/gitops/apps.md.
   sure:
     image: {{ autolab_services_images.sure }}
+    labels:
+      dockhand.tags: sure
     restart: unless-stopped
     depends_on:
       sure-db:
@@ -46,6 +48,8 @@
   # The background jobs: syncs, imports, scheduled work.
   sure-worker:
     image: {{ autolab_services_images.sure }}
+    labels:
+      dockhand.tags: sure
     restart: unless-stopped
     command: bundle exec sidekiq
     depends_on:
@@ -67,6 +71,8 @@
 
   sure-db:
     image: {{ autolab_services_images.postgres }}
+    labels:
+      dockhand.tags: sure
     restart: unless-stopped
     env_file: /etc/autolab/sure-db.env
     volumes:
@@ -81,6 +87,8 @@
   # Only the job queue. Nothing here is the only copy of anything.
   sure-redis:
     image: {{ autolab_services_images.redis }}
+    labels:
+      dockhand.tags: sure
     restart: unless-stopped
     mem_limit: {{ autolab_services_memory.sure_redis }}
     healthcheck:

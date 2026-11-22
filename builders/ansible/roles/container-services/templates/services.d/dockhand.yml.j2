@@ -1,5 +1,7 @@
   dockhand:
     image: {{ autolab_services_images.dockhand }}
+    labels:
+      dockhand.tags: docker
     restart: unless-stopped
     networks: [dockhand-control]
     group_add:
@@ -10,6 +12,8 @@
     # No host port: all browser access passes through the authenticated proxy.
   dockhand-proxy:
     image: {{ autolab_services_images.dockhand_proxy }}
+    labels:
+      dockhand.tags: docker
     restart: unless-stopped
     networks: [dockhand-control]
     depends_on: [dockhand]

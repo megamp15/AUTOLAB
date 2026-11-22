@@ -12,6 +12,8 @@
   # See docs/gitops/hermes.md.
   hermes:
     image: {{ autolab_services_images.hermes }}
+    labels:
+      dockhand.tags: hermes
     restart: unless-stopped
     command: ["gateway", "run"]
     security_opt:

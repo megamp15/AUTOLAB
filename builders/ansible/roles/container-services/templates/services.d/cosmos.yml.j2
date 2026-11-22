@@ -5,6 +5,8 @@
   # out. Each container reads only its own env file. See docs/gitops/cosmos.md.
   cosmos-db:
     image: {{ autolab_services_images.cosmos_db }}
+    labels:
+      dockhand.tags: cosmos
     restart: unless-stopped
     security_opt:
       - no-new-privileges
@@ -28,6 +30,7 @@
       - no-new-privileges
     # Pinned by tag in git; there is no newer tag for Diun to report.
     labels:
+      dockhand.tags: cosmos
       diun.enable: "false"
     env_file: [./cosmos-api.env]
     depends_on:
@@ -52,6 +55,7 @@
     security_opt:
       - no-new-privileges
     labels:
+      dockhand.tags: cosmos
       diun.enable: "false"
     env_file: [./cosmos-gateway.env]
     depends_on:

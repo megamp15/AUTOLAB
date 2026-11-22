@@ -2,6 +2,8 @@
 services:
   hawser:
     image: {{ autolab_docker_agent_image }}
+    labels:
+      dockhand.tags: docker
     restart: unless-stopped
     environment:
       TOKEN_FILE: /run/secrets/hawser-token

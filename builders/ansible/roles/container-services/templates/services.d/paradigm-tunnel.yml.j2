@@ -4,6 +4,8 @@
   # safe to be public goes there: never an admin page.
   paradigm-tunnel:
     image: {{ autolab_services_images.paradigm_tunnel }}
+    labels:
+      dockhand.tags: qr
     restart: unless-stopped
     env_file: ./paradigm-tunnel.env
     # --no-autoupdate: the image tag is the version.
