@@ -781,6 +781,18 @@ def own_folder(name):
     return '/'.join(parts)
 
 
+def subfolders(cfg, rel=''):
+    """The folders directly inside a folder of the media folder, for picking a place to send files.
+    Hidden and system folders are left out, and so is the inbox."""
+    base = cfg.abs(rel) if rel else cfg.root
+    try:
+        names = os.listdir(base)
+    except OSError:
+        return []
+    return sorted((n for n in names if not n.startswith('.') and n not in SKIP and os.path.isdir(os.path.join(base, n))
+                   and not (base == cfg.root and n == LOOSE[0])), key=str.lower)
+
+
 def send_to_folder(cfg, plan, ids, folder):
     """Point the moves with these ids at a folder of your own, in place of where the sorter chose,
     or back at the sorter's choice for folder ''. Nothing is moved until the plan is applied.

@@ -204,6 +204,14 @@
   * { scrollbar-width:thin; scrollbar-color:color-mix(in srgb,var(--fg) 28%,transparent) transparent; }
   ::-webkit-scrollbar { width:9px; height:9px; } ::-webkit-scrollbar-track { background:transparent; }
   ::-webkit-scrollbar-thumb { background:color-mix(in srgb,var(--fg) 26%,transparent); border-radius:9px; border:2px solid transparent; background-clip:content-box; }
+  /* the folder browser in "Send to a folder" */
+  .crumbs { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font:12px 'IBM Plex Mono',monospace; margin-bottom:8px; }
+  .crumbs button { color:var(--dim); background:none; border:0; padding:2px 0; font:inherit; cursor:pointer; } .crumbs button:hover, .crumbs button.on { color:var(--fg); }
+  .flist { border:1px solid var(--line); border-radius:4px; height:220px; overflow:auto; padding:4px; display:flex; flex-direction:column; gap:1px; }
+  .flist > .muted { padding:8px 10px; font-size:12.5px; }
+  .frow { display:flex; align-items:center; gap:10px; width:100%; color:inherit; background:none; border:0; border-radius:4px; padding:7px 10px; font:inherit; font-size:13px; text-align:left; cursor:pointer; }
+  .frow:hover, .frow:focus-visible { background:var(--soft); outline:none; } .frow svg { display:block; opacity:.65; } .frow .grow { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fnew { display:flex; gap:8px; margin-top:8px; } .fnew input { flex:1; min-width:0; }
   .sel { display:inline-flex; }
   button.selbtn { background:transparent; color:inherit; border:1px solid var(--line); border-radius:4px; padding:6px 10px; font:inherit; font-size:12.5px; }
   button.selbtn:hover, button.selbtn[aria-expanded="true"] { border-color:var(--fg); } button.selbtn:focus-visible { outline:1px dashed var(--dim); outline-offset:3px; }
@@ -959,24 +967,42 @@
   // plan changes; the folder is made, and the files move, when you apply.
   function sendToFolder() {
     const s = state.sort, p = s.plan, n = s.shown, moves = `${n.toLocaleString()} move${n === 1 ? '' : 's'}`;
+    const FOLDER = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1Z"/></svg>';
+    let at = [];                                   // where the browser is, as folder names from the media folder down
+    const made = new Set();                        // folders added here; they are made on the disk only when the plan is applied
     dlg.replaceChildren(el('h2', null, `Send ${moves} to a folder`));
-    const ul = el('ul'); [`The ${moves} shown and ticked will go to this folder, not where the sorter chose. Narrow the list first with the filters and the search box.`,
-      'A new folder is made inside the media folder when you apply. Nothing moves until then, and Undo in History puts it back.'].forEach(t => ul.append(el('li', null, t)));
-    const name = el('input', 'field'); name.placeholder = 'screenshots'; name.setAttribute('aria-label', 'Folder name'); name.style.width = '100%'; name.autocomplete = 'off'; name.spellcheck = false;
-    const have = el('div', 'chips'); have.style.margin = '10px 0 0';
-    (p.folders || []).forEach(f => { const b = el('button', 'btn small quiet', f); b.type = 'button'; b.onclick = () => { name.value = f; name.focus(); }; have.append(b); });
-    const err = el('div', 'note'); err.hidden = true; err.style.marginTop = '10px';
+    const lead = el('p', 'muted', `The ${moves} shown and ticked go here, not where the sorter chose. Nothing moves until you apply.`); lead.style.margin = '0 0 14px';
+    const crumbs = el('div', 'crumbs'), list = el('div', 'flist'), err = el('div', 'note'); err.hidden = true; err.style.marginTop = '10px';
+    const add = el('div', 'fnew'), name = el('input', 'field'), addBtn = el('button', 'btn small quiet', 'Add folder');
+    name.placeholder = 'New folder name'; name.setAttribute('aria-label', 'New folder name'); name.autocomplete = 'off'; name.spellcheck = false; addBtn.type = 'button'; add.append(name, addBtn);
     const row = el('div', 'row'); row.style.justifyContent = 'flex-end'; row.style.marginTop = '18px';
-    const cancel = el('button', 'btn quiet', 'Cancel'), back = el('button', 'btn quiet', 'Back to the sorter’s choice'), go = el('button', 'btn primary', 'Send here');
+    const cancel = el('button', 'btn quiet', 'Cancel'), back = el('button', 'btn quiet', 'Back to the sorter’s choice'), go = el('button', 'btn primary');
     back.title = 'Undo an earlier “Send to a folder” for what is shown and ticked'; back.hidden = !(p.stats.kinds || {}).folder;
+    const say = t => { err.textContent = t || ''; err.hidden = !t; };
+    const show = async () => {
+      const here = at.join('/'); say('');
+      crumbs.replaceChildren(...['media', ...at].flatMap((part, i) => { const b = el('button', i === at.length ? 'on' : '', part); b.type = 'button'; b.onclick = () => { at = at.slice(0, i); show(); }; return i ? [el('span', 'muted', '/'), b] : [b]; }));
+      go.textContent = at.length ? `Send to ${at[at.length - 1]}` : 'Pick a folder'; go.disabled = !at.length;
+      let found = []; try { found = made.has(here) ? [] : (await api('/folders?' + qs({ path: here }))).folders; } catch (e) { say(e.message); }
+      if (here !== at.join('/')) return;           // moved on while the list was loading
+      const mine = [...made].filter(m => m.startsWith(here ? here + '/' : '') && m.split('/').length === at.length + 1).map(m => m.split('/').pop());
+      const names = [...new Set([...found, ...mine])].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+      list.replaceChildren(...names.map(f => { const b = el('button', 'frow'); b.type = 'button'; const ic = el('span'); ic.innerHTML = FOLDER; b.append(ic, el('span', 'grow', f));
+        if (!found.includes(f)) b.append(el('span', 'tag', 'new')); b.onclick = () => { at = [...at, f]; show(); }; return b; }));
+      if (!names.length) list.append(el('div', 'muted', at.length ? 'No folders inside this one.' : 'No folders yet.'));
+    };
+    const addFolder = () => {
+      const v = name.value.trim(); if (!v) return name.focus();
+      if (v.includes('/') || v.includes('\\') || v.startsWith('.')) return say('A folder name cannot contain a slash or start with a dot.');
+      at = [...at, v]; made.add(at.join('/')); name.value = ''; show();
+    };
     const save = async folder => {
       try { await api('/plans/' + p.id, { method: 'PATCH', body: { filter: s.filter, folder } }); dlg.close(); await refreshPlan(s); await reloadRows(); }
-      catch (e) { err.textContent = e.message; err.hidden = false; }
+      catch (e) { say(e.message); }
     };
-    cancel.onclick = () => dlg.close(); back.onclick = () => save('');
-    go.onclick = () => { if (name.value.trim()) save(name.value); else name.focus(); };
-    name.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } };
-    row.append(cancel, back, go); dlg.append(ul, name, have, err, row); dlg.showModal(); name.focus();
+    addBtn.onclick = addFolder; name.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addFolder(); } };
+    cancel.onclick = () => dlg.close(); back.onclick = () => save(''); go.onclick = () => save(at.join('/'));
+    row.append(cancel, back, go); dlg.append(lead, crumbs, list, add, err, row); dlg.showModal(); show();
   }
   async function afterTick() {
     const s = state.sort; await refreshPlan(s); const f = s.filter;

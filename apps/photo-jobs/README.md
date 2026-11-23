@@ -21,8 +21,8 @@ everything shown; ticking a row changes only that row.
 
 **Send to a folder** (beside Apply) points every move that is shown and ticked at a folder of your
 own, in place of where the sorter chose: screenshots you do not want in the library, say. Narrow the
-list first (File type: PNG, or search `Screenshot`), name the folder, and the rows show the new
-destination. Only the plan changes; the folder is made and the files move on Apply, and Undo in
+list first (File type: PNG, or search `Screenshot`), then browse to a folder in the dialog or add
+a new one by name where you are, and the rows show the new destination. Only the plan changes; the folder is made and the files move on Apply, and Undo in
 History puts them back. A Live Photo's other half and a sidecar go along and are named alike; a
 file inside an event goes alone, not the whole event; a name that is taken gets `_1`. Any folder inside the media folder is allowed except `_inbox`. "Back to the
 sorter's choice" in the same dialog undoes it for what is shown and ticked.

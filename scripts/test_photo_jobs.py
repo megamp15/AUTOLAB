@@ -209,6 +209,16 @@ class OwnFolder(Library):
                          ['clips/IMG_1.HEIC', 'clips/IMG_1.MOV', 'clips/IMG_3.HEIC', 'clips/IMG_3.MOV', 'clips/film.MOV',
                           'library/2025/06/Trip/IMG_4.JPG', 'library/2025/06/Trip/IMG_9.JPG'])
 
+    def test_the_folder_browser_lists_what_is_inside_a_folder_and_hides_the_inbox_and_system_folders(self):
+        for rel in ('keep/receipts/a.jpg', 'keep/Shots/b.jpg', 'keep/.hidden/c.jpg', 'keep/@eaDir/d.jpg', 'library/2025/e.jpg',
+                    '_inbox/loose/f.jpg', 'keep/loose.jpg'):
+            self.put(rel, rel)
+        self.assertEqual(core.subfolders(self.cfg), ['keep', 'library'])
+        self.assertEqual(core.subfolders(self.cfg, 'keep'), ['receipts', 'Shots'])
+        self.assertEqual(core.subfolders(self.cfg, 'not/there'), [])
+        with self.assertRaises(ValueError):
+            core.subfolders(self.cfg, '../..')
+
     def test_back_to_the_sorters_choice_restores_the_plan(self):
         plan = self.plan()
         before = json.dumps(plan, sort_keys=True)

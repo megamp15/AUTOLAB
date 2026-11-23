@@ -153,6 +153,8 @@ class App:
             return 200, {'same': previews.same_bytes(cfg, one('a'), one('b'))}
         if method == 'GET' and path == '/api/event':
             return 200, events.inspect(cfg, one('path'), one('month'), max(0, int(one('offset') or 0)), min(int(one('limit') or 100), 200))
+        if method == 'GET' and path == '/api/folders':
+            return 200, {'folders': core.subfolders(cfg, one('path'))}
         if method == 'GET' and path == '/api/find':
             found = metadata.find(cfg, one('q'), one('folder'), one('kind'), max(0, int(one('offset') or 0)), min(int(one('limit') or 60), metadata.MAX_FILES))
             return 200, {**found, 'folders': metadata.top_folders(cfg)}
@@ -206,7 +208,6 @@ class App:
                 out['left'] = plan['left'][:200]
                 out['videos'] = sum(1 for x in plan['moves'] if is_video_move(x))
                 out['types'] = dict(collections.Counter(t for x in plan['moves'] if x['kind'] != 'event' and (t := core.file_type(x['src']))))
-                out['folders'] = [n for n in metadata.top_folders(cfg) if n != core.LOOSE[0]]
             else:
                 out['notes'] = plan['notes']
             if plan['kind'] != 'immich':
