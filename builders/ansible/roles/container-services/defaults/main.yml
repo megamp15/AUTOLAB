@@ -364,7 +364,7 @@ autolab_services_cosmos_image_tag: "1e7269fbe418cecfc9bee02159f7dd279ad9da5d-450
 # by app-release.yml in a pull request, like every other pin here. Empty is
 # refused, so the service cannot be enabled before the first publish.
 autolab_services_novaflix_registry: "registry.lab.pmahir.space"
-autolab_services_novaflix_image_tag: "507059b887ccbc34a85b15c8c99fdb753c29466d-45082663160-1"
+autolab_services_novaflix_image_tag: "6c01baeaf960321976ef95044391ac376e5eddbc-45088326341-1"
 # Optional. A TMDB read token, for titles, artwork and suggestions; without it
 # the app runs and those are absent. The NOVAFLIX_TMDB_TOKEN secret.
 autolab_services_novaflix_tmdb_token: ""
