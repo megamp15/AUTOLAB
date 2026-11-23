@@ -57,6 +57,13 @@
         description: What friends watch
         siteMonitor: http://jwst.{{ tn }}:{{ autolab_services_ports.novaflix }}/api/status
 {% endif %}
+{% if 'novaflix-admin' in autolab_services_enabled %}
+    - Novaflix admin:
+        icon: mdi-account-cog-outline
+        href: https://novaflix-admin.{{ lab }}
+        description: Novaflix accounts
+        siteMonitor: http://jwst.{{ tn }}:{{ autolab_services_ports.novaflix_admin }}/api/status
+{% endif %}
 {% if 'hermes' in autolab_services_enabled %}
     - Hermes:
         icon: mdi-robot-outline
@@ -79,6 +86,10 @@
         href: https://prometheus.{{ lab }}
         description: Metrics
         siteMonitor: http://jwst.{{ tn }}:9090/-/ready
+    - Loki:
+        icon: loki.png
+        href: https://grafana.{{ lab }}/explore
+        description: Logs
     - Code:
         icon: code-server.png
         href: https://code-server.{{ lab }}

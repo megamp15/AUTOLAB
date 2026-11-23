@@ -86,6 +86,7 @@ has its own address and database.
    that list alone does not start the run that redraws the page.
 9. `surfaces`: the home card, the dash tile and the docs agree with what
    runs.
+   An app with an admin face gets a card and a tile for each face.
 
 ## Proof
 
