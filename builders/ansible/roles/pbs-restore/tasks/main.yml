@@ -22,12 +22,17 @@
       {{ autolab_restore_resources.stdout | from_json
          | selectattr('type', 'equalto', 'qemu') | list }}
 
-- name: Refuse an unknown guest
+# The nodes are not a cluster, so a named guest is on one of them. The run
+# fails when no node has it; a node without it restores nothing below.
+- name: Refuse a guest that no node holds
   ansible.builtin.assert:
     that: >-
       autolab_restore_vm == 'all'
-      or (autolab_restore_targets | selectattr('name', 'equalto', autolab_restore_vm) | list | length) > 0
-    fail_msg: "No guest named {{ autolab_restore_vm }} on this node."
+      or (ansible_play_hosts_all | map('extract', hostvars)
+          | map(attribute='autolab_restore_targets', default=[]) | flatten
+          | selectattr('name', 'equalto', autolab_restore_vm) | list | length) > 0
+    fail_msg: "No guest named {{ autolab_restore_vm }} on any node."
+  run_once: true
 
 # Templates are skipped: they are rebuilt from Git, never backed up.
 - name: Restore each target in turn
