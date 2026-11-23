@@ -278,6 +278,11 @@ autolab_obs_homepage_links:
     meta: admin console
     url: https://login.tailscale.com/admin/machines
     icon: tailnet
+  - name: Cloudflare
+    group: infrastructure
+    meta: DNS and the tunnel
+    url: https://dash.cloudflare.com
+    icon: tailnet
   - name: Grafana
     group: observability
     meta: dashboards
@@ -446,6 +451,19 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.novaflix.port }}/api/status"
+  # The same app's account management, on the tailnet behind the passkey. The
+  # public name hides it, so this card is the only way to find it.
+  - name: Novaflix admin
+    group: services
+    meta: accounts
+    url: >-
+      {{ autolab_obs_lab_url.format(name='novaflix-admin', raw='http://' ~ autolab_tailscale_fqdn
+         ~ ':' ~ autolab_service_catalog['novaflix-admin'].port) }}
+    icon: map
+    enabled: "{{ 'novaflix-admin' in ((autolab_builder | default({})).services | default([])) }}"
+    check:
+      type: http
+      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog['novaflix-admin'].port }}/api/status"
   # Hermes's dashboard: sessions, chat, config. /api/status answers without
   # the login.
   - name: Hermes

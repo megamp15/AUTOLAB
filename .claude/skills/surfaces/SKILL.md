@@ -21,12 +21,22 @@ this is how.
      keyed by the Compose service name.
    - **dash** (`dash.lab.<zone>`): the tile in `dash/services.yaml.j2`.
 
-   Neither is generated from the catalog. A service with a page a person
-   opens has both; a service without one has neither.
+   Neither is generated from the catalog. Everything the owner can open
+   from the lab has both a card and a tile: every catalog service with a
+   port, every admin or second face of an app (`novaflix-admin`), and every
+   outside console the lab depends on (Cloudflare, Tailscale). "Only admins
+   use it", "it is tailnet-only" and "the app already has a card" are not
+   reasons to leave one off: a page that is on neither is a page the owner
+   forgets exists. The only services left off are ones with nothing to
+   open, each named with its reason in `NO_PAGE` in
+   `scripts/test_every_page_is_listed.py`. That test fails on a catalog
+   service with no card or no tile, and on anything listed on one page and
+   not the other.
 3. A card's access label ("Tailscale + Pocket ID", "Public + Pocket ID") is
    worked out from its URL, so link the one name people use. A service has
    one name: when it moves from `*.lab` to a public name, the card, the
-   tile and `CTR_APPS` move with it.
+   tile and `CTR_APPS` move with it. An app with a public face and an admin
+   face has two names, so two cards and two tiles.
 4. A card's `check` runs from jwst against the tailnet address: `http` when
    a health path answers without a login, `tcp` when it answers only to its
    own name or behind a token.

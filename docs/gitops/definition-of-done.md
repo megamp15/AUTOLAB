@@ -39,10 +39,10 @@ or machine, or changes its port, name, login or what an agent may reach.
 | where it runs | the machine's `builder.services` in `infra/stacks/<stack>/machines.auto.tfvars` | always |
 | told to the lab from another Stack | `autolab_remote_services` in the same `all.yml` | the machine is outside the `lab` Stack |
 | secrets | the env block and the Python map in `.github/workflows/05_ansible-builder.yml`, the role's `defaults/main.yml`, `docs/gitops/github-secrets-variables-reference.md` | it reads a secret or variable |
-| home: the card | `autolab_obs_homepage_links` in `builders/ansible/roles/observability-stack/defaults/main.yml` | it has a page a person opens |
+| home: the card | `autolab_obs_homepage_links` in `builders/ansible/roles/observability-stack/defaults/main.yml` | it has a port in the catalog, an admin face included |
 | home: container to link | `CTR_APPS` in `builders/ansible/roles/observability-stack/templates/homepage/index.html` | same; the key is the Compose service name |
 | home: the AI tab | `aiCard(...)` and `AI_EDGES` in the same `index.html` | an agent gains or loses a source, a credential or a model |
-| dash: the tile | `builders/ansible/roles/container-services/templates/dash/services.yaml.j2` | it has a page a person opens |
+| dash: the tile | `builders/ansible/roles/container-services/templates/dash/services.yaml.j2` | it has a port in the catalog, an admin face included |
 | the services table | `docs/gitops/services.md` | always |
 | its own page | `docs/gitops/<name>.md` | it needs more than the table row: setup steps, a login, a decision |
 | sign-in | `docs/gitops/ingress.md`, "Client configuration as code" | login is `own` through Pocket ID |
@@ -53,6 +53,11 @@ Home and dash are separate pages with separate lists. `home.<label>.<zone>`
 is the lab's own page, in the observability role. `dash.<label>.<zone>` is
 gethomepage, a container service on jwst. Neither is generated from the
 catalog; both are edited by hand, and both are where drift shows first.
+Everything the owner can open from the lab is on both, an app's admin face
+and outside consoles included. `scripts/test_every_page_is_listed.py` fails
+when a catalog service with a port is missing from either, or when the two
+pages list different things; a service with nothing to open is named there
+with its reason.
 
 A home card's `enabled` reads the machine's services list, so the card
 follows the deploy. Its `check` runs from jwst against the tailnet address:
