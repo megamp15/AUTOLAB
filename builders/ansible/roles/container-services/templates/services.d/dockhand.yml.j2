@@ -12,6 +12,13 @@
     # No host port: all browser access passes through the authenticated proxy.
   dockhand-proxy:
     image: {{ autolab_services_images.dockhand_proxy }}
+    # The listener only: every path needs the credential.
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 80 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     labels:
       dockhand.tags: docker
     restart: unless-stopped

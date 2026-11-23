@@ -51,6 +51,17 @@ writes Immich's compose file and never recreates, so Immich's own containers
 take their tag at the next `docker compose up -d` in its directory, an
 upgrade for instance.
 
+## Health
+
+Every container has a healthcheck, so the Health column says something for
+each row. Where the image has a client, the check is a request to the app's
+own health path. An nginx that only proxies is checked for its listener, so a
+sick upstream does not show as two sick containers. The tunnel connectors ask
+`cloudflared tunnel ready`, which is true only while the tunnel is connected.
+
+Two have none: `rustdesk-hbbs` and `rustdesk-hbbr`. Their image has no shell
+and no client to probe with. Tempo's image is the same; it is off by default.
+
 ## Registry
 
 The AUTOLAB connection uses the existing Distribution registry at

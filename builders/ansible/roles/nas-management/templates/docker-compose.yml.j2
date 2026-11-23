@@ -17,6 +17,12 @@ services:
       - "{{ autolab_nas_management_ip }}:{{ autolab_nas_hawser_port }}:2376"
   dockhand-launcher:
     image: {{ autolab_nas_launcher_image }}
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 80 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     labels:
       dockhand.tags: docker
     restart: unless-stopped
