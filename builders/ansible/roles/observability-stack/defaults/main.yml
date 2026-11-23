@@ -456,7 +456,9 @@ autolab_obs_homepage_links:
   - name: Novaflix admin
     group: services
     meta: accounts
-    url: "{{ autolab_obs_lab_url.format(name='novaflix-admin', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog['novaflix-admin'].port) }}"
+    url: >-
+      {{ autolab_obs_lab_url.format(name='novaflix-admin', raw='http://' ~ autolab_tailscale_fqdn
+         ~ ':' ~ autolab_service_catalog['novaflix-admin'].port) }}
     icon: map
     enabled: "{{ 'novaflix-admin' in ((autolab_builder | default({})).services | default([])) }}"
     check:
