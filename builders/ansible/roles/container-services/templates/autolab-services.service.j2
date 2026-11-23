@@ -8,6 +8,9 @@ After=tailscaled.service docker.service
 # unit waits for the mount instead of racing it.
 RequiresMountsFor={{ autolab_services_data_root }}
 {% endif %}
+{% if autolab_services_uses_media | bool %}
+RequiresMountsFor={{ autolab_services_media_mount }}
+{% endif %}
 
 [Service]
 Type=oneshot

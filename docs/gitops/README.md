@@ -97,6 +97,7 @@ Phase 2A provisions Proxmox VMs and LXCs with OpenTofu. Both the **stack code** 
 20. [Karakeep](./karakeep.md): bookmarks that fetch and tag themselves, and where a saved link ends up
 21. [Our own apps](./own-apps.md): the template a new app starts from, and how one is released
 22. [Novaflix](./novaflix.md): our own app with a public name and its own sign-in
+23. [Media](./media.md): aurora, Jellyfin, and where the films and shows live
 
 ## Setup checklist
 

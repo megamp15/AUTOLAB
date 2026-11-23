@@ -1,0 +1,41 @@
+  # Jellyfin: plays the films and shows on the NAS. It signs people in itself.
+  # The home network reaches it at this machine's own address, because the
+  # projector and the TVs are not on the tailnet; the tailnet reaches it on
+  # the catalog port. The library is mounted read-only. docs/gitops/media.md
+  jellyfin:
+    image: {{ autolab_services_images.jellyfin }}
+    labels:
+      dockhand.tags: jellyfin
+    restart: unless-stopped
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges
+    environment:
+      TZ: "{{ autolab_timezone | default('UTC') }}"
+      # What a device at home is told when it searches for the server.
+      JELLYFIN_PublishedServerUrl: "http://{{ autolab_services_lan_ip }}:8096"
+    volumes:
+      # Settings, users and watch history: a SQLite database, so on this
+      # machine's disk and never on the share.
+      - {{ autolab_services_root }}/jellyfin/config:/config
+      - {{ autolab_services_root }}/jellyfin/cache:/cache
+      - type: bind
+        source: {{ autolab_services_media_root }}/media
+        target: /data/media
+        read_only: true
+        bind:
+          create_host_path: false
+    mem_limit: {{ autolab_services_memory.jellyfin }}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8096/health || exit 1"]
+      start_period: 60s
+      interval: 30s
+      timeout: 6s
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}:8096"
+      # The home network, on purpose. Docker's rules sit ahead of ufw's, so
+      # this is open to every device at home and to nothing beyond the router.
+      - "{{ autolab_services_lan_ip }}:8096:8096"
+      # Discovery: a Jellyfin app at home finds the server without an address.
+      - "{{ autolab_services_lan_ip }}:7359:7359/udp"

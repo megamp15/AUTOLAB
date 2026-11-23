@@ -136,6 +136,14 @@ machines = {
     ipv4_gateway            = "192.168.50.1"
     builder = {
       docker_enabled = true
+      # Named in autolab_remote_services.aurora too; a test keeps them equal.
+      services = ["jellyfin"]
+      # A share of its own, named for the machine: only this host's export
+      # rule opens it. The films, the shows and the downloads live under
+      # media-stack; anything else this machine keeps gets a folder beside it.
+      storage = [
+        { protocol = "nfs", server = "singularity", share = "/volume1/aurora", path = "/mnt/aurora", directories = ["media-stack"], mode = "0755" },
+      ]
       observability = {
         ship_to = "jwst"
       }
