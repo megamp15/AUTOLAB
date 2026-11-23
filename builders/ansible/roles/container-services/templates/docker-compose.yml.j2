@@ -9,7 +9,9 @@ services:
 {% include 'services.d/' ~ service ~ '.yml.j2' %}
 {% endfor %}
 
-volumes:
+{# A machine whose services keep nothing in a named volume (aurora) gets no
+   `volumes:` key at all: Compose refuses an empty one. #}
+{% set named_volumes %}
 {% if 'dockhand' in autolab_services_enabled %}
   dockhand-data:
 {% endif %}
@@ -46,6 +48,11 @@ volumes:
 {% endif %}
 {% if 'novaflix' in autolab_services_enabled %}
   novaflix-data:
+{% endif %}
+{% endset %}
+{% if named_volumes | trim %}
+volumes:
+{{ named_volumes | trim('\n') }}
 {% endif %}
 
 # Bridges besides the default, each there to keep something away from
