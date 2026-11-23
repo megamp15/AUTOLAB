@@ -169,9 +169,10 @@ autolab_services_dash_zone: "pmahir.space"
 autolab_services_dash_label: "lab"
 
 # The email of your Pocket ID user (GitHub variable APPS_ADMIN_EMAIL). Every
-# app creates its first administrator from it, so the first sign-in through
-# Pocket ID attaches to that account instead of making an ordinary one beside
-# it. Read once, when an app first boots; changed afterwards in the app.
+# app creates its first administrator from it. A first Pocket ID sign-in is
+# attached to that account by email only when Pocket ID reports the email as
+# verified (it does not by default; see docs/gitops/apps.md). Read once, when
+# an app first boots; changed afterwards in the app.
 autolab_services_admin_email: ""
 
 # Forgejo. See docs/gitops/forgejo.md.
