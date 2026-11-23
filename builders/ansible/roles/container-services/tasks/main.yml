@@ -99,6 +99,38 @@
     label: "{{ item.path }}"
   when: autolab_services_uses_nas | bool
 
+# The media share, the same way: no library on the local disk by accident.
+- name: Work out whether this machine runs services that live on the media share
+  ansible.builtin.set_fact:
+    autolab_services_uses_media: "{{ autolab_services_enabled | intersect(autolab_services_media_backed) | length > 0 }}"
+
+- name: See whether the media share is mounted
+  ansible.builtin.command: mountpoint -q {{ autolab_services_media_mount }}
+  register: autolab_services_media_mounted
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: autolab_services_uses_media | bool
+
+- name: Require the media share for services that keep their files there
+  ansible.builtin.assert:
+    that: autolab_services_media_mounted.rc == 0
+    fail_msg: >-
+      {{ autolab_services_enabled | intersect(autolab_services_media_backed) | join(', ') }} keep their files on the
+      NAS, and {{ autolab_services_media_mount }} is not mounted. Create the NAS export rule for this host and run
+      the storage playbook first: docs/gitops/media.md.
+  when: autolab_services_uses_media | bool
+
+- name: Create the media directories
+  ansible.builtin.file:
+    path: "{{ autolab_services_media_root }}/{{ item }}"
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0775"
+  loop: "{{ autolab_services_media_dirs }}"
+  when: autolab_services_uses_media | bool
+
 - name: Create the services directory
   ansible.builtin.file:
     path: "{{ autolab_services_root }}"
@@ -106,6 +138,17 @@
     owner: root
     group: root
     mode: "0755"
+
+# Jellyfin runs as uid 1000 and keeps its settings here, on the local disk.
+- name: Create Jellyfin's directories
+  ansible.builtin.file:
+    path: "{{ autolab_services_root }}/jellyfin/{{ item }}"
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0750"
+  loop: ["", config, cache]
+  when: "'jellyfin' in autolab_services_enabled"
 
 # RustDesk runs on the host network (see its template), where nothing but ufw
 # keeps its ports tailnet-only. Better to stop than to publish them to the LAN.
@@ -1372,6 +1415,16 @@
   retries: 60
   delay: 5
   when: "'airtrail' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Wait for Jellyfin to answer
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}/health"
+    status_code: 200
+  register: autolab_jellyfin_ready
+  until: autolab_jellyfin_ready.status == 200
+  retries: 30
+  delay: 5
+  when: "'jellyfin' in autolab_services_enabled and not ansible_check_mode"
 
 - name: Wait for Karakeep to answer
   ansible.builtin.uri:

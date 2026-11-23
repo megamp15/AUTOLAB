@@ -15,6 +15,7 @@
 # be told.
 autolab_remote_services:
   nebula: [adventurelog, forgejo, tandoor, airtrail, karakeep, sure]
+  aurora: [jellyfin]
 
 # Every container service the lab knows, what it listens on, and how a person
 # gets in:
@@ -95,6 +96,13 @@ autolab_service_catalog:
     login: own
   sure:
     port: 8104
+    login: own
+  # Jellyfin on aurora: films and shows. `own`: it keeps a user per person and
+  # signs them in itself, and its apps on a phone or a TV cannot answer a
+  # passkey page. This port is the tailnet's; the home network dials the
+  # machine's own address on 8096. See docs/gitops/media.md.
+  jellyfin:
+    port: 8110
     login: own
   # RustDesk: remote desktop between the lab's own machines. No port here on
   # purpose: it is raw TCP and UDP (21115-21117), not HTTP, so there is nothing

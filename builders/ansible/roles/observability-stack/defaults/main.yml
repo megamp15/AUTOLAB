@@ -397,6 +397,17 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://nebula.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.karakeep.port }}/api/health"
+  - name: Jellyfin
+    group: services
+    meta: films and shows
+    url: >-
+      {{ autolab_obs_lab_url.format(name='jellyfin', raw='http://aurora.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.jellyfin.port) }}
+    icon: photos
+    enabled: "{{ 'jellyfin' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
+    check:
+      type: http
+      target: "http://aurora.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.jellyfin.port }}/health"
   - name: Sure
     group: services
     meta: finances
