@@ -34,12 +34,18 @@ def group_key(move):
     return move.get('group') or f'm{move["id"]}'
 
 
-def matching(plan, cfg, kind='', pair=False, text='', dup=None):
-    """The plan's moves that pass a filter: a kind, Live Photos only, and/or text in a path or reason."""
+def is_video_move(move):
+    """A video filed on its own. A Live Photo's clip is half of a photo, so it is not one."""
+    return previews.is_video(move['src']) and not (move.get('group') or '').startswith('pair:')
+
+
+def matching(plan, cfg, kind='', pair=False, text='', dup=None, video=False):
+    """The plan's moves that pass a filter: a kind, Live Photos only, videos only, and/or text in a path or reason."""
     moves = (dup or (lambda p: core.duplicate_moves(cfg, p)))(plan)[0] if plan['kind'] == 'duplicates' else plan['moves']
     text = text.lower()
     return [m for m in moves if (not kind or m['kind'] == kind)
             and (not pair or (m.get('group') or '').startswith('pair:'))
+            and (not video or is_video_move(m))
             and (not text or text in m['src'].lower() or text in m['dst'].lower() or text in m['why'].lower())]
 
 
@@ -195,6 +201,7 @@ class App:
             elif plan['kind'] == 'sort':
                 out['notes'] = plan['notes']
                 out['left'] = plan['left'][:200]
+                out['videos'] = sum(1 for x in plan['moves'] if is_video_move(x))
             else:
                 out['notes'] = plan['notes']
             if plan['kind'] != 'immich':
@@ -204,7 +211,7 @@ class App:
         if m and method == 'GET':
             plan = j.plan(m.group(1))
             one = lambda k: query.get(k, [''])[0]
-            rows = matching(plan, cfg, one('kind'), one('pair') == '1', one('q'), self.duplicate_view)
+            rows = matching(plan, cfg, one('kind'), one('pair') == '1', one('q'), self.duplicate_view, one('video') == '1')
             off, lim = int(one('offset') or 0), min(int(one('limit') or 100), 500)
             excluded, kinds = set(plan.get('excluded', [])), set(plan.get('excluded_kinds', []))
             on = lambda x: group_key(x) not in excluded and x['kind'] not in kinds
@@ -250,7 +257,7 @@ class App:
                 keys = ([f'immich:{i["id"]}' for i in matching_items(plan, f.get('status', ''), bool(f.get('live')), f.get('q', ''))]
                         if plan['kind'] == 'immich' else
                         [g['id'] for g in matching_groups(plan, f.get('q', ''), f.get('scope', ''), cfg)] if plan['kind'] == 'duplicates' else
-                        [group_key(x) for x in matching(plan, cfg, f.get('kind', ''), bool(f.get('pair')), f.get('q', ''), self.duplicate_view)])
+                        [group_key(x) for x in matching(plan, cfg, f.get('kind', ''), bool(f.get('pair')), f.get('q', ''), self.duplicate_view, bool(f.get('video')))])
                 for key in keys:
                     (excluded.discard if body.get('selected') else excluded.add)(key)
             if 'kind' in body:

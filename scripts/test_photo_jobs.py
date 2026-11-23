@@ -135,6 +135,16 @@ class LivePhotos(Library):
         plan.update(excluded=['pair:_inbox/loose/IMG_1.HEIC'], excluded_kinds=[])
         self.assertEqual(core.selected_moves(plan, self.cfg), [])
 
+    def test_the_videos_filter_shows_videos_filed_on_their_own_not_a_live_photos_clip(self):
+        self.put('_inbox/loose/IMG_1.HEIC', 'still', '2025-06')
+        self.put('_inbox/loose/IMG_1.MOV', 'clip', '2025-06')
+        self.put('_inbox/loose/holiday.mp4', 'a video', '2025-06')
+        self.put('_inbox/loose/IMG_2.JPG', 'a photo', '2025-06')
+        self.sync_dates()
+        plan = core.plan_sort(self.cfg)
+        self.assertEqual([m['src'] for m in server.matching(plan, self.cfg, video=True)], ['_inbox/loose/holiday.mp4'])
+        self.assertEqual(len(server.matching(plan, self.cfg)), 4)
+
 
 class Unchanged(Library):
     def test_lone_files_are_sorted_each_by_its_own_date(self):

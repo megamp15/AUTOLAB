@@ -15,7 +15,7 @@ scripts.
 | **Undo** | Every apply is a run in History; undo puts its moved files back, skipping anything that has changed. Deleted files cannot be put back. |
 
 The Inbox and Immich tables scroll inside their own frame. The chips above them are
-quick filters (a kind, or Live photos); the checkbox in the header ticks or unticks
+quick filters (a kind, Videos, or Live photos); the checkbox in the header ticks or unticks
 everything shown; ticking a row changes only that row.
 
 Where things are put decides what happens to them:
