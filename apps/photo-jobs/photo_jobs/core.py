@@ -765,6 +765,75 @@ def selected_moves(plan, cfg=None, moves=None):
     return [m for m in moves if (m.get('group') or f'm{m["id"]}') not in off_groups and m['kind'] not in off_kinds]
 
 
+def file_type(rel):
+    """A file's type as its name says it: 'png' for Screenshot.PNG, '' for a folder or a bare name."""
+    return os.path.splitext(rel)[1].lower().lstrip('.')
+
+
+def own_folder(name):
+    """A folder of your own inside the media folder, as a clean relative path, or an error. The
+    inbox is refused: the next scan would only find the files there again."""
+    parts = (name or '').replace('\\', '/').strip().strip('/').split('/')
+    if not parts or any(not p.strip() or p != p.strip() or p.startswith('.') for p in parts):
+        raise ValueError('name a folder inside the media folder, like screenshots or keep/receipts')
+    if parts[0] == LOOSE[0]:
+        raise ValueError(f'not inside {LOOSE[0]}: the next scan would sort the files again')
+    return '/'.join(parts)
+
+
+def send_to_folder(cfg, plan, ids, folder):
+    """Point the moves with these ids at a folder of your own, in place of where the sorter chose,
+    or back at the sorter's choice for folder ''. Nothing is moved until the plan is applied.
+
+    A Live Photo's other half and a file's sidecar come along and are named alike. Nothing else
+    does: one photo of an event being merged goes alone. A name already there, or already planned,
+    gets _1, _2. Returns how many moves changed."""
+    moves, ids = plan['moves'], set(ids)
+    clip_of = live_photos.pairs([m['src'] for m in moves])            # clip -> still
+    mate = {**clip_of, **{still: clip for clip, still in clip_of.items()}}
+    srcs = {m['src'] for m in moves if m['id'] in ids}
+    srcs |= {mate[s] for s in srcs if s in mate}
+    of = {}                                    # a sidecar's path -> the path of the file it describes
+    for s in srcs:
+        if not s.lower().endswith('.xmp'):
+            of[s + '.xmp'] = of[os.path.splitext(s)[0] + '.xmp'] = s
+    chosen = [m for m in moves if m['src'] in srcs or m['src'] in of]
+    if not folder:
+        chosen = [m for m in chosen if 'planned' in m]
+        for m in chosen:
+            m.update(m.pop('planned'))
+    else:
+        folder = own_folder(folder)
+        picked = {m['id'] for m in chosen}
+        taken = {m['dst'].lower() for m in moves if m['id'] not in picked}
+        free = lambda rel: rel.lower() not in taken and not os.path.lexists(cfg.abs(rel))
+        units = collections.defaultdict(list)   # what must be named alike: a pair, and a file with its sidecar
+        for m in chosen:
+            main = of.get(m['src'], m['src'])
+            units[clip_of.get(main, main)].append(m)
+        for unit in units.values():
+            n = 0
+            while True:
+                names = {}
+                for m in unit:
+                    if m['src'] not in of:
+                        stem, ext = os.path.splitext(os.path.basename(m['src']))
+                        names[m['src']] = f'{folder}/{stem}{"_%d" % n if n else ""}{ext}'
+                for m in unit:
+                    if m['src'] in of:
+                        main = names[of[m['src']]]
+                        names[m['src']] = (main if m['src'] == of[m['src']] + '.xmp' else os.path.splitext(main)[0]) + '.xmp'
+                if len({v.lower() for v in names.values()}) == len(names) and all(free(v) for v in names.values()):
+                    break
+                n += 1
+            for m in unit:
+                m.setdefault('planned', {k: m[k] for k in ('dst', 'why', 'kind')})
+                m.update(dst=names[m['src']], why=f'your folder; the sorter chose {m["planned"]["dst"]}', kind='folder')
+                taken.add(m['dst'].lower())
+    plan['stats'] = {**plan['stats'], 'kinds': dict(collections.Counter(m['kind'] for m in moves))}
+    return len(chosen)
+
+
 def _make_dirs(cfg, folder):
     new, d = [], folder
     while d.startswith(cfg.root + os.sep) and not os.path.isdir(d):

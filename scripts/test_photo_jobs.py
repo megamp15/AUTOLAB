@@ -146,6 +146,97 @@ class LivePhotos(Library):
         self.assertEqual(len(server.matching(plan, self.cfg)), 4)
 
 
+class OwnFolder(Library):
+    """Some Inbox moves sent to a folder of the user's own, in place of where the sorter chose."""
+
+    def plan(self):
+        self.put('_inbox/loose/Screenshot 1.png', 'shot one')
+        self.put('_inbox/loose/Screenshot 2.PNG', 'shot two', '2025-06')
+        self.put('_inbox/loose/Screenshot 2.PNG.xmp', 'meta')
+        self.put('_inbox/loose/IMG_1.HEIC', 'still', '2025-06')
+        self.put('_inbox/loose/IMG_1.MOV', 'clip', '2025-06')
+        self.put('_inbox/loose/IMG_2.JPG', 'a photo', '2025-06')
+        self.sync_dates()
+        plan = core.plan_sort(self.cfg)
+        plan.update(excluded=[], excluded_kinds=[])
+        return plan
+
+    def keys(self, plan, **f):
+        return [m['id'] for m in server.matching(plan, self.cfg, **f)]
+
+    def apply(self, plan):
+        return core.apply_moves(self.cfg, core.selected_moves(plan, self.cfg))
+
+    def test_the_type_filter_takes_several_types_whatever_their_case(self):
+        plan = self.plan()
+        self.assertEqual(sorted(m['src'] for m in server.matching(plan, self.cfg, types=['png', 'MOV'])),
+                         ['_inbox/loose/IMG_1.MOV', '_inbox/loose/Screenshot 1.png', '_inbox/loose/Screenshot 2.PNG'])
+
+    def test_png_files_go_to_a_new_folder_with_their_sidecar_and_the_rest_is_sorted_as_before(self):
+        plan = self.plan()
+        self.assertEqual(core.send_to_folder(self.cfg, plan, self.keys(plan, types=['png']), 'keep/screenshots'), 3)
+        self.assertEqual(plan['stats']['kinds'], {'folder': 3, 'sorted': 3})
+        self.apply(plan)
+        self.assertEqual(self.tree(), ['keep/screenshots/Screenshot 1.png', 'keep/screenshots/Screenshot 2.PNG',
+                                       'keep/screenshots/Screenshot 2.PNG.xmp', 'library/2025/06/IMG_1.HEIC',
+                                       'library/2025/06/IMG_1.MOV', 'library/2025/06/IMG_2.JPG'])
+
+    def test_undo_puts_them_back_in_the_inbox(self):
+        plan = self.plan()
+        before = self.tree()
+        core.send_to_folder(self.cfg, plan, self.keys(plan, types=['png']), 'screenshots')
+        core.undo_run(self.cfg, self.apply(plan))
+        self.assertEqual(self.tree(), before)
+
+    def test_a_name_that_is_taken_gets_a_number_and_a_live_photo_keeps_one_name(self):
+        self.put('mine/IMG_1.MOV', 'something else')
+        self.put('mine/Screenshot 1.png', 'an older shot')
+        plan = self.plan()
+        core.send_to_folder(self.cfg, plan, self.keys(plan), 'mine')
+        self.apply(plan)
+        self.assertEqual(self.tree(), ['mine/IMG_1.MOV', 'mine/IMG_1_1.HEIC', 'mine/IMG_1_1.MOV', 'mine/IMG_2.JPG',
+                                       'mine/Screenshot 1.png', 'mine/Screenshot 1_1.png', 'mine/Screenshot 2.PNG',
+                                       'mine/Screenshot 2.PNG.xmp'])
+
+    def test_one_half_of_a_live_photo_takes_the_other_and_an_event_being_merged_does_not_go_whole(self):
+        self.put('library/2025/06/Trip/IMG_9.JPG', 'already there', '2025-06')
+        for name, body in (('IMG_3.HEIC', 'still'), ('IMG_3.MOV', 'clip'), ('IMG_4.JPG', 'another'), ('film.MOV', 'a film')):
+            self.put(f'_inbox/events/Trip/{name}', body, '2025-06')
+        plan = self.plan()
+        core.send_to_folder(self.cfg, plan, self.keys(plan, types=['mov']), 'clips')
+        self.apply(plan)
+        self.assertEqual([p for p in self.tree() if not p.startswith('library/2025/06/IMG') and 'Screenshot' not in p],
+                         ['clips/IMG_1.HEIC', 'clips/IMG_1.MOV', 'clips/IMG_3.HEIC', 'clips/IMG_3.MOV', 'clips/film.MOV',
+                          'library/2025/06/Trip/IMG_4.JPG', 'library/2025/06/Trip/IMG_9.JPG'])
+
+    def test_back_to_the_sorters_choice_restores_the_plan(self):
+        plan = self.plan()
+        before = json.dumps(plan, sort_keys=True)
+        keys = self.keys(plan, types=['png'])
+        core.send_to_folder(self.cfg, plan, keys, 'screenshots')
+        self.assertEqual(core.send_to_folder(self.cfg, plan, self.keys(plan, types=['png']), ''), 3)
+        self.assertEqual(json.dumps(plan, sort_keys=True), before)
+
+    def test_sending_twice_remembers_the_sorters_first_choice(self):
+        plan = self.plan()
+        before = json.dumps(plan, sort_keys=True)
+        for folder in ('one', 'two'):
+            core.send_to_folder(self.cfg, plan, self.keys(plan, types=['png']), folder)
+        self.assertEqual({m['dst'].split('/')[0] for m in plan['moves'] if m['kind'] == 'folder'}, {'two'})
+        core.send_to_folder(self.cfg, plan, self.keys(plan), '')
+        self.assertEqual(json.dumps(plan, sort_keys=True), before)
+
+    def test_the_inbox_a_hidden_folder_and_a_way_out_of_the_media_folder_are_refused(self):
+        plan = self.plan()
+        for bad in ('', '  ', '_inbox/loose/x', '../elsewhere', 'a/../../b', '.hidden', 'a//b', '/'):
+            with self.assertRaises(ValueError, msg=bad):
+                core.own_folder(bad)
+        self.assertEqual(core.own_folder(' /keep/shots/ '), 'keep/shots')
+        with self.assertRaises(ValueError):
+            core.send_to_folder(self.cfg, plan, self.keys(plan), '../out')
+        self.assertFalse(any('planned' in m for m in plan['moves']))
+
+
 class Unchanged(Library):
     def test_lone_files_are_sorted_each_by_its_own_date(self):
         self.put('_inbox/loose/IMG_1.JPG', 'a', '2025-06')
