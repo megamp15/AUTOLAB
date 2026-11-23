@@ -9,9 +9,13 @@ services:
 {% include 'services.d/' ~ service ~ '.yml.j2' %}
 {% endfor %}
 
-{# A machine whose services keep nothing in a named volume (aurora) gets no
-   `volumes:` key at all: Compose refuses an empty one. #}
-{% set named_volumes %}
+{# Compose refuses a `volumes:` key with nothing under it, and a machine whose
+   services bind host paths only (aurora) has nothing. A service that gains a
+   named volume below is added to this list. #}
+{% set volume_owners = ['dockhand', 'registry', 'registry-ui', 'diun', 'adventurelog', 'forgejo', 'tandoor', 'airtrail', 'sure', 'karakeep', 'cosmos', 'novaflix'] %}
+{% if autolab_services_enabled | intersect(volume_owners) | length > 0 %}
+volumes:
+{% endif %}
 {% if 'dockhand' in autolab_services_enabled %}
   dockhand-data:
 {% endif %}
@@ -48,11 +52,6 @@ services:
 {% endif %}
 {% if 'novaflix' in autolab_services_enabled %}
   novaflix-data:
-{% endif %}
-{% endset %}
-{% if named_volumes | trim %}
-volumes:
-{{ named_volumes | trim('\n') }}
 {% endif %}
 
 # Bridges besides the default, each there to keep something away from
