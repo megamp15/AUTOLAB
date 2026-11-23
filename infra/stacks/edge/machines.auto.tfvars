@@ -73,6 +73,9 @@ machines = {
   # because a database on NFS v3 is a corruption story waiting for a link
   # blip; the dumps and PBS are its copies. HDD for that reason: it writes.
   #
+  # 6 GB, was 8: it used 4.3 GB on 2026-11-23, and zima-pve has 15.7 GB for
+  # this, Pi-hole, a media VM and later OPNsense.
+  #
   # 302: 301 is magnetosphere. DHCP: the home router reserves it; the NAS rule
   # is by tailnet name, which follows the machine.
   nebula = {
@@ -85,7 +88,7 @@ machines = {
     datastore_id            = "hdd"
     cloud_init_datastore_id = "hdd"
     cpu_cores               = 4
-    memory_mb               = 8192
+    memory_mb               = 6144
     disk_size_gb            = 80
     ipv4_address            = "dhcp"
     builder = {
