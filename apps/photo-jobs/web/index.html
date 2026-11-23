@@ -204,6 +204,14 @@
   * { scrollbar-width:thin; scrollbar-color:color-mix(in srgb,var(--fg) 28%,transparent) transparent; }
   ::-webkit-scrollbar { width:9px; height:9px; } ::-webkit-scrollbar-track { background:transparent; }
   ::-webkit-scrollbar-thumb { background:color-mix(in srgb,var(--fg) 26%,transparent); border-radius:9px; border:2px solid transparent; background-clip:content-box; }
+  /* the folder browser in "Send to a folder" */
+  .crumbs { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font:12px 'IBM Plex Mono',monospace; margin-bottom:8px; }
+  .crumbs button { color:var(--dim); background:none; border:0; padding:2px 0; font:inherit; cursor:pointer; } .crumbs button:hover, .crumbs button.on { color:var(--fg); }
+  .flist { border:1px solid var(--line); border-radius:4px; height:220px; overflow:auto; padding:4px; display:flex; flex-direction:column; gap:1px; }
+  .flist > .muted { padding:8px 10px; font-size:12.5px; }
+  .frow { display:flex; align-items:center; gap:10px; width:100%; color:inherit; background:none; border:0; border-radius:4px; padding:7px 10px; font:inherit; font-size:13px; text-align:left; cursor:pointer; }
+  .frow:hover, .frow:focus-visible { background:var(--soft); outline:none; } .frow svg { display:block; opacity:.65; } .frow .grow { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fnew { display:flex; gap:8px; margin-top:8px; } .fnew input { flex:1; min-width:0; }
   .sel { display:inline-flex; }
   button.selbtn { background:transparent; color:inherit; border:1px solid var(--line); border-radius:4px; padding:6px 10px; font:inherit; font-size:12.5px; }
   button.selbtn:hover, button.selbtn[aria-expanded="true"] { border-color:var(--fg); } button.selbtn:focus-visible { outline:1px dashed var(--dim); outline-offset:3px; }
@@ -294,13 +302,13 @@
   const $ = (s, r = document) => r.querySelector(s);
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
   const clamp = v => v < 0 ? 0 : v > 1 ? 1 : v;
-  const KIND_LABEL = { trash: 'to _trash', sorted: 'dated', 'no date': 'no date', event: 'event', merged: 'merged', duplicate: 'duplicate', sidecar: 'sidecar' };
+  const KIND_LABEL = { trash: 'to _trash', sorted: 'dated', folder: 'your folder', 'no date': 'no date', event: 'event', merged: 'merged', duplicate: 'duplicate', sidecar: 'sidecar' };
   const fmtGiB = b => b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GiB' : b >= 1048576 ? (b / 1048576).toFixed(b >= 1.05e7 ? 0 : 1) + ' MiB' : Math.max(1, Math.round(b / 1024)) + ' KiB';
   const ago = t => { const s = Date.now() / 1000 - t; return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : new Date(t * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' }); };
 
   const TABS = ['inbox', 'duplicates', 'nodate', 'meta', 'albums', 'immich', 'history'];
   const state = { tab: location.hash.slice(1) || 'inbox', status: null, job: null, dark: true, runs: [], immichInfo: null, activity: [], loading: {},
-                  sort: { plan: null, rows: [], total: 0, shown: 0, filter: { kind: '', pair: false, video: false, q: '' }, done: null },
+                  sort: { plan: null, rows: [], total: 0, shown: 0, filter: { kind: '', pair: false, video: false, types: [], q: '' }, done: null },
                   dupes: { plan: null, groups: [], total: 0, q: '', scope: '', done: null },
                   nodate: { files: null, checked: new Set(), q: '', date: '', time: '12:00', done: null, failed: [], view: 'tiles', filter: 'all' },
                   meta: { q: '', folder: '', kind: '', files: null, total: 0, folders: [], info: {}, checked: new Set(), ref: null, done: null, failed: [],
@@ -386,6 +394,31 @@
       api.set(value); return api;
     }
 
+    // The same dropdown, for ticking several: it stays open while you choose, and the button says what is ticked.
+    function multi({ options, values = [], onchange, label }) {
+      const root = el('div', 'sel'), btn = el('button', 'field selbtn'), text = el('span'), chev = el('span'); chev.innerHTML = ICON.chev;
+      btn.type = 'button'; btn.setAttribute('aria-haspopup', 'listbox'); btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-label', label); btn.append(text, chev); root.append(btn);
+      const set = new Set(values), rowsOf = () => [['', 'Every ' + label.toLowerCase()], ...options];
+      const paint = () => { const on = options.filter(o => set.has(o[0])); text.textContent = !on.length ? label : on.length <= 2 ? `${label}: ${on.map(o => o[1]).join(', ')}` : `${label}: ${on.length} chosen`; };
+      let h = null, box = null;
+      const mark = () => box && box.rows.forEach((o, i) => o.classList.toggle('on', i ? set.has(options[i - 1][0]) : !set.size));
+      const pick = i => { const v = rowsOf()[i][0]; if (!v) set.clear(); else set.has(v) ? set.delete(v) : set.add(v); mark(); paint(); if (onchange) onchange([...set]); };
+      const open = () => {
+        box = listbox(rowsOf(), 0, pick);
+        box.rows.forEach((o, i) => { if (i && options[i - 1][2] != null) { const n = el('small', 'muted', ' ' + options[i - 1][2].toLocaleString()); const t = el('span', null, options[i - 1][1]); t.append(n); o.replaceChildren(t); } });
+        box.list.setAttribute('aria-multiselectable', 'true');
+        h = popover(btn, box.list, () => { h = null; box = null; btn.setAttribute('aria-expanded', 'false'); });
+        btn.setAttribute('aria-expanded', 'true'); box.mark(0); mark();
+      };
+      btn.onclick = () => (h ? h.close() : open());
+      btn.onkeydown = e => {
+        if (!h) { if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) { e.preventDefault(); open(); } return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); box.step(1); } else if (e.key === 'ArrowUp') { e.preventDefault(); box.step(-1); }
+        else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(box.at()); } else if (e.key === 'Escape' || e.key === 'Tab') h.close();
+      };
+      paint(); return { el: root, get: () => [...set] };
+    }
+
     const parseDate = t => {
       t = (t || '').trim(); const slash = t.includes('/'), m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/) || t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
       if (!m) return ''; const [y, mo, d] = slash ? [+m[3], +m[1], +m[2]] : [+m[1], +m[2], +m[3]], dt = new Date(y, mo - 1, d);
@@ -469,7 +502,7 @@
       b.onchange = () => { if (onchange) onchange(b.checked); };
       return { el: l, input: b, get: () => b.checked, set: v => { b.checked = v; } };
     }
-    return { select, date, time, check };
+    return { select, multi, date, time, check };
   })();
 
   // ---- theme, clock ---------------------------------------------------------------------------
@@ -613,13 +646,13 @@
   }
   async function loadSort(id, resumed) {
     const s = state.sort;
-    s.plan = await api('/plans/' + id); s.done = null; s.filter = { kind: '', pair: false, video: false, q: '' };
-    if (resumed && savedUI.sort) { const f = savedUI.sort; s.filter = { kind: (s.plan.stats.kinds || {})[f.kind] ? f.kind : '', pair: !!f.pair && !!s.plan.stats.pairs, video: !f.pair && !!f.video && !!s.plan.videos, q: f.q || '' }; }
+    s.plan = await api('/plans/' + id); s.done = null; s.filter = { kind: '', pair: false, video: false, types: [], q: '' };
+    if (resumed && savedUI.sort) { const f = savedUI.sort; s.filter = { kind: (s.plan.stats.kinds || {})[f.kind] ? f.kind : '', pair: !!f.pair && !!s.plan.stats.pairs, video: !f.pair && !!f.video && !!s.plan.videos, types: (f.types || []).filter(t => (s.plan.types || {})[t]), q: f.q || '' }; }
     await fetchRows(false);
   }
   async function fetchRows(append) {
     const s = state.sort, f = s.filter;
-    const q = new URLSearchParams({ kind: f.kind, pair: f.pair ? '1' : '', video: f.video ? '1' : '', q: f.q, offset: append ? s.rows.length : 0, limit: 200 });
+    const q = new URLSearchParams({ kind: f.kind, pair: f.pair ? '1' : '', video: f.video ? '1' : '', types: f.types.join(','), q: f.q, offset: append ? s.rows.length : 0, limit: 200 });
     const page = await api(`/plans/${s.plan.id}/moves?` + q);
     s.total = page.total; s.shown = page.selected;
     s.rows = append ? s.rows.concat(page.moves) : page.moves;
@@ -865,7 +898,9 @@
     fit(true);
     const p = s.plan, panel = el('div', 'panel table-panel');
     const tools = el('div', 'toolbar'), chips = el('div', 'chips');
-    tools.append(chips, spacer(), searchBox(s.filter.q, async v => { s.filter.q = v; await reloadRows(); }));
+    const types = Object.entries(p.types || {}).sort((a, b) => b[1] - a[1]).map(([t, n]) => [t, t.toUpperCase(), n]);
+    tools.append(chips, ...(types.length > 1 ? [UI.multi({ label: 'File type', options: types, values: s.filter.types, onchange: async v => { s.filter.types = v; await reloadRows(); } }).el] : []),
+      spacer(), searchBox(s.filter.q, async v => { s.filter.q = v; await reloadRows(); }));
     const notes = [...(p.notes || []), ...(p.stats.left ? [`${p.stats.left} other files stay where they are (not photos or videos).`] : [])];
     const head = el('div', 'tr th'), headBox = el('input', 'tick'); headBox.type = 'checkbox'; headBox.title = 'Tick or untick everything shown';
     headBox.onchange = () => bulk(headBox.checked);
@@ -875,8 +910,10 @@
     panel.lastChild.append(body);
     main.append(panel);
     const bar = el('div', 'bar'), info = el('span', 'grow'), apply = el('button', 'btn primary');
-    apply.onclick = () => confirmApply(s.plan); bar.append(info, apply); main.append(bar);
-    sortUI = { chips, body, headBox, info, apply, tools };
+    const send = el('button', 'btn quiet', 'Send to a folder…'); send.type = 'button'; send.title = 'Send what is shown and ticked to a folder of your own, in place of where the sorter chose';
+    send.onclick = sendToFolder;
+    apply.onclick = () => confirmApply(s.plan); bar.append(info, send, apply); main.append(bar);
+    sortUI = { chips, body, headBox, info, apply, tools, send };
     sortIndex = new Map(); s.rows.forEach(addRow); paintSort();
   }
   function addRow(m) {
@@ -905,7 +942,7 @@
     u.chips.replaceChildren(...defs.map(d => chip(d.label, d.n, d.on, async () => { Object.assign(f, d.on ? none : d.set); await reloadRows(); }, d.hint)));
     u.headBox.checked = s.total > 0 && s.shown === s.total; u.headBox.indeterminate = s.shown > 0 && s.shown < s.total;
     u.info.innerHTML = `<b>${p.selected.toLocaleString()}</b> of ${p.moves.toLocaleString()} moves ticked <span class="muted">· ${s.total.toLocaleString()} shown, ${s.shown.toLocaleString()} of them ticked</span>`;
-    u.apply.textContent = 'Apply ' + p.selected.toLocaleString() + ' moves'; u.apply.disabled = busy() || !p.selected;
+    u.apply.textContent = 'Apply ' + p.selected.toLocaleString() + ' moves'; u.apply.disabled = busy() || !p.selected; u.send.disabled = busy() || !s.shown;
   }
   async function reloadRows() {
     const s = state.sort; await fetchRows(false);
@@ -926,9 +963,50 @@
     const s = state.sort; updating(sortUI.info, sortUI.apply); sortIndex.forEach(list => list.forEach(r => setRow(r, on)));
     try { await api('/plans/' + s.plan.id, { method: 'PATCH', body: { filter: s.filter, selected: on } }); await afterTick(); } catch (e) { fail(e); await reloadRows(); }
   }
+  // What is shown and ticked goes to a folder of your own, in place of where the sorter chose. Only the
+  // plan changes; the folder is made, and the files move, when you apply.
+  function sendToFolder() {
+    const s = state.sort, p = s.plan, n = s.shown, moves = `${n.toLocaleString()} move${n === 1 ? '' : 's'}`;
+    const FOLDER = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1Z"/></svg>';
+    let at = [];                                   // where the browser is, as folder names from the media folder down
+    const made = new Set();                        // folders added here; they are made on the disk only when the plan is applied
+    dlg.replaceChildren(el('h2', null, `Send ${moves} to a folder`));
+    const lead = el('p', 'muted', `The ${moves} shown and ticked go here, not where the sorter chose. Nothing moves until you apply.`); lead.style.margin = '0 0 14px';
+    const crumbs = el('div', 'crumbs'), list = el('div', 'flist'), err = el('div', 'note'); err.hidden = true; err.style.marginTop = '10px';
+    const add = el('div', 'fnew'), name = el('input', 'field'), addBtn = el('button', 'btn small quiet', 'Add folder');
+    name.placeholder = 'New folder name'; name.setAttribute('aria-label', 'New folder name'); name.autocomplete = 'off'; name.spellcheck = false; addBtn.type = 'button'; add.append(name, addBtn);
+    const row = el('div', 'row'); row.style.justifyContent = 'flex-end'; row.style.marginTop = '18px';
+    const cancel = el('button', 'btn quiet', 'Cancel'), back = el('button', 'btn quiet', 'Back to the sorter’s choice'), go = el('button', 'btn primary');
+    back.title = 'Undo an earlier “Send to a folder” for what is shown and ticked'; back.hidden = !(p.stats.kinds || {}).folder;
+    const say = t => { err.textContent = t || ''; err.hidden = !t; };
+    const show = async () => {
+      const here = at.join('/'); say('');
+      crumbs.replaceChildren(...['media', ...at].flatMap((part, i) => { const b = el('button', i === at.length ? 'on' : '', part); b.type = 'button'; b.onclick = () => { at = at.slice(0, i); show(); }; return i ? [el('span', 'muted', '/'), b] : [b]; }));
+      go.textContent = at.length ? `Send to ${at[at.length - 1]}` : 'Pick a folder'; go.disabled = !at.length;
+      let found = []; try { found = made.has(here) ? [] : (await api('/folders?' + qs({ path: here }))).folders; } catch (e) { say(e.message); }
+      if (here !== at.join('/')) return;           // moved on while the list was loading
+      const mine = [...made].filter(m => m.startsWith(here ? here + '/' : '') && m.split('/').length === at.length + 1).map(m => m.split('/').pop());
+      const names = [...new Set([...found, ...mine])].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+      list.replaceChildren(...names.map(f => { const b = el('button', 'frow'); b.type = 'button'; const ic = el('span'); ic.innerHTML = FOLDER; b.append(ic, el('span', 'grow', f));
+        if (!found.includes(f)) b.append(el('span', 'tag', 'new')); b.onclick = () => { at = [...at, f]; show(); }; return b; }));
+      if (!names.length) list.append(el('div', 'muted', at.length ? 'No folders inside this one.' : 'No folders yet.'));
+    };
+    const addFolder = () => {
+      const v = name.value.trim(); if (!v) return name.focus();
+      if (v.includes('/') || v.includes('\\') || v.startsWith('.')) return say('A folder name cannot contain a slash or start with a dot.');
+      at = [...at, v]; made.add(at.join('/')); name.value = ''; show();
+    };
+    const save = async folder => {
+      try { await api('/plans/' + p.id, { method: 'PATCH', body: { filter: s.filter, folder } }); dlg.close(); await refreshPlan(s); await reloadRows(); }
+      catch (e) { say(e.message); }
+    };
+    addBtn.onclick = addFolder; name.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addFolder(); } };
+    cancel.onclick = () => dlg.close(); back.onclick = () => save(''); go.onclick = () => save(at.join('/'));
+    row.append(cancel, back, go); dlg.append(lead, crumbs, list, add, err, row); dlg.showModal(); show();
+  }
   async function afterTick() {
     const s = state.sort; await refreshPlan(s); const f = s.filter;
-    const page = await api(`/plans/${s.plan.id}/moves?` + new URLSearchParams({ kind: f.kind, pair: f.pair ? '1' : '', video: f.video ? '1' : '', q: f.q, limit: 1 }));
+    const page = await api(`/plans/${s.plan.id}/moves?` + new URLSearchParams({ kind: f.kind, pair: f.pair ? '1' : '', video: f.video ? '1' : '', types: f.types.join(','), q: f.q, limit: 1 }));
     s.total = page.total; s.shown = page.selected; paintSort();
   }
 

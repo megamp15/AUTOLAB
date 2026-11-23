@@ -4,6 +4,7 @@ Who may use it is decided in front of it (Traefik and Pocket ID). As a second lo
 PHOTO_JOBS_TOKEN is set every API call must carry it in X-Autolab-Photos-Token, so reaching the
 container's port directly gets nothing.
 """
+import collections
 import hmac
 import json
 import mimetypes
@@ -39,11 +40,13 @@ def is_video_move(move):
     return previews.is_video(move['src']) and not (move.get('group') or '').startswith('pair:')
 
 
-def matching(plan, cfg, kind='', pair=False, text='', dup=None, video=False):
-    """The plan's moves that pass a filter: a kind, Live Photos only, videos only, and/or text in a path or reason."""
+def matching(plan, cfg, kind='', pair=False, text='', dup=None, video=False, types=()):
+    """The plan's moves that pass a filter: a kind, Live Photos only, videos only, some file types,
+    and/or text in a path or reason."""
     moves = (dup or (lambda p: core.duplicate_moves(cfg, p)))(plan)[0] if plan['kind'] == 'duplicates' else plan['moves']
-    text = text.lower()
+    text, types = text.lower(), {t.lower() for t in types if t}
     return [m for m in moves if (not kind or m['kind'] == kind)
+            and (not types or core.file_type(m['src']) in types)
             and (not pair or (m.get('group') or '').startswith('pair:'))
             and (not video or is_video_move(m))
             and (not text or text in m['src'].lower() or text in m['dst'].lower() or text in m['why'].lower())]
@@ -150,6 +153,8 @@ class App:
             return 200, {'same': previews.same_bytes(cfg, one('a'), one('b'))}
         if method == 'GET' and path == '/api/event':
             return 200, events.inspect(cfg, one('path'), one('month'), max(0, int(one('offset') or 0)), min(int(one('limit') or 100), 200))
+        if method == 'GET' and path == '/api/folders':
+            return 200, {'folders': core.subfolders(cfg, one('path'))}
         if method == 'GET' and path == '/api/find':
             found = metadata.find(cfg, one('q'), one('folder'), one('kind'), max(0, int(one('offset') or 0)), min(int(one('limit') or 60), metadata.MAX_FILES))
             return 200, {**found, 'folders': metadata.top_folders(cfg)}
@@ -202,6 +207,7 @@ class App:
                 out['notes'] = plan['notes']
                 out['left'] = plan['left'][:200]
                 out['videos'] = sum(1 for x in plan['moves'] if is_video_move(x))
+                out['types'] = dict(collections.Counter(t for x in plan['moves'] if x['kind'] != 'event' and (t := core.file_type(x['src']))))
             else:
                 out['notes'] = plan['notes']
             if plan['kind'] != 'immich':
@@ -211,7 +217,7 @@ class App:
         if m and method == 'GET':
             plan = j.plan(m.group(1))
             one = lambda k: query.get(k, [''])[0]
-            rows = matching(plan, cfg, one('kind'), one('pair') == '1', one('q'), self.duplicate_view, one('video') == '1')
+            rows = matching(plan, cfg, one('kind'), one('pair') == '1', one('q'), self.duplicate_view, one('video') == '1', one('types').split(','))
             off, lim = int(one('offset') or 0), min(int(one('limit') or 100), 500)
             excluded, kinds = set(plan.get('excluded', [])), set(plan.get('excluded_kinds', []))
             on = lambda x: group_key(x) not in excluded and x['kind'] not in kinds
@@ -254,10 +260,18 @@ class App:
                 (excluded.discard if body.get('selected') else excluded.add)(key)
             if 'filter' in body:   # everything that passes the filter, not only what the page has loaded
                 f = body['filter']
+                if 'folder' in body:   # what is shown and ticked goes to a folder of the user's own, or back
+                    if plan['kind'] != 'sort':
+                        return 400, {'error': 'only Inbox moves can be sent to a folder'}
+                    ticked = {x['id'] for x in core.selected_moves(plan, cfg)}
+                    shown = matching(plan, cfg, f.get('kind', ''), bool(f.get('pair')), f.get('q', ''), None, bool(f.get('video')), f.get('types') or ())
+                    changed = core.send_to_folder(cfg, plan, [x['id'] for x in shown if x['id'] in ticked], body['folder'])
+                    j.save_plan(plan)
+                    return 200, {'ok': True, 'changed': changed}
                 keys = ([f'immich:{i["id"]}' for i in matching_items(plan, f.get('status', ''), bool(f.get('live')), f.get('q', ''))]
                         if plan['kind'] == 'immich' else
                         [g['id'] for g in matching_groups(plan, f.get('q', ''), f.get('scope', ''), cfg)] if plan['kind'] == 'duplicates' else
-                        [group_key(x) for x in matching(plan, cfg, f.get('kind', ''), bool(f.get('pair')), f.get('q', ''), self.duplicate_view, bool(f.get('video')))])
+                        [group_key(x) for x in matching(plan, cfg, f.get('kind', ''), bool(f.get('pair')), f.get('q', ''), self.duplicate_view, bool(f.get('video')), f.get('types') or ())])
                 for key in keys:
                     (excluded.discard if body.get('selected') else excluded.add)(key)
             if 'kind' in body:
