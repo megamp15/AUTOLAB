@@ -36,9 +36,15 @@ has its own address and database.
    and PNGs (look at the result at 16 pixels). Before designing a
    screen, read the owner's reference list in the vault
    (`areas/homelab/ui-component-libraries.md`); add components with
-   `npx shadcn@latest add`. Done when the opening screen, sign-in and
-   Settings have been looked at in dark and light at 393 and 1280 wide, and
-   the way in has been watched, not only screenshotted.
+   `npx shadcn@latest add`. Two rules the owner has had to repeat, both in
+   the template's README: no control the browser draws by itself
+   (`<select>`, `<details>`, `type="search"`/`date`/`number`, `confirm()`,
+   `title=`), and no fixed centre column around content, so the whole
+   window is used. Check the first with
+   `grep -rnE '<select|<details|type="(search|date|number|color)"|confirm\(|alert\(| title=' apps/web/src | grep -v components/ui`,
+   which must print nothing. Done when every screen has been looked at in
+   dark and light at 393, 1280 and 2560 wide, any menu has been opened and
+   looked at, and the way in has been watched, not only screenshotted.
 4. **Sign-in providers, when anyone but the owner uses it.** The code is in
    the template; each provider is switched on by its settings. The redirect
    address is `<PUBLIC_URL>/api/auth/oidc/<google|pocketid>/callback`. The
