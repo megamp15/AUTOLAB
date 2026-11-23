@@ -1,5 +1,11 @@
   registry-ui:
     image: {{ autolab_services_images.registry_ui }}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     labels:
       dockhand.tags: docker
     restart: unless-stopped

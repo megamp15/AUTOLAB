@@ -1,5 +1,12 @@
   diun:
     image: {{ autolab_services_images.diun }}
+    # Asks the running daemon over its own API, so it fails when Diun hangs.
+    healthcheck:
+      test: ["CMD", "diun", "image", "list"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     labels:
       dockhand.tags: docker
     restart: unless-stopped

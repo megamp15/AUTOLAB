@@ -48,6 +48,14 @@
   # The background jobs: syncs, imports, scheduled work.
   sure-worker:
     image: {{ autolab_services_images.sure }}
+    # Sidekiq has no port. It names its process "N of M busy" once it has
+    # booted and connected, which is what this looks for.
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "sidekiq.*busy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     labels:
       dockhand.tags: sure
     restart: unless-stopped

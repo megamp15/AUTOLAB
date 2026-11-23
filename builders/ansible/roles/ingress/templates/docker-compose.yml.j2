@@ -8,6 +8,14 @@
 services:
   cloudflared:
     image: {{ autolab_ingress_images.cloudflared }}
+    # No shell in the image. `ready` asks the metrics port whether the tunnel has
+    # a connection to Cloudflare, so this is the tunnel itself, not the process.
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "localhost:2000", "ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     labels:
       dockhand.tags: ingress
     restart: unless-stopped
@@ -23,6 +31,14 @@ services:
 
   traefik:
     image: {{ autolab_ingress_images.traefik }}
+    # The web entry point is listening. Traefik's own check needs its ping
+    # endpoint, which would sit on an entry point the tunnel reaches.
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 80 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     labels:
       dockhand.tags: ingress
     restart: unless-stopped

@@ -4,10 +4,19 @@
   # safe to be public goes there: never an admin page.
   paradigm-tunnel:
     image: {{ autolab_services_images.paradigm_tunnel }}
+    # No shell in the image. `ready` asks the metrics port whether the tunnel has
+    # a connection to Cloudflare.
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:2000", "ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     labels:
       dockhand.tags: qr
     restart: unless-stopped
     env_file: ./paradigm-tunnel.env
     # --no-autoupdate: the image tag is the version.
-    command: tunnel --no-autoupdate run
+    # Metrics on loopback inside the container, for the healthcheck only.
+    command: tunnel --no-autoupdate --metrics 127.0.0.1:2000 run
     networks: [paradigm-public]

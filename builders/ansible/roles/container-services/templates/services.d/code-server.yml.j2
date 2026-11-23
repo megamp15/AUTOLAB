@@ -22,6 +22,12 @@
     env_file:
       - path: /etc/autolab/grafana-agent.env
         required: false
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     # Diun compares a tag against its registry, and this one is in none.
     labels:
       dockhand.tags: code-server
