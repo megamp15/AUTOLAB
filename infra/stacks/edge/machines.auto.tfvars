@@ -106,4 +106,39 @@ machines = {
       }
     }
   }
+
+  # Films and shows: Jellyfin plays them, and the download apps (Sonarr,
+  # Radarr, Prowlarr, SABnzbd, qBittorrent behind a VPN) fetch them. An
+  # aurora is the show in the sky that people look up and watch.
+  #
+  # A machine of its own, not on nebula: a download client does not belong
+  # beside the finance and recipe data. On zima-pve because the node is wired
+  # and its N150 can convert video later.
+  #
+  # A declared address on the home network: the projector and the TVs are
+  # not on the tailnet and dial Jellyfin there. 4 GB holds Jellyfin and the
+  # download apps; with nebula at 6 GB the node keeps about 4 GB for itself
+  # and the router to come. 150 GB on the HDD: downloads unpack on this disk
+  # before they move to the NAS, and one film can be 80 GB.
+  aurora = {
+    type                    = "vm"
+    provisioning_class      = "builder_target"
+    name                    = "aurora"
+    vm_id                   = 303
+    node_name               = "zima-pve"
+    template_vm_id          = 9000
+    datastore_id            = "hdd"
+    cloud_init_datastore_id = "hdd"
+    cpu_cores               = 4
+    memory_mb               = 4096
+    disk_size_gb            = 150
+    ipv4_address            = "192.168.50.54/24"
+    ipv4_gateway            = "192.168.50.1"
+    builder = {
+      docker_enabled = true
+      observability = {
+        ship_to = "jwst"
+      }
+    }
+  }
 }

@@ -47,6 +47,7 @@ inventory.
 | Cluster control plane | navigation stars — they guide | `polaris`, `vega`, `sirius`, `canopus` |
 | Cluster workers | energetic emitters — they do the work | `pulsar-NN`, `quasar-NN` — numbered, being interchangeable |
 | Ingress / gateway | boundaries and waypoints | `horizon`, `lagrange` |
+| Media | lights in the sky — what people look up and watch | `aurora` |
 
 Pick legibility over cleverness. The name has to mean something at 2am during an
 incident, which is the only time anyone reads it carefully.
@@ -59,6 +60,7 @@ incident, which is the only time anyone reads it carefully.
 | `jwst` | observability | the James Webb telescope sees infrared, so it sees *through* the dust that blocks optical instruments |
 | `sputnik` | disposable probe | the first satellite: simple, proved the concept, then burned up |
 | `ark` | backup server | it carries everything through the flood; what is on it is what survives |
+| `aurora` | films and shows | the show in the sky that people look up and watch |
 | `pioneer` | (retired) | a throwaway static VM that proved the resolver fix in #78, then was destroyed |
 
 ## Renaming costs a rebuild
