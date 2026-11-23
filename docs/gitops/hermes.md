@@ -179,6 +179,7 @@ it reaches, and how, in order of trust:
 | the vault | checkout at `/workspace/vault`, read and write | fine-grained PAT, one repo |
 | the owner's finances | Sure's API from the `finance-sure` skill; GETs only | `HERMES_SURE_API_KEY`, a **read-only** key |
 | the lab itself | the public AUTOLAB repository at `/workspace/autolab`, read-only mount, refreshed every run; the `autolab` skill | none |
+| COSMOS notes | the `cosmos` MCP server at `http://cosmos-api:3000/mcp?agent=hermes`, on the internal `cosmos-agents` network: list, search, read, write, move, rename, trash. Notes it writes are signed `hermes` and start unverified | `COSMOS_MCP_TOKEN` in `data/.env`, scopes `system:read notes:read notes:write` |
 | Grafana, Prometheus, Loki | mcp-grafana, when wired into `mcp_servers` | the Viewer service account |
 
 The two lab skills are installed under `data/skills/autolab-lab/` from
@@ -230,10 +231,35 @@ session are created on the host and never pass through GitHub.
    GitHub within a minute. If it does not, read the gateway log:
    `docker logs services-hermes-1`.
 
+## COSMOS tools
+
+The COSMOS API serves its MCP tools over HTTP at `/mcp`, behind the MCP
+token (COSMOS `docs/notes.md`). Hermes and `cosmos-api` share one internal
+network, `cosmos-agents`, and nothing else; the endpoint is not on Traefik,
+whose Pocket ID login an agent cannot pass. Ansible writes the token into
+`data/.env` as `COSMOS_MCP_TOKEN`, and `config.yaml` names it:
+
+```yaml
+mcp_servers:
+  cosmos:
+    url: "http://cosmos-api:3000/mcp?agent=hermes"
+    headers:
+      Authorization: "Bearer ${COSMOS_MCP_TOKEN}"
+```
+
+A fresh seed has that block. An install seeded before 2026-11-23 needs it
+added once by hand, since Ansible does not touch `config.yaml` after the seed:
+append the block to `/opt/autolab/services/hermes/data/config.yaml`, restart
+the container, then check it:
+
+```sh
+ssh megamp15@jwst
+sudo docker exec -u hermes services-hermes-1 hermes mcp test cosmos
+```
+
 ## Later
 
-- COSMOS's MCP server and Karakeep's, under `mcp_servers:` in `config.yaml`,
-  once a remote (HTTP) MCP endpoint exists for COSMOS.
+- Karakeep's MCP server, under `mcp_servers:` in `config.yaml`.
 - Back up `data` (the SQLite history and memories) to the NAS with the other
   dumps.
 - A dedicated number, if the self-chat session proves flaky or the ban risk

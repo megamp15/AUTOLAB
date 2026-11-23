@@ -73,6 +73,12 @@ networks:
   cosmos-edge:
   # Only cosmos-vault-sync is on this one: its route to GitHub.
   cosmos-sync:
+{% if 'hermes' in autolab_services_enabled %}
+  # Hermes reaches the COSMOS API's /mcp here, and nothing else of COSMOS.
+  # Internal: no route out through it.
+  cosmos-agents:
+    internal: true
+{% endif %}
 {% endif %}
 {% if 'novaflix' in autolab_services_enabled %}
   # The database is on the internal network alone: no route to the LAN or the

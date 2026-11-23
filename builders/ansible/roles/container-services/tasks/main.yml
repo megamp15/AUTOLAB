@@ -943,6 +943,20 @@
   notify: Restart the services stack
   when: "'hermes' in autolab_services_enabled"
 
+# The COSMOS tools over HTTP. Hermes's config names the token as
+# ${COSMOS_MCP_TOKEN}; the value lives here, beside its other keys.
+- name: Give Hermes the COSMOS MCP token
+  ansible.builtin.lineinfile:
+    path: "{{ autolab_services_root }}/hermes/data/.env"
+    owner: megamp15
+    group: megamp15
+    mode: "0600"
+    regexp: "^COSMOS_MCP_TOKEN="
+    line: "COSMOS_MCP_TOKEN={{ autolab_cosmos_mcp_token }}"
+  no_log: true
+  notify: Restart the services stack
+  when: "'hermes' in autolab_services_enabled and 'cosmos' in autolab_services_enabled and not ansible_check_mode"
+
 # The public AUTOLAB repository, refreshed every run: the agent reads it
 # through a read-only mount and never commits there.
 - name: Refresh the AUTOLAB checkout for Hermes
