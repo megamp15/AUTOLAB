@@ -50,6 +50,10 @@
       cosmos-backend:
         # The gateway's nginx config proxies to the name `api`.
         aliases: [api]
+{% if 'hermes' in autolab_services_enabled %}
+      # Hermes's way in: the /mcp endpoint, behind the MCP token.
+      cosmos-agents:
+{% endif %}
 
   # The one COSMOS container that reaches the internet, and the only one holding
   # COSMOS_VAULT_TOKEN. It pulls and pushes the vault when cosmos-api asks

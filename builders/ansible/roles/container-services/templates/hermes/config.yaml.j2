@@ -57,3 +57,12 @@ auxiliary:
 dashboard:
   public_url: "{{ autolab_services_hermes_public_url }}"
   trusted_proxies: {{ autolab_services_hermes_trusted_proxies | to_json }}
+{% if 'cosmos' in autolab_services_enabled %}
+# The COSMOS tools: notes (list, read, write, move, trash), on the internal
+# cosmos-agents network. ?agent=hermes signs the notes it writes.
+mcp_servers:
+  cosmos:
+    url: "http://cosmos-api:3000/mcp?agent=hermes"
+    headers:
+      Authorization: "Bearer ${COSMOS_MCP_TOKEN}"
+{% endif %}
