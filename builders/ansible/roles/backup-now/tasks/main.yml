@@ -26,10 +26,24 @@
           | map(attribute='vmid') | list | first) | default('') }}
   when: autolab_backup_now_vm != 'all'
 
-- name: Refuse an unknown guest
+# The nodes are not a cluster, so each lists only its own guests and a named
+# guest is on one of them. The run fails when no node has it, and the nodes
+# that do not have it stop here without failing.
+- name: Refuse a guest that no node holds
   ansible.builtin.assert:
-    that: autolab_backup_now_vm == 'all' or autolab_backup_now_vmid | string | length > 0
-    fail_msg: "No guest named {{ autolab_backup_now_vm }} on this node."
+    that: >-
+      autolab_backup_now_vm == 'all'
+      or (ansible_play_hosts_all | map('extract', hostvars)
+          | map(attribute='autolab_backup_now_vmid', default='')
+          | map('string') | select | list | length > 0)
+    fail_msg: "No guest named {{ autolab_backup_now_vm }} on any node."
+  run_once: true
+
+- name: Stop on a node that does not hold the guest
+  ansible.builtin.meta: end_host
+  when:
+    - autolab_backup_now_vm != 'all'
+    - autolab_backup_now_vmid | string | length == 0
 
 # vzdump runs guests in turn and keeps going past a failure; the task log
 # is the record and its per-guest lines are quoted below.
