@@ -40,11 +40,16 @@ band. The tag names what the container is part of:
 | `home` | the home page, its API, dash |
 | `observability` | Prometheus, Loki, Tempo, Grafana, exporters, cAdvisor, Alloy |
 | `docker` | Dockhand and its proxy, Hawser, the registry and its UI, Diun |
+| `ingress` | Traefik, Pocket ID, the lab's tunnel connector |
+| `dns` | Pi-hole |
+| `immich` | Immich's four containers, the photo jobs, the public share proxy |
 
 The label is in each service's compose template. A tag added by hand in
 Dockhand stays in Dockhand's own database and is not in the repository.
-Containers the repository does not deploy (Immich on the NAS) show as
-Untagged until tagged there.
+A label reaches a container when it is recreated. Workflow 12's `adopt`
+writes Immich's compose file and never recreates, so Immich's own containers
+take their tag at the next `docker compose up -d` in its directory, an
+upgrade for instance.
 
 ## Registry
 

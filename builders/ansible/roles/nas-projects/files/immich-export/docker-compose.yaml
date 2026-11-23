@@ -2,6 +2,8 @@ name: immich-export
 services:
   export:
     image: alpine:3.24
+    labels:
+      dockhand.tags: immich
     volumes:
       - /volume1/docker/Immich-Upload:/src:ro
       - /home/Mahir/media/old_immich_upload_extracted:/dst

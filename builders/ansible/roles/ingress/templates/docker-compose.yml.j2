@@ -8,6 +8,8 @@
 services:
   cloudflared:
     image: {{ autolab_ingress_images.cloudflared }}
+    labels:
+      dockhand.tags: ingress
     restart: unless-stopped
     env_file: cloudflared.env
     # --no-autoupdate: the image tag is the version. Metrics on the compose
@@ -21,6 +23,8 @@ services:
 
   traefik:
     image: {{ autolab_ingress_images.traefik }}
+    labels:
+      dockhand.tags: ingress
     restart: unless-stopped
     env_file: traefik.env
     volumes:
@@ -51,6 +55,8 @@ services:
 
   pocket-id:
     image: {{ autolab_ingress_images.pocket_id }}
+    labels:
+      dockhand.tags: ingress
     restart: unless-stopped
     env_file: pocket-id.env
     volumes:

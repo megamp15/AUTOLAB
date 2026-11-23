@@ -4,6 +4,8 @@ name: pihole
 services:
   pihole:
     image: {{ autolab_pihole_image }}
+    labels:
+      dockhand.tags: dns
     container_name: pihole
     # Host networking, not published ports: through Docker's port mapping every
     # query would arrive from the bridge gateway and Pi-hole could not tell one
