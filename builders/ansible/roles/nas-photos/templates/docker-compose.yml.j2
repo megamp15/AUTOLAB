@@ -5,6 +5,8 @@ services:
   photo-jobs:
     build: .
     image: autolab/photo-jobs:local
+    labels:
+      dockhand.tags: immich
     restart: unless-stopped
     init: true
     mem_limit: {{ autolab_photos_memory }}
