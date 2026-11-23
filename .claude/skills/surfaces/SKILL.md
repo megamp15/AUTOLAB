@@ -37,8 +37,11 @@ this is how.
 
 ## After the deploy
 
-home updates by itself when the merge touches the observability role. dash
-ships with the `05` `services` run on jwst. Open the name, then home, then
+home updates by itself when the merge touches the observability role, and
+only then. A card switched on by a host's `services` list (an app enabled in
+a later pull request than the one that added its card) appears after `05`
+`observability` is run by hand: Novaflix ran for a day without its card this
+way. dash ships with the `05` `services` run on jwst. Open the name, then home, then
 dash. Done when the card and the tile are there, the check is green and the
 link opens the app. Between the merge and the services run, home can show a
 card for a container that is not up yet: say so in the pull request.

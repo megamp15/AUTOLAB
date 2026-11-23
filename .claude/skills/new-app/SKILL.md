@@ -30,7 +30,10 @@ has its own address and database.
    in `theme.tsx`; the centrepiece in `centrepiece.tsx`, drawn from the
    brief in the comment at its top, and `loader.tsx` to match it; the three
    words passed to `Intro` in
-   `main.tsx`; `backdrop.tsx` when stars do not suit. Before designing a
+   `main.tsx`; `backdrop.tsx` when stars do not suit; the tab's icon,
+   `public/favicon.svg`, drawn from the brief inside it, then
+   `scripts/app-icons.py <that file>` from this repository for the `.ico`
+   and PNGs (look at the result at 16 pixels). Before designing a
    screen, read the owner's reference list in the vault
    (`areas/homelab/ui-component-libraries.md`); add components with
    `npx shadcn@latest add`. Done when the opening screen, sign-in and
@@ -71,12 +74,17 @@ has its own address and database.
 8. **Release and enable.** `pull-request` for steps 5 to 7. Then
    `run-workflow`: **Release app** with the app and a commit on its `main`.
    Then a second pull request adding the app to its host's `services` list,
-   and `05` with `services`, then `ingress`; `10` for a public name.
+   and `05` with `services`, then `ingress`; `10` for a public name; then
+   `05` with `observability`. That last run is what puts the card on home:
+   the card is switched on by the host's `services` list, and a change to
+   that list alone does not start the run that redraws the page.
 9. `surfaces`: the home card, the dash tile and the docs agree with what
    runs.
 
 ## Proof
 
+- The card is on `home.lab.<zone>` with a green check and the tile is on
+  `dash.lab.<zone>`; the browser tab shows the app's icon, not a globe.
 - The app's address answers its sign-in or starter page from outside the
   host; `/api/status` reports `database: connected`.
 - For a public app: the public name answers 404 for `/api/admin/`, and the
@@ -91,6 +99,7 @@ has its own address and database.
 | a provider button is missing on the sign-in page | its client id or secret is not in the server's environment | set both, and `PUBLIC_URL` |
 | `05` `ingress` apply fails at "Reconcile declared Pocket ID clients" with `HTTP 404`, Ansible itself green | Traefik had just restarted for the new route and the login service was briefly unreachable | re-run the failed job |
 | **Release app** fails in publish at "Push and verify each image" with `invalid content range`, about a minute into the step | a layer took longer to upload than Traefik's read timeout on the tailnet door | raise `autolab_ingress_tailnet_read_timeout` in the ingress role, then `05` `ingress`; a re-run alone rebuilds the layers and hits the same limit |
+| the app runs but has no card on home | the observability run has not happened since the app joined the host's `services` list | `05` `observability`, check then apply |
 | Google's screen names another app | the OAuth client is in a Google project whose consent screen has that name | rename it under Google Auth Platform, Branding, or make the client in a project of the app's own |
 | the Pocket ID button is missing after a deploy | the services run had no `POCKETID_API_KEY` (only `edge` and `lab` services runs get it), or the app has no line in the managed policy | add the line, or the environment in `05`'s condition |
 | the app's CI has no `release` job run | `RELEASE_APP_CLIENT_ID` is not set on its repository | `own-apps.md`, "An app that releases itself" |

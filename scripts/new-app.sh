@@ -42,6 +42,8 @@ mv nvmrc .nvmrc
 mv env.example .env.example
 
 while IFS= read -r -d '' file; do
+  # Icons and other binary files carry no names to fill in, and sed would break them.
+  grep -Iq . "$file" || continue
   sed -e "s/__App__/${title}/g" -e "s/__app__/${name}/g" \
     -e "s/__SERVER_PORT__/${base}/g" -e "s/__WEB_PORT__/$((base + 1))/g" \
     -e "s/__STACK_PORT__/$((base + 2))/g" -e "s/__DB_PORT__/$((base + 3))/g" \
