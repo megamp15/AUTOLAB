@@ -79,7 +79,8 @@ tag.
 3. A pull request adding `"novaflix"` and `"novaflix-admin"` to jwst's
    `services` in `infra/stacks/lab/machines.auto.tfvars`.
 4. `03` plan and `04` apply for the `lab` Stack; `05` `services` with
-   `limit=jwst`; `05` `ingress`; `10` plan and apply for the public name.
+   `limit=jwst`; `05` `ingress`; `10` plan and apply for the public name;
+   `05` `observability`, which puts the card on home.
 5. Nothing by hand for the first admin: on an empty database the server
    makes an admin account for `APPS_ADMIN_EMAIL` (the email of your Pocket ID
    user), without a password. Sign in at the admin name with Pocket ID, or

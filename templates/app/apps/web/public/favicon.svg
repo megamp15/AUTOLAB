@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!--
+    A placeholder: replace it with this app's own mark. The brief:
+      - the one image from the opening screen's centrepiece, cut down until it reads at 16 pixels:
+        two or three shapes, strokes of 4 or more on this 64 grid, no text
+      - the dark background and the app's accent colour from tailwind.css (--primary, dark theme)
+      - then run AUTOLAB's scripts/app-icons.py on this file for the .ico and the PNGs beside it
+  -->
+  <rect width="64" height="64" rx="14" fill="#09090b"/>
+  <circle cx="32" cy="32" r="18" fill="none" stroke="#22d3ee" stroke-width="4"/>
+  <circle cx="32" cy="32" r="6" fill="#22d3ee"/>
+</svg>
