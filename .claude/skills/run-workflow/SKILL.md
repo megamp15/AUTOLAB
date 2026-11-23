@@ -27,7 +27,7 @@ deploy. Check first, read it, then apply.
 | Docker on a machine (`docker_enabled`) | `04`, then `05` `docker`, then `05` `docker-management` |
 
 `environment` is the Stack the machine is in: `lab` (xps-pve: jwst, ark,
-horizon, sputnik), `edge` (zima-pve: nebula, magnetosphere), `qnta` (the
+horizon, sputnik), `edge` (zima-pve: nebula, magnetosphere, aurora), `qnta` (the
 tenant). `05` cannot see a machines-map change until `04` has applied it.
 
 ## The inputs
