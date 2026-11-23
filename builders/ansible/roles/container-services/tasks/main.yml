@@ -330,6 +330,16 @@
     - autolab_services_pocketid_api_key | length > 0
     - not ansible_check_mode
 
+# A machine whose services need no Pocket ID client (aurora) never gets the
+# state file: the script writes it with the first client.
+- name: See whether this machine has managed Pocket ID clients
+  ansible.builtin.stat:
+    path: /etc/autolab/managed-pocketid-clients.json
+  register: autolab_managed_pocketid_file
+  when:
+    - autolab_services_pocketid_api_key | length > 0
+    - not ansible_check_mode
+
 - name: Read protected managed Pocket ID credentials
   ansible.builtin.slurp:
     src: /etc/autolab/managed-pocketid-clients.json
@@ -338,6 +348,7 @@
   when:
     - autolab_services_pocketid_api_key | length > 0
     - not ansible_check_mode
+    - autolab_managed_pocketid_file.stat.exists
 
 - name: Use managed Pocket ID client credentials
   ansible.builtin.set_fact:
