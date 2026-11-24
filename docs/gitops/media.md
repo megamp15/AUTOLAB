@@ -158,6 +158,21 @@ From a phone on mobile data: `https://jellyfin.<zone>` opens and a friend's
 account signs in; the admin account is refused. With a VPN exit outside the US,
 the page does not open.
 
+## Video encoding: Quick Sync
+
+A stream Jellyfin cannot send as it is (a format the app cannot play, or over
+the 10 Mbps outside cap) is converted on the fly. On aurora's four N150 cores
+that is about one 1080p stream. So aurora is handed zima-pve's Intel graphics
+whole (`pci_mappings = ["zima-igpu"]`, a cluster PCI mapping in the edge
+stack), the services run installs Intel's graphics firmware and passes
+`/dev/dri/renderD128` into Jellyfin, and Jellyfin encodes with Quick Sync:
+low-power H.264 and HEVC encoders (the only kind the N150 has), hardware
+decoding of everything up to AV1, HDR tone-mapped to SDR on the chip.
+
+Check it while something converts: Dashboard, Playback shows the stream as
+transcoding, and `intel_gpu_top` on aurora shows the video engine busy. The
+node itself runs headless and gives the device up while aurora runs.
+
 ## Where things are
 
 | thing | where | why |

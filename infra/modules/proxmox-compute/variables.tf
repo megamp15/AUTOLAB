@@ -182,3 +182,9 @@ variable "os_type" {
   type        = string
   default     = "debian"
 }
+
+variable "pci_mappings" {
+  description = "Cluster PCI mapping names whose devices pass through to the VM, in order (hostpci0, hostpci1, ...)."
+  type        = list(string)
+  default     = []
+}

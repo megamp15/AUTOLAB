@@ -39,6 +39,10 @@ variable "machines" {
     # next one starts. Unset machines start after every ordered one, in
     # whatever order Proxmox picks. See docs: a node reboot brings guests
     # back by this.
+    # Host PCI devices handed to the VM whole, by the name of a cluster PCI
+    # mapping (a stack's hardware_mapping_pci). A token cannot pass a raw PCI
+    # address; a mapping it can. The node loses the device while the VM runs.
+    pci_mappings = optional(list(string), [])
     startup = optional(object({
       order      = number
       up_delay   = optional(number, 0)
