@@ -55,6 +55,8 @@ autolab_services_jellyfin_libraries:
   - {name: C-Movies, type: movies, folder: cmovies}
   - {name: J-Dramas, type: tvshows, folder: jdrama}
   - {name: J-Movies, type: movies, folder: jmovies}
+  - {name: Desi Shows, type: tvshows, folder: desi}
+  - {name: Desi Movies, type: movies, folder: desi-movies}
   - {name: Music, type: music, folder: music}
 # An API key made in Jellyfin (Dashboard, API Keys). Empty: libraries are left alone.
 autolab_services_jellyfin_api_key: ""

@@ -98,6 +98,9 @@ Its settings are made in its own setup page, not in code:
 3. Add Radarr (`http://radarr:7878`) and Sonarr (`http://sonarr:8989`) with
    their API keys, the default quality profile and root folder, and mark each
    the default server.
+   The default root folders are `/data/media/movies` and `/data/media/tv`:
+   Seerr files every request there, and Novaflix moves each new one to the
+   library its language says (Desi, K-dramas, anime) within five minutes.
 4. Users, Import Jellyfin Users: each person signs in with their own account.
    Give them Request and Auto-Approve, or leave approval to an admin.
 
@@ -199,8 +202,8 @@ library holds its folder yet. It never renames, changes or deletes a library,
 so one made or edited in the UI stays as it is. Removing a line from the list
 leaves the library in place.
 
-Libraries are split by language (Anime, K-Dramas, C-Dramas, J-Dramas, and a
-movie library for each) so each gets its own row on the home screen and its
+Libraries are split by language (Anime, K-Dramas, C-Dramas, J-Dramas, Desi
+Shows for Indian and Pakistani titles, and a movie library for each) so each gets its own row on the home screen and its
 own folder for the download apps to file into.
 
 ## Not yet seen
