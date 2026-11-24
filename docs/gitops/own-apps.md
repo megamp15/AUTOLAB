@@ -24,7 +24,7 @@ blank page:
 |---|---|
 | server | Fastify and PostgreSQL, tests that run against a real Postgres |
 | accounts | no sign-up; an admin adds each person; email and password, plus Google and Pocket ID for emails already on the list |
-| web | React with Tailwind CSS and shadcn/ui, one theme file, dark and light |
+| web | React with Tailwind CSS and shadcn/ui, one theme file, dark and light; the `ui-sdk` skill for controls shadcn does not ship |
 | shell | an opening screen, a sign-in panel that switches on, a header with the theme switch, Settings with a grouped menu and User access |
 | per app | the colours, the wordmark, the opening screen's centrepiece and its three words, the loader, the tab's icon (`public/favicon.svg`, and `scripts/app-icons.py` for the `.ico` and PNGs) |
 
