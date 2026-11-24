@@ -1,0 +1,9 @@
+# Managed by Ansible — roles/container-services. Local edits are overwritten.
+# A refused Jellyfin sign-in in Traefik's access log (common log format):
+#   203.0.113.9 - - [24/Nov/2026:20:01:02 +0000] "POST /Users/AuthenticateByName HTTP/2.0" 401 ...
+# and a refused Seerr sign-in, which checks the same Jellyfin password:
+#   203.0.113.9 - - [24/Nov/2026:20:01:02 +0000] "POST /api/v1/auth/jellyfin HTTP/2.0" 403 ...
+[Definition]
+failregex = ^<HOST> \S+ \S+ \[[^\]]+\] "POST /Users/AuthenticateByName[^"]*" 401 
+            ^<HOST> \S+ \S+ \[[^\]]+\] "POST /api/v1/auth/jellyfin[^"]*" 40[13] 
+ignoreregex =

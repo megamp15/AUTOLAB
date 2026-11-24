@@ -137,7 +137,7 @@ machines = {
     builder = {
       docker_enabled = true
       # Named in autolab_remote_services.aurora too; a test keeps them equal.
-      services = ["jellyfin", "sonarr", "radarr", "prowlarr", "bazarr", "sabnzbd", "qbittorrent", "lidarr", "recyclarr", "seerr"]
+      services = ["jellyfin", "sonarr", "radarr", "prowlarr", "bazarr", "sabnzbd", "qbittorrent", "lidarr", "recyclarr", "seerr", "jellyfin-public"]
       # Jellyfin and Seerr for the home network: the projector and the TVs
       # are not on the tailnet. 7359 is how a Jellyfin app at home finds the
       # server.
@@ -145,6 +145,9 @@ machines = {
         { port = 8096, protocol = "tcp", source = "192.168.50.0/24" },
         { port = 7359, protocol = "udp", source = "192.168.50.0/24" },
         { port = 5055, protocol = "tcp", source = "192.168.50.0/24" },
+        # Jellyfin for friends: the home router forwards 443 here, and only
+        # addresses in the United States get through (docker-host).
+        { port = 443, protocol = "tcp", source = "any", countries = ["US"] },
       ]
       # A share of its own, named for the machine: only this host's export
       # rule opens it. The films, the shows and the downloads live under

@@ -53,9 +53,68 @@
 # that arrive on the host's own uplink are dropped; replies to what the
 # containers started, the tailnet, and traffic between containers pass. A
 # port the machines map opens (firewall_rules) passes from its declared
-# source: aurora publishes Jellyfin to the home network this way. The match is
+# source: aurora publishes Jellyfin to the home network this way. A rule with
+# `countries` passes only from those countries' address sets (made above). The match is
 # on the port the client dialled, which Docker's DNAT has already rewritten by
 # the time FORWARD sees the packet, so conntrack's original port is used.
+# Country sets before the rules that name them: UFW refuses a file that
+# matches a set which does not exist, and would then load nothing at all.
+- name: Install ipset for the country limits
+  ansible.builtin.apt:
+    name: [ipset, curl]
+    state: present
+  when:
+    - autolab_docker_enabled | bool
+    - autolab_docker_countries | length > 0
+
+- name: Install the country set script
+  ansible.builtin.copy:
+    src: autolab-geoip
+    dest: /usr/local/sbin/autolab-geoip
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - autolab_docker_enabled | bool
+    - autolab_docker_countries | length > 0
+
+- name: Install the country set units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [autolab-geoip-boot.service, autolab-geoip-refresh.service, autolab-geoip-refresh.timer]
+  register: autolab_docker_geoip_units
+  when:
+    - autolab_docker_enabled | bool
+    - autolab_docker_countries | length > 0
+
+- name: Make the country sets at boot, and fetch them weekly
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    daemon_reload: "{{ autolab_docker_geoip_units is changed }}"
+  loop: [autolab-geoip-boot.service, autolab-geoip-refresh.timer]
+  when:
+    - autolab_docker_enabled | bool
+    - autolab_docker_countries | length > 0
+    - not ansible_check_mode
+
+# Fetched now, so the port is open to those countries from this run on rather
+# than from the first weekly fetch. A failed fetch fails the run: the sets
+# would be empty, and the port closed to everyone.
+- name: Fetch the country sets
+  ansible.builtin.command:
+    argv: "{{ ['/usr/local/sbin/autolab-geoip', 'refresh'] + autolab_docker_countries }}"
+  register: autolab_docker_geoip_fetch
+  changed_when: false
+  when:
+    - autolab_docker_enabled | bool
+    - autolab_docker_countries | length > 0
+    - not ansible_check_mode
+
 - name: Look for UFW's rules file
   ansible.builtin.stat:
     path: /etc/ufw/after.rules
@@ -73,7 +132,12 @@
       {% for rule in autolab_docker_open_ports %}
       {% set src = rule.source | default('any', true) %}
       {% set from = (' -s ' ~ src) if src != 'any' else '' %}
-      -A DOCKER-USER -i {{ autolab_docker_uplink }} -p {{ rule.protocol }}{{ from }} -m conntrack --ctstate NEW --ctorigdstport {{ rule.port }} -j RETURN
+      {% set new = ' -m conntrack --ctstate NEW --ctorigdstport ' ~ rule.port ~ ' -j RETURN' %}
+      {% for cc in (rule.countries | default([], true) | map('lower')) %}
+      -A DOCKER-USER -i {{ autolab_docker_uplink }} -p {{ rule.protocol }}{{ from }} -m set --match-set autolab-geo-{{ cc }} src{{ new }}
+      {% else %}
+      -A DOCKER-USER -i {{ autolab_docker_uplink }} -p {{ rule.protocol }}{{ from }}{{ new }}
+      {% endfor %}
       {% endfor %}
       -A DOCKER-USER -i {{ autolab_docker_uplink }} -m conntrack --ctstate NEW -j DROP
       -A DOCKER-USER -j RETURN

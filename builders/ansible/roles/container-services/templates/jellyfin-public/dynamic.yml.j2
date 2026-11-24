@@ -1,0 +1,60 @@
+# Managed by Ansible — roles/container-services. The public Jellyfin door's
+# routes: Jellyfin's name, and Seerr's when it runs here. Any other name, or none (a scanner dialling
+# the address), gets no certificate and no route.
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
+      sniStrict: true
+
+http:
+  routers:
+    jellyfin:
+      # The first-run wizard is never reachable from outside, even if Jellyfin
+      # were ever reset.
+      rule: "Host(`{{ autolab_services_jellyfin_public_host }}`) && !PathPrefix(`/Startup`)"
+      entryPoints: [websecure]
+      service: jellyfin
+      middlewares: [jellyfin-headers, jellyfin-rate]
+      tls:
+        certResolver: letsencrypt
+{% if 'seerr' in autolab_services_enabled %}
+    seerr:
+      # Seerr's own accounts and its setup are never reachable from outside:
+      # friends sign in with Jellyfin, and the owner from home or the tailnet.
+      rule: "Host(`{{ autolab_services_seerr_public_host }}`) && !PathPrefix(`/api/v1/auth/local`) && !PathPrefix(`/setup`)"
+      entryPoints: [websecure]
+      service: seerr
+      middlewares: [jellyfin-headers, jellyfin-rate]
+      tls:
+        certResolver: letsencrypt
+{% endif %}
+
+  middlewares:
+    jellyfin-headers:
+      headers:
+        stsSeconds: 31536000
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: same-origin
+        customResponseHeaders:
+          X-Robots-Tag: "noindex, nofollow"
+          Server: ""
+    # Per address. A library page asks for many images at once, so the burst
+    # is generous; a password-guessing loop is fail2ban's job.
+    jellyfin-rate:
+      rateLimit:
+        average: 100
+        burst: 300
+
+  services:
+    jellyfin:
+      loadBalancer:
+        servers:
+          - url: "http://jellyfin:8096"
+{% if 'seerr' in autolab_services_enabled %}
+    seerr:
+      loadBalancer:
+        servers:
+          - url: "http://seerr:5055"
+{% endif %}

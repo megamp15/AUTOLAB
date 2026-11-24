@@ -411,6 +411,10 @@ jobs:
           AUTOLAB_ADVENTURELOG_IMMICH_API_KEY: ${{ secrets.ADVENTURELOG_IMMICH_API_KEY }}
           # Jellyfin on aurora: lets the services run create its libraries.
           AUTOLAB_JELLYFIN_API_KEY: ${{ inputs.playbook == 'services' && secrets.JELLYFIN_API_KEY || '' }}
+          # Jellyfin's public door on aurora: the DNS-only token writes its
+          # record (dynamic DNS) and its certificate's challenge.
+          AUTOLAB_SERVICES_ACME_DNS_TOKEN: ${{ inputs.playbook == 'services' && secrets.INGRESS_ACME_DNS_TOKEN || '' }}
+          AUTOLAB_SERVICES_ACME_EMAIL: ${{ vars.INGRESS_ACME_EMAIL }}
           # Gluetun on aurora: the WireGuard tunnel qBittorrent goes out through.
           AUTOLAB_MULLVAD_PRIVATE_KEY: ${{ inputs.playbook == 'services' && secrets.MULLVAD_WIREGUARD_PRIVATE_KEY || '' }}
           AUTOLAB_MULLVAD_ADDRESSES: ${{ inputs.playbook == 'services' && secrets.MULLVAD_WIREGUARD_ADDRESSES || '' }}
@@ -496,6 +500,8 @@ jobs:
               "autolab_services_admin_email": os.environ.get("AUTOLAB_APPS_ADMIN_EMAIL", ""),
               "autolab_services_pocketid_api_key": os.environ.get("AUTOLAB_SERVICES_POCKETID_API_KEY", ""),
               "autolab_services_jellyfin_api_key": os.environ.get("AUTOLAB_JELLYFIN_API_KEY", ""),
+              "autolab_services_acme_dns_token": os.environ.get("AUTOLAB_SERVICES_ACME_DNS_TOKEN", ""),
+              "autolab_services_acme_email": os.environ.get("AUTOLAB_SERVICES_ACME_EMAIL", ""),
               "autolab_services_mullvad_private_key": os.environ.get("AUTOLAB_MULLVAD_PRIVATE_KEY", ""),
               "autolab_services_mullvad_addresses": os.environ.get("AUTOLAB_MULLVAD_ADDRESSES", ""),
               "autolab_services_novaflix_sonarr_api_key": os.environ.get("AUTOLAB_SONARR_API_KEY", ""),

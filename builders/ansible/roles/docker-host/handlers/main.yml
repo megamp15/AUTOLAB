@@ -14,3 +14,13 @@
 - name: Reload UFW
   ansible.builtin.command: ufw reload
   changed_when: true
+  notify: Restart fail2ban after UFW
+
+# The reload empties DOCKER-USER, and with it the jump to any fail2ban chain a
+# jail had put there (aurora's public Jellyfin jail bans in DOCKER-USER). A
+# restart puts the bans back. try-restart: nothing where fail2ban is absent.
+# The systemd module has no try-restart, and restarted fails on a host without
+# fail2ban.
+- name: Restart fail2ban after UFW
+  ansible.builtin.command: systemctl try-restart fail2ban  # noqa: command-instead-of-module
+  changed_when: true

@@ -1,0 +1,15 @@
+# Managed by Ansible — roles/docker-host. Local edits are overwritten.
+# The country sets must exist before UFW loads after.rules, which names them.
+[Unit]
+Description=AUTOLAB country address sets, from the last saved lists
+DefaultDependencies=no
+After=local-fs.target
+Before=ufw.service network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/autolab-geoip boot {{ autolab_docker_countries | join(' ') }}
+
+[Install]
+WantedBy=multi-user.target

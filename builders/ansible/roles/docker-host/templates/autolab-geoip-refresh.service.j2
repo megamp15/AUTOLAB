@@ -1,0 +1,9 @@
+# Managed by Ansible — roles/docker-host. Local edits are overwritten.
+[Unit]
+Description=AUTOLAB country address sets, fetched again
+Wants=network-online.target
+After=network-online.target autolab-geoip-boot.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/autolab-geoip refresh {{ autolab_docker_countries | join(' ') }}

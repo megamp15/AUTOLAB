@@ -57,7 +57,7 @@ to the share once.
 |---|---|---|
 | a device at home (the projector, a TV) | `http://<aurora's home address>:8096` | Jellyfin's sign-in |
 | a device on the tailnet | `https://jellyfin.lab.<zone>` | Jellyfin's sign-in |
-| the internet | nothing | no public name |
+| the internet (friends) | `https://jellyfin.<zone>` | Jellyfin's sign-in, behind the public door below |
 
 The home address exists because the projector and the TVs are not on the
 tailnet. Docker publishes 8096 and UDP 7359 on the machine's home address,
@@ -110,6 +110,53 @@ Its settings are made in its own setup page, not in code:
 |---|---|
 | Google TV (the Valerion projector, the Sony) | Moonfin from the Play Store: plays from Jellyfin and has Seerr's browse and request inside, through the Moonfin plugin on Jellyfin |
 | LG (webOS) | the Jellyfin app from LG's store to watch; Seerr in a phone's browser to request. Moonfin for webOS has to be sideloaded in developer mode |
+## Friends, from the internet
+
+`jellyfin.<zone>` reaches Jellyfin, and `seerr.<zone>` Seerr, from the internet
+through the home router. No tunnel and no Cloudflare proxy: video goes straight
+to the home connection.
+
+```
+friend ─▶ home router :443 ─▶ aurora 192.168.50.54:443 ─▶ jellyfin-public (Traefik) ─▶ jellyfin:8096
+            port forward        US addresses only           these two names only        └▶ seerr:5055
+```
+
+| layer | what it does | where |
+|---|---|---|
+| dynamic DNS | `jellyfin-ddns` checks the home connection's address every 5 minutes and rewrites the record when the ISP changes it. DNS only (grey cloud) | `services.d/jellyfin-public.yml.j2` |
+| certificate | Let's Encrypt through Cloudflare's DNS; Traefik renews it about 30 days before it expires, with no cron job | `jellyfin-public/traefik.yml.j2` |
+| country | aurora's `firewall_rules` open 443 with `countries = ["US"]`; DOCKER-USER passes it only from the US address set, which `autolab-geoip-refresh.timer` fetches weekly from ipdeny.com. A failed fetch keeps the last list; no list at all lets nobody in | docker-host role |
+| two names | the door answers only `jellyfin.<zone>` and `seerr.<zone>` (SNI strict: a scanner dialling the address gets no certificate), never `/Startup`, nor Seerr's own accounts (`/api/v1/auth/local`) or `/setup`, with a rate limit per address | `jellyfin-public/dynamic.yml.j2` |
+| sign-in guessing | fail2ban bans an address for a day after 5 refused sign-ins in 10 minutes, Jellyfin's or Seerr's, on every port | jail `jellyfin-public` |
+| reach | the door's network holds only it, Jellyfin and Seerr; the media is read-only to Jellyfin | the compose file |
+| administrators | can sign in from home and the tailnet only (Jellyfin's per-user remote access), so a guessed admin password opens nothing from outside. Seerr checks passwords from inside, so an administrator can still sign in to Seerr from outside: fail2ban and the password are what stand there | the services run |
+| bandwidth | streams from outside are held to 10 Mbps (`autolab_services_jellyfin_remote_bitrate`) | the services run |
+
+Jellyfin tells home from outside by the client's own address: the door's
+address is its only trusted proxy, and the door drops any X-Forwarded-For a
+client sends. Home is the home network, the tailnet and the containers' own
+range.
+
+### Turning it on
+
+1. The services run with `jellyfin-public` in aurora's list (after `04` for the
+   firewall rule, then `05` `docker` for the country set, then `05` `services`).
+2. On the home router: forward TCP 443 to `192.168.50.54:443`. Nothing else.
+3. A Jellyfin user per friend (Dashboard, Users): not an administrator, media
+   deletion off, only the libraries they should see. Then Seerr, Users,
+   Import Jellyfin Users: requests wait for approval, within the quota.
+
+### Checking it
+
+```sh
+sudo fail2ban-client status jellyfin-public        # who is banned
+sudo ipset list autolab-geo-us | head -8           # the US set and its size
+sudo iptables -S DOCKER-USER                       # the 443 rule names the set
+```
+
+From a phone on mobile data: `https://jellyfin.<zone>` opens and a friend's
+account signs in; the admin account is refused. With a VPN exit outside the US,
+the page does not open.
 
 ## Where things are
 
@@ -214,3 +261,5 @@ each app's API).
 A file played on the projector over the home address.
 
 Seerr opened from a TV at home, and a request from it reaching Sonarr.
+The public door from outside: a friend's sign-in from mobile data, the admin
+refused, a non-US address refused, and a ban after five wrong passwords.
