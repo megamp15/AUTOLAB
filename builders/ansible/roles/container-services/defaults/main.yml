@@ -179,6 +179,7 @@ autolab_services_images:
   gluetun: "qmcgaw/gluetun:v3.41.3"
   lidarr: "linuxserver/lidarr:3.1.6.5079-ls49"
   recyclarr: "ghcr.io/recyclarr/recyclarr:8.8.1"
+  seerr: "ghcr.io/seerr-team/seerr:v3.5.1"
   cosmos_db: "postgres:17.12-alpine"
   novaflix_db: "postgres:17.12-alpine"
   # The connector for the Paradigm Prints tunnel, pinned with the same
@@ -218,6 +219,7 @@ autolab_services_ports:
   sabnzbd: "{{ autolab_service_catalog.sabnzbd.port }}"
   qbittorrent: "{{ autolab_service_catalog.qbittorrent.port }}"
   lidarr: "{{ autolab_service_catalog.lidarr.port }}"
+  seerr: "{{ autolab_service_catalog.seerr.port }}"
 
 # RustDesk is not HTTP, so it has no entry in the shared port catalog (the
 # ingress would try to route one). Its ports are the protocol's own, and the
@@ -321,6 +323,7 @@ autolab_services_memory:
   gluetun: 128m
   lidarr: 512m
   recyclarr: 256m
+  seerr: 512m
   tandoor: 1280m
   tandoor_db: 256m
   airtrail: 512m

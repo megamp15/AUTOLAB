@@ -53,6 +53,7 @@ bump is a pull request.
 | `sabnzbd` | on aurora: Usenet downloads, behind the passkey — see [media](media.md) | 8115 |
 | `qbittorrent` | on aurora: torrents, out through Mullvad by Gluetun, behind the passkey and its own login — see [media](media.md) | 8116 |
 | `lidarr` | on aurora: finds and files music, behind the passkey — see [media](media.md) | 8117 |
+| `seerr` | on aurora: browse what is trending and request it, sign-in with Jellyfin accounts — see [media](media.md) | 8118 (tailnet), 5055 (home network) |
 | `recyclarr` | on aurora: copies TRaSH Guides' quality profiles into Sonarr and Radarr daily; no page — see [media](media.md) | none |
 | `rustdesk` | remote desktop between your own machines, tailnet only, key-enforced — see [rustdesk](rustdesk.md) | 21115-21117 (TCP), 21116 (UDP) |
 | `qr` | QR codes whose destination can change after printing; the admin page is public behind the passkey at `qr.<zone>`, with no `*.lab` name — see [qr](qr.md) | 8097 (admin) |
