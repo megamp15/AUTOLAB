@@ -219,11 +219,13 @@ It also sets their naming to TRaSH's Jellyfin presets: a show's folder ends in
 instead of guessing from the name (it once matched a new K-drama to the wrong
 show), and files are renamed to `Show (Year) - S01E01 - Title [quality]`.
 
-Sonarr, Radarr and Lidarr each have a Jellyfin connection (Settings, Connect)
-that asks Jellyfin to scan as soon as they add a file. Jellyfin cannot watch
-the folders itself: change notifications do not cross NFS. Jellyfin acts on that
-only in a library with real-time monitoring on; the services run turns it on
-in every library (a library made with it off ignored a new show's folder).
+Jellyfin cannot watch the folders itself: change notifications do not cross
+NFS. Novaflix asks it to scan within five minutes of a new film or episode
+landing. Sonarr and Radarr cannot: Jellyfin sits on the public door's network
+only, away from theirs, so a break-in at Jellyfin reaches no download app.
+Music waits for Jellyfin's own scheduled scan. Real-time monitoring stays on
+in every library (the services run turns it on; a library made with it off
+ignored a new show's folder).
 
 Recyclarr syncs once a day. To sync now, or to see what it would change:
 
