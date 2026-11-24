@@ -138,6 +138,12 @@ machines = {
       docker_enabled = true
       # Named in autolab_remote_services.aurora too; a test keeps them equal.
       services = ["jellyfin"]
+      # Jellyfin for the home network: the projector and the TVs are not on
+      # the tailnet. 7359 is how a Jellyfin app at home finds the server.
+      firewall_rules = [
+        { port = 8096, protocol = "tcp", source = "192.168.50.0/24" },
+        { port = 7359, protocol = "udp", source = "192.168.50.0/24" },
+      ]
       # A share of its own, named for the machine: only this host's export
       # rule opens it. The films, the shows and the downloads live under
       # media-stack; anything else this machine keeps gets a folder beside it.

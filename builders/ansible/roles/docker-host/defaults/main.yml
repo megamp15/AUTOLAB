@@ -30,3 +30,8 @@ autolab_docker_log_max_file: "3"
 # own uplink (the LAN, or the Proxmox bridge for a guest). Taken from the
 # default route; empty leaves Docker's rules as they are.
 autolab_docker_uplink: "{{ ansible_facts['default_ipv4']['interface'] | default('') }}"
+
+# The ports the machines map opens on this host (builder.firewall_rules). A
+# container published on one of them answers from the uplink too, from the
+# same sources UFW allows; every other published port stays dropped there.
+autolab_docker_open_ports: "{{ (autolab_builder | default({})).firewall_rules | default([]) }}"
