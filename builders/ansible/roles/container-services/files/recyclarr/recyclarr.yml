@@ -6,7 +6,8 @@
 # app's own config.xml.
 
 sonarr:
-  aurora:
+  # Instance names are unique across Sonarr and Radarr, or Recyclarr drops both.
+  sonarr:
     base_url: http://sonarr:8989
     api_key: !secret sonarr_api_key
     quality_definition:
@@ -31,7 +32,7 @@ sonarr:
             - trash_id: 72dae194fc92bf828f32cde7744e51a1
 
 radarr:
-  aurora:
+  radarr:
     base_url: http://radarr:7878
     api_key: !secret radarr_api_key
     quality_definition:
