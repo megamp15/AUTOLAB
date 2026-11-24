@@ -34,7 +34,7 @@ TV cannot answer a passkey page.
 
 | thing | where | why |
 |---|---|---|
-| films and shows | NAS, `/mnt/aurora/media-stack/media/{movies,tv}` (share `/volume1/aurora`, NFS) | they outlive the VM; Jellyfin mounts them read-only |
+| films and shows | NAS, `/mnt/aurora/media-stack/media/<folder>`, one folder per library (share `/volume1/aurora`, NFS) | they outlive the VM; Jellyfin mounts them read-only |
 | Jellyfin's settings, users and watch history | this VM's disk, `/opt/autolab/services/jellyfin/config` | a SQLite database, which does not belong on NFS |
 | the whole VM | PBS, nightly like every guest | the copy of the settings |
 
@@ -51,8 +51,23 @@ unmounted share is an error and never an empty library on the local disk.
 ## First run
 
 Jellyfin starts with no users. Open it on the tailnet name, make the
-administrator account in its setup pages, and add two libraries: Movies at
-`/data/media/movies` and Shows at `/data/media/tv`.
+administrator account in its setup pages, and skip adding libraries.
+
+Then make an API key under Dashboard, API Keys, named `autolab`, and store it
+as the `JELLYFIN_API_KEY` secret. The next services run creates the libraries.
+
+## Libraries
+
+The list is `autolab_services_jellyfin_libraries` in the container-services
+role: a name, a Jellyfin type (`movies` or `tvshows`) and a folder under
+`media/`. The services run creates each folder, and creates the library when no
+library holds its folder yet. It never renames, changes or deletes a library,
+so one made or edited in the UI stays as it is. Removing a line from the list
+leaves the library in place.
+
+Libraries are split by language (Anime, K-Dramas, C-Dramas, J-Dramas, and a
+movie library for each) so each gets its own row on the home screen and its
+own folder for the download apps to file into.
 
 ## Not yet seen
 

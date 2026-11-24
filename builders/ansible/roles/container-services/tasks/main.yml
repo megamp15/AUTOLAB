@@ -1437,6 +1437,44 @@
   delay: 5
   when: "'jellyfin' in autolab_services_enabled and not ansible_check_mode"
 
+# Libraries as code, create-only. A library counts as present when any library
+# already holds its folder, so the two made in the setup pages are kept.
+- name: List Jellyfin's libraries
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}/Library/VirtualFolders"
+    headers:
+      Authorization: 'MediaBrowser Token="{{ autolab_services_jellyfin_api_key }}"'
+  register: autolab_jellyfin_libraries
+  no_log: true
+  check_mode: false
+  when:
+    - "'jellyfin' in autolab_services_enabled"
+    - autolab_services_jellyfin_api_key | length > 0
+
+- name: Create the Jellyfin libraries that are missing
+  vars:
+    autolab_jellyfin_path: "/data/media/{{ item.folder }}"
+    autolab_jellyfin_held: "{{ autolab_jellyfin_libraries.json | map(attribute='Locations') | flatten }}"
+  ansible.builtin.uri:
+    url: >-
+      http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}/Library/VirtualFolders?{{
+      {'name': item.name, 'collectionType': item.type, 'paths': autolab_jellyfin_path,
+       'refreshLibrary': 'true'} | urlencode }}
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Token="{{ autolab_services_jellyfin_api_key }}"'
+    body_format: json
+    body: {LibraryOptions: {}}
+    status_code: 204
+  loop: "{{ autolab_services_jellyfin_libraries }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+  when:
+    - "'jellyfin' in autolab_services_enabled"
+    - autolab_services_jellyfin_api_key | length > 0
+    - autolab_jellyfin_path not in autolab_jellyfin_held
+
 - name: Wait for Karakeep to answer
   ansible.builtin.uri:
     url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.karakeep }}/api/health"

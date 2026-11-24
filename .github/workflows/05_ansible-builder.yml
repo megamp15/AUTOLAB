@@ -409,6 +409,8 @@ jobs:
           # apps; lab: Novaflix).
           AUTOLAB_SERVICES_POCKETID_API_KEY: ${{ (inputs.environment == 'edge' || inputs.environment == 'lab') && inputs.playbook == 'services' && secrets.POCKETID_API_KEY || '' }}
           AUTOLAB_ADVENTURELOG_IMMICH_API_KEY: ${{ secrets.ADVENTURELOG_IMMICH_API_KEY }}
+          # Jellyfin on aurora: lets the services run create its libraries.
+          AUTOLAB_JELLYFIN_API_KEY: ${{ inputs.playbook == 'services' && secrets.JELLYFIN_API_KEY || '' }}
           AUTOLAB_ADVENTURELOG_OIDC_CLIENT_ID: ${{ secrets.ADVENTURELOG_OIDC_CLIENT_ID }}
           AUTOLAB_ADVENTURELOG_OIDC_CLIENT_SECRET: ${{ secrets.ADVENTURELOG_OIDC_CLIENT_SECRET }}
           AUTOLAB_FORGEJO_OIDC_CLIENT_ID: ${{ secrets.FORGEJO_OIDC_CLIENT_ID }}
@@ -487,6 +489,7 @@ jobs:
               "autolab_services_sure_oidc_client_secret": os.environ.get("AUTOLAB_SURE_OIDC_CLIENT_SECRET", ""),
               "autolab_services_admin_email": os.environ.get("AUTOLAB_APPS_ADMIN_EMAIL", ""),
               "autolab_services_pocketid_api_key": os.environ.get("AUTOLAB_SERVICES_POCKETID_API_KEY", ""),
+              "autolab_services_jellyfin_api_key": os.environ.get("AUTOLAB_JELLYFIN_API_KEY", ""),
           }
           # Empty values must not override the protected host-managed client facts.
           for app in ("adventurelog", "forgejo", "tandoor", "airtrail", "karakeep", "sure"):
