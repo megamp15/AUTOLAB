@@ -20,10 +20,12 @@ behind a VPN) are planned for the same machine and are not there yet.
 | the internet | nothing | no public name |
 
 The home address exists because the projector and the TVs are not on the
-tailnet. Docker publishes that port on the machine's home address only, and
-Docker's rules sit ahead of ufw's, so every device at home can reach it and
-`ufw status` does not show it. UDP 7359 is published the same way, so a
-Jellyfin app at home finds the server without being given an address.
+tailnet. Docker publishes 8096 and UDP 7359 on the machine's home address,
+and aurora's `firewall_rules` open both to the home network only. The
+docker-host role turns those rules into `DOCKER-USER` exceptions, because
+Docker's own rules would otherwise send a published port past ufw. Any other
+published port is still dropped on the home network. UDP 7359 lets a Jellyfin
+app at home find the server without being given an address.
 
 There is no passkey in front of either name. Jellyfin's apps on a phone or a
 TV cannot answer a passkey page.

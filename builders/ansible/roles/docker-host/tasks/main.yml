@@ -51,7 +51,11 @@
 # on every interface. DOCKER-USER is the chain Docker leaves for this and
 # never rewrites; UFW loads it at boot, before Docker starts. New connections
 # that arrive on the host's own uplink are dropped; replies to what the
-# containers started, the tailnet, and traffic between containers pass.
+# containers started, the tailnet, and traffic between containers pass. A
+# port the machines map opens (firewall_rules) passes from its declared
+# source: aurora publishes Jellyfin to the home network this way. The match is
+# on the port the client dialled, which Docker's DNAT has already rewritten by
+# the time FORWARD sees the packet, so conntrack's original port is used.
 - name: Look for UFW's rules file
   ansible.builtin.stat:
     path: /etc/ufw/after.rules
@@ -66,6 +70,11 @@
       *filter
       :DOCKER-USER - [0:0]
       -A DOCKER-USER -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
+      {% for rule in autolab_docker_open_ports %}
+      {% set src = rule.source | default('any', true) %}
+      {% set from = (' -s ' ~ src) if src != 'any' else '' %}
+      -A DOCKER-USER -i {{ autolab_docker_uplink }} -p {{ rule.protocol }}{{ from }} -m conntrack --ctstate NEW --ctorigdstport {{ rule.port }} -j RETURN
+      {% endfor %}
       -A DOCKER-USER -i {{ autolab_docker_uplink }} -m conntrack --ctstate NEW -j DROP
       -A DOCKER-USER -j RETURN
       COMMIT
