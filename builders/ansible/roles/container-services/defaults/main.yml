@@ -61,8 +61,11 @@ autolab_services_jellyfin_api_key: ""
 # Owned by 1000: Jellyfin and the download apps run as that uid.
 # usenet/ and torrents/ sit beside media/ on the same share, so a finished
 # download becomes a library file by rename (Usenet) or hardlink (torrents).
+# A folder per downloader category too: Sonarr and Radarr report the downloader's
+# folder missing, and stop trusting it, when SABnzbd has removed an empty one.
 autolab_services_media_dirs: >-
   {{ ['media', 'usenet', 'usenet/complete', 'torrents']
+     + ['usenet/complete/tv', 'usenet/complete/movies', 'usenet/complete/music', 'torrents/tv', 'torrents/movies', 'torrents/music']
      + autolab_services_jellyfin_libraries | map(attribute='folder') | map('regex_replace', '^', 'media/') | list }}
 # The download apps that keep their settings in their own folder on this disk.
 autolab_services_download_apps: [sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent, lidarr, recyclarr]
