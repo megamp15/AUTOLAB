@@ -60,6 +60,7 @@ it resets when the container restarts.
 | `NOVAFLIX_TMDB_TOKEN` | you, on themoviedb.org (Settings, API, "API Read Access Token") | GitHub secret, `lab` environment. Every title, poster and episode list comes from TMDB; without it the library screens say titles cannot be looked up |
 | `NOVAFLIX_GOOGLE_CLIENT_ID`, `NOVAFLIX_GOOGLE_CLIENT_SECRET` | you, in the Google Cloud console (Google Auth Platform, a Web application client, redirect `https://novaflix.<zone>/api/auth/oidc/google/callback`, app published) | GitHub secrets; optional. Google sign-in works on the public name only, unless the admin name's redirect address is added to the same Google client |
 | Pocket ID client `AUTOLAB novaflix` | the services role, with `POCKETID_API_KEY` | id and secret in `/etc/autolab/managed-pocketid-clients.json` on jwst (`0600` root). Restricted to `admins`; sends a sign-in back to the public or the admin name |
+| `SONARR_API_KEY`, `RADARR_API_KEY`, `JELLYFIN_API_KEY` | read from each app on aurora | GitHub secrets; optional, all three or none. In `novaflix-server.env` as `SONARR_*`, `RADARR_*`, `JELLYFIN_*`: the admin title page's Watch, download progress and Request. The server reaches aurora over the tailnet from the edge network. Only the admin face passes those routes (`/api/admin/media/`) |
 | `NOVAFLIX_DEPLOY_KEY` | you, once | GitHub secret, `lab` environment; its public half is a read-only deploy key on the Novaflix repository |
 
 Re-running the playbook never rotates the database password (`creates:`).
