@@ -56,7 +56,7 @@ volumes:
 
 # Bridges besides the default, each there to keep something away from
 # something else.
-{% if 'dockhand' in autolab_services_enabled or 'qr' in autolab_services_enabled or 'paradigm-tunnel' in autolab_services_enabled or 'cosmos' in autolab_services_enabled or 'novaflix' in autolab_services_enabled %}
+{% if 'dockhand' in autolab_services_enabled or 'qr' in autolab_services_enabled or 'paradigm-tunnel' in autolab_services_enabled or 'cosmos' in autolab_services_enabled or 'novaflix' in autolab_services_enabled or 'jellyfin-public' in autolab_services_enabled %}
 networks:
 {% endif %}
 {% if 'dockhand' in autolab_services_enabled %}
@@ -93,4 +93,13 @@ networks:
   novaflix-backend:
     internal: true
   novaflix-edge:
+{% endif %}
+{% if 'jellyfin-public' in autolab_services_enabled %}
+  # The public Jellyfin door and Jellyfin, nothing else: a break-in at the door
+  # reaches no other app. A fixed subnet, because Jellyfin trusts the door by
+  # its address.
+  jellyfin-public:
+    ipam:
+      config:
+        - subnet: {{ autolab_services_jellyfin_public_subnet }}
 {% endif %}

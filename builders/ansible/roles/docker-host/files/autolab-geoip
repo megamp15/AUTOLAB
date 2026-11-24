@@ -1,0 +1,42 @@
+#!/bin/sh
+# Managed by Ansible — roles/docker-host. Local edits are overwritten.
+#
+# Country address sets for published ports open to the internet. One ipset per
+# country, autolab-geo-<cc>, which DOCKER-USER matches (see /etc/ufw/after.rules).
+#
+#   autolab-geoip boot <cc>...     make each set from the last saved list, or
+#                                  empty: UFW's rules name the sets, and a set
+#                                  that does not exist would stop UFW loading.
+#                                  An empty set lets nobody in (fails closed).
+#   autolab-geoip refresh <cc>...  fetch each list, check it, swap it in, save it.
+set -eu
+dir=/var/lib/autolab/geoip
+mode=$1
+shift
+mkdir -p "$dir"
+for cc in "$@"; do
+  set_name="autolab-geo-$cc"
+  ipset create -exist "$set_name" hash:net family inet maxelem 262144
+  if [ "$mode" = boot ]; then
+    [ -s "$dir/$cc.zone" ] || continue
+    list=$dir/$cc.zone
+  else
+    list=$(mktemp)
+    trap 'rm -f "$list"' EXIT
+    curl -fsS --max-time 60 "https://www.ipdeny.com/ipblocks/data/aggregated/$cc-aggregated.zone" -o "$list"
+    # A short or malformed list (an error page, a truncated download) is not
+    # swapped in: the set keeps what it had.
+    lines=$(grep -c . "$list")
+    bad=$(grep -cvE '^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$' "$list" || true)
+    if [ "$lines" -lt 100 ] || [ "$bad" -ne 0 ]; then
+      echo "autolab-geoip: $cc list rejected ($lines lines, $bad malformed)" >&2
+      exit 1
+    fi
+  fi
+  ipset destroy "$set_name-new" 2>/dev/null || true
+  { echo "create $set_name-new hash:net family inet maxelem 262144"; sed "s/^/add $set_name-new /" "$list"; } | ipset restore
+  ipset swap "$set_name-new" "$set_name"
+  ipset destroy "$set_name-new"
+  [ "$mode" = boot ] || cp "$list" "$dir/$cc.zone"
+  echo "autolab-geoip: $set_name holds $(ipset list "$set_name" | grep -cE '^[0-9]') networks"
+done

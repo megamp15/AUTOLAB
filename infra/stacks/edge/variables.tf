@@ -136,6 +136,9 @@ variable "machines" {
         port     = number
         protocol = optional(string, "tcp")
         source   = optional(string, "any")
+        # Only addresses from these countries (ISO codes), for a port open to
+        # the internet. Enforced on published container ports (docker-host).
+        countries = optional(list(string), [])
       })), [])
       docker_enabled = optional(bool, false)
       # NAS shares this machine mounts, applied by the storage playbook. `server`

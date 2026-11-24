@@ -1,0 +1,36 @@
+# Managed by Ansible — roles/container-services. Static configuration for the
+# public Jellyfin door; a change here restarts it.
+entryPoints:
+  websecure:
+    address: ":8443"
+    # No forwardedHeaders trust: whatever X-Forwarded-For a client sends is
+    # dropped, and Jellyfin is told the address the connection came from.
+  ping:
+    address: "127.0.0.1:8082"
+
+ping:
+  entryPoint: ping
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yml
+
+# Let's Encrypt through Cloudflare's DNS: nothing has to answer on port 80, and
+# Traefik renews the certificate itself about 30 days before it expires.
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: {{ autolab_services_acme_email }}
+      storage: /letsencrypt/acme.json
+      dnsChallenge:
+        provider: cloudflare
+        resolvers: ["1.1.1.1:53", "1.0.0.1:53"]
+
+api:
+  dashboard: false
+
+log:
+  level: INFO
+# The common log format: fail2ban reads failed sign-ins from it by address.
+accessLog:
+  filePath: /logs/access.log

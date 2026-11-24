@@ -35,3 +35,9 @@ autolab_docker_uplink: "{{ ansible_facts['default_ipv4']['interface'] | default(
 # container published on one of them answers from the uplink too, from the
 # same sources UFW allows; every other published port stays dropped there.
 autolab_docker_open_ports: "{{ (autolab_builder | default({})).firewall_rules | default([]) }}"
+
+# Countries some of those ports are limited to (a rule's `countries`), as
+# lower-case ISO codes. Each gets an address set, refreshed weekly from
+# ipdeny.com, and the port passes only from inside it.
+autolab_docker_countries: >-
+  {{ autolab_docker_open_ports | map(attribute='countries', default=[]) | flatten | map('lower') | unique | list }}

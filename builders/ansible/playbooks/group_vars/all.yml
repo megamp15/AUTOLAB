@@ -15,7 +15,7 @@
 # be told.
 autolab_remote_services:
   nebula: [adventurelog, forgejo, tandoor, airtrail, karakeep, sure]
-  aurora: [jellyfin, sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent, lidarr, recyclarr, seerr]
+  aurora: [jellyfin, sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent, lidarr, recyclarr, seerr, jellyfin-public]
 
 # Every container service the lab knows, what it listens on, and how a person
 # gets in:
@@ -134,6 +134,11 @@ autolab_service_catalog:
   seerr:
     port: 8118
     login: own
+  # Jellyfin's public door on aurora: no port here, because no lab name routes
+  # to it. The internet reaches it through the home router's forward of 443 to
+  # aurora's home address. See docs/gitops/media.md.
+  jellyfin-public:
+    login: none
   # Recyclarr: no port, it only talks to Sonarr and Radarr.
   recyclarr:
     login: none

@@ -81,6 +81,26 @@ autolab_services_mullvad_addresses: ""
 # This machine's address on the home network, for the few ports a device that
 # is not on the tailnet has to reach.
 autolab_services_lan_ip: "{{ ansible_facts.default_ipv4.address }}"
+autolab_services_lan_cidr: "{{ ansible_facts.default_ipv4.network }}/{{ ansible_facts.default_ipv4.prefix }}"
+
+# Jellyfin for friends, from the internet (service jellyfin-public). The name
+# the router's forward and the dynamic DNS make public, and the token that
+# writes its record and its certificate's challenge (INGRESS_ACME_DNS_TOKEN,
+# DNS edit on the zone and nothing else).
+autolab_services_jellyfin_public_host: "jellyfin.{{ autolab_services_dash_zone }}"
+# Seerr through the same door, when it runs on the same machine: friends
+# browse and request with their Jellyfin accounts.
+autolab_services_seerr_public_host: "seerr.{{ autolab_services_dash_zone }}"
+autolab_services_acme_dns_token: ""
+autolab_services_acme_email: ""
+# A network holding only the door and Jellyfin, with a fixed address for the
+# door, which Jellyfin trusts to pass on the client's address.
+autolab_services_jellyfin_public_subnet: 172.30.250.0/24
+autolab_services_jellyfin_public_proxy_ip: 172.30.250.2
+# Streams from outside the home network and the tailnet are held to this, in
+# bits a second: the home upload is shared, and aurora has no GPU to convert
+# more than a stream or two at once.
+autolab_services_jellyfin_remote_bitrate: 10000000
 # The Postgres behind each service that has one: dumped nightly, restored
 # weekly into a scratch container. `container` is the compose service name.
 autolab_services_databases:
@@ -182,6 +202,10 @@ autolab_services_images:
   lidarr: "linuxserver/lidarr:3.1.6.5079-ls49"
   recyclarr: "ghcr.io/recyclarr/recyclarr:8.8.1"
   seerr: "ghcr.io/seerr-team/seerr:v3.5.1"
+  # The public Jellyfin door: the same Traefik as the lab's ingress, and the
+  # dynamic DNS updater beside it.
+  jellyfin_public: "traefik:v3.7.19"
+  jellyfin_ddns: "favonia/cloudflare-ddns:1.18.0"
   cosmos_db: "postgres:17.12-alpine"
   novaflix_db: "postgres:17.12-alpine"
   # The connector for the Paradigm Prints tunnel, pinned with the same
@@ -326,6 +350,8 @@ autolab_services_memory:
   lidarr: 512m
   recyclarr: 256m
   seerr: 512m
+  jellyfin_public: 128m
+  jellyfin_ddns: 64m
   tandoor: 1280m
   tandoor_db: 256m
   airtrail: 512m

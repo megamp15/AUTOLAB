@@ -150,6 +150,100 @@
   loop: ["", config, cache]
   when: "'jellyfin' in autolab_services_enabled"
 
+# The public Jellyfin door. Without the DNS token it could get no certificate
+# and the record would never be written, so the run stops and says so.
+- name: The public Jellyfin door needs the DNS token and the ACME email
+  ansible.builtin.assert:
+    that:
+      - autolab_services_acme_dns_token | length > 0
+      - autolab_services_acme_email | length > 0
+      - "'jellyfin' in autolab_services_enabled"
+    fail_msg: >-
+      jellyfin-public needs Jellyfin on the same machine, the INGRESS_ACME_DNS_TOKEN secret and the
+      INGRESS_ACME_EMAIL variable (both read by services runs).
+    quiet: true
+  when: "'jellyfin-public' in autolab_services_enabled"
+
+- name: Write the public Jellyfin door's token
+  ansible.builtin.copy:
+    content: |
+      CF_DNS_API_TOKEN={{ autolab_services_acme_dns_token }}
+      CLOUDFLARE_API_TOKEN={{ autolab_services_acme_dns_token }}
+    dest: "{{ autolab_services_root }}/jellyfin-public.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart the services stack
+  when: "'jellyfin-public' in autolab_services_enabled and not ansible_check_mode"
+
+- name: Create the public Jellyfin door's directories
+  ansible.builtin.file:
+    path: "{{ autolab_services_root }}/jellyfin-public/{{ item }}"
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0750"
+  loop: ["", letsencrypt, logs]
+  when: "'jellyfin-public' in autolab_services_enabled"
+
+- name: Write the public Jellyfin door's configuration
+  ansible.builtin.template:
+    src: "jellyfin-public/{{ item }}.j2"
+    dest: "{{ autolab_services_root }}/jellyfin-public/{{ item }}"
+    owner: "1000"
+    group: "1000"
+    mode: "0640"
+  loop: [traefik.yml, dynamic.yml]
+  when: "'jellyfin-public' in autolab_services_enabled"
+  notify: Restart the public Jellyfin door
+
+# fail2ban reads the file before the door has written a line, and refuses a
+# jail whose log does not exist.
+- name: Create the public Jellyfin door's access log
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ autolab_services_root }}/jellyfin-public/logs/access.log"
+    owner: "1000"
+    group: "1000"
+    mode: "0640"
+    force: false
+  when: "'jellyfin-public' in autolab_services_enabled"
+
+- name: Rotate the public Jellyfin door's access log
+  ansible.builtin.copy:
+    dest: /etc/logrotate.d/autolab-jellyfin-public
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by Ansible — roles/container-services.
+      {{ autolab_services_root }}/jellyfin-public/logs/access.log {
+        weekly
+        rotate 8
+        compress
+        delaycompress
+        missingok
+        notifempty
+        copytruncate
+      }
+  when: "'jellyfin-public' in autolab_services_enabled"
+
+- name: Install fail2ban's filter and jail for the public Jellyfin door
+  ansible.builtin.template:
+    src: "jellyfin-public/{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - {src: fail2ban-filter.conf.j2, dest: /etc/fail2ban/filter.d/jellyfin-public.conf}
+    - {src: fail2ban-jail.local.j2, dest: /etc/fail2ban/jail.d/jellyfin-public.local}
+  loop_control:
+    label: "{{ item.dest }}"
+  when: "'jellyfin-public' in autolab_services_enabled"
+  notify: Restart fail2ban for the public Jellyfin jail
+
 # The download apps: settings on this disk, owned by the uid they run as.
 - name: Create the download apps' directories
   ansible.builtin.file:
@@ -1587,6 +1681,109 @@
     - autolab_services_jellyfin_api_key | length > 0
     - not ansible_check_mode
     - not (item.LibraryOptions.EnableRealtimeMonitor | default(false))
+
+# Jellyfin behind the public door. It is told which address is the door, so it
+# sees each client's own address rather than the door's; which networks are
+# home (the home network, the tailnet, the containers beside it), so it knows
+# who is outside; and a bitrate for those outside.
+- name: Read Jellyfin's network settings
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}/System/Configuration/network"
+    headers:
+      Authorization: 'MediaBrowser Token="{{ autolab_services_jellyfin_api_key }}"'
+  register: autolab_jellyfin_network
+  no_log: true
+  check_mode: false
+  when:
+    - "'jellyfin-public' in autolab_services_enabled"
+    - autolab_services_jellyfin_api_key | length > 0
+
+- name: Tell Jellyfin the door's address and which networks are home
+  vars:
+    autolab_jellyfin_network_wanted:
+      KnownProxies: ["{{ autolab_services_jellyfin_public_proxy_ip }}"]
+      LocalNetworkSubnets: ["{{ autolab_services_lan_cidr }}", "100.64.0.0/10", "172.16.0.0/12"]
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}/System/Configuration/network"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Token="{{ autolab_services_jellyfin_api_key }}"'
+    body_format: json
+    body: "{{ autolab_jellyfin_network.json | combine(autolab_jellyfin_network_wanted) }}"
+    status_code: 204
+  changed_when: true
+  # Jellyfin reads the trusted proxies when it starts.
+  notify: Restart Jellyfin
+  when:
+    - "'jellyfin-public' in autolab_services_enabled"
+    - autolab_services_jellyfin_api_key | length > 0
+    - not ansible_check_mode
+    - (autolab_jellyfin_network.json.KnownProxies | default([])) != autolab_jellyfin_network_wanted.KnownProxies
+      or (autolab_jellyfin_network.json.LocalNetworkSubnets | default([])) != autolab_jellyfin_network_wanted.LocalNetworkSubnets
+
+- name: Read Jellyfin's server settings
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}/System/Configuration"
+    headers:
+      Authorization: 'MediaBrowser Token="{{ autolab_services_jellyfin_api_key }}"'
+  register: autolab_jellyfin_server
+  no_log: true
+  check_mode: false
+  when:
+    - "'jellyfin-public' in autolab_services_enabled"
+    - autolab_services_jellyfin_api_key | length > 0
+
+- name: Hold streams from outside to the remote bitrate
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}/System/Configuration"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Token="{{ autolab_services_jellyfin_api_key }}"'
+    body_format: json
+    body: "{{ autolab_jellyfin_server.json | combine({'RemoteClientBitrateLimit': autolab_services_jellyfin_remote_bitrate | int}) }}"
+    status_code: 204
+  no_log: true
+  changed_when: true
+  when:
+    - "'jellyfin-public' in autolab_services_enabled"
+    - autolab_services_jellyfin_api_key | length > 0
+    - not ansible_check_mode
+    - autolab_jellyfin_server.json.RemoteClientBitrateLimit | default(0) | int != autolab_services_jellyfin_remote_bitrate | int
+
+# An administrator signs in from home or the tailnet only. From the internet,
+# a stolen or guessed admin password opens nothing; friends' accounts are not
+# administrators.
+- name: List Jellyfin's users
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}/Users"
+    headers:
+      Authorization: 'MediaBrowser Token="{{ autolab_services_jellyfin_api_key }}"'
+  register: autolab_jellyfin_users
+  no_log: true
+  check_mode: false
+  when:
+    - "'jellyfin-public' in autolab_services_enabled"
+    - autolab_services_jellyfin_api_key | length > 0
+
+- name: Keep administrators off the internet
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}/Users/{{ item.Id }}/Policy"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Token="{{ autolab_services_jellyfin_api_key }}"'
+    body_format: json
+    body: "{{ item.Policy | combine({'EnableRemoteAccess': false}) }}"
+    status_code: 204
+  loop: "{{ autolab_jellyfin_users.json | default([]) }}"
+  loop_control:
+    label: "{{ item.Name }}"
+  changed_when: true
+  when:
+    - "'jellyfin-public' in autolab_services_enabled"
+    - autolab_services_jellyfin_api_key | length > 0
+    - not ansible_check_mode
+    - item.Policy.IsAdministrator | default(false)
+    - item.Policy.EnableRemoteAccess | default(true)
 
 # SABnzbd refuses a request whose host name it does not know, and one from an
 # address outside the private ranges, which a tailnet address (100.64/10) is.

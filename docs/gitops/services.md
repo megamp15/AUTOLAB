@@ -46,6 +46,7 @@ bump is a pull request.
 | `karakeep` | on [nebula](nebula.md): bookmarks that fetch the page and the video and tag themselves, Pocket ID sign-in — see [karakeep](karakeep.md) | 8107 |
 | `sure` | on [nebula](nebula.md): personal finance — see [apps](apps.md) | 8104 |
 | `jellyfin` | on aurora: plays the films and shows on the NAS, its own sign-in — see [media](media.md) | 8110 (tailnet), 8096 (home network) |
+| `jellyfin-public` | on aurora: Jellyfin's door to the internet for friends (Traefik and dynamic DNS), US only, fail2ban — see [media](media.md) | 443 on the home address, forwarded by the router |
 | `prowlarr` | on aurora: the indexers, handed to Sonarr and Radarr, behind the passkey — see [media](media.md) | 8111 |
 | `sonarr` | on aurora: finds and files shows, anime and dramas, behind the passkey — see [media](media.md) | 8112 |
 | `radarr` | on aurora: finds and files films, behind the passkey — see [media](media.md) | 8113 |

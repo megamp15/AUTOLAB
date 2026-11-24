@@ -1,0 +1,62 @@
+  # Jellyfin for friends, from the internet: the home router forwards 443 to
+  # this machine's home address, and this Traefik is all that answers there.
+  # It routes one name to Jellyfin and nothing else, on a network that holds
+  # only the two of them. Its own Traefik, not the lab's: a door open to the
+  # internet carries none of the lab's routes, tokens or plugins.
+  # docs/gitops/media.md, "Friends, from the internet"
+  jellyfin-public:
+    image: {{ autolab_services_images.jellyfin_public }}
+    labels:
+      dockhand.tags: jellyfin
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges
+    # CF_DNS_API_TOKEN: the DNS-only Cloudflare token, for the certificate's
+    # DNS challenge. In a root-only file, not in this one.
+    env_file: [./jellyfin-public.env]
+    volumes:
+      - {{ autolab_services_root }}/jellyfin-public/traefik.yml:/etc/traefik/traefik.yml:ro
+      - {{ autolab_services_root }}/jellyfin-public/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - {{ autolab_services_root }}/jellyfin-public/letsencrypt:/letsencrypt
+      # The access log fail2ban reads on the host.
+      - {{ autolab_services_root }}/jellyfin-public/logs:/logs
+    mem_limit: {{ autolab_services_memory.jellyfin_public }}
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      start_period: 30s
+      interval: 30s
+      timeout: 6s
+    networks:
+      jellyfin-public:
+        # Jellyfin trusts the client address this proxy passes on, and only
+        # from this address (its KnownProxies).
+        ipv4_address: {{ autolab_services_jellyfin_public_proxy_ip }}
+    ports:
+      # The home address only; the router's forward is what makes it public.
+      # aurora's firewall_rules let it through from the countries named there.
+      - "{{ autolab_services_lan_ip }}:443:8443"
+  # Dynamic DNS: points the public name at the home connection's address, and
+  # again whenever the ISP changes it. DNS only (grey cloud): video goes
+  # straight to the home connection, never through Cloudflare's proxy.
+  jellyfin-ddns:
+    image: {{ autolab_services_images.jellyfin_ddns }}
+    labels:
+      dockhand.tags: jellyfin
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges
+    # CLOUDFLARE_API_TOKEN, the same token, from the same file.
+    env_file: [./jellyfin-public.env]
+    environment:
+      DOMAINS: "{{ autolab_services_jellyfin_public_host }}{{ ',' ~ autolab_services_seerr_public_host if 'seerr' in autolab_services_enabled else '' }}"
+      PROXIED: "false"
+      IP6_PROVIDER: none
+      UPDATE_CRON: "@every 5m"
+      TZ: "{{ autolab_timezone | default('UTC') }}"
+    mem_limit: {{ autolab_services_memory.jellyfin_ddns }}

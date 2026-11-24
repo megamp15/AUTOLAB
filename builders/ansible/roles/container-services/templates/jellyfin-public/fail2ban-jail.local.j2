@@ -1,0 +1,16 @@
+# Managed by Ansible — roles/container-services. Local edits are overwritten.
+# Failed Jellyfin and Seerr sign-ins through the public door, by the address they came
+# from. The ban is in DOCKER-USER, where a published port's traffic passes
+# (INPUT never sees it), and covers every port.
+[jellyfin-public]
+enabled   = true
+backend   = polling
+logpath   = {{ autolab_services_root }}/jellyfin-public/logs/access.log
+filter    = jellyfin-public
+maxretry  = 5
+findtime  = 10m
+bantime   = 1d
+banaction = iptables-allports[chain="DOCKER-USER"]
+# The home network too: a phone at home that dials the public name may arrive
+# from the router's own address, and banning it would ban the whole house.
+ignoreip  = 127.0.0.1/8 100.64.0.0/10 {{ autolab_services_lan_cidr }}
