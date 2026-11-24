@@ -40,8 +40,25 @@ autolab_services_nas_dir_catalog:
 autolab_services_media_mount: /mnt/aurora
 autolab_services_media_root: "{{ autolab_services_media_mount }}/media-stack"
 autolab_services_media_backed: [jellyfin]
+# Jellyfin's libraries, one folder each under media/. Split by language so
+# each gets its own row on the home screen. The services run creates any
+# library whose folder no library holds yet; it never changes or deletes one
+# made in the UI. type is Jellyfin's collection type.
+autolab_services_jellyfin_libraries:
+  - {name: Movies, type: movies, folder: movies}
+  - {name: Shows, type: tvshows, folder: tv}
+  - {name: Anime, type: tvshows, folder: anime}
+  - {name: Anime Movies, type: movies, folder: anime-movies}
+  - {name: K-Dramas, type: tvshows, folder: kdrama}
+  - {name: K-Movies, type: movies, folder: kmovies}
+  - {name: C-Dramas, type: tvshows, folder: cdrama}
+  - {name: C-Movies, type: movies, folder: cmovies}
+  - {name: J-Dramas, type: tvshows, folder: jdrama}
+  - {name: J-Movies, type: movies, folder: jmovies}
+# An API key made in Jellyfin (Dashboard, API Keys). Empty: libraries are left alone.
+autolab_services_jellyfin_api_key: ""
 # Owned by 1000: Jellyfin and the download apps run as that uid.
-autolab_services_media_dirs: [media, media/movies, media/tv]
+autolab_services_media_dirs: "{{ ['media'] + autolab_services_jellyfin_libraries | map(attribute='folder') | map('regex_replace', '^', 'media/') | list }}"
 # This machine's address on the home network, for the few ports a device that
 # is not on the tailnet has to reach.
 autolab_services_lan_ip: "{{ ansible_facts.default_ipv4.address }}"
