@@ -1,0 +1,33 @@
+  # SABnzbd: downloads from Usenet into usenet/ on the share.
+  # Runs as uid 1000 through the linuxserver image's own start-up, which needs
+  # root for a moment to drop to it, so no cap_drop or no-new-privileges.
+  # Settings are a SQLite database on this machine's disk; the media tree is
+  # the share, mounted whole at /data so an import is a rename or a hardlink.
+  # docs/gitops/media.md
+  sabnzbd:
+    image: {{ autolab_services_images.sabnzbd }}
+    labels:
+      dockhand.tags: sabnzbd
+    restart: unless-stopped
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: "{{ autolab_timezone | default('UTC') }}"
+    volumes:
+      - {{ autolab_services_root }}/sabnzbd:/config
+      # Half-finished downloads and unpacking stay on this disk: unpacking
+      # over NFS is slow, and a finished file moves to the share once.
+      - {{ autolab_services_root }}/sabnzbd/incomplete:/incomplete
+      - type: bind
+        source: {{ autolab_services_media_root }}
+        target: /data
+        bind:
+          create_host_path: false
+    mem_limit: {{ autolab_services_memory.sabnzbd }}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/ >/dev/null || exit 1"]
+      start_period: 60s
+      interval: 30s
+      timeout: 6s
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.sabnzbd }}:8080"

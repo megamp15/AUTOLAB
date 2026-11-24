@@ -1,0 +1,33 @@
+  # Radarr: finds and files films.
+  # Runs as uid 1000 through the linuxserver image's own start-up, which needs
+  # root for a moment to drop to it, so no cap_drop or no-new-privileges.
+  # Settings are a SQLite database on this machine's disk; the media tree is
+  # the share, mounted whole at /data so an import is a rename or a hardlink.
+  # docs/gitops/media.md
+  radarr:
+    image: {{ autolab_services_images.radarr }}
+    labels:
+      dockhand.tags: radarr
+    restart: unless-stopped
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: "{{ autolab_timezone | default('UTC') }}"
+      # The tailnet and the passkey in front are the gate (login: plugin).
+      # Without this the app asks for a second password of its own.
+      RADARR__AUTH__METHOD: External
+    volumes:
+      - {{ autolab_services_root }}/radarr:/config
+      - type: bind
+        source: {{ autolab_services_media_root }}
+        target: /data
+        bind:
+          create_host_path: false
+    mem_limit: {{ autolab_services_memory.radarr }}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:7878/ping >/dev/null || exit 1"]
+      start_period: 60s
+      interval: 30s
+      timeout: 6s
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.radarr }}:7878"

@@ -97,6 +97,8 @@ secrets work for a personal lab; environment secrets are optional hardening).
 | `CLOUDFLARE_API_TOKEN` | `v1.0-...` | 10 - Cloudflare | Custom token: Zone → DNS → Edit and Account → Cloudflare Tunnel → Edit, scoped to the one zone and account. See [ingress](./ingress.md). |
 | `POCKETID_API_KEY` | `<secret>` | Ansible Builder (`ingress`, `observability`; `services` on `edge` and `lab`) | Pocket ID administration key: reconciles the hand-made clients, and makes each app's own client on a services run. Renew before expiry. |
 | `JELLYFIN_API_KEY` | `<secret>` | Ansible Builder (`services`) | Jellyfin API key on aurora, made under Dashboard, API Keys. Lets the services run create the libraries; see `media.md`. Empty: libraries are left alone. |
+| `MULLVAD_WIREGUARD_PRIVATE_KEY` | `<secret>` | Ansible Builder (`services`) | The PrivateKey of a WireGuard config made on Mullvad's site. Gluetun on aurora uses it; qBittorrent goes out only through it. See `media.md`. |
+| `MULLVAD_WIREGUARD_ADDRESSES` | `<secret>` | Ansible Builder (`services`) | The IPv4 part of Address in the same config, such as `10.x.x.x/32`. Changes when the key is regenerated. |
 | `INGRESS_TRAEFIK_CLIENT_ID` | `<uuid>` | Ansible Builder (`ingress`) | The Traefik plugin's OIDC client in Pocket ID: one for every hostname the plugin protects (wildcard callback). Unset means nothing behind the plugin has a route. |
 | `INGRESS_TRAEFIK_CLIENT_SECRET` | `<random>` | Ansible Builder (`ingress`) | Its secret. Shown once by Pocket ID. |
 | `GRAFANA_OIDC_CLIENT_ID` | `<uuid>` | Ansible Builder (`observability`, `ingress`) | Grafana's own OIDC client in Pocket ID. Set: Grafana logs in via Pocket ID, anonymous viewing off, public route on. Unset: tailnet-only as before. |

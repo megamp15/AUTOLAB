@@ -39,6 +39,36 @@
         href: https://jellyfin.{{ lab }}
         description: Films and shows
         siteMonitor: http://aurora.{{ tn }}:{{ autolab_service_catalog.jellyfin.port }}/health
+    - Prowlarr:
+        icon: mdi-magnify
+        href: https://prowlarr.{{ lab }}
+        description: The indexers, for Sonarr and Radarr
+        siteMonitor: http://aurora.{{ tn }}:{{ autolab_service_catalog.prowlarr.port }}/ping
+    - Sonarr:
+        icon: mdi-television-classic
+        href: https://sonarr.{{ lab }}
+        description: Finds and files shows, anime and dramas
+        siteMonitor: http://aurora.{{ tn }}:{{ autolab_service_catalog.sonarr.port }}/ping
+    - Radarr:
+        icon: mdi-filmstrip
+        href: https://radarr.{{ lab }}
+        description: Finds and files films
+        siteMonitor: http://aurora.{{ tn }}:{{ autolab_service_catalog.radarr.port }}/ping
+    - Bazarr:
+        icon: mdi-subtitles
+        href: https://bazarr.{{ lab }}
+        description: Subtitles for the library
+        siteMonitor: http://aurora.{{ tn }}:{{ autolab_service_catalog.bazarr.port }}/
+    - SABnzbd:
+        icon: mdi-download
+        href: https://sabnzbd.{{ lab }}
+        description: Usenet downloads
+        siteMonitor: http://aurora.{{ tn }}:{{ autolab_service_catalog.sabnzbd.port }}/
+    - qBittorrent:
+        icon: mdi-magnet
+        href: https://qbittorrent.{{ lab }}
+        description: Torrents, through Mullvad
+        siteMonitor: http://aurora.{{ tn }}:{{ autolab_service_catalog.qbittorrent.port }}/
     - Sure:
         icon: mdi-finance
         href: https://sure.{{ lab }}

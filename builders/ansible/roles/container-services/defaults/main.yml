@@ -39,7 +39,7 @@ autolab_services_nas_dir_catalog:
 # rename, not a copy. Guarded the same way as the data root above.
 autolab_services_media_mount: /mnt/aurora
 autolab_services_media_root: "{{ autolab_services_media_mount }}/media-stack"
-autolab_services_media_backed: [jellyfin]
+autolab_services_media_backed: [jellyfin, sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent]
 # Jellyfin's libraries, one folder each under media/. Split by language so
 # each gets its own row on the home screen. The services run creates any
 # library whose folder no library holds yet; it never changes or deletes one
@@ -58,7 +58,19 @@ autolab_services_jellyfin_libraries:
 # An API key made in Jellyfin (Dashboard, API Keys). Empty: libraries are left alone.
 autolab_services_jellyfin_api_key: ""
 # Owned by 1000: Jellyfin and the download apps run as that uid.
-autolab_services_media_dirs: "{{ ['media'] + autolab_services_jellyfin_libraries | map(attribute='folder') | map('regex_replace', '^', 'media/') | list }}"
+# usenet/ and torrents/ sit beside media/ on the same share, so a finished
+# download becomes a library file by rename (Usenet) or hardlink (torrents).
+autolab_services_media_dirs: >-
+  {{ ['media', 'usenet', 'usenet/complete', 'torrents']
+     + autolab_services_jellyfin_libraries | map(attribute='folder') | map('regex_replace', '^', 'media/') | list }}
+# The download apps that keep their settings in their own folder on this disk.
+autolab_services_download_apps: [sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent]
+# Gluetun: which Mullvad servers to use. The key works on every one of them.
+autolab_services_mullvad_cities: [Houston]
+# From a WireGuard config made on Mullvad's site (PrivateKey, and the IPv4 part
+# of Address). The MULLVAD_WIREGUARD_* secrets.
+autolab_services_mullvad_private_key: ""
+autolab_services_mullvad_addresses: ""
 # This machine's address on the home network, for the few ports a device that
 # is not on the tailnet has to reach.
 autolab_services_lan_ip: "{{ ansible_facts.default_ipv4.address }}"
@@ -152,6 +164,14 @@ autolab_services_images:
   # Both containers, one image: `hbbs` and `hbbr` are its two commands.
   rustdesk: "rustdesk/rustdesk-server:1.1.16"
   jellyfin: "jellyfin/jellyfin:10.11.11"
+  # The download apps on aurora (docs/gitops/media.md).
+  sonarr: "linuxserver/sonarr:4.0.20.3014-ls6"
+  radarr: "linuxserver/radarr:7.0.3.10918-ls328"
+  prowlarr: "linuxserver/prowlarr:3.1.0.5799-ls170"
+  bazarr: "linuxserver/bazarr:v1.6.2-ls373"
+  sabnzbd: "linuxserver/sabnzbd:5.1.3-ls282"
+  qbittorrent: "linuxserver/qbittorrent:5.3.0_v2.1.3-ls489"
+  gluetun: "qmcgaw/gluetun:v3.41.3"
   cosmos_db: "postgres:17.12-alpine"
   novaflix_db: "postgres:17.12-alpine"
   # The connector for the Paradigm Prints tunnel, pinned with the same
@@ -184,6 +204,12 @@ autolab_services_ports:
   novaflix_admin: "{{ autolab_service_catalog['novaflix-admin'].port }}"
   hermes: "{{ autolab_service_catalog.hermes.port }}"
   jellyfin: "{{ autolab_service_catalog.jellyfin.port }}"
+  sonarr: "{{ autolab_service_catalog.sonarr.port }}"
+  radarr: "{{ autolab_service_catalog.radarr.port }}"
+  prowlarr: "{{ autolab_service_catalog.prowlarr.port }}"
+  bazarr: "{{ autolab_service_catalog.bazarr.port }}"
+  sabnzbd: "{{ autolab_service_catalog.sabnzbd.port }}"
+  qbittorrent: "{{ autolab_service_catalog.qbittorrent.port }}"
 
 # RustDesk is not HTTP, so it has no entry in the shared port catalog (the
 # ingress would try to route one). Its ports are the protocol's own, and the
@@ -278,6 +304,13 @@ autolab_services_sure_password_login: true
 # web and worker ~375 MB each, the rest well under 400 MB.
 autolab_services_memory:
   jellyfin: 2g
+  sonarr: 512m
+  radarr: 512m
+  prowlarr: 384m
+  bazarr: 384m
+  sabnzbd: 1g
+  qbittorrent: 1g
+  gluetun: 128m
   tandoor: 1280m
   tandoor_db: 256m
   airtrail: 512m

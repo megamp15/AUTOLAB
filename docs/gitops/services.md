@@ -46,6 +46,12 @@ bump is a pull request.
 | `karakeep` | on [nebula](nebula.md): bookmarks that fetch the page and the video and tag themselves, Pocket ID sign-in — see [karakeep](karakeep.md) | 8107 |
 | `sure` | on [nebula](nebula.md): personal finance — see [apps](apps.md) | 8104 |
 | `jellyfin` | on aurora: plays the films and shows on the NAS, its own sign-in — see [media](media.md) | 8110 (tailnet), 8096 (home network) |
+| `prowlarr` | on aurora: the indexers, handed to Sonarr and Radarr, behind the passkey — see [media](media.md) | 8111 |
+| `sonarr` | on aurora: finds and files shows, anime and dramas, behind the passkey — see [media](media.md) | 8112 |
+| `radarr` | on aurora: finds and files films, behind the passkey — see [media](media.md) | 8113 |
+| `bazarr` | on aurora: subtitles for the library, behind the passkey — see [media](media.md) | 8114 |
+| `sabnzbd` | on aurora: Usenet downloads, behind the passkey — see [media](media.md) | 8115 |
+| `qbittorrent` | on aurora: torrents, out through Mullvad by Gluetun, behind the passkey and its own login — see [media](media.md) | 8116 |
 | `rustdesk` | remote desktop between your own machines, tailnet only, key-enforced — see [rustdesk](rustdesk.md) | 21115-21117 (TCP), 21116 (UDP) |
 | `qr` | QR codes whose destination can change after printing; the admin page is public behind the passkey at `qr.<zone>`, with no `*.lab` name — see [qr](qr.md) | 8097 (admin) |
 | `paradigm-tunnel` | the connector for the tunnel in the Paradigm Prints Cloudflare account — see [qr](qr.md) | — |
