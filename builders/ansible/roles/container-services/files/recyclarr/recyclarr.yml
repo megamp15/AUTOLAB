@@ -12,6 +12,16 @@ sonarr:
     api_key: !secret sonarr_api_key
     quality_definition:
       type: series
+    # Folders carry the show's TVDB id, so Jellyfin matches the right show
+    # instead of guessing from the name; files are renamed to TRaSH's pattern.
+    media_naming:
+      series: jellyfin-tvdb
+      season: default
+      episodes:
+        rename: true
+        standard: default
+        daily: default
+        anime: default
     quality_profiles:
       - trash_id: 72dae194fc92bf828f32cde7744e51a1  # WEB-1080p: shows and dramas
         reset_unmatched_scores:
@@ -37,6 +47,12 @@ radarr:
     api_key: !secret radarr_api_key
     quality_definition:
       type: movie
+    # The same for films, with the TMDB id.
+    media_naming:
+      folder: jellyfin-tmdb
+      movie:
+        rename: true
+        standard: jellyfin-tmdb
     quality_profiles:
       - trash_id: d1d67249d3890e49bc12e275d989a7e9  # HD Bluray + WEB
         reset_unmatched_scores:

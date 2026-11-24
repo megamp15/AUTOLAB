@@ -125,6 +125,15 @@ Pick the profile when adding a title: the anime one for anime, the other for
 everything else. The services run writes `secrets.yml` beside the settings
 from Sonarr's and Radarr's own API keys.
 
+It also sets their naming to TRaSH's Jellyfin presets: a show's folder ends in
+`[tvdbid-…]` and a film's in `[tmdbid-…]`, so Jellyfin matches the exact title
+instead of guessing from the name (it once matched a new K-drama to the wrong
+show), and files are renamed to `Show (Year) - S01E01 - Title [quality]`.
+
+Sonarr, Radarr and Lidarr each have a Jellyfin connection (Settings, Connect)
+that asks Jellyfin to scan as soon as they add a file. Jellyfin cannot watch
+the folders itself: change notifications do not cross NFS.
+
 Recyclarr syncs once a day. To sync now, or to see what it would change:
 
 ```sh
