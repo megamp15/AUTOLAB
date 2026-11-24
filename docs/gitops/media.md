@@ -9,7 +9,8 @@ audience: operator
 `aurora` is a VM on zima-pve (edge Stack, VMID 303, 4 vCPU, 4 GB, 150 GB on
 the HDD). It runs Jellyfin, which plays the films and shows kept on the NAS, and the
 apps that fetch them: Prowlarr, Sonarr, Radarr, Lidarr, Bazarr, SABnzbd,
-qBittorrent behind Gluetun and Mullvad, and Recyclarr.
+qBittorrent behind Gluetun and Mullvad, and Recyclarr. Seerr is the page the
+household uses to see what is trending and request it.
 
 ## The download apps
 
@@ -68,6 +69,47 @@ app at home find the server without being given an address.
 
 There is no passkey in front of either name. Jellyfin's apps on a phone or a
 TV cannot answer a passkey page.
+
+## Seerr: browse and request
+
+Seerr shows what is trending, popular and coming soon, and sends a request to
+Sonarr or Radarr. People sign in with their Jellyfin accounts, so there is no
+second password. Novaflix's Requests screen stays the admin view (the queue, why
+a download failed, deleting files); Seerr is the simple one for everyone else.
+
+| from | address | what is in front |
+|---|---|---|
+| a device at home (a TV's browser, a phone) | `http://<aurora's home address>:5055` | Seerr's sign-in (Jellyfin accounts) |
+| a device on the tailnet | `https://seerr.lab.<zone>` | the same |
+| the internet | nothing | no public name |
+
+5055 is open to the home network the same way 8096 is: published on the home
+address and named in aurora's `firewall_rules`. Its settings, users and
+requests are a SQLite database in `/opt/autolab/services/seerr`.
+
+### Seerr's first run
+
+Its settings are made in its own setup page, not in code:
+
+1. Open it, choose Jellyfin, and sign in with the Jellyfin admin account.
+   The Jellyfin address is `http://jellyfin:8096` (the same Compose network);
+   the external address is `http://<aurora's home address>:8096`.
+2. Pick the libraries to sync (all of them).
+3. Add Radarr (`http://radarr:7878`) and Sonarr (`http://sonarr:8989`) with
+   their API keys, the default quality profile and root folder, and mark each
+   the default server.
+   The default root folders are `/data/media/movies` and `/data/media/tv`:
+   Seerr files every request there, and Novaflix moves each new one to the
+   library its language says (Desi, K-dramas, anime) within five minutes.
+4. Users, Import Jellyfin Users: each person signs in with their own account.
+   Give them Request and Auto-Approve, or leave approval to an admin.
+
+### On the TVs
+
+| device | app |
+|---|---|
+| Google TV (the Valerion projector, the Sony) | Moonfin from the Play Store: plays from Jellyfin and has Seerr's browse and request inside, through the Moonfin plugin on Jellyfin |
+| LG (webOS) | the Jellyfin app from LG's store to watch; Seerr in a phone's browser to request. Moonfin for webOS has to be sideloaded in developer mode |
 
 ## Where things are
 
@@ -160,8 +202,8 @@ library holds its folder yet. It never renames, changes or deletes a library,
 so one made or edited in the UI stays as it is. Removing a line from the list
 leaves the library in place.
 
-Libraries are split by language (Anime, K-Dramas, C-Dramas, J-Dramas, and a
-movie library for each) so each gets its own row on the home screen and its
+Libraries are split by language (Anime, K-Dramas, C-Dramas, J-Dramas, Desi
+Shows for Indian and Pakistani titles, and a movie library for each) so each gets its own row on the home screen and its
 own folder for the download apps to file into.
 
 ## Not yet seen
@@ -170,3 +212,5 @@ The download apps' wiring as code (the clients and root folders set through
 each app's API).
 
 A file played on the projector over the home address.
+
+Seerr opened from a TV at home, and a request from it reaching Sonarr.

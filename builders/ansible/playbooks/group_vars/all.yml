@@ -15,7 +15,7 @@
 # be told.
 autolab_remote_services:
   nebula: [adventurelog, forgejo, tandoor, airtrail, karakeep, sure]
-  aurora: [jellyfin, sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent, lidarr, recyclarr]
+  aurora: [jellyfin, sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent, lidarr, recyclarr, seerr]
 
 # Every container service the lab knows, what it listens on, and how a person
 # gets in:
@@ -128,6 +128,12 @@ autolab_service_catalog:
   lidarr:
     port: 8117
     login: plugin
+  # Seerr on aurora: browse and request, for the household. `own`: it signs
+  # people in with their Jellyfin accounts, and a TV cannot answer a passkey
+  # page. The home network dials the machine's own address on 5055.
+  seerr:
+    port: 8118
+    login: own
   # Recyclarr: no port, it only talks to Sonarr and Radarr.
   recyclarr:
     login: none

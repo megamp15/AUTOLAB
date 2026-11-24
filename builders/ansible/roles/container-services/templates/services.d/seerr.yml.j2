@@ -1,0 +1,31 @@
+  # Seerr: a page for the household to browse what is trending and request it.
+  # It signs people in with their Jellyfin accounts and hands each request to
+  # Sonarr or Radarr. The home network reaches it at this machine's own
+  # address, because the projector and the TVs are not on the tailnet; the
+  # tailnet reaches it on the catalog port. docs/gitops/media.md
+  seerr:
+    image: {{ autolab_services_images.seerr }}
+    labels:
+      dockhand.tags: seerr
+    restart: unless-stopped
+    # The image's own `node` user.
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges
+    environment:
+      TZ: "{{ autolab_timezone | default('UTC') }}"
+    volumes:
+      # Settings, users and requests: a SQLite database, so on this disk.
+      - {{ autolab_services_root }}/seerr:/app/config
+    mem_limit: {{ autolab_services_memory.seerr }}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:5055/api/v1/status || exit 1"]
+      start_period: 60s
+      interval: 30s
+      timeout: 6s
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.seerr }}:5055"
+      # The home network, on purpose, as Jellyfin's 8096: aurora's
+      # firewall_rules open it to the home network and nothing beyond.
+      - "{{ autolab_services_lan_ip }}:5055:5055"

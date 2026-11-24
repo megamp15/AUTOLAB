@@ -74,6 +74,11 @@
         href: https://lidarr.{{ lab }}
         description: Finds and files music
         siteMonitor: http://aurora.{{ tn }}:{{ autolab_service_catalog.lidarr.port }}/ping
+    - Seerr:
+        icon: mdi-movie-search
+        href: https://seerr.{{ lab }}
+        description: Browse and request films and shows
+        siteMonitor: http://aurora.{{ tn }}:{{ autolab_service_catalog.seerr.port }}/api/v1/status
     - Sure:
         icon: mdi-finance
         href: https://sure.{{ lab }}
