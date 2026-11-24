@@ -65,8 +65,9 @@ autolab_services_media_dirs: >-
      + autolab_services_jellyfin_libraries | map(attribute='folder') | map('regex_replace', '^', 'media/') | list }}
 # The download apps that keep their settings in their own folder on this disk.
 autolab_services_download_apps: [sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent]
-# Gluetun: which Mullvad servers to use. The key works on every one of them.
-autolab_services_mullvad_cities: [Houston]
+# Gluetun: which Mullvad servers to use, spelled as Gluetun lists them ("Houston
+# TX", not "Houston"). The key works on every one of them.
+autolab_services_mullvad_cities: ["Houston TX"]
 # From a WireGuard config made on Mullvad's site (PrivateKey, and the IPv4 part
 # of Address). The MULLVAD_WIREGUARD_* secrets.
 autolab_services_mullvad_private_key: ""

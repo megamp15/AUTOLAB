@@ -1509,13 +1509,22 @@
     - autolab_services_jellyfin_api_key | length > 0
     - autolab_jellyfin_path not in autolab_jellyfin_held
 
-# SABnzbd refuses a request whose host name it does not know. Its file exists
-# after its first start, so the first run adds the names on the way out.
-- name: Let SABnzbd answer to its lab name
+# SABnzbd refuses a request whose host name it does not know, and one from an
+# address outside the private ranges, which a tailnet address (100.64/10) is.
+# Its file exists after its first start, so the first run adds both on the way out.
+# `sabnzbd` is the name Sonarr and Radarr dial on the compose network.
+- name: Let SABnzbd answer to its lab name and the tailnet
   ansible.builtin.lineinfile:
     path: "{{ autolab_services_root }}/sabnzbd/sabnzbd.ini"
-    regexp: '^host_whitelist ='
-    line: "host_whitelist = sabnzbd.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}, {{ inventory_hostname }}, {{ autolab_services_fqdn }}"
+    regexp: "^{{ item.key }} ="
+    line: "{{ item.key }} = {{ item.value }}"
+  loop:
+    - key: host_whitelist
+      value: "sabnzbd, sabnzbd.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}, {{ inventory_hostname }}, {{ autolab_services_fqdn }}"
+    - key: local_ranges
+      value: 100.64.0.0/10, 172.16.0.0/12, 127.0.0.0/8
+  loop_control:
+    label: "{{ item.key }}"
   register: autolab_sabnzbd_whitelist
   failed_when: false
   when: "'sabnzbd' in autolab_services_enabled"
