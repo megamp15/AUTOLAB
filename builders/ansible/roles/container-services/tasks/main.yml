@@ -1627,6 +1627,11 @@
     headers:
       Authorization: 'MediaBrowser Token="{{ autolab_services_jellyfin_api_key }}"'
   register: autolab_jellyfin_libraries
+  # Jellyfin answers /health a moment before its API is ready, and longer after
+  # a version's migrations (12.0 refused this once, then answered).
+  until: autolab_jellyfin_libraries.status == 200
+  retries: 12
+  delay: 5
   no_log: true
   check_mode: false
   when:
