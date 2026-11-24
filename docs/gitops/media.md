@@ -8,8 +8,8 @@ audience: operator
 
 `aurora` is a VM on zima-pve (edge Stack, VMID 303, 4 vCPU, 4 GB, 150 GB on
 the HDD). It runs Jellyfin, which plays the films and shows kept on the NAS, and the
-apps that fetch them: Prowlarr, Sonarr, Radarr, Bazarr, SABnzbd, and
-qBittorrent behind Gluetun and Mullvad.
+apps that fetch them: Prowlarr, Sonarr, Radarr, Lidarr, Bazarr, SABnzbd,
+qBittorrent behind Gluetun and Mullvad, and Recyclarr.
 
 ## The download apps
 
@@ -18,6 +18,8 @@ qBittorrent behind Gluetun and Mullvad.
 | Prowlarr | `prowlarr.lab.<zone>` | holds the indexers and hands them to Sonarr and Radarr |
 | Sonarr | `sonarr.lab.<zone>` | finds series (shows, anime, dramas) and files them into their library folder |
 | Radarr | `radarr.lab.<zone>` | the same for films |
+| Lidarr | `lidarr.lab.<zone>` | the same for music, into the Music library |
+| Recyclarr | no page | copies TRaSH Guides' quality profiles into Sonarr and Radarr once a day |
 | Bazarr | `bazarr.lab.<zone>` | fetches subtitles for what the two have filed |
 | SABnzbd | `sabnzbd.lab.<zone>` | downloads from Usenet |
 | qBittorrent | `qbittorrent.lab.<zone>` | downloads torrents, only through the Mullvad tunnel |
@@ -113,6 +115,31 @@ Their wiring is not code yet; set it in each app's UI:
    Anime series type.
 5. Bazarr: connect Sonarr and Radarr the same way.
 
+### Recyclarr
+
+The settings are `files/recyclarr/recyclarr.yml` in the container-services
+role. Shows get TRaSH's WEB-1080p profile and films HD Bluray + WEB, each with
+"Language: Not Original" (so a Korean drama comes in Korean, never dubbed) and
+the Asian streaming services boost. Anime gets TRaSH's anime profile on both.
+Pick the profile when adding a title: the anime one for anime, the other for
+everything else. The services run writes `secrets.yml` beside the settings
+from Sonarr's and Radarr's own API keys.
+
+Recyclarr syncs once a day. To sync now, or to see what it would change:
+
+```sh
+cd /opt/autolab/services
+sudo docker compose exec recyclarr recyclarr sync --preview   # what would change
+sudo docker compose exec recyclarr recyclarr sync
+```
+
+### Stopping one
+
+A stopped container uses no memory. Take an app out of aurora's `services`
+list to stop it for good; its settings stay in `/opt/autolab/services/<app>`
+and come back when the name does. Stopping it in Dockhand lasts until the
+next services run.
+
 ## Libraries
 
 The list is `autolab_services_jellyfin_libraries` in the container-services
@@ -128,7 +155,7 @@ own folder for the download apps to file into.
 
 ## Not yet seen
 
-The download apps' wiring as code (Recyclarr for the TRaSH profiles, and the
-clients and root folders set through each app's API).
+The download apps' wiring as code (the clients and root folders set through
+each app's API).
 
 A file played on the projector over the home address.

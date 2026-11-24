@@ -474,6 +474,17 @@ autolab_obs_homepage_links:
     check:
       type: tcp
       target: "aurora.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.qbittorrent.port }}"
+  - name: Lidarr
+    group: services
+    meta: finds music
+    url: >-
+      {{ autolab_obs_lab_url.format(name='lidarr', raw='http://aurora.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.lidarr.port) }}
+    icon: photos
+    enabled: "{{ 'lidarr' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
+    check:
+      type: http
+      target: "http://aurora.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.lidarr.port }}/ping"
   - name: Sure
     group: services
     meta: finances

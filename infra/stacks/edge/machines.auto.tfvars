@@ -137,7 +137,7 @@ machines = {
     builder = {
       docker_enabled = true
       # Named in autolab_remote_services.aurora too; a test keeps them equal.
-      services = ["jellyfin", "sonarr", "radarr", "prowlarr", "bazarr", "sabnzbd", "qbittorrent"]
+      services = ["jellyfin", "sonarr", "radarr", "prowlarr", "bazarr", "sabnzbd", "qbittorrent", "lidarr", "recyclarr"]
       # Jellyfin for the home network: the projector and the TVs are not on
       # the tailnet. 7359 is how a Jellyfin app at home finds the server.
       firewall_rules = [

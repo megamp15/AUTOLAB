@@ -39,7 +39,7 @@ autolab_services_nas_dir_catalog:
 # rename, not a copy. Guarded the same way as the data root above.
 autolab_services_media_mount: /mnt/aurora
 autolab_services_media_root: "{{ autolab_services_media_mount }}/media-stack"
-autolab_services_media_backed: [jellyfin, sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent]
+autolab_services_media_backed: [jellyfin, sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent, lidarr]
 # Jellyfin's libraries, one folder each under media/. Split by language so
 # each gets its own row on the home screen. The services run creates any
 # library whose folder no library holds yet; it never changes or deletes one
@@ -55,6 +55,7 @@ autolab_services_jellyfin_libraries:
   - {name: C-Movies, type: movies, folder: cmovies}
   - {name: J-Dramas, type: tvshows, folder: jdrama}
   - {name: J-Movies, type: movies, folder: jmovies}
+  - {name: Music, type: music, folder: music}
 # An API key made in Jellyfin (Dashboard, API Keys). Empty: libraries are left alone.
 autolab_services_jellyfin_api_key: ""
 # Owned by 1000: Jellyfin and the download apps run as that uid.
@@ -64,7 +65,7 @@ autolab_services_media_dirs: >-
   {{ ['media', 'usenet', 'usenet/complete', 'torrents']
      + autolab_services_jellyfin_libraries | map(attribute='folder') | map('regex_replace', '^', 'media/') | list }}
 # The download apps that keep their settings in their own folder on this disk.
-autolab_services_download_apps: [sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent]
+autolab_services_download_apps: [sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent, lidarr, recyclarr]
 # Gluetun: which Mullvad servers to use, spelled as Gluetun lists them ("Houston
 # TX", not "Houston"). The key works on every one of them.
 autolab_services_mullvad_cities: ["Houston TX"]
@@ -173,6 +174,8 @@ autolab_services_images:
   sabnzbd: "linuxserver/sabnzbd:5.1.3-ls282"
   qbittorrent: "linuxserver/qbittorrent:5.3.0_v2.1.3-ls489"
   gluetun: "qmcgaw/gluetun:v3.41.3"
+  lidarr: "linuxserver/lidarr:3.1.6.5079-ls49"
+  recyclarr: "ghcr.io/recyclarr/recyclarr:8.8.1"
   cosmos_db: "postgres:17.12-alpine"
   novaflix_db: "postgres:17.12-alpine"
   # The connector for the Paradigm Prints tunnel, pinned with the same
@@ -211,6 +214,7 @@ autolab_services_ports:
   bazarr: "{{ autolab_service_catalog.bazarr.port }}"
   sabnzbd: "{{ autolab_service_catalog.sabnzbd.port }}"
   qbittorrent: "{{ autolab_service_catalog.qbittorrent.port }}"
+  lidarr: "{{ autolab_service_catalog.lidarr.port }}"
 
 # RustDesk is not HTTP, so it has no entry in the shared port catalog (the
 # ingress would try to route one). Its ports are the protocol's own, and the
@@ -312,6 +316,8 @@ autolab_services_memory:
   sabnzbd: 1g
   qbittorrent: 1g
   gluetun: 128m
+  lidarr: 512m
+  recyclarr: 256m
   tandoor: 1280m
   tandoor_db: 256m
   airtrail: 512m
