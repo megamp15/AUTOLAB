@@ -1542,7 +1542,9 @@
     headers:
       Authorization: 'MediaBrowser Token="{{ autolab_services_jellyfin_api_key }}"'
     body_format: json
-    body: {LibraryOptions: {}}
+    # Real-time monitoring on: without it Jellyfin ignores Sonarr's and Radarr's
+    # "this folder changed" for a folder it has not seen (a new show).
+    body: {LibraryOptions: {EnableRealtimeMonitor: true}}
     status_code: 204
   loop: "{{ autolab_services_jellyfin_libraries }}"
   loop_control:
@@ -1552,6 +1554,29 @@
     - "'jellyfin' in autolab_services_enabled"
     - autolab_services_jellyfin_api_key | length > 0
     - autolab_jellyfin_path not in autolab_jellyfin_held
+
+# The same on libraries that already exist, whoever made them. Only this one
+# setting is changed; the rest of each library's options are sent back as read.
+- name: Turn on real-time monitoring where it is off
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}/Library/VirtualFolders/LibraryOptions"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Token="{{ autolab_services_jellyfin_api_key }}"'
+    body_format: json
+    body:
+      Id: "{{ item.ItemId }}"
+      LibraryOptions: "{{ item.LibraryOptions | combine({'EnableRealtimeMonitor': true}) }}"
+    status_code: 204
+  loop: "{{ autolab_jellyfin_libraries.json | default([]) }}"
+  loop_control:
+    label: "{{ item.Name }}"
+  changed_when: true
+  when:
+    - "'jellyfin' in autolab_services_enabled"
+    - autolab_services_jellyfin_api_key | length > 0
+    - not ansible_check_mode
+    - not (item.LibraryOptions.EnableRealtimeMonitor | default(false))
 
 # SABnzbd refuses a request whose host name it does not know, and one from an
 # address outside the private ranges, which a tailnet address (100.64/10) is.
