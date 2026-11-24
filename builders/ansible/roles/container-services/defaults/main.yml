@@ -201,7 +201,7 @@ autolab_services_images:
   gluetun: "qmcgaw/gluetun:v3.41.3"
   lidarr: "linuxserver/lidarr:3.1.6.5079-ls49"
   recyclarr: "ghcr.io/recyclarr/recyclarr:8.8.1"
-  seerr: "ghcr.io/seerr-team/seerr:v3.5.1"
+  seerr: "ghcr.io/seerr-team/seerr:v3.5.2"
   # The public Jellyfin door: the same Traefik as the lab's ingress, and the
   # dynamic DNS updater beside it.
   jellyfin_public: "traefik:v3.7.19"
