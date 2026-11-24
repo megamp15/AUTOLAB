@@ -132,7 +132,9 @@ show), and files are renamed to `Show (Year) - S01E01 - Title [quality]`.
 
 Sonarr, Radarr and Lidarr each have a Jellyfin connection (Settings, Connect)
 that asks Jellyfin to scan as soon as they add a file. Jellyfin cannot watch
-the folders itself: change notifications do not cross NFS.
+the folders itself: change notifications do not cross NFS. Jellyfin acts on that
+only in a library with real-time monitoring on; the services run turns it on
+in every library (a library made with it off ignored a new show's folder).
 
 Recyclarr syncs once a day. To sync now, or to see what it would change:
 
