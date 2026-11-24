@@ -972,6 +972,15 @@
         POCKETID_CLIENT_ID={{ autolab_services_novaflix_oidc_client_id }}
         POCKETID_CLIENT_SECRET={{ autolab_services_novaflix_oidc_client_secret }}
         FIRST_ADMIN_EMAIL={{ autolab_services_admin_email }}
+        {% if autolab_services_novaflix_sonarr_api_key and autolab_services_novaflix_radarr_api_key and autolab_services_jellyfin_api_key %}
+        SONARR_URL=http://{{ autolab_services_novaflix_media_host }}:{{ autolab_service_catalog.sonarr.port }}
+        SONARR_API_KEY={{ autolab_services_novaflix_sonarr_api_key }}
+        RADARR_URL=http://{{ autolab_services_novaflix_media_host }}:{{ autolab_service_catalog.radarr.port }}
+        RADARR_API_KEY={{ autolab_services_novaflix_radarr_api_key }}
+        JELLYFIN_URL=http://{{ autolab_services_novaflix_media_host }}:{{ autolab_service_catalog.jellyfin.port }}
+        JELLYFIN_API_KEY={{ autolab_services_jellyfin_api_key }}
+        JELLYFIN_PUBLIC_URL=https://jellyfin.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}
+        {% endif %}
   loop_control:
     label: "{{ item.name }}"
   no_log: true
