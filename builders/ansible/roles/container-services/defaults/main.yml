@@ -190,7 +190,7 @@ autolab_services_images:
   dash: "ghcr.io/gethomepage/homepage:v2.8.0"
   # Both containers, one image: `hbbs` and `hbbr` are its two commands.
   rustdesk: "rustdesk/rustdesk-server:1.1.16"
-  jellyfin: "jellyfin/jellyfin:10.11.11"
+  jellyfin: "jellyfin/jellyfin:12.4"
   # The download apps on aurora (docs/gitops/media.md).
   sonarr: "linuxserver/sonarr:4.0.20.3014-ls6"
   radarr: "linuxserver/radarr:7.0.3.10918-ls328"
