@@ -11,6 +11,13 @@
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges
+{% if autolab_render_device.stat.exists | default(false) %}
+    # The graphics device, for Quick Sync, and the group that may use it.
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    group_add:
+      - "{{ ansible_facts.getent_group.render[1] }}"
+{% endif %}
     environment:
       TZ: "{{ autolab_timezone | default('UTC') }}"
       # What a device at home is told when it searches for the server.

@@ -100,6 +100,18 @@ resource "proxmox_virtual_environment_vm" "vm" {
     vlan_id = var.vlan_id
   }
 
+  # A whole host device (an iGPU for video encoding), by mapping name. Adding
+  # or removing one restarts the VM.
+  dynamic "hostpci" {
+    for_each = var.pci_mappings
+    content {
+      device  = "hostpci${hostpci.key}"
+      mapping = hostpci.value
+      pcie    = false
+      rombar  = true
+    }
+  }
+
   initialization {
     datastore_id = var.cloud_init_datastore_id
 

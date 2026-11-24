@@ -91,6 +91,7 @@ module "machine" {
   tags            = each.value.tags
   started         = each.value.started
   startup         = each.value.startup
+  pci_mappings    = each.value.pci_mappings
 }
 
 # Tailscale device cleanup — revoke the VM's device record when the VM dies.

@@ -53,9 +53,26 @@ module "cloud_init" {
   tailscale_auth_key = tailscale_tailnet_key.builder_target_vm[each.key].key
 }
 
+# zima-pve's Intel N150 graphics, for aurora's Jellyfin to encode video with
+# (Quick Sync). A mapping, because the API token may not pass a raw PCI address.
+# The node runs headless; it gives the device up while aurora runs.
+resource "proxmox_hardware_mapping_pci" "zima_igpu" {
+  name    = "zima-igpu"
+  comment = "Intel N150 graphics, for aurora's Jellyfin"
+  map = [{
+    node         = "zima-pve"
+    path         = "0000:00:02.0"
+    id           = "8086:46d4"
+    subsystem_id = "8086:7270"
+    iommu_group  = 0
+  }]
+}
+
 module "machine" {
   source   = "../../modules/proxmox-compute"
   for_each = module.machine_inputs.builder_target_machines
+
+  depends_on = [proxmox_hardware_mapping_pci.zima_igpu]
 
   # Type selector
   type = each.value.type
@@ -91,6 +108,7 @@ module "machine" {
   tags            = each.value.tags
   started         = each.value.started
   startup         = each.value.startup
+  pci_mappings    = each.value.pci_mappings
 }
 
 # Tailscale device cleanup — revoke the VM's device record when the VM dies.

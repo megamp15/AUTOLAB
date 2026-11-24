@@ -150,6 +150,40 @@
   loop: ["", config, cache]
   when: "'jellyfin' in autolab_services_enabled"
 
+# Quick Sync: when the machine has a graphics device (aurora is handed the
+# node's Intel graphics), Jellyfin encodes with it. Intel's firmware lets the
+# N150 use its low-power encoder, the only one it has; the kernel loads it at
+# boot, so a first install reboots.
+- name: Look for a graphics device to encode video with
+  ansible.builtin.stat:
+    path: /dev/dri/renderD128
+  register: autolab_render_device
+  when: "'jellyfin' in autolab_services_enabled"
+
+- name: Install Intel's graphics firmware
+  ansible.builtin.apt:
+    name: firmware-intel-graphics
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  register: autolab_intel_firmware
+  when:
+    - "'jellyfin' in autolab_services_enabled"
+    - autolab_render_device.stat.exists | default(false)
+
+- name: Reboot to load the graphics firmware  # noqa: no-handler (the compose file below needs the device ready)
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+  when: autolab_intel_firmware is changed
+
+- name: Read the render group's id
+  ansible.builtin.getent:
+    database: group
+    key: render
+  when:
+    - "'jellyfin' in autolab_services_enabled"
+    - autolab_render_device.stat.exists | default(false)
+
 # The public Jellyfin door. Without the DNS token it could get no certificate
 # and the record would never be written, so the run stops and says so.
 - name: The public Jellyfin door needs the DNS token and the ACME email
@@ -1754,6 +1788,51 @@
     - autolab_services_jellyfin_api_key | length > 0
     - not ansible_check_mode
     - autolab_jellyfin_server.json.RemoteClientBitrateLimit | default(0) | int != autolab_services_jellyfin_remote_bitrate | int
+
+- name: Read Jellyfin's encoding settings
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}/System/Configuration/encoding"
+    headers:
+      Authorization: 'MediaBrowser Token="{{ autolab_services_jellyfin_api_key }}"'
+  register: autolab_jellyfin_encoding
+  no_log: true
+  check_mode: false
+  when:
+    - "'jellyfin' in autolab_services_enabled"
+    - autolab_services_jellyfin_api_key | length > 0
+    - autolab_render_device.stat.exists | default(false)
+
+# Quick Sync on the N150: decode what it can (no AV1 encode on this chip),
+# encode H.264 with the low-power encoder, and tone-map HDR to SDR on it.
+- name: Encode with Quick Sync
+  vars:
+    autolab_jellyfin_encoding_wanted:
+      HardwareAccelerationType: qsv
+      QsvDevice: /dev/dri/renderD128
+      VaapiDevice: /dev/dri/renderD128
+      EnableHardwareEncoding: true
+      EnableIntelLowPowerH264HwEncoder: true
+      EnableIntelLowPowerHevcHwEncoder: true
+      EnableDecodingColorDepth10Hevc: true
+      EnableDecodingColorDepth10Vp9: true
+      EnableTonemapping: true
+      HardwareDecodingCodecs: [h264, hevc, mpeg2video, vc1, vp8, vp9, av1]
+  ansible.builtin.uri:
+    url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}/System/Configuration/encoding"
+    method: POST
+    headers:
+      Authorization: 'MediaBrowser Token="{{ autolab_services_jellyfin_api_key }}"'
+    body_format: json
+    body: "{{ autolab_jellyfin_encoding.json | combine(autolab_jellyfin_encoding_wanted) }}"
+    status_code: 204
+  no_log: true
+  changed_when: true
+  when:
+    - "'jellyfin' in autolab_services_enabled"
+    - autolab_services_jellyfin_api_key | length > 0
+    - autolab_render_device.stat.exists | default(false)
+    - not ansible_check_mode
+    - autolab_jellyfin_encoding.json | combine(autolab_jellyfin_encoding_wanted) != autolab_jellyfin_encoding.json
 
 # An administrator signs in from home or the tailnet only. From the internet,
 # a stolen or guessed admin password opens nothing; friends' accounts are not

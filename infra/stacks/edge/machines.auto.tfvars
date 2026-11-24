@@ -134,6 +134,9 @@ machines = {
     disk_size_gb            = 150
     ipv4_address            = "192.168.50.54/24"
     ipv4_gateway            = "192.168.50.1"
+    # The node's graphics, so Jellyfin encodes with Quick Sync instead of
+    # the four CPU cores (about one 1080p stream).
+    pci_mappings = ["zima-igpu"]
     builder = {
       docker_enabled = true
       # Named in autolab_remote_services.aurora too; a test keeps them equal.
