@@ -1,0 +1,53 @@
+  # Gluetun: a WireGuard tunnel to Mullvad. qBittorrent shares its network, so
+  # every packet it sends goes through the tunnel, and if the tunnel is down
+  # Gluetun's firewall leaves it with no network at all. docs/gitops/media.md
+  gluetun:
+    image: {{ autolab_services_images.gluetun }}
+    labels:
+      dockhand.tags: qbittorrent
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    env_file: [./gluetun.env]
+    environment:
+      TZ: "{{ autolab_timezone | default('UTC') }}"
+      VPN_SERVICE_PROVIDER: mullvad
+      VPN_TYPE: wireguard
+      SERVER_CITIES: "{{ autolab_services_mullvad_cities | join(',') }}"
+      # qBittorrent's web page, for Sonarr and Radarr on the compose network
+      # and for the published port below. Nothing else gets in.
+      FIREWALL_INPUT_PORTS: "8080"
+    mem_limit: {{ autolab_services_memory.gluetun }}
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.qbittorrent }}:8080"
+
+  # qBittorrent: torrents, into torrents/ on the share. Its own login: the
+  # first password is in its log (docs/gitops/media.md, First run).
+  qbittorrent:
+    image: {{ autolab_services_images.qbittorrent }}
+    labels:
+      dockhand.tags: qbittorrent
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: "{{ autolab_timezone | default('UTC') }}"
+      WEBUI_PORT: "8080"
+    volumes:
+      - {{ autolab_services_root }}/qbittorrent:/config
+      - type: bind
+        source: {{ autolab_services_media_root }}
+        target: /data
+        bind:
+          create_host_path: false
+    mem_limit: {{ autolab_services_memory.qbittorrent }}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8080 || exit 1"]
+      start_period: 60s
+      interval: 30s
+      timeout: 6s

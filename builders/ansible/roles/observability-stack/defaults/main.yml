@@ -408,6 +408,72 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://aurora.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.jellyfin.port }}/health"
+  - name: Prowlarr
+    group: services
+    meta: indexers
+    url: >-
+      {{ autolab_obs_lab_url.format(name='prowlarr', raw='http://aurora.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.prowlarr.port) }}
+    icon: photos
+    enabled: "{{ 'prowlarr' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
+    check:
+      type: http
+      target: "http://aurora.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.prowlarr.port }}/ping"
+  - name: Sonarr
+    group: services
+    meta: finds shows
+    url: >-
+      {{ autolab_obs_lab_url.format(name='sonarr', raw='http://aurora.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.sonarr.port) }}
+    icon: photos
+    enabled: "{{ 'sonarr' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
+    check:
+      type: http
+      target: "http://aurora.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.sonarr.port }}/ping"
+  - name: Radarr
+    group: services
+    meta: finds films
+    url: >-
+      {{ autolab_obs_lab_url.format(name='radarr', raw='http://aurora.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.radarr.port) }}
+    icon: photos
+    enabled: "{{ 'radarr' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
+    check:
+      type: http
+      target: "http://aurora.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.radarr.port }}/ping"
+  - name: Bazarr
+    group: services
+    meta: subtitles
+    url: >-
+      {{ autolab_obs_lab_url.format(name='bazarr', raw='http://aurora.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.bazarr.port) }}
+    icon: photos
+    enabled: "{{ 'bazarr' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
+    check:
+      type: tcp
+      target: "aurora.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.bazarr.port }}"
+  - name: SABnzbd
+    group: services
+    meta: Usenet downloads
+    url: >-
+      {{ autolab_obs_lab_url.format(name='sabnzbd', raw='http://aurora.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.sabnzbd.port) }}
+    icon: photos
+    enabled: "{{ 'sabnzbd' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
+    check:
+      type: tcp
+      target: "aurora.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.sabnzbd.port }}"
+  - name: qBittorrent
+    group: services
+    meta: torrents, through Mullvad
+    url: >-
+      {{ autolab_obs_lab_url.format(name='qbittorrent', raw='http://aurora.' ~ autolab_tailscale_fqdn.split('.', 1)[1]
+         ~ ':' ~ autolab_service_catalog.qbittorrent.port) }}
+    icon: photos
+    enabled: "{{ 'qbittorrent' in (autolab_remote_services | dict2items | map(attribute='value') | flatten) }}"
+    check:
+      type: tcp
+      target: "aurora.{{ autolab_tailscale_fqdn.split('.', 1)[1] }}:{{ autolab_service_catalog.qbittorrent.port }}"
   - name: Sure
     group: services
     meta: finances

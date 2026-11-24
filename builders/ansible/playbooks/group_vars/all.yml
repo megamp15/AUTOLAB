@@ -15,7 +15,7 @@
 # be told.
 autolab_remote_services:
   nebula: [adventurelog, forgejo, tandoor, airtrail, karakeep, sure]
-  aurora: [jellyfin]
+  aurora: [jellyfin, sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent]
 
 # Every container service the lab knows, what it listens on, and how a person
 # gets in:
@@ -104,6 +104,27 @@ autolab_service_catalog:
   jellyfin:
     port: 8110
     login: own
+  # The download apps on aurora. `plugin`: none of them keeps a user per
+  # person, so the passkey sits in front. qBittorrent's port is Gluetun's, the
+  # container whose network it shares. See docs/gitops/media.md.
+  prowlarr:
+    port: 8111
+    login: plugin
+  sonarr:
+    port: 8112
+    login: plugin
+  radarr:
+    port: 8113
+    login: plugin
+  bazarr:
+    port: 8114
+    login: plugin
+  sabnzbd:
+    port: 8115
+    login: plugin
+  qbittorrent:
+    port: 8116
+    login: plugin
   # RustDesk: remote desktop between the lab's own machines. No port here on
   # purpose: it is raw TCP and UDP (21115-21117), not HTTP, so there is nothing
   # for Traefik to route, and a port in this catalog would make it try. The
