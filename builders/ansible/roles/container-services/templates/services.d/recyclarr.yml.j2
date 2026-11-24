@@ -1,0 +1,18 @@
+  # Recyclarr: copies TRaSH Guides' quality profiles into Sonarr and Radarr on
+  # its own daily schedule. No port and no page; its log is the record.
+  # The settings are files/recyclarr/recyclarr.yml. docs/gitops/media.md
+  recyclarr:
+    image: {{ autolab_services_images.recyclarr }}
+    labels:
+      dockhand.tags: recyclarr
+    restart: unless-stopped
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges
+    environment:
+      TZ: "{{ autolab_timezone | default('UTC') }}"
+      RECYCLARR_CREATE_CONFIG: "false"
+    volumes:
+      - {{ autolab_services_root }}/recyclarr:/config
+    mem_limit: {{ autolab_services_memory.recyclarr }}

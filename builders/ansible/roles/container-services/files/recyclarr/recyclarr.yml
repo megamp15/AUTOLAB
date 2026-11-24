@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=https://schemas.recyclarr.dev/v8/config-schema.json
+# Recyclarr: TRaSH Guides' quality profiles and custom formats, synced into
+# Sonarr and Radarr once a day. Default groups follow each profile by
+# themselves; the two added here are ours. docs/gitops/media.md
+# The API keys come from secrets.yml, which the services run writes from each
+# app's own config.xml.
+
+sonarr:
+  aurora:
+    base_url: http://sonarr:8989
+    api_key: !secret sonarr_api_key
+    quality_definition:
+      type: series
+    quality_profiles:
+      - trash_id: 72dae194fc92bf828f32cde7744e51a1  # WEB-1080p: shows and dramas
+        reset_unmatched_scores:
+          enabled: true
+      - trash_id: 20e0fc959f1f1704bed501f23bdae76f  # [Anime] Remux-1080p
+        reset_unmatched_scores:
+          enabled: true
+    custom_format_groups:
+      add:
+        # Language: Not Original (the group's default): a Korean drama in
+        # Korean, an American show in English, never a dub.
+        - trash_id: 74aff4168620ed49dcc67e92b2c2a5b4  # [Optional] Language Profiles
+          assign_scores_to:
+            - trash_id: 72dae194fc92bf828f32cde7744e51a1
+        # Viki, iQIYI and the like, where most dramas are released.
+        - trash_id: 35fb4585dcd9e2a5ac732e4309f5a45a  # [Streaming Services] Asian
+          assign_scores_to:
+            - trash_id: 72dae194fc92bf828f32cde7744e51a1
+
+radarr:
+  aurora:
+    base_url: http://radarr:7878
+    api_key: !secret radarr_api_key
+    quality_definition:
+      type: movie
+    quality_profiles:
+      - trash_id: d1d67249d3890e49bc12e275d989a7e9  # HD Bluray + WEB
+        reset_unmatched_scores:
+          enabled: true
+      - trash_id: 722b624f9af1e492284c4bc842153a38  # [Anime] Remux-1080p
+        reset_unmatched_scores:
+          enabled: true
+    custom_format_groups:
+      add:
+        - trash_id: 13856622cf7a6c9925d3a83f8812d679  # [Optional] Language Profiles
+          select:
+            - d6e9318c875905d6cfb5bee961afcea9  # Language: Not Original
+          assign_scores_to:
+            - trash_id: d1d67249d3890e49bc12e275d989a7e9
+        - trash_id: b22449f789b16a4163b59f1b70cbc580  # [Streaming Services] Asian
+          assign_scores_to:
+            - trash_id: d1d67249d3890e49bc12e275d989a7e9

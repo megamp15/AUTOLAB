@@ -161,6 +161,41 @@
   loop: "{{ autolab_services_download_apps | intersect(autolab_services_enabled) + (['sabnzbd/incomplete']
     if 'sabnzbd' in autolab_services_enabled else []) }}"
 
+# Recyclarr's settings are a file in this role; its API keys are read from
+# Sonarr's and Radarr's own config.xml, which exist after their first start.
+- name: Copy Recyclarr's settings
+  ansible.builtin.copy:
+    src: recyclarr/recyclarr.yml
+    dest: "{{ autolab_services_root }}/recyclarr/recyclarr.yml"
+    owner: "1000"
+    group: "1000"
+    mode: "0640"
+  when: "'recyclarr' in autolab_services_enabled"
+
+- name: Read Sonarr's and Radarr's API keys for Recyclarr
+  ansible.builtin.slurp:
+    src: "{{ autolab_services_root }}/{{ item }}/config.xml"
+  loop: [sonarr, radarr]
+  register: autolab_recyclarr_arr_config
+  failed_when: false
+  no_log: true
+  when: "'recyclarr' in autolab_services_enabled"
+
+- name: Write Recyclarr's secrets
+  ansible.builtin.copy:
+    content: |
+      {% for r in autolab_recyclarr_arr_config.results %}
+      {{ r.item }}_api_key: {{ r.content | b64decode | regex_search('<ApiKey>(\w+)</ApiKey>', '\1') | first }}
+      {% endfor %}
+    dest: "{{ autolab_services_root }}/recyclarr/secrets.yml"
+    owner: "1000"
+    group: "1000"
+    mode: "0600"
+  no_log: true
+  when:
+    - "'recyclarr' in autolab_services_enabled"
+    - autolab_recyclarr_arr_config.results | selectattr('content', 'defined') | list | length == 2
+
 - name: Require Mullvad's WireGuard key for qBittorrent
   ansible.builtin.assert:
     that:

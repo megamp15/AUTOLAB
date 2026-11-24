@@ -8,3 +8,7 @@ skip_list:
   # Role variables are namespaced by project (autolab_firewall_*) so that a
   # host_vars override is recognisable as Autolab policy, not by role name.
   - var-naming[no-role-prefix]
+exclude_paths:
+  # Recyclarr's own settings: YAML with its `!secret` tag, which no YAML
+  # loader but Recyclarr's understands.
+  - roles/container-services/files/recyclarr/
