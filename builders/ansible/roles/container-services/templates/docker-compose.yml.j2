@@ -95,9 +95,9 @@ networks:
   novaflix-edge:
 {% endif %}
 {% if 'jellyfin-public' in autolab_services_enabled %}
-  # The public Jellyfin door and Jellyfin, nothing else: a break-in at the door
-  # reaches no other app. A fixed subnet, because Jellyfin trusts the door by
-  # its address.
+  # The public door, Jellyfin and Seerr, nothing else: a break-in at the door
+  # or in Jellyfin reaches no download app. A fixed subnet, because Jellyfin
+  # trusts the door by its address.
   jellyfin-public:
     ipam:
       config:

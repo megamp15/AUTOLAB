@@ -33,9 +33,10 @@
       interval: 30s
       timeout: 6s
 {% if 'jellyfin-public' in autolab_services_enabled %}
+    # Only the door's network, not the one Sonarr, Radarr and the downloaders
+    # share: Jellyfin answers the internet, and a break-in there must not reach
+    # their unguarded APIs. Novaflix tells it when a download lands.
     networks:
-      - default
-      # The public door reaches Jellyfin here, and nothing else.
       - jellyfin-public
 {% endif %}
     ports:
