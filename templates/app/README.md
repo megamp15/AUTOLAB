@@ -47,6 +47,8 @@ To set a provider up, give it the redirect address `<PUBLIC_URL>/api/auth/oidc/<
 
 Screens are built with Tailwind CSS and shadcn/ui components (`apps/web/src/components/ui`). The whole look is `apps/web/src/tailwind.css`: light and dark colours, sharp corners, mono capitals for labels and controls, and one neon colour. Dark or light follows the device until the switch in the header is used, which is remembered per browser. `Ticker` (`components/ui/ticker.tsx`) is the number that runs up to its value. Add a component with `npx shadcn@latest add <name>`; components from Magic UI, Cult UI and Skiper UI install the same way and take the same theme.
 
+For a control with its own keyboard and ARIA that shadcn does not ship (a tree, a rating, a radio or segmented group, drag to reorder, a combobox), use ui-sdk (ui-sdk.dev, Vercel, beta) instead of writing the keys and roles by hand. Its parts render no styles of their own, so style them from their `data-slot` and state attributes with this theme, not with its `web.css`. The `ui-sdk` skill in `.claude/skills` has the rules.
+
 Two rules for every screen:
 
 - **Nothing the browser draws by itself.** Each browser draws its own controls differently, and none of them in this look. No `<select>`, no `<details>`, no `type="search"`, `date`, `number` or `color` inputs, no `confirm()`, `alert()` or `prompt()`, no `title=` tooltips. A choice from a list is the shadcn `Select` (`components/ui/select.tsx`, already here); a date is a shadcn calendar; a question is a shadcn dialog, or two buttons in place as Settings does for "Remove". When shadcn has no such component, build it from a button.
