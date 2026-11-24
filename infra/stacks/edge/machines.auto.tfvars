@@ -148,6 +148,10 @@ machines = {
         # Jellyfin for friends: the home router forwards 443 here, and only
         # addresses in the United States get through (docker-host).
         { port = 443, protocol = "tcp", source = "any", countries = ["US"] },
+        # And from home: a device on the home network that dials the public
+        # name comes back through the router (NAT loopback) with a home
+        # address, which no country list holds.
+        { port = 443, protocol = "tcp", source = "192.168.50.0/24" },
       ]
       # A share of its own, named for the machine: only this host's export
       # rule opens it. The films, the shows and the downloads live under
