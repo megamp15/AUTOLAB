@@ -1512,6 +1512,7 @@
 # SABnzbd refuses a request whose host name it does not know, and one from an
 # address outside the private ranges, which a tailnet address (100.64/10) is.
 # Its file exists after its first start, so the first run adds both on the way out.
+# `sabnzbd` is the name Sonarr and Radarr dial on the compose network.
 - name: Let SABnzbd answer to its lab name and the tailnet
   ansible.builtin.lineinfile:
     path: "{{ autolab_services_root }}/sabnzbd/sabnzbd.ini"
@@ -1519,7 +1520,7 @@
     line: "{{ item.key }} = {{ item.value }}"
   loop:
     - key: host_whitelist
-      value: "sabnzbd.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}, {{ inventory_hostname }}, {{ autolab_services_fqdn }}"
+      value: "sabnzbd, sabnzbd.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}, {{ inventory_hostname }}, {{ autolab_services_fqdn }}"
     - key: local_ranges
       value: 100.64.0.0/10, 172.16.0.0/12, 127.0.0.0/8
   loop_control:
