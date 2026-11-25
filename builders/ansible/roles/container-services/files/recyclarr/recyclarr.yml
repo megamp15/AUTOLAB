@@ -45,6 +45,10 @@ sonarr:
             qualities: [WEBDL-720p, WEBRip-720p]
           - name: Bluray-720p
           - name: HDTV-720p
+          # Last resort: a show whose only release is 4K web still comes, and
+          # moves to 1080p when one turns up.
+          - name: WEB 2160p
+            qualities: [WEBDL-2160p, WEBRip-2160p]
     custom_format_groups:
       add:
         # Language: Not Original (the group's default): a Korean drama in
@@ -106,6 +110,10 @@ radarr:
             qualities: [WEBDL-720p, WEBRip-720p]
           - name: Bluray-720p
           - name: HDTV-720p
+          # Last resort: a show whose only release is 4K web still comes, and
+          # moves to 1080p when one turns up.
+          - name: WEB 2160p
+            qualities: [WEBDL-2160p, WEBRip-2160p]
     custom_format_groups:
       add:
         - trash_id: 13856622cf7a6c9925d3a83f8812d679  # [Optional] Language Profiles
