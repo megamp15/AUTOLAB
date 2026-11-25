@@ -46,6 +46,11 @@
       novaflix-backend:
         aliases: [server]
       novaflix-edge:
+{% if autolab_services_pipeline_metrics_present | default(false) %}
+      # The monitoring's pipeline endpoint, alone on an internal network: the pipeline
+      # drawing's CPU, memory and NAS traffic (docs/gitops/novaflix.md).
+      pipeline-metrics:
+{% endif %}
 
   novaflix-gateway:
     image: {{ autolab_services_novaflix_registry }}/novaflix-gateway:{{ autolab_services_novaflix_image_tag }}

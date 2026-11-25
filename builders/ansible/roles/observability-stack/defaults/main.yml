@@ -598,3 +598,6 @@ autolab_obs_homepage_links:
     meta: megamp15/AUTOLAB
     url: https://github.com/megamp15/AUTOLAB
     icon: repo
+
+# The internal network Novaflix shares with pipeline-metrics, and nothing else.
+autolab_obs_pipeline_network: autolab-pipeline-metrics

@@ -90,6 +90,12 @@ networks:
   novaflix-backend:
     internal: true
   novaflix-edge:
+{% if autolab_services_pipeline_metrics_present | default(false) %}
+  # Made by the observability stack on this host; see its pipeline-metrics service.
+  pipeline-metrics:
+    name: {{ autolab_services_pipeline_network }}
+    external: true
+{% endif %}
 {% endif %}
 {% if 'jellyfin-public' in autolab_services_enabled %}
   # The public door, Jellyfin and Seerr, nothing else: a break-in at the door

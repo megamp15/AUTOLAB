@@ -1079,6 +1079,20 @@
   no_log: true
   when: "'novaflix' in autolab_services_enabled and not ansible_check_mode"
 
+# The monitoring stack's pipeline endpoint, on this host when it runs here (jwst). Joined
+# only if its network exists, so a host without it still starts Novaflix.
+- name: Look for the monitoring's pipeline network
+  ansible.builtin.command: docker network inspect {{ autolab_services_pipeline_network }}
+  register: autolab_services_pipeline_network_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: "'novaflix' in autolab_services_enabled"
+
+- name: Remember whether Novaflix can reach the pipeline endpoint
+  ansible.builtin.set_fact:
+    autolab_services_pipeline_metrics_present: "{{ 'novaflix' in autolab_services_enabled and autolab_services_pipeline_network_check.rc | default(1) == 0 }}"
+
 - name: Write Novaflix's container environments
   ansible.builtin.copy:
     content: "{{ item.content }}"
@@ -1117,6 +1131,18 @@
         JELLYFIN_URL=http://{{ autolab_services_novaflix_media_host }}:{{ autolab_service_catalog.jellyfin.port }}
         JELLYFIN_API_KEY={{ autolab_services_jellyfin_api_key }}
         JELLYFIN_PUBLIC_URL=https://jellyfin.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}
+        {% if autolab_services_novaflix_sabnzbd_api_key %}
+        SABNZBD_URL=http://{{ autolab_services_novaflix_media_host }}:{{ autolab_service_catalog.sabnzbd.port }}
+        SABNZBD_API_KEY={{ autolab_services_novaflix_sabnzbd_api_key }}
+        {% endif %}
+        {% if autolab_services_novaflix_seerr_api_key %}
+        SEERR_URL=http://{{ autolab_services_novaflix_media_host }}:{{ autolab_service_catalog.seerr.port }}
+        SEERR_API_KEY={{ autolab_services_novaflix_seerr_api_key }}
+        {% endif %}
+        {% if autolab_services_pipeline_metrics_present %}
+        METRICS_URL=http://pipeline-metrics:8081/api/pipeline
+        METRICS_HOST={{ autolab_services_novaflix_media_host.split('.')[0] }}
+        {% endif %}
         {% endif %}
   loop_control:
     label: "{{ item.name }}"

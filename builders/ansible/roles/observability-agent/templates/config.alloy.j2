@@ -10,6 +10,9 @@
 // ---------------------------------------------------------------------------
 
 prometheus.exporter.unix "node" {
+  // Bytes read and written per NFS mount: what a host moves to and from the NAS,
+  // which interface counters cannot tell apart from its other traffic.
+  enable_collectors = ["mountstats"]
   // Filesystem metrics for overlay and tmpfs mounts describe containers and
   // RAM disks rather than real storage, and drown out the mounts that matter.
   filesystem {

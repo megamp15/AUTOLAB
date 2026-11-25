@@ -462,6 +462,12 @@ autolab_services_novaflix_google_client_secret: ""
 # RADARR_API_KEY and JELLYFIN_API_KEY secrets. All three or the feature stays off.
 autolab_services_novaflix_media_host: "aurora.{{ autolab_services_fqdn.split('.', 1)[1] }}"
 autolab_services_novaflix_sonarr_api_key: ""
+# The pipeline drawing's extra sources: SABnzbd's and Seerr's API keys. Empty: that part of
+# the drawing stays quiet.
+autolab_services_novaflix_sabnzbd_api_key: ""
+autolab_services_novaflix_seerr_api_key: ""
+# The observability stack's internal network holding its pipeline endpoint, and nothing else.
+autolab_services_pipeline_network: autolab-pipeline-metrics
 autolab_services_novaflix_radarr_api_key: ""
 # Kept this many daily logical dumps of the database, on the host's disk. The
 # nightly Proxmox backup of the VM carries them to the NAS.
