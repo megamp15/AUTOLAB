@@ -63,6 +63,17 @@
     - item.state | default('mounted') != 'absent'
     - item.path not in (autolab_nfs_mounted_paths.stdout_lines | default([]))
 
+# A server reached over the home network has a name only this file gives it.
+# No line when the name is not in autolab_nfs_hosts: the probe below then
+# fails with the name in its message, which points at the missing secret.
+- name: Name the NFS servers reached over the home network
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "\\s{{ item | regex_escape }}$"
+    line: "{{ autolab_nfs_hosts[item] }} {{ item }}"
+  loop: "{{ autolab_nfs_mounts | map(attribute='server') | unique | select('in', autolab_nfs_hosts) | list }}"
+  no_log: true
+
 # A `hard` mount to an unreachable server blocks rather than failing, which
 # hangs the run and leaves an fstab entry that can stall the next boot. Probe
 # the NFS port first so an offline NAS is a fast, readable failure instead.

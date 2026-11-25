@@ -42,14 +42,17 @@ Every app sees the share whole at `/data`:
 
 ```text
 /data/media/<library folder>   what Jellyfin plays (read-only to Jellyfin)
+/data/usenet/incomplete        SABnzbd's downloads in progress
 /data/usenet/complete          SABnzbd's finished downloads
 /data/torrents                 qBittorrent's downloads
 ```
 
 One tree on one share means an import is a rename (Usenet) or a hardlink
-(torrents, which keep seeding), never a copy. SABnzbd unpacks on aurora's own
-disk (`/opt/autolab/services/sabnzbd/incomplete`) and moves the finished file
-to the share once.
+(torrents, which keep seeding), never a copy. SABnzbd downloads and unpacks
+on the share too (`/data/usenet/incomplete`, direct unpack on, a 1 GB article
+cache), so a download never touches zima-pve's one hard drive, which every VM
+on the node shares. aurora mounts the share over the home network, not the
+tailnet: see [NAS storage](nas-storage.md#a-mount-over-the-home-network).
 
 ## Who reaches Jellyfin, and how
 
@@ -205,8 +208,9 @@ as the `JELLYFIN_API_KEY` secret. The next services run creates the libraries.
 Their wiring is not code yet; set it in each app's UI:
 
 1. SABnzbd: its first-run wizard asks for the Usenet server. Categories
-   `tv` and `movies`, completed folder `/data/usenet/complete`, temporary
-   folder `/incomplete`.
+   `tv` and `movies`, completed folder `/data/usenet/complete`. The
+   services run sets the temporary folder (`/data/usenet/incomplete`),
+   direct unpack and the cache.
 2. qBittorrent: the first password is in its log
    (`docker compose logs qbittorrent` in `/opt/autolab/services`). Change it, and set the default save
    path to `/data/torrents`.

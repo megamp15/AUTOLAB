@@ -64,9 +64,12 @@ autolab_services_jellyfin_api_key: ""
 # A folder per downloader category too: Sonarr and Radarr report the downloader's
 # folder missing, and stop trusting it, when SABnzbd has removed an empty one.
 autolab_services_media_dirs: >-
-  {{ ['media', 'usenet', 'usenet/complete', 'torrents']
+  {{ ['media', 'usenet', 'usenet/complete', 'usenet/incomplete', 'torrents']
      + ['usenet/complete/tv', 'usenet/complete/movies', 'usenet/complete/music', 'torrents/tv', 'torrents/movies', 'torrents/music']
      + autolab_services_jellyfin_libraries | map(attribute='folder') | map('regex_replace', '^', 'media/') | list }}
+# SABnzbd's article cache: downloaded pieces wait in memory and reach the
+# share in large writes. Keep it about half of its memory limit.
+autolab_services_sabnzbd_cache: 1G
 # The download apps that keep their settings in their own folder on this disk.
 autolab_services_download_apps: [sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent, lidarr, recyclarr]
 # Gluetun: which Mullvad servers to use, spelled as Gluetun lists them ("Houston
@@ -320,7 +323,7 @@ autolab_services_memory:
   radarr: 512m
   prowlarr: 384m
   bazarr: 384m
-  sabnzbd: 1g
+  sabnzbd: 2g  # 1 GB of it is the article cache (autolab_services_sabnzbd_cache)
   qbittorrent: 1g
   gluetun: 128m
   lidarr: 512m

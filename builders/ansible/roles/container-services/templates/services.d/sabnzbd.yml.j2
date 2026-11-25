@@ -1,7 +1,7 @@
   # SABnzbd: downloads from Usenet into usenet/ on the share.
   # Runs as uid 1000 through the linuxserver image's own start-up, which needs
   # root for a moment to drop to it, so no cap_drop or no-new-privileges.
-  # Settings are a SQLite database on this machine's disk; the media tree is
+  # Settings stay on this machine's disk; the media tree is
   # the share, mounted whole at /data so an import is a rename or a hardlink.
   # docs/gitops/media.md
   sabnzbd:
@@ -15,9 +15,9 @@
       TZ: "{{ autolab_timezone | default('UTC') }}"
     volumes:
       - {{ autolab_services_root }}/sabnzbd:/config
-      # Half-finished downloads and unpacking stay on this disk: unpacking
-      # over NFS is slow, and a finished file moves to the share once.
-      - {{ autolab_services_root }}/sabnzbd/incomplete:/incomplete
+      # Downloads and unpacking happen on the share (usenet/incomplete), not
+      # on this disk: the node's one hard drive is shared with every other VM
+      # and was the bottleneck, while the share is a switch away.
       - type: bind
         source: {{ autolab_services_media_root }}
         target: /data
