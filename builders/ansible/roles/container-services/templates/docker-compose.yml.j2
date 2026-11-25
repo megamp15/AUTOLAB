@@ -12,7 +12,7 @@ services:
 {# Compose refuses a `volumes:` key with nothing under it, and a machine whose
    services bind host paths only (aurora) has nothing. A service that gains a
    named volume below is added to this list. #}
-{% set volume_owners = ['dockhand', 'registry', 'registry-ui', 'diun', 'adventurelog', 'forgejo', 'tandoor', 'airtrail', 'sure', 'karakeep', 'cosmos', 'novaflix'] %}
+{% set volume_owners = ['dockhand', 'registry', 'registry-ui', 'diun', 'adventurelog', 'forgejo', 'sure', 'karakeep', 'cosmos', 'novaflix'] %}
 {% if autolab_services_enabled | intersect(volume_owners) | length > 0 %}
 volumes:
 {% endif %}
@@ -34,15 +34,12 @@ volumes:
 {% if 'forgejo' in autolab_services_enabled %}
   forgejo-db:
 {% endif %}
-{% for app in ['tandoor', 'airtrail', 'sure'] if app in autolab_services_enabled %}
-  {{ app }}-db:
-{% endfor %}
+{% if 'sure' in autolab_services_enabled %}
+  sure-db:
+{% endif %}
 {% if 'karakeep' in autolab_services_enabled %}
   karakeep-data:
   karakeep-meili:
-{% endif %}
-{% if 'tandoor' in autolab_services_enabled %}
-  tandoor-static:
 {% endif %}
 {% if 'cosmos' in autolab_services_enabled %}
   cosmos-data:

@@ -6,7 +6,7 @@ audience: operator
 
 # nebula — where the apps run
 
-`nebula` is a VM on zima-pve (edge Stack, VMID 302, 4 vCPU, 6 GB, 80 GB on the
+`nebula` is a VM on zima-pve (edge Stack, VMID 302, 4 vCPU, 4.5 GB, 80 GB on the
 HDD). It runs what people use: [Forgejo](forgejo.md), [AdventureLog](adventurelog.md) and the [self-hosted apps](apps.md).
 What the lab runs for itself (Dockhand, the registry, the editor, Diun) stays
 on jwst.
@@ -15,7 +15,7 @@ on jwst.
 
 | | jwst | nebula |
 |---|---|---|
-| RAM | 7.5 GB, shared with Prometheus, Loki, Grafana and a 3 GB editor | 6 GB for the apps and nothing else |
+| RAM | 7.5 GB, shared with Prometheus, Loki, Grafana and a 3 GB editor | 4.5 GB for the apps and nothing else |
 | Wire | xps-pve, Wi-Fi only; a September outage was a silent Wi-Fi stall | zima-pve, wired |
 | NAS mounts | `hard` NFS over Wi-Fi hangs the VM when the link stalls | wired |
 | Builds from source | already OOM-killed neighbours sixteen times | has the room |

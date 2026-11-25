@@ -20,7 +20,7 @@ autolab_services_data_root: /mnt/apps
 # Services with a directory under the data root. A machine that runs one of
 # these refuses to start the stack while the share is not mounted, so nothing
 # can write into an empty local directory standing where the NAS should be.
-autolab_services_nas_backed: [adventurelog, forgejo, tandoor, airtrail, karakeep, sure]
+autolab_services_nas_backed: [adventurelog, forgejo, karakeep, sure]
 # Directories to create under the data root, per enabled service.
 autolab_services_nas_dirs: >-
   {{ autolab_services_nas_dir_catalog | selectattr('service', 'in', autolab_services_enabled) | list }}
@@ -29,8 +29,6 @@ autolab_services_nas_dir_catalog:
   - {service: forgejo, path: forgejo, owner: root, group: root}
   # The rootless image runs as uid 1000.
   - {service: forgejo, path: forgejo/data, owner: "1000", group: "1000"}
-  - {service: tandoor, path: tandoor/media, owner: root, group: root}
-  - {service: airtrail, path: airtrail/uploads, owner: root, group: root}
   - {service: karakeep, path: karakeep/assets, owner: root, group: root}
   # Sure's image runs as 1000:1000.
   - {service: sure, path: sure/storage, owner: "1000", group: "1000"}
@@ -114,21 +112,11 @@ autolab_services_databases:
     user: forgejo
     db: forgejo
     image: "{{ autolab_services_images.forgejo_db }}"
-  tandoor:
-    container: tandoor-db
-    user: djangouser
-    db: djangodb
-    image: "{{ autolab_services_images.postgres }}"
   novaflix:
     container: novaflix-db
     user: novaflix
     db: novaflix
     image: "{{ autolab_services_images.novaflix_db }}"
-  airtrail:
-    container: airtrail-db
-    user: airtrail
-    db: airtrail
-    image: "{{ autolab_services_images.postgres }}"
   sure:
     container: sure-db
     user: sure
@@ -173,8 +161,6 @@ autolab_services_images:
   forgejo_db: "{{ autolab_services_images.postgres }}"
   mariadb: "mariadb:12.3"
   redis: "redis:8.10"
-  tandoor: "vabene1111/recipes:2.7.6"
-  airtrail: "johly/airtrail:v3.14.0"
   # Karakeep publishes its browser image only as `release`, so that one is
   # pinned by digest. Meilisearch is the version Karakeep's own compose file
   # names; moving it needs their one-time index upgrade.
@@ -228,8 +214,6 @@ autolab_services_ports:
   dash: "{{ autolab_service_catalog.dash.port }}"
   adventurelog: "{{ autolab_service_catalog.adventurelog.port }}"
   forgejo: "{{ autolab_service_catalog.forgejo.port }}"
-  tandoor: "{{ autolab_service_catalog.tandoor.port }}"
-  airtrail: "{{ autolab_service_catalog.airtrail.port }}"
   karakeep: "{{ autolab_service_catalog.karakeep.port }}"
   sure: "{{ autolab_service_catalog.sure.port }}"
   qr: "{{ autolab_service_catalog.qr.port }}"
@@ -317,27 +301,19 @@ autolab_services_sources:
 # turns the password form off, in a pull request, once a Pocket ID sign-in has
 # been seen to work. Their database passwords and signing keys are generated on
 # the host (autolab-gen-credentials) and never leave it.
-autolab_services_tandoor_public_url: "https://tandoor.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
-autolab_services_airtrail_public_url: "https://airtrail.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
 autolab_services_karakeep_public_url: "https://karakeep.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
 autolab_services_sure_public_url: "https://sure.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}"
 autolab_services_oidc_issuer: "https://auth.{{ autolab_services_dash_zone }}"
 autolab_services_pocketid_api_key: ""
 autolab_services_pocketid_group: admins
-autolab_services_tandoor_oidc_client_id: ""
-autolab_services_tandoor_oidc_client_secret: ""
-autolab_services_airtrail_oidc_client_id: ""
-autolab_services_airtrail_oidc_client_secret: ""
 autolab_services_karakeep_oidc_client_id: ""
 autolab_services_karakeep_oidc_client_secret: ""
 autolab_services_sure_oidc_client_id: ""
 autolab_services_sure_oidc_client_secret: ""
-autolab_services_tandoor_password_login: true
-autolab_services_airtrail_password_login: true
 autolab_services_karakeep_password_login: true
 autolab_services_sure_password_login: true
-# Limits, not reservations. Measured idle: Tandoor ~850 MB (its workers), Sure's
-# web and worker ~375 MB each, the rest well under 400 MB.
+# Limits, not reservations. Measured idle: Sure's web and worker ~375 MB each,
+# the rest well under 400 MB.
 autolab_services_memory:
   jellyfin: 2g
   sonarr: 512m
@@ -352,10 +328,6 @@ autolab_services_memory:
   seerr: 512m
   jellyfin_public: 256m  # 128m starved it: the health check took 10s, past its 6s timeout
   jellyfin_ddns: 64m
-  tandoor: 1280m
-  tandoor_db: 256m
-  airtrail: 512m
-  airtrail_db: 256m
   karakeep: 1024m
   karakeep_chrome: 768m
   karakeep_meili: 384m
@@ -366,18 +338,6 @@ autolab_services_memory:
 # What each needs generated, once, on the host. {PW} is the database's password,
 # shared by the files that need it; see files/autolab-gen-credentials.py.
 autolab_services_credential_specs:
-  - service: tandoor
-    files:
-      - path: /etc/autolab/tandoor-db.env
-        lines: [POSTGRES_DB=djangodb, POSTGRES_USER=djangouser, "POSTGRES_PASSWORD={PW}"]
-      - path: /etc/autolab/tandoor.env
-        lines: ["POSTGRES_PASSWORD={PW}", "SECRET_KEY={HEX64}", "DJANGO_SUPERUSER_PASSWORD={HEX16}"]
-  - service: airtrail
-    files:
-      - path: /etc/autolab/airtrail-db.env
-        lines: [POSTGRES_DB=airtrail, POSTGRES_USER=airtrail, "POSTGRES_PASSWORD={PW}"]
-      - path: /etc/autolab/airtrail.env
-        lines: ["DB_URL=postgres://airtrail:{PW}@airtrail-db:5432/airtrail"]
   - service: karakeep
     files:
       - path: /etc/autolab/karakeep-meili.env

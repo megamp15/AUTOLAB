@@ -6,7 +6,7 @@ audience: operator
 
 # Media
 
-`aurora` is a VM on zima-pve (edge Stack, VMID 303, 4 vCPU, 4 GB, 150 GB on
+`aurora` is a VM on zima-pve (edge Stack, VMID 303, 4 vCPU, 6 GB, 150 GB on
 the HDD). It runs Jellyfin, which plays the films and shows kept on the NAS, and the
 apps that fetch them: Prowlarr, Sonarr, Radarr, Lidarr, Bazarr, SABnzbd,
 qBittorrent behind Gluetun and Mullvad, and Recyclarr. Seerr is the page the

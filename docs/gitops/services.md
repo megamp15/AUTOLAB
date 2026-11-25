@@ -41,8 +41,6 @@ bump is a pull request.
 | `code-server` | browser-based VS Code for the operator workspace | 8443 |
 | `adventurelog` | on [nebula](nebula.md): a travel log that pulls its photos from Immich, Pocket ID sign-in — see [adventurelog](adventurelog.md) | 8098 |
 | `forgejo` | on [nebula](nebula.md): the lab's git host — mirrors of upstream and our forks, Pocket ID sign-in — see [forgejo](forgejo.md) | 8100 |
-| `tandoor` | on [nebula](nebula.md): recipes, meal plans, shopping lists — see [apps](apps.md) | 8101 |
-| `airtrail` | on [nebula](nebula.md): a personal flight log on a map — see [apps](apps.md) | 8102 |
 | `karakeep` | on [nebula](nebula.md): bookmarks that fetch the page and the video and tag themselves, Pocket ID sign-in — see [karakeep](karakeep.md) | 8107 |
 | `sure` | on [nebula](nebula.md): personal finance — see [apps](apps.md) | 8104 |
 | `jellyfin` | on aurora: plays the films and shows on the NAS, its own sign-in — see [media](media.md) | 8110 (tailnet), 8096 (home network) |
