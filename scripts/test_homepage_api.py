@@ -84,3 +84,39 @@ class DetailBoundaryTest(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+
+class PipelineTest(unittest.TestCase):
+    def setUp(self):
+        self.data = HomepageData('/unused', 'http://prom', 'http://loki')
+        self.asked = []
+        def prom(query):
+            self.asked.append(query)
+            by = 'container_label_com_docker_compose_service'
+            if 'container_cpu' in query:
+                return [{'metric': {by: 'sabnzbd'}, 'value': [1, '0.5']}]
+            if 'container_memory' in query:
+                return [{'metric': {by: 'sabnzbd'}, 'value': [1, '700']}, {'metric': {}, 'value': [1, '9']}]
+            if 'nfs_total_write' in query:
+                return [{'metric': {}, 'value': [1, '5000']}]
+            if 'nfs_total_read' in query:
+                return []
+            raise OSError('down')
+        self.data.prom = prom
+
+    def test_services_and_nfs_for_one_host(self):
+        result = self.data.pipeline('aurora')
+        self.assertEqual(result['services'], {'sabnzbd': {'cpu': 0.5, 'memory': 700}})
+        self.assertEqual(result['nfs'], {'read': None, 'write': 5000})
+        self.assertTrue(all('instance="aurora"' in q for q in self.asked))
+
+    def test_host_is_a_plain_name(self):
+        for bad in ('', 'aurora"}', 'a b', 'x' * 60):
+            with self.assertRaises(ValueError):
+                self.data.pipeline(bad)
+
+    def test_a_second_read_soon_after_is_kept(self):
+        self.data.pipeline('aurora')
+        count = len(self.asked)
+        self.data.pipeline('aurora')
+        self.assertEqual(len(self.asked), count)

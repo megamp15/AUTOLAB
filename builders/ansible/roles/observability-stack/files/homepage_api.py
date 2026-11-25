@@ -6,6 +6,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import threading
 import time
 import urllib.parse
@@ -32,6 +33,7 @@ class HomepageData:
         self.lock = threading.Lock()
         self.cached = None
         self.cached_at = 0
+        self.pipelines = {}
 
     def prom(self, query):
         result = get_json(self.prometheus + '/api/v1/query?' + urllib.parse.urlencode({'query': query}))
@@ -60,6 +62,50 @@ class HomepageData:
             status['metrics_generated'] = int(time.time())
             self.cached, self.cached_at = status, time.monotonic()
             return status
+
+    def pipeline(self, host):
+        """One host's containers (CPU, memory, limit, network) and its NFS traffic, for the
+        Novaflix pipeline drawing. Fixed queries; the host is a plain name."""
+        if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,40}', host):
+            raise ValueError('Invalid host')
+        with self.lock:
+            kept = self.pipelines.get(host)
+            if kept and time.monotonic() - kept[0] < 4:
+                return kept[1]
+        label = json.dumps(host)
+        by = 'container_label_com_docker_compose_service'
+        sel = '{instance=' + label + ',' + by + '!=""}'
+        queries = {
+            'cpu': 'sum by (' + by + ') (rate(container_cpu_usage_seconds_total' + sel + '[1m]))',
+            'memory': 'sum by (' + by + ') (container_memory_working_set_bytes' + sel + ')',
+            'limit': 'max by (' + by + ') (container_spec_memory_limit_bytes' + sel + ' > 0)',
+            'received': 'sum by (' + by + ') (rate(container_network_receive_bytes_total' + sel + '[1m]))',
+            'sent': 'sum by (' + by + ') (rate(container_network_transmit_bytes_total' + sel + '[1m]))',
+            'nfs_read': 'sum(rate(node_mountstats_nfs_total_read_bytes_total{instance=' + label + '}[1m]))',
+            'nfs_write': 'sum(rate(node_mountstats_nfs_total_write_bytes_total{instance=' + label + '}[1m]))',
+        }
+        def run(item):
+            key, query = item
+            try:
+                return key, self.prom(query)
+            except Exception:
+                return key, None
+        with concurrent.futures.ThreadPoolExecutor(max_workers=7) as executor:
+            answers = dict(executor.map(run, queries.items()))
+        services = {}
+        for key in ('cpu', 'memory', 'limit', 'received', 'sent'):
+            for row in answers[key] or []:
+                name = row['metric'].get(by)
+                if name:
+                    services.setdefault(name, {})[key] = number(row['value'][1])
+        def single(key):
+            rows = answers[key]
+            return number(rows[0]['value'][1]) if rows else None
+        result = {'host': host, 'generated': int(time.time()), 'services': services,
+                  'nfs': {'read': single('nfs_read'), 'write': single('nfs_write')}}
+        with self.lock:
+            self.pipelines[host] = (time.monotonic(), result)
+        return result
 
     def detail(self, node, vm='', container='', period='1h'):
         if period not in ('1h', '6h', '24h'):
@@ -135,8 +181,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         path = urllib.parse.urlsplit(self.path)
         params = urllib.parse.parse_qs(path.query)
+        # The pipeline copy of this service answers that route and nothing else: it shares a
+        # network with Novaflix, which must not reach the status page or the logs.
+        routes = self.server.routes
+        if routes is not None and path.path not in routes:
+            self.send_error(404)
+            return
         try:
-            if path.path == '/api/status':
+            if path.path == '/api/pipeline':
+                if set(params) - {'host'} or any(len(v) != 1 for v in params.values()):
+                    raise ValueError('Invalid pipeline parameters')
+                result = self.server.data.pipeline(params.get('host', [''])[0])
+            elif path.path == '/api/status':
                 result = self.server.data.snapshot()
             elif path.path == '/api/detail':
                 if set(params) - {'node', 'vm', 'container', 'range'} or any(len(v) != 1 or len(v[0]) > 200 for v in params.values()):
@@ -167,5 +223,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     server = http.server.ThreadingHTTPServer(('0.0.0.0', 8081), Handler)
+    # HOMEPAGE_ROUTES: when set, the only paths this copy answers (comma separated).
+    routes = os.environ.get('HOMEPAGE_ROUTES')
+    server.routes = {route.strip() for route in routes.split(',') if route.strip()} if routes else None
     server.data = HomepageData(os.environ.get('HOMEPAGE_STATUS', '/site/status.json'), os.environ.get('PROMETHEUS_URL', 'http://prometheus:9090'), os.environ.get('LOKI_URL', 'http://loki:3100'))
     server.serve_forever()

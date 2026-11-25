@@ -424,6 +424,9 @@ jobs:
           # Novaflix on jwst reads Sonarr and Radarr on aurora (the admin title page).
           AUTOLAB_SONARR_API_KEY: ${{ inputs.playbook == 'services' && secrets.SONARR_API_KEY || '' }}
           AUTOLAB_RADARR_API_KEY: ${{ inputs.playbook == 'services' && secrets.RADARR_API_KEY || '' }}
+          # And its pipeline drawing: SABnzbd's speed and jobs, Seerr's who-asked.
+          AUTOLAB_SABNZBD_API_KEY: ${{ inputs.playbook == 'services' && secrets.SABNZBD_API_KEY || '' }}
+          AUTOLAB_SEERR_API_KEY: ${{ inputs.playbook == 'services' && secrets.SEERR_API_KEY || '' }}
           AUTOLAB_ADVENTURELOG_OIDC_CLIENT_ID: ${{ secrets.ADVENTURELOG_OIDC_CLIENT_ID }}
           AUTOLAB_ADVENTURELOG_OIDC_CLIENT_SECRET: ${{ secrets.ADVENTURELOG_OIDC_CLIENT_SECRET }}
           AUTOLAB_FORGEJO_OIDC_CLIENT_ID: ${{ secrets.FORGEJO_OIDC_CLIENT_ID }}
@@ -505,6 +508,8 @@ jobs:
               "autolab_services_mullvad_addresses": os.environ.get("AUTOLAB_MULLVAD_ADDRESSES", ""),
               "autolab_services_novaflix_sonarr_api_key": os.environ.get("AUTOLAB_SONARR_API_KEY", ""),
               "autolab_services_novaflix_radarr_api_key": os.environ.get("AUTOLAB_RADARR_API_KEY", ""),
+              "autolab_services_novaflix_sabnzbd_api_key": os.environ.get("AUTOLAB_SABNZBD_API_KEY", ""),
+              "autolab_services_novaflix_seerr_api_key": os.environ.get("AUTOLAB_SEERR_API_KEY", ""),
           }
           # Empty values must not override the protected host-managed client facts.
           for app in ("adventurelog", "forgejo", "karakeep", "sure"):

@@ -157,6 +157,34 @@ services:
       - ./homepage/api:/app:ro
       - ./homepage/site:/site:ro
 
+  # The same service, answering /api/pipeline and nothing else: one host's container load
+  # and NFS traffic for Novaflix's pipeline drawing. Novaflix joins the internal network
+  # below, which holds this and nothing more, so it reaches neither Prometheus (whose admin
+  # API is on) nor the status page and its logs.
+  pipeline-metrics:
+    image: {{ autolab_obs_images.homepage_api }}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null 'http://127.0.0.1:8081/api/pipeline?host=jwst' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      dockhand.tags: home
+    restart: unless-stopped
+    command: [python, /app/homepage_api.py]
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      HOMEPAGE_ROUTES: /api/pipeline
+      PROMETHEUS_URL: http://prometheus:9090
+    volumes:
+      - ./homepage/api:/app:ro
+    networks: [default, pipeline]
+
   homepage:
     depends_on: [homepage-api]
     image: {{ autolab_obs_images.homepage }}
@@ -196,6 +224,14 @@ services:
       - "{{ autolab_obs_pve_exporter_port }}"
 {% endif %}
 
+{% if autolab_obs_homepage_enabled | bool %}
+networks:
+  # Named, so the services stack can join it as external: see pipeline-metrics.
+  pipeline:
+    name: {{ autolab_obs_pipeline_network }}
+    internal: true
+
+{% endif %}
 volumes:
   prometheus-data:
   loki-data:

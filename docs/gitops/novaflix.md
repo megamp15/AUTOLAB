@@ -35,6 +35,24 @@ an admin, on the tailnet                                             │
 Defined in `roles/container-services/templates/services.d/novaflix.yml.j2`
 and `novaflix-admin.yml.j2`; ports and logins in the service catalog.
 
+## The pipeline drawing
+
+Novaflix's admin face has a live drawing of the media server (`#/pipeline`). Its server reads
+Sonarr, Radarr and Jellyfin as before, and three more sources:
+
+| source | setting | gives |
+|---|---|---|
+| SABnzbd on aurora | `SABNZBD_API_KEY` secret | live speed, which job is downloading or unpacking, the cache |
+| Seerr on aurora | `SEERR_API_KEY` secret | who asked for each title |
+| `pipeline-metrics` on jwst | none | each aurora container's CPU, memory and network; the NAS mount's reads and writes |
+
+`pipeline-metrics` is the home page's status service started a second time with
+`HOMEPAGE_ROUTES=/api/pipeline`: it answers that one fixed query and 404s everything else.
+It sits alone with Novaflix on the internal network `autolab-pipeline-metrics`, which the
+observability stack creates; the services run joins Novaflix to it only when it exists.
+Novaflix reaches neither Prometheus (its admin API is on) nor the status page and its logs.
+The NAS traffic comes from Alloy's `mountstats` collector, on every host.
+
 ## Why two gateways
 
 There is no sign-up. An admin makes each account and resets passwords
