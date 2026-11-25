@@ -88,7 +88,7 @@ hold ciphertext.
    `playbooks/proxmox.yml` in a PR of its own — that PR is the record that
    step 6 happened — and run 07 again. First run: trigger it by hand in the
    PVE UI (Datacenter → Backup → Run now) rather than waiting for 02:00.
-8. **Restore.** Workflow **09 - PBS Restore**, `vm: sputnik`, `mode: test`,
+8. **Restore.** Workflow **09 - PBS Restore**, `vm: horizon` (sputnik until it was retired), `mode: test`,
    `confirm: RESTORE`. It restores the latest snapshot to a new guest, boots
    it with the network link down, waits for the guest agent, records the OS
    it reports, and destroys it. Not before this passes is the phase done.

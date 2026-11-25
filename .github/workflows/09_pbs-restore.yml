@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       vm:
-        description: Guest name as in the machines map (sputnik, jwst, …), or `all` for a test of every guest
+        description: Guest name as in the machines map (horizon, jwst, …), or `all` for a test of every guest
         required: true
-        default: sputnik
+        default: horizon
         type: string
       mode:
         description: test restores a throwaway copy and destroys it; replace overwrites the live guest
