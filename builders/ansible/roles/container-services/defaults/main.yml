@@ -350,7 +350,7 @@ autolab_services_memory:
   lidarr: 512m
   recyclarr: 256m
   seerr: 512m
-  jellyfin_public: 128m
+  jellyfin_public: 256m  # 128m starved it: the health check took 10s, past its 6s timeout
   jellyfin_ddns: 64m
   tandoor: 1280m
   tandoor_db: 256m
