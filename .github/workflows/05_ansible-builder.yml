@@ -425,10 +425,6 @@ jobs:
           AUTOLAB_ADVENTURELOG_OIDC_CLIENT_SECRET: ${{ secrets.ADVENTURELOG_OIDC_CLIENT_SECRET }}
           AUTOLAB_FORGEJO_OIDC_CLIENT_ID: ${{ secrets.FORGEJO_OIDC_CLIENT_ID }}
           AUTOLAB_FORGEJO_OIDC_CLIENT_SECRET: ${{ secrets.FORGEJO_OIDC_CLIENT_SECRET }}
-          AUTOLAB_TANDOOR_OIDC_CLIENT_ID: ${{ secrets.TANDOOR_OIDC_CLIENT_ID }}
-          AUTOLAB_TANDOOR_OIDC_CLIENT_SECRET: ${{ secrets.TANDOOR_OIDC_CLIENT_SECRET }}
-          AUTOLAB_AIRTRAIL_OIDC_CLIENT_ID: ${{ secrets.AIRTRAIL_OIDC_CLIENT_ID }}
-          AUTOLAB_AIRTRAIL_OIDC_CLIENT_SECRET: ${{ secrets.AIRTRAIL_OIDC_CLIENT_SECRET }}
           AUTOLAB_KARAKEEP_OIDC_CLIENT_ID: ${{ secrets.KARAKEEP_OIDC_CLIENT_ID }}
           AUTOLAB_KARAKEEP_OIDC_CLIENT_SECRET: ${{ secrets.KARAKEEP_OIDC_CLIENT_SECRET }}
           # Karakeep's own OpenCode Go key, for tagging. Unset: no tagging.
@@ -488,10 +484,6 @@ jobs:
               "autolab_services_adventurelog_oidc_client_secret": os.environ.get("AUTOLAB_ADVENTURELOG_OIDC_CLIENT_SECRET", ""),
               "autolab_services_forgejo_oidc_client_id": os.environ.get("AUTOLAB_FORGEJO_OIDC_CLIENT_ID", ""),
               "autolab_services_forgejo_oidc_client_secret": os.environ.get("AUTOLAB_FORGEJO_OIDC_CLIENT_SECRET", ""),
-              "autolab_services_tandoor_oidc_client_id": os.environ.get("AUTOLAB_TANDOOR_OIDC_CLIENT_ID", ""),
-              "autolab_services_tandoor_oidc_client_secret": os.environ.get("AUTOLAB_TANDOOR_OIDC_CLIENT_SECRET", ""),
-              "autolab_services_airtrail_oidc_client_id": os.environ.get("AUTOLAB_AIRTRAIL_OIDC_CLIENT_ID", ""),
-              "autolab_services_airtrail_oidc_client_secret": os.environ.get("AUTOLAB_AIRTRAIL_OIDC_CLIENT_SECRET", ""),
               "autolab_services_karakeep_oidc_client_id": os.environ.get("AUTOLAB_KARAKEEP_OIDC_CLIENT_ID", ""),
               "autolab_services_karakeep_oidc_client_secret": os.environ.get("AUTOLAB_KARAKEEP_OIDC_CLIENT_SECRET", ""),
               "autolab_services_karakeep_ai_api_key": os.environ.get("AUTOLAB_KARAKEEP_AI_API_KEY", ""),
@@ -508,7 +500,7 @@ jobs:
               "autolab_services_novaflix_radarr_api_key": os.environ.get("AUTOLAB_RADARR_API_KEY", ""),
           }
           # Empty values must not override the protected host-managed client facts.
-          for app in ("adventurelog", "forgejo", "tandoor", "airtrail", "karakeep", "sure"):
+          for app in ("adventurelog", "forgejo", "karakeep", "sure"):
               for field in ("id", "secret"):
                   name = f"autolab_services_{app}_oidc_client_{field}"
                   if not values[name]:

@@ -127,7 +127,7 @@ class PolicyTest(unittest.TestCase):
         template = (path.parent.parent / 'templates/managed-pocketid-policy.json.j2').read_text()
         env = jinja2.Environment()
         env.filters['to_json'] = json.dumps
-        names = ['adventurelog', 'forgejo', 'tandoor', 'airtrail', 'karakeep', 'sure', 'novaflix']
+        names = ['adventurelog', 'forgejo', 'karakeep', 'sure', 'novaflix']
         values = {f'autolab_services_{name}_public_url': f'https://{name}.example.test' for name in names}
         values['autolab_services_novaflix_admin_url'] = 'https://novaflix-admin.example.test'
         values.update(autolab_services_enabled=names, autolab_services_oidc_issuer='https://auth.example.test', autolab_services_pocketid_group='admins')

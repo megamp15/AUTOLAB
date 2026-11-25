@@ -1,6 +1,6 @@
 ---
 name: app-fork
-description: Change the code of an upstream app AUTOLAB runs (AdventureLog, Tandoor, AirTrail, Karakeep, Sure) through its fork in Forgejo. Use for a fix or feature in an app's own source, or to take upstream's changes into a fork.
+description: Change the code of an upstream app AUTOLAB runs (AdventureLog, Karakeep, Sure) through its fork in Forgejo. Use for a fix or feature in an app's own source, or to take upstream's changes into a fork.
 ---
 
 # Patching an app we run

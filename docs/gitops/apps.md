@@ -1,23 +1,27 @@
 ---
-tags: [gitops, apps, nebula, pocket-id, tandoor, airtrail, karakeep, sure]
+tags: [gitops, apps, nebula, pocket-id, karakeep, sure]
 status: draft
 audience: operator
 ---
 
 # The self-hosted apps
 
-Four apps on [nebula](nebula.md), beside [AdventureLog](adventurelog.md) and
+Two apps on [nebula](nebula.md), beside [AdventureLog](adventurelog.md) and
 [Forgejo](forgejo.md). Each is `<name>.lab.<zone>`, tailnet only, signs people in
-with its own Pocket ID client and keeps its files on the NAS. The three on
-Postgres have their database dumped nightly and restore-tested weekly;
-[Karakeep](karakeep.md) is on SQLite and is not in the dumps yet.
+with its own Pocket ID client and keeps its files on the NAS. Sure's Postgres is
+dumped nightly and restore-tested weekly; [Karakeep](karakeep.md) is on SQLite
+and is not in the dumps yet.
 
 | app | for | database | files on the NAS | idle RAM |
 |---|---|---|---|---|
-| `tandoor` 2.7.2 | recipes, meal plans, shopping lists | Postgres | `tandoor/media` | ~850 MB (its workers) |
-| `airtrail` 3.14.0 | flights on a map | Postgres | `airtrail/uploads` | ~50 MB |
 | `karakeep` 0.35.0 | bookmarks that fetch and tag themselves, see [karakeep](karakeep.md) | **SQLite**, local volume | `karakeep/assets` | not measured yet; limits 1 GB + 768 MB browser + 384 MB search |
 | `sure` 2026.11.14-alpha | accounts, budgets, net worth | Postgres | `sure/storage` | web and worker ~375 MB each |
+
+Tandoor (recipes) and AirTrail (flights) were removed on 2026-11-24, to give
+aurora the memory for Jellyfin. Their database volumes (`services_tandoor-db`,
+`services_airtrail-db`, `services_tandoor-static`), `/etc/autolab/tandoor*.env`
+and `/etc/autolab/airtrail*.env` were left on nebula, and their files on the NAS
+(`tandoor/`, `airtrail/`). Delete them by hand once nothing in them is wanted.
 
 Karakeep took LinkAce's place on 2026-11-17. LinkAce's containers are gone;
 its MariaDB volume (`services_linkace-db`) and `/etc/autolab/linkace*.env`
@@ -65,8 +69,6 @@ Local password login remains available until SSO is verified.
 
 | app | callback URL |
 |---|---|
-| tandoor | `https://tandoor.lab.<zone>/accounts/oidc/pocketid/login/callback/` |
-| airtrail | `https://airtrail.lab.<zone>/login` |
 | karakeep | `https://karakeep.lab.<zone>/api/auth/callback/custom` |
 | sure | `https://sure.lab.<zone>/auth/openid_connect/callback` |
 
@@ -74,14 +76,8 @@ Local password login remains available until SSO is verified.
 
 | app | account that exists from the start | after the first Pocket ID sign-in |
 |---|---|---|
-| tandoor | `admin`, password `DJANGO_SUPERUSER_PASSWORD` in `/etc/autolab/tandoor.env` | signing in with the same email attaches to it |
-| airtrail | none: the **first account created is the owner** | sign in once, then `docker exec services-airtrail-1 airtrail-admin grant-admin <user>` if you are not the owner |
 | karakeep | none: the **first account created is the admin** | sign in with Pocket ID first, before anyone uses the password form |
 | sure | none: the first user becomes super admin on a new install | sign in once; then Settings → Self-Hosting → Onboarding → Closed |
-
-On a new AirTrail install, `/login` first shows the owner-account setup form.
-Create that first local owner account there. Once setup finishes, sign in with
-Pocket ID from AirTrail's normal login page.
 
 Read a break-glass password with `ssh megamp15@nebula sudo grep <KEY> /etc/autolab/<app>.env`.
 
@@ -94,14 +90,8 @@ request, to remove the password form (for Sure that sets
 
 | app | proof after deploy |
 |---|---|
-| tandoor | its provider list (`/_allauth/browser/v1/config`) contains Pocket ID |
 | karakeep | only that `/api/health` answers. Sign in once to prove Pocket ID |
 | sure | its sign-in page carries the *Sign in with Pocket ID* button |
-| airtrail | only that it answers: its login is drawn in the browser and offers no URL to test. Sign in once and read the callback error if Pocket ID rejects it |
-
-AirTrail's callback is the one thing I could not verify by running it: the docs
-and Pocket ID's guide say `/login`, while its code also has `/api/oauth/callback`.
-If Pocket ID reports a redirect mismatch, add the other as a second callback.
 
 ## Changing an app
 
