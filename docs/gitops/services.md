@@ -61,6 +61,7 @@ bump is a pull request.
 | `novaflix` | a private tracker of what a few friends watch, our own app: public gateway, server and Postgres; it signs its own users in, at `novaflix.<zone>` with no `*.lab` name — see [novaflix](novaflix.md) | 8108 |
 | `novaflix-admin` | the same app's account management, which the public gateway does not answer; tailnet-only behind the passkey — see [novaflix](novaflix.md) | 8109 |
 | `hermes` | the owner's agent on WhatsApp, working in a checkout of the notes vault; the port is its dashboard — see [hermes](hermes.md) | 8106 |
+| `hindsight` | shared memory for the owner's agents, one bank per project; 8119 is the control plane behind the passkey, 8120 the API agents call with its key — see [hindsight](hindsight.md) | 8119, 8120 |
 
 ## Where they are reachable
 

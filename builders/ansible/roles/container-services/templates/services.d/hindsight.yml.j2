@@ -1,0 +1,49 @@
+  # Hindsight: one shared memory for the owner's agents. Claude Code, Codex
+  # and OpenCode on the Mac reach the API over the tailnet with its key;
+  # Hermes reaches it on hindsight-agents. One bank per project, so switching
+  # models keeps the context. The API (8888) and its control plane (9999) run
+  # in this one container, with Postgres embedded (pg0) in the named volume.
+  # Its own model, for pulling facts out of sessions, is an OpenCode Go key of
+  # its own; never an Anthropic credential. See docs/gitops/hindsight.md.
+  hindsight:
+    image: {{ autolab_services_images.hindsight }}
+    labels:
+      dockhand.tags: hindsight
+    restart: unless-stopped
+    shm_size: 1g
+    stop_grace_period: 75s
+    security_opt:
+      - no-new-privileges
+    env_file:
+      # The API key, generated once on this host: the tenant key the API
+      # checks and the key the control plane sends.
+      - /etc/autolab/hindsight.env
+      # Its model provider, rewritten every run.
+      - /etc/autolab/hindsight-llm.env
+    environment:
+      TZ: "{{ autolab_services_timezone }}"
+      HINDSIGHT_ENABLE_CP: "true"
+      HINDSIGHT_API_TENANT_EXTENSION: "hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension"
+      HINDSIGHT_API_WORKER_ID: "jwst"
+    volumes:
+      - hindsight-data:/home/hindsight/.pg0
+    mem_limit: {{ autolab_services_memory.hindsight }}
+    cpus: {{ autolab_services_hindsight_cpus }}
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8888/health', timeout=5)\" || exit 1"]
+      # The first start downloads nothing but warms the local embedding and
+      # reranker models, which takes minutes on jwst's CPU.
+      start_period: 300s
+      interval: 60s
+      timeout: 15s
+      retries: 3
+    ports:
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.hindsight_api }}:8888"
+      - "{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.hindsight }}:9999"
+{% if 'hermes' in autolab_services_enabled %}
+    # default: the model provider. hindsight-agents: where Hermes reaches the
+    # API as http://hindsight:8888.
+    networks:
+      - default
+      - hindsight-agents
+{% endif %}

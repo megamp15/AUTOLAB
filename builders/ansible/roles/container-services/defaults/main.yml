@@ -203,6 +203,9 @@ autolab_services_images:
   # Hermes Agent, the official image: Python runtime, Node for the WhatsApp
   # bridge, git, and s6 to keep the gateway up. A release tag, never `latest`.
   hermes: "nousresearch/hermes-agent:v0.23.3"
+  # The full image: local embeddings and reranker, so only extraction goes to
+  # the model provider. docs/gitops/hindsight.md.
+  hindsight: "ghcr.io/vectorize-io/hindsight:1.3.0"
 
 # Host ports come from the shared catalog in playbooks/group_vars/all.yml,
 # because the ingress role on another machine routes to the same numbers.
@@ -224,6 +227,8 @@ autolab_services_ports:
   novaflix: "{{ autolab_service_catalog.novaflix.port }}"
   novaflix_admin: "{{ autolab_service_catalog['novaflix-admin'].port }}"
   hermes: "{{ autolab_service_catalog.hermes.port }}"
+  hindsight: "{{ autolab_service_catalog.hindsight.port }}"
+  hindsight_api: "{{ autolab_service_catalog['hindsight-api'].port }}"
   jellyfin: "{{ autolab_service_catalog.jellyfin.port }}"
   sonarr: "{{ autolab_service_catalog.sonarr.port }}"
   radarr: "{{ autolab_service_catalog.radarr.port }}"
@@ -338,9 +343,17 @@ autolab_services_memory:
   sure_worker: 768m
   sure_db: 384m
   sure_redis: 128m
+  # Hindsight's guide: API 1.5-2 GB, embedded Postgres 0.5-1 GB, control plane
+  # 128-256 MB. jwst had 3.6 GB free before it (2026-11-25).
+  hindsight: 2560m
 # What each needs generated, once, on the host. {PW} is the database's password,
 # shared by the files that need it; see files/autolab-gen-credentials.py.
 autolab_services_credential_specs:
+  # One key, two names: the API checks it, the control plane sends it.
+  - service: hindsight
+    files:
+      - path: /etc/autolab/hindsight.env
+        lines: ["HINDSIGHT_API_TENANT_API_KEY={PW}", "HINDSIGHT_CP_DATAPLANE_API_KEY={PW}"]
   - service: karakeep
     files:
       - path: /etc/autolab/karakeep-meili.env
@@ -620,6 +633,17 @@ autolab_services_hermes_dashboard_user: megamp15
 autolab_services_hermes_trusted_proxies: ["100.64.0.0/10"]
 autolab_services_hermes_git_name: "Hermes"
 autolab_services_hermes_git_email: "hermes@jwst.lab"
+
+# Hindsight. See docs/gitops/hindsight.md.
+#
+# Its model only extracts and merges facts; the agents keep their own models.
+# A key of its own on OpenCode Go (HINDSIGHT_OPENCODE_GO_API_KEY), not
+# Hermes's or Karakeep's, so one service's use never starves another. Never
+# an Anthropic credential: the owner's Claude plan is for Claude Code only.
+autolab_services_hindsight_llm_api_key: ""
+autolab_services_hindsight_llm_base_url: "https://opencode.ai/zen/go/v1"
+autolab_services_hindsight_llm_model: "glm-5.3-flash"
+autolab_services_hindsight_cpus: 2
 
 autolab_services_diun_schedule: "0 8 * * *"
 autolab_services_diun_ntfy_topic: "{{ autolab_obs_ntfy_topic | default('') }}"

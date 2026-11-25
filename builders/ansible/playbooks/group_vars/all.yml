@@ -179,3 +179,13 @@ autolab_service_catalog:
   hermes:
     port: 8106
     login: plugin
+  # Hindsight, the agents' shared memory (docs/gitops/hindsight.md). The
+  # control plane is a page for a person: behind the passkey. The API is for
+  # agents, which cannot answer a passkey: its own key, and the tailnet as the
+  # gate, as for the registry.
+  hindsight:
+    port: 8119
+    login: plugin
+  hindsight-api:
+    port: 8120
+    login: none

@@ -106,6 +106,18 @@
         description: Agent dashboard
         siteMonitor: http://jwst.{{ tn }}:{{ autolab_services_ports.hermes }}/api/status
 {% endif %}
+{% if 'hindsight' in autolab_services_enabled %}
+    - Hindsight:
+        icon: mdi-brain
+        href: https://hindsight.{{ lab }}
+        description: Agent memory
+        siteMonitor: http://jwst.{{ tn }}:{{ autolab_services_ports.hindsight }}/api/health
+    - Hindsight API:
+        icon: mdi-api
+        href: https://hindsight-api.{{ lab }}/docs
+        description: Agent memory API
+        siteMonitor: http://jwst.{{ tn }}:{{ autolab_services_ports.hindsight_api }}/health
+{% endif %}
     - Pi-hole:
         icon: pi-hole.png
         href: https://pihole.{{ lab }}/admin/
