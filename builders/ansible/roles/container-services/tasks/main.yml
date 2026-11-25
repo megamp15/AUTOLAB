@@ -286,8 +286,7 @@
     owner: "1000"
     group: "1000"
     mode: "0750"
-  loop: "{{ autolab_services_download_apps | intersect(autolab_services_enabled) + (['sabnzbd/incomplete']
-    if 'sabnzbd' in autolab_services_enabled else []) }}"
+  loop: "{{ autolab_services_download_apps | intersect(autolab_services_enabled) }}"
 
 # Seerr: its settings database, owned by the image's node user.
 - name: Create Seerr's directory
@@ -1810,7 +1809,7 @@
 # address outside the private ranges, which a tailnet address (100.64/10) is.
 # Its file exists after its first start, so the first run adds both on the way out.
 # `sabnzbd` is the name Sonarr and Radarr dial on the compose network.
-- name: Let SABnzbd answer to its lab name and the tailnet
+- name: Set SABnzbd's names, folders and cache
   ansible.builtin.lineinfile:
     path: "{{ autolab_services_root }}/sabnzbd/sabnzbd.ini"
     regexp: "^{{ item.key }} ="
@@ -1820,13 +1819,24 @@
       value: "sabnzbd, sabnzbd.{{ autolab_services_dash_label }}.{{ autolab_services_dash_zone }}, {{ inventory_hostname }}, {{ autolab_services_fqdn }}"
     - key: local_ranges
       value: 100.64.0.0/10, 172.16.0.0/12, 127.0.0.0/8
+    # Where it downloads: the share, beside complete/, so a finished job
+    # moves by rename instead of a copy off the node's busy disk.
+    - key: download_dir
+      value: /data/usenet/incomplete
+    # Unpack while the download runs, not after it.
+    - key: direct_unpack
+      value: "1"
+    # Articles held in memory before they are written. Inside the
+    # container's memory limit, with room for repairs.
+    - key: cache_limit
+      value: "{{ autolab_services_sabnzbd_cache }}"
   loop_control:
     label: "{{ item.key }}"
   register: autolab_sabnzbd_whitelist
   failed_when: false
   when: "'sabnzbd' in autolab_services_enabled"
 
-- name: Restart SABnzbd for its host names
+- name: Restart SABnzbd for its settings
   ansible.builtin.command: docker compose --project-directory {{ autolab_services_root }} restart sabnzbd
   changed_when: true
   when:

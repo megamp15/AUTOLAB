@@ -29,6 +29,12 @@
 # not add `nfsvers=4` without testing the mount first.
 autolab_nfs_mounts: []
 
+# Names for servers reached over the home network instead of the tailnet,
+# as {name: address}. Written into /etc/hosts on a host whose mounts use the
+# name, and nowhere else. The address comes from a secret, because the
+# repository is public and the home network's layout stays out of it.
+autolab_nfs_hosts: {}
+
 # Defaults applied to any mount that does not override `options`.
 #
 #   hard      — retry indefinitely rather than failing I/O on a blip. The right

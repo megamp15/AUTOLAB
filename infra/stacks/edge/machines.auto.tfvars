@@ -159,8 +159,12 @@ machines = {
       # A share of its own, named for the machine: only this host's export
       # rule opens it. The films, the shows and the downloads live under
       # media-stack; anything else this machine keeps gets a folder beside it.
+      # Over the home network, not the tailnet: the NAS sits on the same
+      # switch, and Tailscale's encryption held copies to about 45 MB/s.
+      # singularity-lan is written into /etc/hosts from the NAS_LAN_ADDRESS
+      # secret (docs/gitops/nas-storage.md, "A mount over the home network").
       storage = [
-        { protocol = "nfs", server = "singularity", share = "/volume1/aurora", path = "/mnt/aurora", directories = ["media-stack"], mode = "0755" },
+        { protocol = "nfs", server = "singularity-lan", share = "/volume1/aurora", path = "/mnt/aurora", directories = ["media-stack"], mode = "0755" },
       ]
       observability = {
         ship_to = "jwst"

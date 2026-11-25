@@ -49,6 +49,8 @@ Run it with workflow **05 - Ansible Builder**, `playbook: nfs`. Use
 Use the **MagicDNS name**, not a LAN IP. The address then follows the device
 rather than the subnet, `/etc/fstab` survives the NAS changing address, and the
 traffic stays on the tailnet where the firewall baseline already allows it.
+The one exception is a host that moves bulk data to a NAS on the same switch:
+see *A mount over the home network*.
 
 Name the mount point after the **share**, not the device. Hardware gets
 replaced and a device-named mount point outlives it — QNTA360 still mounts at
@@ -237,6 +239,50 @@ took away.
 - **`chown` on a CIFS mount is a no-op or an error.** Ownership is the mount
   option, full stop. A role that sets `owner:` on a directory there is wrong,
   not the NAS.
+
+## A mount over the home network
+
+One mount skips the tailnet: aurora's `/mnt/aurora`. aurora and the NAS sit
+on the same switch, and media moves in large volumes. Through Tailscale
+every byte was encrypted on aurora and decrypted on the NAS, which held
+copies to about 45 MB/s. Over the plain network they run near the link's
+1 GbE.
+
+```text
+ before:  aurora ─[encrypt]─► switch ─► NAS [decrypt]     ≈ 45 MB/s
+ after:   aurora ───────────► switch ─► NAS               ≈ 110 MB/s
+```
+
+The entry's server is `singularity-lan`, a name no DNS knows. The
+`nfs-client` role writes it into `/etc/hosts` from `autolab_nfs_hosts`,
+which workflow 05 fills from the `NAS_LAN_ADDRESS` secret: the repository is
+public, and the home network's addresses stay out of it. A secret rather
+than a variable so run logs mask it. Without the secret the reachability
+probe fails and names `singularity-lan`.
+
+The trade: on the tailnet an address is bound to a node key, so the export
+rule cannot be fooled. On the home network an address is only a claim, and
+a device on the home Wi-Fi that took aurora's address could mount the
+share. Two things keep that small: the export rule names aurora's one
+address, never the subnet, and the share holds only aurora's media and
+downloads, not the photos in `media`. The router reserves aurora's address.
+
+The export rule for this mount names aurora's home address (UGOS → Control
+Panel → File Service → NFS, the `aurora` share).
+
+### Moving a mounted share to a new server name
+
+A storage run rewrites `/etc/fstab` but cannot move a live NFS mount to
+another server, and the containers hold the old mount until they restart.
+So the switch is a short outage, done by hand on the host:
+
+```bash
+cd /opt/autolab/services && sudo docker compose stop
+sudo umount /mnt/aurora
+# workflow 05, playbook storage, environment edge, client aurora
+sudo docker compose start
+findmnt /mnt/aurora        # SOURCE singularity-lan:/volume1/aurora
+```
 
 ## Related docs
 
