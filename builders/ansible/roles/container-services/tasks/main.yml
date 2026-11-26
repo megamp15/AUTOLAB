@@ -715,10 +715,12 @@
     argv: [/usr/local/bin/autolab-gen-credentials]
     stdin: "{{ {'files': item.files} | to_json }}"
     creates: "{{ (item.files | last).path }}"
-  loop: "{{ autolab_services_credential_specs | selectattr('service', 'in', autolab_services_apps + (['hindsight'] if 'hindsight' in autolab_services_enabled else [])) | list }}"
+  loop: "{{ autolab_services_credential_specs | selectattr('service', 'in', _credential_services) | list }}"
   loop_control:
     label: "{{ item.service }}"
   no_log: true
+  vars:
+    _credential_services: "{{ autolab_services_apps + (['hindsight'] if 'hindsight' in autolab_services_enabled else []) }}"
 
 - name: Write each app's Pocket ID client
   ansible.builtin.template:
