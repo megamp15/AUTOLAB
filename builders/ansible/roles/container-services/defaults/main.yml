@@ -637,8 +637,9 @@ autolab_services_hermes_git_email: "hermes@jwst.lab"
 # Hindsight. See docs/gitops/hindsight.md.
 #
 # Its model only extracts and merges facts; the agents keep their own models.
-# A key of its own on OpenCode Go (HINDSIGHT_OPENCODE_GO_API_KEY), not
-# Hermes's or Karakeep's, so one service's use never starves another. Never
+# OpenCode Go: HINDSIGHT_OPENCODE_GO_API_KEY when set, else Hermes's key
+# (workflow 05 picks). A key of its own keeps one service's use from
+# starving another's. Never
 # an Anthropic credential: the owner's Claude plan is for Claude Code only.
 autolab_services_hindsight_llm_api_key: ""
 autolab_services_hindsight_llm_base_url: "https://opencode.ai/zen/go/v1"

@@ -437,7 +437,8 @@ jobs:
           AUTOLAB_KARAKEEP_AI_API_KEY: ${{ secrets.KARAKEEP_OPENCODE_GO_API_KEY }}
           # Hindsight's own OpenCode Go key, for extracting memories. Unset: it
           # starts but retains nothing.
-          AUTOLAB_HINDSIGHT_LLM_API_KEY: ${{ secrets.HINDSIGHT_OPENCODE_GO_API_KEY }}
+          # Hermes's key until Hindsight has its own; setting HINDSIGHT_... switches over.
+          AUTOLAB_HINDSIGHT_LLM_API_KEY: ${{ secrets.HINDSIGHT_OPENCODE_GO_API_KEY || secrets.HERMES_OPENCODE_GO_API_KEY }}
           AUTOLAB_SURE_OIDC_CLIENT_ID: ${{ secrets.SURE_OIDC_CLIENT_ID }}
           AUTOLAB_SURE_OIDC_CLIENT_SECRET: ${{ secrets.SURE_OIDC_CLIENT_SECRET }}
           AUTOLAB_APPS_ADMIN_EMAIL: ${{ vars.APPS_ADMIN_EMAIL }}

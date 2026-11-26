@@ -46,7 +46,7 @@ Paradigm Prints is a separate business and gets its own stack. It never writes h
   Postgres embedded (pg0) in the named volume `hindsight-data`. Embeddings and the
   reranker run locally on jwst's CPU. The first start takes minutes while they warm up.
 - **Its own model** only extracts and merges facts: `glm-5.3-flash` on OpenCode Go,
-  with a key of its own (`HINDSIGHT_OPENCODE_GO_API_KEY`). Without the key it starts
+  with `HINDSIGHT_OPENCODE_GO_API_KEY`, or Hermes's key until that exists. Without a key it starts
   but retains nothing. The agents keep their own models.
 - **Never an Anthropic credential.** Hindsight offers a Claude Code provider; it is not
   used. The owner's Claude plan is for Claude Code only.
