@@ -58,6 +58,10 @@ autolab_services_jellyfin_libraries:
   - {name: Music, type: music, folder: music}
 # An API key made in Jellyfin (Dashboard, API Keys). Empty: libraries are left alone.
 autolab_services_jellyfin_api_key: ""
+# Administrators allowed to sign in to Jellyfin from the internet; every other
+# administrator is held to home and the tailnet. The owner, so Moonfin's Seerr
+# works away from home; their password and fail2ban are what stand there.
+autolab_services_jellyfin_remote_admins: [megamp15]
 # Owned by 1000: Jellyfin and the download apps run as that uid.
 # usenet/ and torrents/ sit beside media/ on the same share, so a finished
 # download becomes a library file by rename (Usenet) or hardlink (torrents).

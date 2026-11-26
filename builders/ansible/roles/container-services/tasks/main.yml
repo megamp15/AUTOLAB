@@ -1796,9 +1796,9 @@
     - not ansible_check_mode
     - autolab_jellyfin_encoding.json | combine(autolab_jellyfin_encoding_wanted) != autolab_jellyfin_encoding.json
 
-# An administrator signs in from home or the tailnet only. From the internet,
-# a stolen or guessed admin password opens nothing; friends' accounts are not
-# administrators.
+# An administrator signs in from home or the tailnet only, unless named in
+# autolab_services_jellyfin_remote_admins. From the internet, a stolen or
+# guessed admin password opens nothing; friends' accounts are not administrators.
 - name: List Jellyfin's users
   ansible.builtin.uri:
     url: "http://{{ autolab_services_tailscale_ip }}:{{ autolab_services_ports.jellyfin }}/Users"
@@ -1830,6 +1830,7 @@
     - not ansible_check_mode
     - item.Policy.IsAdministrator | default(false)
     - item.Policy.EnableRemoteAccess | default(true)
+    - item.Name not in autolab_services_jellyfin_remote_admins
 
 # SABnzbd refuses a request whose host name it does not know, and one from an
 # address outside the private ranges, which a tailnet address (100.64/10) is.

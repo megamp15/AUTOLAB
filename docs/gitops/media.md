@@ -132,7 +132,7 @@ friend ─▶ home router :443 ─▶ aurora 192.168.50.54:443 ─▶ jellyfin-p
 | two names | the door answers only `jellyfin.<zone>` and `seerr.<zone>` (SNI strict: a scanner dialling the address gets no certificate), never `/Startup`, nor Seerr's own accounts (`/api/v1/auth/local`) or `/setup`, with a rate limit per address | `jellyfin-public/dynamic.yml.j2` |
 | sign-in guessing | fail2ban bans an address for a day after 5 refused sign-ins in 10 minutes, Jellyfin's or Seerr's, on every port | jail `jellyfin-public` |
 | reach | the door's network holds only it, Jellyfin and Seerr; the media is read-only to Jellyfin | the compose file |
-| administrators | can sign in from home and the tailnet only (Jellyfin's per-user remote access), so a guessed admin password opens nothing from outside. Seerr checks passwords from inside, so an administrator can still sign in to Seerr from outside: fail2ban and the password are what stand there | the services run |
+| administrators | can sign in from home and the tailnet only (Jellyfin's per-user remote access), so a guessed admin password opens nothing from outside. The exception is whoever `autolab_services_jellyfin_remote_admins` names (the owner, so Moonfin's Seerr works away from home): the run leaves their remote access alone, and it is switched on once in Jellyfin. Seerr checks passwords from inside, so an administrator can still sign in to Seerr from outside: fail2ban and the password are what stand there | the services run |
 | bandwidth | streams from outside are held to 10 Mbps (`autolab_services_jellyfin_remote_bitrate`) | the services run |
 
 Jellyfin tells home from outside by the client's own address: the door's
