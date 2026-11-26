@@ -20,7 +20,10 @@ import datetime as dt
 import json
 import os
 import pathlib
+import shutil
+import sqlite3
 import subprocess
+import tempfile
 import sys
 import time
 
@@ -42,13 +45,62 @@ def psql(container, user, db, sql):
     return run(["docker", "exec", container, "psql", "-U", user, "-d", db, "-tAc", sql]).stdout.strip()
 
 
+SUFFIXES = ("dump", "sql", "sqlite")
+
+
+def dumps_in(folder):
+    return sorted(p for suffix in SUFFIXES for p in folder.glob(f"*.{suffix}"))
+
+
 def newest_dump(folder):
-    dumps = sorted(list(folder.glob("*.dump")) + list(folder.glob("*.sql")))
+    dumps = dumps_in(folder)
     return dumps[-1] if dumps else None
 
 
 def maria(db):
     return db.get("kind") == "mariadb"
+
+
+def sqlite(db):
+    return db.get("kind") == "sqlite"
+
+
+def sqlite_path(db):
+    """The live file, found through Docker rather than guessed."""
+    mount = run(["docker", "volume", "inspect", "-f", "{{.Mountpoint}}", db["volume"]]).stdout.strip()
+    return pathlib.Path(mount) / db["file"]
+
+
+def sqlite_check(path):
+    """integrity_check must say ok; returns the number of tables."""
+    con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        verdict = con.execute("pragma integrity_check").fetchone()[0]
+        if verdict != "ok":
+            raise RuntimeError(f"integrity_check: {verdict}")
+        return con.execute("select count(*) from sqlite_master where type='table'").fetchone()[0]
+    finally:
+        con.close()
+
+
+def sqlite_dump(db, partial):
+    # SQLite's online backup API copies a consistent snapshot while the app
+    # keeps writing. It writes to local disk first: SQLite locking on NFS is
+    # not to be trusted, and the NAS only receives a finished, checked file.
+    with tempfile.TemporaryDirectory() as scratch:
+        local = pathlib.Path(scratch) / "copy.sqlite"
+        src = sqlite3.connect(f"file:{sqlite_path(db)}?mode=ro", uri=True)
+        dst = sqlite3.connect(local)
+        try:
+            src.backup(dst)
+            # A WAL-mode copy needs side files to open; make it one plain file.
+            dst.execute("pragma journal_mode=delete")
+        finally:
+            dst.close()
+            src.close()
+        if sqlite_check(local) == 0:
+            raise RuntimeError("the copy has no tables")
+        shutil.copyfile(local, partial)
 
 
 # MariaDB is dumped and restored by the container's own client, with the
@@ -60,10 +112,15 @@ MARIA_TABLES = ("select count(*) from information_schema.tables where table_sche
 def dump_one(cfg, db):
     folder = pathlib.Path(cfg["dest"]) / db["service"]
     folder.mkdir(parents=True, exist_ok=True)
-    suffix = "sql" if maria(db) else "dump"
+    suffix = "sqlite" if sqlite(db) else "sql" if maria(db) else "dump"
     final = folder / f"{db['service']}-{dt.datetime.now(dt.timezone.utc).strftime(STAMP)}.{suffix}"
     partial = folder / (final.name + ".partial")
     try:
+        if sqlite(db):
+            sqlite_dump(db, partial)
+            os.replace(partial, final)
+            log(f"{db['service']}: {final.name} ({final.stat().st_size} bytes)")
+            return
         dump_cmd = (["docker", "exec", db["container"], "sh", "-c", MARIA_DUMP] if maria(db) else
                     ["docker", "exec", db["container"], "pg_dump", "-U", db["user"], "-Fc", db["db"]])
         with partial.open("wb") as out:
@@ -93,7 +150,7 @@ def prune(cfg, service):
     """Newest keep_daily dumps, plus one per week (Sunday's) for keep_weekly_days."""
     folder = pathlib.Path(cfg["dest"]) / service
     now = time.time()
-    dumps = sorted(list(folder.glob("*.dump")) + list(folder.glob("*.sql")))
+    dumps = dumps_in(folder)
     for path in dumps[:-cfg["keep_daily"]]:
         age_days = (now - path.stat().st_mtime) / 86400
         sunday = dt.datetime.strptime(path.stem.rsplit("-", 1)[1], STAMP).weekday() == 6
@@ -111,7 +168,15 @@ def restore_test(cfg, db, state):
     try:
         if dump is None:
             raise RuntimeError("there is no dump to restore")
-        if maria(db):
+        if sqlite(db):
+            # Nothing to restore into: the copy is the database. Prove it opens,
+            # passes integrity_check and has the tables production has.
+            with tempfile.TemporaryDirectory() as scratch:
+                local = pathlib.Path(scratch) / dump.name
+                shutil.copyfile(dump, local)
+                got = sqlite_check(local)
+            live = sqlite_check(sqlite_path(db))
+        elif maria(db):
             run(["docker", "run", "-d", "--rm", "--name", name, "--memory", "768m", "-e", "MARIADB_ROOT_PASSWORD=restore-test",
                  "-e", f"MARIADB_DATABASE={db['db']}", db["image"]])
             for _ in range(90):

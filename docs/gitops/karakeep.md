@@ -23,10 +23,13 @@ It is one of [the self-hosted apps](apps.md) on [nebula](nebula.md):
 | `karakeep-meili` | search. The version Karakeep's own compose file names | an index in `karakeep-meili`, rebuilt from the database |
 
 The database is on local disk for the reason Postgres is: SQLite on NFS
-corrupts. **It is not in the nightly dumps**, which know Postgres and
-MariaDB. Until that is added, a lost nebula disk loses the bookmarks'
-records; the fetched files on the NAS survive without them but are not
-browsable.
+corrupts. It is in the nightly dumps with the Postgres databases: SQLite's
+online backup copies it to local scratch, `integrity_check` must pass, and the
+copy lands in `/mnt/apps/backups/karakeep/` on the NAS as a `.sqlite` file.
+The weekly restore test opens the newest copy and compares its tables with
+the live file. To restore, stop `karakeep` and copy the newest file over
+`db.db` in the `karakeep-data` volume. `queue.db` beside it is the job queue
+and is not kept.
 
 Videos are kept up to `autolab_services_karakeep_video_max_mb` (200).
 

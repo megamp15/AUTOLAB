@@ -23,3 +23,21 @@ class BackupConfigTest(unittest.TestCase):
         databases = json.loads(result)['databases']
         self.assertEqual(databases[0]['kind'], 'mariadb')
         self.assertEqual(databases[1]['kind'], 'postgres')
+
+    def test_sqlite_database_gets_its_volume_and_file(self):
+        template = Path('builders/ansible/roles/container-services/templates/db-backup.json.j2').read_text()
+        env = jinja2.Environment()
+        env.filters["to_json"] = json.dumps
+        result = env.from_string(template).render(
+            autolab_services_data_root='/mnt/apps',
+            autolab_services_db_backup={'keep_daily': 14, 'keep_weekly_days': 60},
+            autolab_services_db_names=['karakeep'],
+            autolab_services_project='services',
+            autolab_services_databases={
+                'karakeep': {'kind': 'sqlite', 'container': 'karakeep', 'volume': 'karakeep-data', 'file': 'db.db'},
+            },
+        )
+        db = json.loads(result)['databases'][0]
+        self.assertEqual(db['kind'], 'sqlite')
+        self.assertEqual(db['volume'], 'services_karakeep-data')
+        self.assertEqual(db['file'], 'db.db')
