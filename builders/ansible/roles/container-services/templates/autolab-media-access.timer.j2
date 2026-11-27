@@ -1,0 +1,10 @@
+# Managed by Ansible — roles/container-services.
+[Unit]
+Description=Check the media share's permissions every {{ autolab_services_media_access_interval }}
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec={{ autolab_services_media_access_interval }}
+
+[Install]
+WantedBy=timers.target

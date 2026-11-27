@@ -71,6 +71,10 @@ autolab_services_media_dirs: >-
   {{ ['media', 'usenet', 'usenet/complete', 'usenet/incomplete', 'torrents']
      + ['usenet/complete/tv', 'usenet/complete/movies', 'usenet/complete/music', 'torrents/tv', 'torrents/movies', 'torrents/music']
      + autolab_services_jellyfin_libraries | map(attribute='folder') | map('regex_replace', '^', 'media/') | list }}
+# How often aurora checks that uid 1000 can still read the media share, and
+# puts the permissions back when a UGOS dialog has reset them. The check reads
+# metadata only and changes nothing while access is fine.
+autolab_services_media_access_interval: 15min
 # SABnzbd's article cache: downloaded pieces wait in memory and reach the
 # share in large writes. Keep it about half of its memory limit.
 autolab_services_sabnzbd_cache: 1G

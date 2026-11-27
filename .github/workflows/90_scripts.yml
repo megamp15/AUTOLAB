@@ -121,6 +121,8 @@ jobs:
 
       - name: PBS access guard regression
         run: bash scripts/test_pbs_access.sh
+      - name: Media access guard
+        run: bash scripts/test_media_access.sh
 
       - name: Bootstrap dry-run in a clean Debian container
         run: bash scripts/bootstrap-dry-run.sh

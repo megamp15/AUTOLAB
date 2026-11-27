@@ -195,6 +195,40 @@ Jellyfin refuses to start while the share is not mounted. Its bind mount uses
 `create_host_path: false`, and the boot unit waits for the mount, so an
 unmounted share is an error and never an empty library on the local disk.
 
+### When UGOS takes the share's permissions away
+
+Saving a dialog for the `aurora` share in UGOS can reset the permissions on
+everything in it (`nas-storage.md`, "Things that will mislead you"). On
+2026-11-25 an NFS rule left every library file at mode `000`. The download
+apps carried on, but Jellyfin runs as uid 1000 and could open nothing:
+playback spun on "Loading stream", and its log said
+`UnauthorizedAccessException ... is denied` and `FFmpeg exited with code 243`.
+
+`autolab-media-access` on aurora puts it back, the same way
+`autolab-pbs-access` does for PBS on ark:
+
+```
+every 15 min ──► as uid 1000, try every folder and file under media-stack/
+                    │
+                    ├─ all readable ──► change nothing (about 0.1 s)
+                    │
+                    └─ something blocked ──► as root: owner 1000:1000,
+                                             folders 0775, files 0664
+                                             └─► try again, report REPAIRED
+```
+
+Access is tried, not read off `ls`: the modes this NAS reports are made up
+from its own permissions and can look right while access is denied.
+`media-stack` itself stays root's. `autolab_media_readable` and
+`autolab_media_access_repairs_total` go to Prometheus, and the
+"Jellyfin cannot read the media share" alert fires when a repair did not
+work. The services playbook runs the same check; `--check` reports without
+changing anything:
+
+```bash
+sudo autolab-media-access --check
+```
+
 ## First run
 
 Jellyfin starts with no users. Open it on the tailnet name, make the

@@ -131,6 +131,58 @@
   loop: "{{ autolab_services_media_dirs }}"
   when: autolab_services_uses_media | bool
 
+# UGOS can take uid 1000's access away from the share whenever a dialog for it
+# is saved. This puts it back, and only when it is gone: docs/gitops/media.md.
+- name: Keep the media share readable by Jellyfin
+  when: autolab_services_uses_media | bool
+  block:
+    - name: Install the media access repair
+      ansible.builtin.template:
+        src: autolab-media-access.sh.j2
+        dest: /usr/local/sbin/autolab-media-access
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install its service and timer
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "/etc/systemd/system/{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - autolab-media-access.service
+        - autolab-media-access.timer
+
+    - name: Run it on its timer
+      ansible.builtin.systemd_service:
+        name: autolab-media-access.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+      when: not ansible_check_mode
+
+    # Check mode on a host without the script yet has nothing to run.
+    - name: See whether the media access repair is installed
+      ansible.builtin.stat:
+        path: /usr/local/sbin/autolab-media-access
+      register: autolab_services_media_access_script
+
+    - name: Make sure Jellyfin can read the media share
+      ansible.builtin.command:
+        argv: "{{ ['/usr/local/sbin/autolab-media-access'] + (['--check'] if ansible_check_mode else []) }}"
+      register: autolab_services_media_access
+      changed_when: "'REPAIRED' in autolab_services_media_access.stdout or autolab_services_media_access.rc == 3"
+      failed_when: autolab_services_media_access.rc not in [0, 3]
+      check_mode: false
+      when: not ansible_check_mode or autolab_services_media_access_script.stat.exists
+
+    - name: Say what the media access check found
+      ansible.builtin.debug:
+        msg: "{{ autolab_services_media_access.stdout_lines | default([]) or ['uid 1000 can read the whole media share'] }}"
+      when: autolab_services_media_access is not skipped
+
 - name: Create the services directory
   ansible.builtin.file:
     path: "{{ autolab_services_root }}"
