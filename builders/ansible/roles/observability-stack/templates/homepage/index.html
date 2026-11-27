@@ -729,13 +729,8 @@
     intro.append(mk('p', 'muted a-live mono', 'LIVE · every 30 s'));
     intro.title = 'Placement and hardware from Proxmox, load from node_exporter and cAdvisor, health from the homepage probes';
     const tools = mk('div', 'a-tools');
-    // VM templates and guests AUTOLAB does not manage (the stopped q360 VMs on
-    // pve, say) are left off by default. The button names how many.
-    const extra = m.nodes.reduce((a, n) => a + n.extra, 0);
-    const controls = mk('button', 'a-pill mono', `${arch.showAll ? 'Hide' : 'Show'} ${extra} hidden VM${extra === 1 ? '' : 's'}`);
-    controls.type = 'button'; controls.setAttribute('aria-pressed', String(arch.showAll)); controls.hidden = !extra;
-    controls.title = 'VM templates and guests AUTOLAB does not manage, such as stopped VMs from other projects';
-    controls.addEventListener('click', () => { arch.showAll = !arch.showAll; arch.sig = ''; renderArchitecture(); });
+    // VM templates and guests AUTOLAB does not manage stay off the map; each
+    // node notes how many under its VMs.
     const zoomBox = mk('div', 'a-zoomctl mono');
     const btn = (label, title, fn) => { const b = mk('button', undefined, label); b.type = 'button'; b.title = title; b.setAttribute('aria-label', title); b.addEventListener('click', fn); return b; };
     zoomBox.append(
@@ -743,7 +738,7 @@
       live(mk('span', 'a-zoomval'), 'zoom'),
       btn('+', 'Zoom in', () => zoomBy(1.2)),
       (() => { const b = btn('Reset', 'Back to the whole diagram, fitted to the window', () => setZoomMode('fit')); b.dataset.reset = '1'; return b; })());
-    tools.append(controls, zoomBox);
+    tools.append(zoomBox);
     root.append(bar);
 
     // The legend draws each kind of wire with the wire's own classes, so it
@@ -1089,9 +1084,12 @@
   }
   // Free movement, with one rule: some of the diagram always stays in view.
   function placeView(e, tx, ty, W, H, vw, vh) {
-    const keep = 60, z = arch.z;
-    arch.tx = Math.min(vw - keep, Math.max(keep - W * z, tx));
-    arch.ty = Math.min(vh - keep, Math.max(keep - H * z, ty));
+    // The drawing never leaves the frame: an axis it fits on stays centred,
+    // and on an axis it overflows its edges stop at the frame's edges.
+    const z = arch.z;
+    const clampAxis = (t, size, room) => size <= room ? (room - size) / 2 : Math.min(0, Math.max(room - size, t));
+    arch.tx = clampAxis(tx, W * z, vw);
+    arch.ty = clampAxis(ty, H * z, vh);
     setScale(e.canvas, z);
     e.sizer.style.transform = `translate(${arch.tx.toFixed(1)}px, ${arch.ty.toFixed(1)}px)`;
     // Show every second grid dot at small scales to avoid a dense pattern.
@@ -1113,16 +1111,15 @@
   function zoomBy(f, ax, ay) { arch.mode = 'manual'; applyZoom(arch.z * f, ax, ay); }
   function wireZoom(zoom) {
     zoom.addEventListener('wheel', e => {
-      if (!zoomable()) return;
+      // Only pinch (a wheel with ctrlKey) and Cmd-scroll zoom. A plain scroll
+      // leaves the map alone: it never pans the drawing away.
+      if (!zoomable() || !(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
       const r = zoom.getBoundingClientRect();
-      // Pinch arrives as a wheel with ctrlKey; Cmd-scroll zooms too. Any
-      // other scroll (two fingers, a mouse wheel) pans.
-      if (e.ctrlKey || e.metaKey) zoomBy(Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
-      else panBy(-(e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX), -(e.shiftKey && !e.deltaX ? 0 : e.deltaY));
+      zoomBy(Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
     }, { passive: false });
     let drag = null, suppressClick = false;
-    zoom.setAttribute('aria-description', 'Ctrl or Command plus drag to pan. Drag text to select it. Scroll to pan, Ctrl or Command plus scroll to zoom.');
+    zoom.setAttribute('aria-description', 'Pinch, or Ctrl or Command plus scroll, to zoom. When zoomed in, drag the background to move around.');
     zoom.addEventListener('pointerdown', e => {
       if (!zoomable() || e.button !== 0) return;
       suppressClick = false;
