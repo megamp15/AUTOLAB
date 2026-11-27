@@ -26,10 +26,12 @@
     autolab_root_fstype: "{{ (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | first).fstype }}"
 
 # /dev/sda1 → /dev/sda and 1; /dev/nvme0n1p1 → /dev/nvme0n1 and 1.
+# A whole-disk filesystem (/dev/sdd under WSL2) has no number: regex_search
+# returns None there, so default it to '' for the length guard below.
 - name: Split it into disk and partition number
   ansible.builtin.set_fact:
     autolab_root_disk: "{{ autolab_root_source | regex_replace('p?[0-9]+$', '') }}"
-    autolab_root_partition: "{{ autolab_root_source | regex_search('[0-9]+$') }}"
+    autolab_root_partition: "{{ autolab_root_source | regex_search('[0-9]+$') | default('', true) }}"
 
 # growpart says CHANGE or NOCHANGE, and exits 1 for the second: a dry run is
 # how a converged host is told apart without touching anything.
