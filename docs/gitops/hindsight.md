@@ -72,29 +72,52 @@ one. The tailnet is the gate, and the key is required on every call.
 
 ## Connecting the agents
 
-These are one-time steps after the first deploy. They are not in Ansible yet.
+Done once by hand (2026-11-26); not in Ansible yet.
 
-**Hermes** (inside its container, then a restart):
-
-```sh
-ssh jwst
-sudo docker exec -it -u hermes services-hermes-1 hermes plugins install hindsight --enable
-sudo docker exec -it -u hermes services-hermes-1 hermes memory setup   # pick hindsight, local_external
-```
-
-Then in `/opt/data/hindsight/config.json`: `"mode": "local_external"`,
-`"api_url": "http://hindsight:8888"`, `"bank_id": "hermes"`,
-`"recall_additional_banks": ["mahir"]`. Put `HINDSIGHT_API_KEY=<key>` in `data/.env`.
-
-**Claude Code, Codex, OpenCode on the Mac:**
+**Hermes.** The plugin lives in Hermes's data volume, dependencies included
+(`/opt/data/plugins/hindsight`, `/opt/data/cache/uv`), so it survives the
+container being recreated. Enabling it needs a TTY, or it skips the dependency
+install:
 
 ```sh
-npx @vectorize-io/hindsight-coding-agents install claude-code   # then codex, opencode
+ssh -t jwst
+sudo docker exec -u hermes services-hermes-1 hermes plugins install hindsight --enable
+sudo docker exec -it -u hermes services-hermes-1 hermes plugins enable --no-allow-tool-override hindsight
+sudo docker exec -u hermes services-hermes-1 hermes config set memory.provider hindsight
 ```
 
-Choose the self-hosted server, `https://hindsight-api.lab.<zone>` and the API key.
-Each repository picks its bank in `.hindsight/config.toml`:
-`bank_id = "autolab"` (or `qnta`, `cosmos`).
+- `/opt/data/hindsight/config.json`: `mode: local_external`,
+  `api_url: http://hindsight:8888`, `bank_id: hermes`,
+  `recall_additional_banks: [mahir, autolab, cosmos]` (read, never written).
+- `HINDSIGHT_API_KEY` in `data/.env`. The role edits that file one key at a time,
+  so this line survives deploys; `config.yaml` is seeded once and also survives.
+- Restart the container, then `hermes memory status` shows `hindsight ← active`.
+
+**Claude Code, Codex, OpenCode on the Mac** (`@vectorize-io/hindsight-coding-agents`):
+
+```sh
+npx @vectorize-io/hindsight-coding-agents install claude-code codex opencode \
+  --server self-hosted --api-url https://hindsight-api.lab.<zone> --api-token <key>
+```
+
+It adds hooks and an MCP server to each agent and writes
+`~/.hindsight/coding-agent.json` (keep it `0600`: it holds the key). Banks are
+routed by path there, **not** by a file in each repository:
+
+```json
+"mapPathToBank": {
+  "~/Code/megamp15/AUTOLAB": "autolab",
+  "~/Code/megamp15/COSMOS": "cosmos",
+  "~/Code/QNTA360": "qnta",
+  "~/.t3/scratch": "mahir"
+},
+"paths": { "~/Code/ParadigmPrints": { "disabled": true } }
+```
+
+Write absolute paths in the real file. A repository with no mapping gets its own
+`coding-agent::<repo>` bank. Paradigm Prints is switched off by path, so nothing
+from it is ever written. Check a repository with
+`node ~/.hindsight/coding-agents/dist/status.js --repo <path>`.
 
 ## Backups
 
