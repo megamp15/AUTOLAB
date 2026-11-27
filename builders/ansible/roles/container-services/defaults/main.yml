@@ -106,8 +106,8 @@ autolab_services_jellyfin_public_proxy_ip: 172.30.250.2
 # bits a second: the home upload is shared, and aurora has no GPU to convert
 # more than a stream or two at once.
 autolab_services_jellyfin_remote_bitrate: 10000000
-# The Postgres behind each service that has one: dumped nightly, restored
-# weekly into a scratch container. `container` is the compose service name.
+# The database behind each service that has one: dumped nightly, restored
+# weekly into a scratch container (SQLite: checked in place). `container` is the compose service name.
 autolab_services_databases:
   adventurelog:
     container: adventurelog-db
@@ -129,6 +129,13 @@ autolab_services_databases:
     user: sure
     db: sure
     image: "{{ autolab_services_images.postgres }}"
+  # SQLite in a local volume, not a server: copied with SQLite's online
+  # backup, so a write in progress cannot tear the copy.
+  karakeep:
+    kind: sqlite
+    container: karakeep
+    volume: karakeep-data
+    file: db.db
 autolab_services_db_backup:
   keep_daily: 14
   keep_weekly_days: 60

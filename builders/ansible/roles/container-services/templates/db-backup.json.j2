@@ -8,7 +8,7 @@
   "databases": [
 {% for name in autolab_services_db_names %}
 {% set db = autolab_services_databases[name] %}
-    {{ {'service': name, 'container': autolab_services_project ~ '-' ~ db.container ~ '-1', 'user': db.user, 'db': db.db, 'image': db.image, 'kind': db.kind | default('postgres')} | to_json }}{{ ',' if not loop.last else '' }}
+    {{ {'service': name, 'container': autolab_services_project ~ '-' ~ db.container ~ '-1', 'user': db.user | default(''), 'db': db.db | default(''), 'image': db.image | default(''), 'kind': db.kind | default('postgres'), 'volume': (autolab_services_project ~ '_' ~ db.volume) if db.volume is defined else '', 'file': db.file | default('')} | to_json }}{{ ',' if not loop.last else '' }}
 {% endfor %}
   ]
 }
