@@ -9,26 +9,6 @@ network_defaults = {
 }
 
 machines = {
-  sputnik = {
-    type                    = "vm"
-    provisioning_class      = "builder_target"
-    name                    = "sputnik"
-    vm_id                   = 100
-    node_name               = "xps-pve"
-    template_vm_id          = 9000
-    datastore_id            = "local-lvm"
-    cloud_init_datastore_id = "local-lvm"
-    cpu_cores               = 1
-    memory_mb               = 1024
-    disk_size_gb            = 20
-    ipv4_address            = "dhcp"
-    builder = {
-      # Disposable probe. Inherits the universal baseline and exposes nothing;
-      # its job is to be rebuilt often enough that the baseline stays honest.
-    }
-  }
-
-
   # Backup server. Proxmox Backup Server as packages on the same Debian
   # template as every other VM, not the PBS ISO: the ISO has no cloud-init,
   # so it would enrol on nothing, get no gitops user and sit outside the
@@ -95,7 +75,7 @@ machines = {
     datastore_id            = "local-lvm"
     cloud_init_datastore_id = "local-lvm"
     cpu_cores               = 1
-    memory_mb               = 1024
+    memory_mb               = 1536
     disk_size_gb            = 20
     ipv4_address            = "dhcp"
     builder = {
