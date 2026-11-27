@@ -1,0 +1,126 @@
+name: 13 - Workstation
+
+# Workstations: WSL on a desktop, in the lab while the desktop is on
+# (docs/gitops/workstations.md). Static inventory, its own readiness check,
+# and never part of linux_servers, the same separation 07 keeps for the
+# hypervisors: a machine that is off most nights must not block 05.
+#
+# Dispatched by hand, while the machine is on. Nothing runs on merge.
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: Optional Ansible host limit (default every workstation)
+        required: false
+        default: ''
+        type: string
+      tags:
+        description: Optional Ansible tags (base, packages, users, motd)
+        required: false
+        default: ''
+        type: string
+      confirm:
+        description: Type apply to make changes; any other value runs check mode
+        required: true
+        default: check
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: workstations
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    name: Configure workstations
+    runs-on: ubuntu-latest
+    env:
+      # Referenced so the runner masks it in logs, as in 07.
+      AUTOLAB_TAILNET_DOMAIN: ${{ secrets.TAILNET_DOMAIN }}
+      WS_LIMIT: ${{ inputs.limit || 'workstations' }}
+      WS_TAGS: ${{ inputs.tags || '' }}
+      WS_CONFIRM: ${{ inputs.confirm || 'check' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+
+      - uses: ./.github/actions/connect-tailscale
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+
+      - name: Install Ansible and its collections
+        working-directory: builders/ansible
+        run: |
+          # Pinned to match 97_ansible-ci.yml, 05 and 07.
+          python -m pip install 'ansible-core>=2.21,<2.22'
+          for attempt in 1 2 3; do
+            ansible-galaxy collection install -r requirements.yml && break
+            [ "$attempt" = 3 ] && { echo "failed after 3 attempts" >&2; exit 1; }
+            echo "attempt $attempt failed; retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
+
+      # Short on purpose: a workstation that does not answer is almost always
+      # switched off, and waiting a minute will not change that.
+      - name: Check the workstation is on
+        working-directory: builders/ansible
+        run: |
+          mapfile -t hosts < <(ansible -i inventories/workstations/hosts.yml "$WS_LIMIT" \
+            --list-hosts 2>/dev/null | tail -n +2 | sed 's/[[:space:]]//g' | grep -v '^$')
+          if [[ ${#hosts[@]} -eq 0 ]]; then
+            echo "No hosts matched limit '$WS_LIMIT'." >&2
+            exit 1
+          fi
+          install -d -m 700 "$HOME/.ssh"
+          touch "$HOME/.ssh/known_hosts"
+          for name in "${hosts[@]}"; do
+            addr="$name.$AUTOLAB_TAILNET_DOMAIN"
+            for attempt in 1 2 3; do
+              if ! ping_output=$(tailscale ping --until-direct=false --c 1 --timeout=5s "$addr" 2>&1); then
+                failure="$name is not on the tailnet; is the desktop on and logged in? ($ping_output)"
+              elif ! ssh-keygen -F "$addr" >/dev/null && ! ssh-keyscan -H -t ed25519 -T 5 "$addr" >> "$HOME/.ssh/known_hosts" 2>/dev/null; then
+                failure="Could not collect an ED25519 host key for $name"
+              elif ! ssh_output=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 "gitops@$addr" true 2>&1); then
+                failure="SSH failed for gitops@$name (has its first baseline been run by hand?): $ssh_output"
+              else
+                break
+              fi
+              if [[ "$attempt" == 3 ]]; then
+                echo "$failure" >&2
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+
+      - name: Run the workstation playbook
+        working-directory: builders/ansible
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: 'true'
+          ANSIBLE_SSH_COMMON_ARGS: '-o StrictHostKeyChecking=yes'
+        run: |
+          set -o pipefail
+          args=(-i inventories/workstations/hosts.yml playbooks/workstation.yml --limit "$WS_LIMIT")
+          args+=(-e "autolab_git_sha=$GITHUB_SHA")
+          if [ -n "$WS_TAGS" ]; then args+=(--tags "$WS_TAGS"); fi
+          if [ "$WS_CONFIRM" != apply ]; then args+=(--check --diff); fi
+          ansible-playbook "${args[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/workstation-output.log"
+
+      - name: Job summary
+        if: always()
+        run: |
+          recap="$(awk '/^PLAY RECAP/{getline; print; exit}' "$GITHUB_WORKSPACE/workstation-output.log" 2>/dev/null || true)"
+          {
+            echo "## Workstation"
+            echo ""
+            echo "- mode: \`$WS_CONFIRM\`"
+            echo "- limit: \`$WS_LIMIT\`"
+            if [ -n "$recap" ]; then echo "- recap: \`$recap\`"; fi
+          } >> "$GITHUB_STEP_SUMMARY"

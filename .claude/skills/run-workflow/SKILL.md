@@ -23,6 +23,7 @@ deploy. Check first, read it, then apply.
 | `infra/tailscale/policy.hujson` | nothing: `06` tests on the pull request and applies on merge |
 | a hypervisor (`playbooks/proxmox.yml`, `roles/proxmox-*`) | `07` |
 | the NAS (`playbooks/nas.yml`, `roles/nas-*`) | `12` |
+| a workstation (`playbooks/workstation.yml`, `inventories/workstations`) | `13`, while the desktop is on |
 | a mount in a machine's `builder.storage` | `04`, then `05` `storage` |
 | Docker on a machine (`docker_enabled`) | `04`, then `05` `docker`, then `05` `docker-management` |
 
@@ -42,6 +43,7 @@ tenant). `05` cannot see a machines-map change until `04` has applied it.
 | `09_pbs-restore.yml` | `vm`, `mode`, `snapshot`, `confirm` | `RESTORE` |
 | `10_cloudflare.yml` | `confirm` | `apply`; default plans |
 | `12_nas.yml` | `action`, `project`, `confirm` | `apply` |
+| `13_workstation.yml` | `limit`, `tags`, `confirm` | `apply`; fails fast with "not on the tailnet" when the desktop is off |
 | `02_packer-build.yml` | `template`, `node`, `force_rebuild` | runs when dispatched |
 | `99_opentofu-destroy.yml` | `environment`, `confirm` | `DESTROY`: only on the user's explicit word, naming the Stack |
 
