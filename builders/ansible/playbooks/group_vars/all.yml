@@ -189,3 +189,5 @@ autolab_service_catalog:
   hindsight-api:
     port: 8120
     login: none
+    # Not a service of its own: routed wherever `hindsight` runs.
+    with: hindsight

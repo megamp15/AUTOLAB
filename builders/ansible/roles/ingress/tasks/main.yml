@@ -77,6 +77,12 @@
       {%-     set _ = out.update({name: machine ~ '.' ~ autolab_ingress_tailnet_domain}) -%}
       {%-   endfor -%}
       {%- endfor -%}
+      {#- A second name onto a service (`with:` in the catalog) goes wherever that service runs. -#}
+      {%- for name, entry in autolab_service_catalog.items() -%}
+      {%-   if entry.with is defined and entry.with in out -%}
+      {%-     set _ = out.update({name: out[entry.with]}) -%}
+      {%-   endif -%}
+      {%- endfor -%}
       {{ out }}
 
 # Services whose route adds a host-generated token after the admin check.
