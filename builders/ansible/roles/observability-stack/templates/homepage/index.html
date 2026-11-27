@@ -21,7 +21,9 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="details.css">
 <script src="details.js"></script>
+<script type="module" src="ui-sdk.js"></script>
 <style>
+  @layer ui-sdk;
   html, body { margin:0; padding:0; background:#FFFFFF; }
   a { color: inherit; text-decoration: none; }
   a:hover { color: inherit; }
@@ -88,9 +90,14 @@
   .ops th, .ops td { padding:10px 8px 10px 0; border-bottom:1px solid color-mix(in srgb,currentColor 25%,transparent); vertical-align:top; }
   .ops th { font-weight:500; }
   .ops td small { display:block; opacity:.75; }
-  .ops details { padding:12px 0; border-bottom:1px solid color-mix(in srgb,currentColor 25%,transparent); }
-  .ops summary { cursor:pointer; }
-  .ops details p { margin:10px 0 0; }
+  /* Alert rules: ui-sdk's accordion (ui-sdk.js), styled here. */
+  .ops ui-accordion-item { display:block; padding:12px 0; border-bottom:1px solid color-mix(in srgb,currentColor 25%,transparent); }
+  .ops ui-accordion-header h4 { margin:0; font:inherit; }
+  .ops ui-accordion-trigger button { all:unset; box-sizing:border-box; width:100%; display:flex; justify-content:space-between; gap:12px; cursor:pointer; overflow-wrap:anywhere; }
+  .ops ui-accordion-trigger button::after { content:"+"; flex:none; opacity:.7; }
+  .ops ui-accordion-trigger button[aria-expanded="true"]::after { content:"\2212"; }
+  .ops ui-accordion-trigger button:focus-visible { outline:2px solid currentColor; outline-offset:4px; }
+  .ops ui-accordion-panel p { margin:10px 0 0; }
   .ops code { font:11px 'IBM Plex Mono',monospace; overflow-wrap:anywhere; }
   .ops .table-scroll { overflow-x:auto; }
 
@@ -328,7 +335,7 @@
   <div class="scene" style="height:230vh;">
     <div class="stick" style="position:sticky; top:0; height:100vh; overflow:hidden;">
       <canvas data-sg-sky="1" style="position:absolute; inset:0; width:100%; height:100%; display:block;"></canvas>
-      <div id="stage" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:clamp(14px,1.6vw,28px); pointer-events:none;">
+      <div id="stage" style="position:absolute; inset:0; display:flex; align-items:stretch; justify-content:center; padding:clamp(14px,1.6vw,28px); pointer-events:none;">
         <div id="content" style="width:100%; display:flex; flex-direction:column; gap:clamp(10px,1.6vh,18px); filter:blur(calc((1 - var(--sg-flood)) * 3px)); transform:scaleY(calc(0.82 + var(--sg-flood) * 0.18));">
           <!-- One row on a desktop: wordmark, tabs, clock. On a phone the tabs
                wrap onto their own line under the wordmark. -->
@@ -346,7 +353,7 @@
             </div>
           </div>
           <div style="height:1px; background:var(--sg-fg); transform:scaleX(min(1, calc(var(--sg-flood) * 1.6))); opacity:calc(var(--sg-flood) * 4);"></div>
-          <div id="rows" role="tabpanel" aria-labelledby="tab-services" tabindex="0" style="display:flex; flex-direction:column;"></div>
+          <div id="rows" role="tabpanel" aria-labelledby="tab-services" tabindex="0" style="display:flex; flex-direction:column; flex:1 1 auto; min-height:0;"></div>
           <div id="feed" style="display:flex; flex-direction:column; gap:8px; opacity:calc((var(--sg-flood) - 0.66) * 8);"></div>
         </div>
       </div>
@@ -372,7 +379,7 @@
     map: 'M12 21s-6-5.2-6-10a6 6 0 0 1 12 0c0 4.8-6 10-6 10zM12 8.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5'
   };
 
-  const state = { dark: false, rows: [], feed: [], stale: false, tab: location.hash.slice(1).split("?")[0] || "services", operations: {} };
+  const state = { dark: false, rows: [], feed: [], stale: false, tab: location.hash.slice(1).split("?")[0] || "services", operations: {}, openRules: [] };
   const root = document.querySelector('[data-sg-root]');
   const sky = document.querySelector('[data-sg-sky]');
   const stage = document.getElementById('stage');
@@ -504,9 +511,17 @@
     box.append(el('h3', 'When a notification arrives'));
     box.append(el('p', `Backup age is measured from the snapshot timestamp, not when the job finishes. The limit is ${op.backup_max_age_hours || 26} hours, followed by a 30-minute pending period. A failed nightly can therefore leave the alert firing until a new backup succeeds.`, 'muted'));
     box.append(el('p', 'Grafana evaluates rules every minute. New groups wait 30 seconds; changed groups wait 5 minutes. Critical alerts repeat hourly, warnings every 6 hours, and update reminders every 4 days. Recovery messages use the same grouping policy.', 'muted'));
+    // Rebuilt on every refresh, so which rules are open is kept here, not in the elements.
+    const rules = document.createElement('ui-accordion'); rules.setAttribute('multiple', '');
+    rules.setAttribute('default-value', state.openRules.join(','));
+    rules.addEventListener('valuechange', event => { state.openRules = [...event.detail.value]; });
     (op.alerts || []).forEach(rule => {
-      const details = el('details');
-      details.append(el('summary', `${rule.name} · ${rule.severity} · pending ${rule.pending} · repeats ${rule.repeat}`));
+      const item = document.createElement('ui-accordion-item'); item.setAttribute('value', rule.name);
+      const header = document.createElement('ui-accordion-header'), h = el('h4'), trigger = document.createElement('ui-accordion-trigger');
+      const button = el('button', `${rule.name} · ${rule.severity} · pending ${rule.pending} · repeats ${rule.repeat}`); button.type = 'button';
+      trigger.append(button); h.append(trigger); header.append(h);
+      const details = document.createElement('ui-accordion-panel'); details.hidden = !state.openRules.includes(rule.name);
+      item.append(header, details);
       const friendly = text => String(text || '').replace(/\{\{[^}]*\}\}/g, token => token.includes('$labels.name') ? 'guest' : token.includes('$labels.instance') ? 'host' : token.includes('$value') ? 'measured value' : '');
       const description = rule.description.includes('$labels.platform')
         ? 'For VMs, use workflow 05 with the updates or reboot playbook. For nodes, use workflow 07. Package updates and reboots are separate actions.'
@@ -517,8 +532,9 @@
         details.append(el('p', 'Trigger: query result ' + (operators[rule.evaluator.type] || rule.evaluator.type) + ' ' + rule.evaluator.params.join(', ') + ' for ' + rule.pending + '.'));
       }
       const query = el('p'); query.append(el('code', rule.query)); details.append(query);
-      box.append(details);
+      rules.append(item);
     });
+    box.append(rules);
     if ((op.errors || []).length) box.append(el('p', 'Some live sources could not be read: ' + op.errors.join('; ')));
     rowsEl.replaceChildren(box);
   }
@@ -713,13 +729,8 @@
     intro.append(mk('p', 'muted a-live mono', 'LIVE · every 30 s'));
     intro.title = 'Placement and hardware from Proxmox, load from node_exporter and cAdvisor, health from the homepage probes';
     const tools = mk('div', 'a-tools');
-    // VM templates and guests AUTOLAB does not manage (the stopped q360 VMs on
-    // pve, say) are left off by default. The button names how many.
-    const extra = m.nodes.reduce((a, n) => a + n.extra, 0);
-    const controls = mk('button', 'a-pill mono', `${arch.showAll ? 'Hide' : 'Show'} ${extra} hidden VM${extra === 1 ? '' : 's'}`);
-    controls.type = 'button'; controls.setAttribute('aria-pressed', String(arch.showAll)); controls.hidden = !extra;
-    controls.title = 'VM templates and guests AUTOLAB does not manage, such as stopped VMs from other projects';
-    controls.addEventListener('click', () => { arch.showAll = !arch.showAll; arch.sig = ''; renderArchitecture(); });
+    // VM templates and guests AUTOLAB does not manage stay off the map; each
+    // node notes how many under its VMs.
     const zoomBox = mk('div', 'a-zoomctl mono');
     const btn = (label, title, fn) => { const b = mk('button', undefined, label); b.type = 'button'; b.title = title; b.setAttribute('aria-label', title); b.addEventListener('click', fn); return b; };
     zoomBox.append(
@@ -727,7 +738,7 @@
       live(mk('span', 'a-zoomval'), 'zoom'),
       btn('+', 'Zoom in', () => zoomBy(1.2)),
       (() => { const b = btn('Reset', 'Back to the whole diagram, fitted to the window', () => setZoomMode('fit')); b.dataset.reset = '1'; return b; })());
-    tools.append(controls, zoomBox);
+    tools.append(zoomBox);
     root.append(bar);
 
     // The legend draws each kind of wire with the wire's own classes, so it
@@ -1030,9 +1041,28 @@
     const land = vw / vh > 1.5;
     return { land, w: land ? (iw >= 1800 ? 2200 : 2000) : (iw >= 1400 ? 1600 : 1400) };
   }
+  // transform: scale(), not CSS zoom. CSS zoom reflows text at each size:
+  // zoomed out it hits the browsers' minimum font size (about 9px in Safari)
+  // and wraps every word into a narrow column, and Safari reports offsets
+  // inside a zoomed element in zoomed units, which breaks the placement and
+  // wire maths. A transform keeps one layout at every level and stays sharp.
   function setScale(canvas, z) {
+    canvas.style.zoom = '';
     canvas.style.transform = z === 1 ? '' : `scale(${z})`;
     canvas.style.transformOrigin = '0 0';
+  }
+  // Double-click a machine to fill the frame with it; double-click the
+  // background (or Escape) for the whole map again. No zooming back out by hand.
+  function zoomToBox(box) {
+    const e = zEls(); if (!e || !zoomable()) return;
+    let x = 0, y = 0, n = box; while (n && n !== e.canvas) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+    const vw = e.zoom.clientWidth, vh = e.zoom.clientHeight, pad = 32;
+    const fitZ = Math.min(vw / (parseFloat(e.canvas.style.width) || 1), vh / (arch.h || 1));
+    const z = Math.max(fitZ, Math.min(4, (vw - pad * 2) / box.offsetWidth, (vh - pad * 2) / box.offsetHeight));
+    arch.mode = 'manual'; arch.z = z;
+    placeView(e, vw / 2 - (x + box.offsetWidth / 2) * z, vh / 2 - (y + box.offsetHeight / 2) * z, parseFloat(e.canvas.style.width) || 1, arch.h || 1, vw, vh);
+    const val = rowsEl.querySelector('[data-live="zoom"]'); if (val) val.textContent = Math.round(z * 100) + '%';
+    const reset = rowsEl.querySelector('.a-zoomctl [data-reset]'); if (reset) reset.disabled = false;
   }
   function applyZoom(z, ax, ay) {
     if (arch.applying) return;
@@ -1059,7 +1089,11 @@
       z = Math.min(vw / W, vh / H);
       tx = (vw - W * z) / 2; ty = (vh - H * z) / 2;
     } else {
-      z = Math.max(0.15, Math.min(4, z || arch.z));
+      // Never smaller than the whole map: zooming out past it only shrinks
+      // the drawing inside an empty frame. Reaching it is the same as Reset.
+      const fitZ = Math.min(vw / W, vh / H);
+      z = Math.max(fitZ, Math.min(4, z || arch.z));
+      if (z <= fitZ + 1e-3) { arch.mode = 'fit'; z = fitZ; }
       if (ax === undefined) { ax = vw / 2; ay = vh / 2; }
       // Keep the point under the cursor (or the centre) where it is.
       tx = ax - (ax - arch.tx) / arch.z * z; ty = ay - (ay - arch.ty) / arch.z * z;
@@ -1073,9 +1107,12 @@
   }
   // Free movement, with one rule: some of the diagram always stays in view.
   function placeView(e, tx, ty, W, H, vw, vh) {
-    const keep = 60, z = arch.z;
-    arch.tx = Math.min(vw - keep, Math.max(keep - W * z, tx));
-    arch.ty = Math.min(vh - keep, Math.max(keep - H * z, ty));
+    // The drawing never leaves the frame: an axis it fits on stays centred,
+    // and on an axis it overflows its edges stop at the frame's edges.
+    const z = arch.z;
+    const clampAxis = (t, size, room) => size <= room ? (room - size) / 2 : Math.min(0, Math.max(room - size, t));
+    arch.tx = clampAxis(tx, W * z, vw);
+    arch.ty = clampAxis(ty, H * z, vh);
     setScale(e.canvas, z);
     e.sizer.style.transform = `translate(${arch.tx.toFixed(1)}px, ${arch.ty.toFixed(1)}px)`;
     // Show every second grid dot at small scales to avoid a dense pattern.
@@ -1097,16 +1134,15 @@
   function zoomBy(f, ax, ay) { arch.mode = 'manual'; applyZoom(arch.z * f, ax, ay); }
   function wireZoom(zoom) {
     zoom.addEventListener('wheel', e => {
-      if (!zoomable()) return;
+      // Only pinch (a wheel with ctrlKey) and Cmd-scroll zoom. A plain scroll
+      // leaves the map alone: it never pans the drawing away.
+      if (!zoomable() || !(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
       const r = zoom.getBoundingClientRect();
-      // Pinch arrives as a wheel with ctrlKey; Cmd-scroll zooms too. Any
-      // other scroll (two fingers, a mouse wheel) pans.
-      if (e.ctrlKey || e.metaKey) zoomBy(Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
-      else panBy(-(e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX), -(e.shiftKey && !e.deltaX ? 0 : e.deltaY));
+      zoomBy(Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
     }, { passive: false });
     let drag = null, suppressClick = false;
-    zoom.setAttribute('aria-description', 'Ctrl or Command plus drag to pan. Drag text to select it. Scroll to pan, Ctrl or Command plus scroll to zoom.');
+    zoom.setAttribute('aria-description', 'Double-click a machine to zoom to it, the background or Escape for the whole map. Pinch, or Ctrl or Command plus scroll, to zoom; when zoomed in, drag the background to move around.');
     zoom.addEventListener('pointerdown', e => {
       if (!zoomable() || e.button !== 0) return;
       suppressClick = false;
@@ -1135,6 +1171,14 @@
       if (!suppressClick) return;
       e.preventDefault(); e.stopPropagation(); suppressClick = false;
     }, true);
+    // A double-click zooms; it must not also select a word or the page.
+    zoom.addEventListener('mousedown', e => { if (e.detail > 1 && zoomable() && !e.target.closest('a,button,input')) e.preventDefault(); });
+    zoom.addEventListener('dblclick', e => {
+      if (!zoomable() || e.target.closest('a,button,input')) return;
+      e.preventDefault(); window.getSelection().removeAllRanges();
+      const box = e.target.closest('.a-vm, .a-card');
+      if (box) zoomToBox(box); else setZoomMode('fit');
+    });
     zoom.addEventListener('keydown', e => {
       const step = 60;
       if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(1.2); }
@@ -1150,7 +1194,8 @@
   function sizeZoom(room) {
     const e = zEls(); if (!e) return;
     if (!zoomable()) { if (e.zoom.style.height) e.zoom.style.height = ''; return; }
-    const hgt = Math.max(240, Math.floor(room - e.zoom.offsetTop - 2)) + 'px';
+    const above = e.zoom.getBoundingClientRect().top - rowsEl.getBoundingClientRect().top + rowsEl.scrollTop;
+    const hgt = Math.max(240, Math.floor(room - above - 2)) + 'px';
     if (e.zoom.style.height !== hgt) { e.zoom.style.height = hgt; applyZoom(); }
   }
 
@@ -1462,15 +1507,12 @@
   // stays the intro's alone. Its height is whatever the screen leaves after
   // the header and feed, kept current every frame so a resize or a longer
   // list just works.
+  // The header is pinned to the top and #rows takes the rest of the screen
+  // (flex), the same height on every tab; only the architecture viewport
+  // needs the number.
   function fitRows() {
-    const content = stage.firstElementChild;
-    if (!content) return;
-    const cs = getComputedStyle(stage);
-    const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
-    const others = content.offsetHeight - rowsEl.offsetHeight;
-    const room = Math.max(160, Math.floor(window.innerHeight - pad - others));
-    if (rowsEl.style.maxHeight !== room + 'px') rowsEl.style.maxHeight = room + 'px';
-    if (state.tab === 'architecture') sizeZoom(room);
+    if (rowsEl.style.maxHeight) rowsEl.style.maxHeight = '';
+    if (state.tab === 'architecture') sizeZoom(rowsEl.clientHeight);
   }
   function unfitRows() {
     if (state.tab === 'architecture') sizeZoom(0);
@@ -1488,8 +1530,10 @@
       p = clamp((performance.now() - introStart) / INTRO_MS);
       unfitRows();
     } else {
+      // Once the dashboard has arrived it stays: scrolling back up or
+      // resizing the window no longer rewinds the intro and shrinks it.
       const max = Math.max(1, doc.scrollHeight - window.innerHeight);
-      p = clamp((window.scrollY || doc.scrollTop) / max);
+      p = S.arrived ? 1 : clamp((window.scrollY || doc.scrollTop) / max);
       fitRows();
     }
     const enter = clamp(p / 0.82);
@@ -1505,6 +1549,7 @@
     const ink = state.dark ? '#F4F4F5' : '#0A0A0A';
     const u = clamp((p - 0.86) / 0.06), sm = u * u * (3 - 2 * u);
     px = { p, enter, glitch, flood, bg: mix(paper, ink, sm), fg: mix(ink, paper, sm) };
+    if (flood === 1) S.arrived = true;
     root.classList.toggle('arrived', flood === 1);
     root.style.setProperty('--sg-p', p.toFixed(4));
     root.style.setProperty('--sg-enter', enter.toFixed(4));

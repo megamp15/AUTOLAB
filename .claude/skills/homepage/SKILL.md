@@ -20,6 +20,7 @@ gethomepage, configured in the container-services role.
 | the status collector and access labels | `templates/autolab-obs-digest.py.j2` |
 | the read-only API | `files/homepage_api.py`, `files/homepage_metrics.py` |
 | design references | `docs/design/` |
+| ui-sdk web components (accordion, segmented control) | `templates/homepage/ui-sdk.js`, rebuilt by `scripts/build_homepage_ui_sdk.sh` |
 
 A new card for a service is `surfaces`, not this skill.
 
@@ -34,6 +35,9 @@ A new card for a service is `surfaces`, not this skill.
      pulses, flashes or replays a fade when data refreshes;
    - controls are the page's own (select, date, check, dialogs), never the
      browser's native ones; buttons are outlined and fill on hover;
+   - a control with its own keys (a disclosure, a single choice, a tree) is a
+     ui-sdk web component: add its entry to the build script, rebuild, and style
+     it from its `data-slot` and state attributes (`ui-sdk` skill);
    - a source that failed is named on the page, never shown as an empty
      healthy lab;
    - the API accepts known identities and fixed ranges only: no arbitrary
@@ -43,6 +47,11 @@ A new card for a service is `surfaces`, not this skill.
    - the browser checks, against the preview:
      `agent-browser eval --stdin < scripts/test_homepage_canvas.js` and
      `scripts/test_homepage_details.js`.
+   - for any change to the Architecture map (layout, zoom, cards, wires), the
+     matrix in Safari's engine and Chromium across nine screen sizes and every
+     zoom level: `scripts/test_homepage_map_matrix.mjs` (its header says how
+     to run it). Chromium alone hides Safari-only bugs, so WebKit must pass too.
+     Look at a few of its screenshots as well, not only the pass count.
 4. Look at it in a browser at desktop and phone width, light and dark.
 5. `pull-request`. The merge deploys it: the observability role applies on
    merge. Open `home.lab.<zone>` afterwards and check the change is there.

@@ -18,8 +18,8 @@
   };
   try {
     for (const range of ['6h', '24h', '1h']) {
-      const button = [...document.querySelectorAll('.d-range button')].find(b => b.textContent === range);
-      if (button.getAttribute('aria-pressed') === 'true') continue;
+      const button = [...document.querySelectorAll('.d-range [role=radio]')].find(b => b.textContent === range);
+      if (button.getAttribute('aria-checked') === 'true') continue;
       const firstChart = document.querySelector('.d-chart'); button.click();
       if (root !== document.querySelector('.a-detail') || header !== document.querySelector('.d-header') || firstChart !== document.querySelector('.d-chart')) throw new Error('History switch rebuilt the page or cleared charts');
       if (document.querySelector('.d-updated').dataset.loading !== 'true') throw new Error('Loading indicator missing');

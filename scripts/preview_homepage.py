@@ -42,6 +42,7 @@ if __name__ == '__main__':
     p.add_argument('--loki', default='http://jwst:3100')
     args = p.parse_args()
     server = http.server.ThreadingHTTPServer(('127.0.0.1', args.port), Preview)
+    server.routes = None  # every API route, as on the stack host without HOMEPAGE_ROUTES
     server.data = HomepageData(args.status, args.prometheus, args.loki)
     print(f'Local preview: http://127.0.0.1:{args.port}/index.html#architecture', flush=True)
     server.serve_forever()

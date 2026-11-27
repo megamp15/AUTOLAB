@@ -206,7 +206,7 @@
     owner: root
     group: root
     mode: "0644"
-  loop: [details.js, details.css]
+  loop: [details.js, details.css, ui-sdk.js]
   when: autolab_obs_homepage_enabled | bool
   tags: [homepage]
 

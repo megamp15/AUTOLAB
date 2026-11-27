@@ -85,7 +85,10 @@ window.createAutolabDetails = function ({ rows, getModel, renderPage, lessMotion
     const grafana = m.link.byName.Grafana; if (grafana) actions.append(external('Grafana ↗',grafana)); head.append(heading,actions); root.append(head);
     if (!host || (selection.vm && !guest)) { root.append(node('p','d-empty','This machine is no longer in the inventory.')); rows.replaceChildren(root); return; }
     const bar = node('div','d-range'); bar.append(node('span','muted','History'));
-    for (const value of ['1h','6h','24h']) { const b = node('button','d-button',value); b.type='button'; b.setAttribute('aria-pressed',String(range===value)); b.onclick=()=>{if(range===value)return;range=value;bar.querySelectorAll('button').forEach(item=>item.setAttribute('aria-pressed',String(item.textContent===value)));refreshData();};bar.append(b); }
+    // ui-sdk's segmented control (ui-sdk.js): one tab stop, arrow keys move the choice.
+    const ranges = node('ui-segmented-control','d-segments'); ranges.setAttribute('aria-label','History'); ranges.setAttribute('default-value',range);
+    for (const value of ['1h','6h','24h']) { const item = node('ui-segmented-control-item','d-button',value); item.setAttribute('value',value); ranges.append(item); }
+    ranges.addEventListener('valuechange',event=>{const value=event.detail.value; if(!value||value===range){event.preventDefault();return;} range=value; refreshData();}); bar.append(ranges);
     const updated = node('span','d-updated muted','Loading current readings…'); updated.setAttribute('role','status'); updated.setAttribute('aria-live','polite'); bar.append(updated);root.append(bar);
     const chartGrid = node('div','d-charts'); chartGrid.append(node('p','d-empty','Loading metric history…'));root.append(chartGrid);
     const inventory = node('div');
@@ -129,7 +132,8 @@ window.createAutolabDetails = function ({ rows, getModel, renderPage, lessMotion
   rows.addEventListener('click',event=>{
     if(event.defaultPrevented||event.ctrlKey||event.metaKey||event.target.closest('a,input,label'))return;
     const vm=event.target.closest('[data-detail-vm]'), host=event.target.closest('[data-detail-node]');
-    if(!host || (event.target.closest('button')&&!event.target.closest('.a-title-inspect')))return;
+    // On the map only a machine's name opens it; a double-click on the card zooms to it instead.
+    if(!host || !event.target.closest('.a-title-inspect'))return;
     navigate({node:host.dataset.detailNode,...(vm?{vm:vm.dataset.detailVm}:{})},vm||host);
   });
   window.addEventListener('popstate',renderPage);

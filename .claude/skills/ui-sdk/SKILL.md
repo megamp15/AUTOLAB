@@ -13,7 +13,8 @@ This skill is copied unchanged from `@ui-sdk/core@0.1.0-beta.16` (Vercel, Apache
 - Do not import `@ui-sdk/core/web.css`. Style each part from its `data-slot` and state attributes with the app's own theme variables, so it looks like the screens around it. Keep `@layer ui-sdk;` at the top of the global stylesheet; its behaviour CSS needs it.
 - It is beta. Install exact, matching versions (`npm install -E @ui-sdk/react@<v> @ui-sdk/core@<v>`) and update on purpose.
 - The owner's UI rules still hold: nothing the browser draws itself, no helper text, the whole window, phone and desktop, dark and light.
-- In this repository the skill is for `templates/app`. The template carries its own copy in `templates/app/.claude/skills/ui-sdk`, so a new app has it from the start; keep the two the same.
+- In this repository the skill is for `templates/app` and for home.lab. The template carries its own copy in `templates/app/.claude/skills/ui-sdk`, so a new app has it from the start; keep this section's other lines the same in both.
+- home.lab is one HTML file with no build step. It loads a bundle of the web components it uses, `templates/homepage/ui-sdk.js`, made by `scripts/build_homepage_ui_sdk.sh` (`homepage` skill), and styles them in its own CSS. Don't link `ui-sdk.dev/web.js` from it.
 
 
 ui-sdk is a library of UI behaviors: keyboard navigation, focus, selection, dismissal, popups, drag and drop and the ARIA they need. Its components are built from those behaviors and render no styles of their own, in React, Vue, Svelte, Solid and web components. `@ui-sdk/core/web.css` gives them an optional default look. When a component is missing, you build it from the same behaviors in `@ui-sdk/core`, and it gets the same keyboard, focus, server rendering and right to left support.
