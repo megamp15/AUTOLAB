@@ -132,7 +132,8 @@ window.createAutolabDetails = function ({ rows, getModel, renderPage, lessMotion
   rows.addEventListener('click',event=>{
     if(event.defaultPrevented||event.ctrlKey||event.metaKey||event.target.closest('a,input,label'))return;
     const vm=event.target.closest('[data-detail-vm]'), host=event.target.closest('[data-detail-node]');
-    if(!host || (event.target.closest('button')&&!event.target.closest('.a-title-inspect')))return;
+    // On the map only a machine's name opens it; a double-click on the card zooms to it instead.
+    if(!host || !event.target.closest('.a-title-inspect'))return;
     navigate({node:host.dataset.detailNode,...(vm?{vm:vm.dataset.detailVm}:{})},vm||host);
   });
   window.addEventListener('popstate',renderPage);

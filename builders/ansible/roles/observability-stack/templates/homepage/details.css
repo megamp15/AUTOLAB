@@ -1,6 +1,6 @@
 .a-title-inspect { appearance:none; border:0; padding:0; background:none; color:inherit; font:inherit; letter-spacing:inherit; text-align:left; cursor:pointer; }
 .a-title-inspect:hover { text-decoration:underline; text-underline-offset:3px; }
-[data-detail-node], [data-detail-vm] { cursor:pointer; }
+.a-title-inspect:hover { text-decoration:underline; text-underline-offset:3px; }
 [data-sg-root].light-dashboard .a-detail { --a-ok:#27734f; --a-warn:#8b601a; --a-critical:#b23b3b; }
 .a-detail { --a-ok:#75b89a; --a-warn:#d4ad68; --a-critical:#e08383; padding:6px 2px 28px; }
 .d-nav,.d-actions,.d-range { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }

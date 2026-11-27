@@ -1041,9 +1041,26 @@
     const land = vw / vh > 1.5;
     return { land, w: land ? (iw >= 1800 ? 2200 : 2000) : (iw >= 1400 ? 1600 : 1400) };
   }
+  // CSS zoom, not transform: scale(). A scaled transform is drawn once and
+  // stretched, so zoomed-in text went blurry (Safari above all); zoom lays the
+  // drawing out again at the new size, crisp at any level. Offsets inside the
+  // canvas stay in unzoomed units, so the wires are measured the same way.
   function setScale(canvas, z) {
+    if ('zoom' in canvas.style) { canvas.style.transform = ''; canvas.style.zoom = z === 1 ? '' : String(z); return; }
     canvas.style.transform = z === 1 ? '' : `scale(${z})`;
     canvas.style.transformOrigin = '0 0';
+  }
+  // Double-click a machine to fill the frame with it; double-click the
+  // background (or Escape) for the whole map again. No zooming back out by hand.
+  function zoomToBox(box) {
+    const e = zEls(); if (!e || !zoomable()) return;
+    let x = 0, y = 0, n = box; while (n && n !== e.canvas) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+    const vw = e.zoom.clientWidth, vh = e.zoom.clientHeight, pad = 32;
+    const z = Math.max(0.15, Math.min(4, (vw - pad * 2) / box.offsetWidth, (vh - pad * 2) / box.offsetHeight));
+    arch.mode = 'manual'; arch.z = z;
+    placeView(e, vw / 2 - (x + box.offsetWidth / 2) * z, vh / 2 - (y + box.offsetHeight / 2) * z, parseFloat(e.canvas.style.width) || 1, arch.h || 1, vw, vh);
+    const val = rowsEl.querySelector('[data-live="zoom"]'); if (val) val.textContent = Math.round(z * 100) + '%';
+    const reset = rowsEl.querySelector('.a-zoomctl [data-reset]'); if (reset) reset.disabled = false;
   }
   function applyZoom(z, ax, ay) {
     if (arch.applying) return;
@@ -1062,8 +1079,13 @@
     if (vw < 50 || vh < 50) return;              // not sized yet: stay hidden
     const L = layoutFor(vw, vh), key = L.land + ':' + L.w, changed = key !== arch.layout;
     if (changed) { arch.layout = key; e.canvas.classList.toggle('a-land', L.land); e.canvas.style.width = L.w + 'px'; }
-    // The diagram's own size, measured at 100% so the zoom cannot skew it.
-    const W = L.w, H = e.canvas.offsetHeight;
+    // The diagram's own size, in unzoomed units. CSS zoom lays text out again
+    // at each size, so a wrap can change the height: measure at the new zoom.
+    const W = L.w;
+    let H = e.canvas.offsetHeight;
+    if (arch.mode === 'fit') { setScale(e.canvas, Math.min(vw / W, vh / H)); H = e.canvas.offsetHeight; }
+    else setScale(e.canvas, Math.max(0.15, Math.min(4, z || arch.z)));
+    H = e.canvas.offsetHeight;
     arch.h = H;
     let tx, ty;
     if (arch.mode === 'fit') {
@@ -1080,7 +1102,8 @@
     const val = rowsEl.querySelector('[data-live="zoom"]'); if (val) val.textContent = Math.round(z * 100) + '%';
     const reset = rowsEl.querySelector('.a-zoomctl [data-reset]'); if (reset) reset.disabled = arch.mode === 'fit';
     e.zoom.classList.add('ready');
-    if (changed) requestAnimationFrame(drawWires);
+    // Wrapping can move cards at a new zoom, so the wires follow every change.
+    requestAnimationFrame(drawWires);
   }
   // Free movement, with one rule: some of the diagram always stays in view.
   function placeView(e, tx, ty, W, H, vw, vh) {
@@ -1119,7 +1142,7 @@
       zoomBy(Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
     }, { passive: false });
     let drag = null, suppressClick = false;
-    zoom.setAttribute('aria-description', 'Pinch, or Ctrl or Command plus scroll, to zoom. When zoomed in, drag the background to move around.');
+    zoom.setAttribute('aria-description', 'Double-click a machine to zoom to it, the background or Escape for the whole map. Pinch, or Ctrl or Command plus scroll, to zoom; when zoomed in, drag the background to move around.');
     zoom.addEventListener('pointerdown', e => {
       if (!zoomable() || e.button !== 0) return;
       suppressClick = false;
@@ -1148,6 +1171,12 @@
       if (!suppressClick) return;
       e.preventDefault(); e.stopPropagation(); suppressClick = false;
     }, true);
+    zoom.addEventListener('dblclick', e => {
+      if (!zoomable() || e.target.closest('a,button,input')) return;
+      e.preventDefault(); window.getSelection().removeAllRanges();
+      const box = e.target.closest('.a-vm, .a-card');
+      if (box) zoomToBox(box); else setZoomMode('fit');
+    });
     zoom.addEventListener('keydown', e => {
       const step = 60;
       if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(1.2); }
