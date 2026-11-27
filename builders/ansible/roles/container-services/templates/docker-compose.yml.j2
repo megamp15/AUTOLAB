@@ -12,7 +12,7 @@ services:
 {# Compose refuses a `volumes:` key with nothing under it, and a machine whose
    services bind host paths only (aurora) has nothing. A service that gains a
    named volume below is added to this list. #}
-{% set volume_owners = ['dockhand', 'registry', 'registry-ui', 'diun', 'adventurelog', 'forgejo', 'sure', 'karakeep', 'cosmos', 'novaflix'] %}
+{% set volume_owners = ['dockhand', 'registry', 'registry-ui', 'diun', 'adventurelog', 'forgejo', 'sure', 'karakeep', 'cosmos', 'novaflix', 'hindsight'] %}
 {% if autolab_services_enabled | intersect(volume_owners) | length > 0 %}
 volumes:
 {% endif %}
@@ -50,10 +50,15 @@ volumes:
 {% if 'novaflix' in autolab_services_enabled %}
   novaflix-data:
 {% endif %}
+{% if 'hindsight' in autolab_services_enabled %}
+  # Hindsight's embedded Postgres: every memory. On jwst's disk, in the
+  # nightly PBS backup of the VM. docs/gitops/hindsight.md.
+  hindsight-data:
+{% endif %}
 
 # Bridges besides the default, each there to keep something away from
 # something else.
-{% if 'dockhand' in autolab_services_enabled or 'qr' in autolab_services_enabled or 'paradigm-tunnel' in autolab_services_enabled or 'cosmos' in autolab_services_enabled or 'novaflix' in autolab_services_enabled or 'jellyfin-public' in autolab_services_enabled %}
+{% if 'dockhand' in autolab_services_enabled or 'qr' in autolab_services_enabled or 'paradigm-tunnel' in autolab_services_enabled or 'cosmos' in autolab_services_enabled or 'novaflix' in autolab_services_enabled or 'jellyfin-public' in autolab_services_enabled or ('hindsight' in autolab_services_enabled and 'hermes' in autolab_services_enabled) %}
 networks:
 {% endif %}
 {% if 'dockhand' in autolab_services_enabled %}
@@ -105,4 +110,10 @@ networks:
     ipam:
       config:
         - subnet: {{ autolab_services_jellyfin_public_subnet }}
+{% endif %}
+{% if 'hindsight' in autolab_services_enabled and 'hermes' in autolab_services_enabled %}
+  # Hermes reaches Hindsight's API here, and nothing else of it. Internal: no
+  # route out through it.
+  hindsight-agents:
+    internal: true
 {% endif %}

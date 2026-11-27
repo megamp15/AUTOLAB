@@ -435,6 +435,10 @@ jobs:
           AUTOLAB_KARAKEEP_OIDC_CLIENT_SECRET: ${{ secrets.KARAKEEP_OIDC_CLIENT_SECRET }}
           # Karakeep's own OpenCode Go key, for tagging. Unset: no tagging.
           AUTOLAB_KARAKEEP_AI_API_KEY: ${{ secrets.KARAKEEP_OPENCODE_GO_API_KEY }}
+          # Hindsight's own OpenCode Go key, for extracting memories. Unset: it
+          # starts but retains nothing.
+          # Hermes's key until Hindsight has its own; setting HINDSIGHT_... switches over.
+          AUTOLAB_HINDSIGHT_LLM_API_KEY: ${{ secrets.HINDSIGHT_OPENCODE_GO_API_KEY || secrets.HERMES_OPENCODE_GO_API_KEY }}
           AUTOLAB_SURE_OIDC_CLIENT_ID: ${{ secrets.SURE_OIDC_CLIENT_ID }}
           AUTOLAB_SURE_OIDC_CLIENT_SECRET: ${{ secrets.SURE_OIDC_CLIENT_SECRET }}
           AUTOLAB_APPS_ADMIN_EMAIL: ${{ vars.APPS_ADMIN_EMAIL }}
@@ -497,6 +501,7 @@ jobs:
               "autolab_services_karakeep_oidc_client_id": os.environ.get("AUTOLAB_KARAKEEP_OIDC_CLIENT_ID", ""),
               "autolab_services_karakeep_oidc_client_secret": os.environ.get("AUTOLAB_KARAKEEP_OIDC_CLIENT_SECRET", ""),
               "autolab_services_karakeep_ai_api_key": os.environ.get("AUTOLAB_KARAKEEP_AI_API_KEY", ""),
+              "autolab_services_hindsight_llm_api_key": os.environ.get("AUTOLAB_HINDSIGHT_LLM_API_KEY", ""),
               "autolab_services_sure_oidc_client_id": os.environ.get("AUTOLAB_SURE_OIDC_CLIENT_ID", ""),
               "autolab_services_sure_oidc_client_secret": os.environ.get("AUTOLAB_SURE_OIDC_CLIENT_SECRET", ""),
               "autolab_services_admin_email": os.environ.get("AUTOLAB_APPS_ADMIN_EMAIL", ""),

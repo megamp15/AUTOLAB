@@ -594,7 +594,7 @@
     const CTR_APPS = { grafana: () => byName.Grafana, loki: () => byName.Loki, prometheus: () => labUrl('prometheus'),
       homepage: () => labUrl('home'), 'code-server': () => labUrl('code-server'), dockhand: () => labUrl('dockhand'),
       registry: () => labUrl('registry-ui'), 'registry-ui': () => labUrl('registry-ui'), dash: () => labUrl('dash'),
-      qr: () => pubUrl('qr'), 'novaflix-gateway': () => pubUrl('novaflix'), 'novaflix-server': () => pubUrl('novaflix'), 'novaflix-admin': () => labUrl('novaflix-admin'), hermes: () => labUrl('hermes'), adventurelog: () => labUrl('adventurelog'), forgejo: () => labUrl('forgejo'), karakeep: () => labUrl('karakeep'), sure: () => labUrl('sure'), cosmos: () => labUrl('cosmos'), jellyfin: () => labUrl('jellyfin'), prowlarr: () => labUrl('prowlarr'), sonarr: () => labUrl('sonarr'), radarr: () => labUrl('radarr'), bazarr: () => labUrl('bazarr'), sabnzbd: () => labUrl('sabnzbd'), qbittorrent: () => labUrl('qbittorrent'), gluetun: () => labUrl('qbittorrent'), lidarr: () => labUrl('lidarr'), seerr: () => labUrl('seerr'), pihole: () => byName['Pi-hole'], 'pocket-id': () => pubUrl('auth') };
+      qr: () => pubUrl('qr'), 'novaflix-gateway': () => pubUrl('novaflix'), 'novaflix-server': () => pubUrl('novaflix'), 'novaflix-admin': () => labUrl('novaflix-admin'), hermes: () => labUrl('hermes'), hindsight: () => labUrl('hindsight'), adventurelog: () => labUrl('adventurelog'), forgejo: () => labUrl('forgejo'), karakeep: () => labUrl('karakeep'), sure: () => labUrl('sure'), cosmos: () => labUrl('cosmos'), jellyfin: () => labUrl('jellyfin'), prowlarr: () => labUrl('prowlarr'), sonarr: () => labUrl('sonarr'), radarr: () => labUrl('radarr'), bazarr: () => labUrl('bazarr'), sabnzbd: () => labUrl('sabnzbd'), qbittorrent: () => labUrl('qbittorrent'), gluetun: () => labUrl('qbittorrent'), lidarr: () => labUrl('lidarr'), seerr: () => labUrl('seerr'), pihole: () => byName['Pi-hole'], 'pocket-id': () => pubUrl('auth') };
     const link = { byName, labUrl, pubUrl, ctr: name => (CTR_APPS[name] || (() => ''))() || '' };
     return { op, nodes, hosts, ctrs, rowBy, link, labNames: [...new Set(labNames)], publicNames: [...new Set(publicNames)] };
   }
@@ -1231,6 +1231,11 @@
         ['tagging and summaries, once its key is set', 'key', 'OpenCode Go'],
         ['Hermes and Claude Code through its API, not wired yet', 'key', 'Karakeep API key'],
         ['sign-in', 'none', 'Pocket ID']], [], !has('karakeep')),
+      aiCard('hindsight', 'Hindsight', 'shared agent memory · one bank per project · on jwst', 'hindsight', m.link.labUrl('hindsight'), [
+        ['Claude Code, Codex, OpenCode on the Mac', 'key', 'Hindsight API key · tailnet'],
+        ['Hermes on hindsight-agents', 'key', 'Hindsight API key'],
+        ['extracting memories', 'key', 'OpenCode Go · its own key'],
+        'what happened in sessions; the vault stays where reviewed knowledge lives'], [], !has('hindsight')),
     );
     const outside = mk('div', 'a-row a-row-edge');
     outside.append(
@@ -1241,6 +1246,7 @@
       aiCard('opencode', 'OpenCode Go', 'open-weight models · $10 a month', 'opencode', 'https://opencode.ai/go', [
         ['Hermes fallback, subagents, side jobs', 'key', 'service account · models only'],
         ['Karakeep tagging', 'key', 'its own service account'],
+        ['Hindsight memory extraction', 'key', 'its own service account'],
         'dollar-capped per five hours, week and month; each model has its own allowance'], []),
       aiCard('anthropic', 'Anthropic', 'Claude Max', 'anthropic', '', [
         ['Claude Code, here and in code-server', 'sub', 'Claude Max'],
@@ -1264,6 +1270,7 @@
     ['hermes', 'vault', 'key'], ['hermes', 'cosmos', 'ro', true], ['hermes', 'karakeep', 'key', true],
     ['coder', 'signals', 'ro'], ['coder', 'vault', 'none'], ['coder', 'karakeep', 'key', true],
     ['cosmos-mcp', 'cosmos', 'ro'],
+    ['hermes', 'hindsight', 'key'], ['coder', 'hindsight', 'key'], ['opencode', 'hindsight', 'key'],
   ];
   function drawAiWires() {
     const canvas = rowsEl.querySelector('.ai .a-canvas'); if (!canvas) return;

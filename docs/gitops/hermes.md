@@ -257,6 +257,13 @@ ssh megamp15@jwst
 sudo docker exec -u hermes services-hermes-1 hermes mcp test cosmos
 ```
 
+## Shared memory
+
+Hermes's long-term memory provider is [Hindsight](hindsight.md), on the internal
+`hindsight-agents` network at `http://hindsight:8888`, bank `hermes`, also recalling
+from `mahir`. The plugin is installed and configured by hand once; the steps are in
+[hindsight](hindsight.md#connecting-the-agents).
+
 ## Later
 
 - Karakeep's MCP server, under `mcp_servers:` in `config.yaml`.

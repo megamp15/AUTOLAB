@@ -552,6 +552,27 @@ autolab_obs_homepage_links:
     check:
       type: http
       target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.hermes.port }}/api/status"
+  # Hindsight's control plane: banks, memories, mental models. /api/health
+  # answers without the passkey. docs/gitops/hindsight.md.
+  - name: Hindsight
+    group: services
+    meta: agent memory
+    url: "{{ autolab_obs_lab_url.format(name='hindsight', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog.hindsight.port) }}"
+    icon: logs
+    enabled: "{{ 'hindsight' in ((autolab_builder | default({})).services | default([])) }}"
+    check:
+      type: http
+      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog.hindsight.port }}/api/health"
+  # The API the agents call, with its key. /health is the liveness path.
+  - name: Hindsight API
+    group: services
+    meta: agent memory API
+    url: "{{ autolab_obs_lab_url.format(name='hindsight-api', raw='http://' ~ autolab_tailscale_fqdn ~ ':' ~ autolab_service_catalog['hindsight-api'].port) }}"
+    icon: logs
+    enabled: "{{ 'hindsight' in ((autolab_builder | default({})).services | default([])) }}"
+    check:
+      type: http
+      target: "http://{{ autolab_tailscale_fqdn }}:{{ autolab_service_catalog['hindsight-api'].port }}/health"
   # Public, behind the passkey: the people who use it are not on the tailnet.
   # The check is the app's own port on the tailnet, so the row says whether
   # the app is up, not whether the tunnel is (the Pocket ID row says that).
