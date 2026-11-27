@@ -1,0 +1,64 @@
+#!/bin/bash
+# Managed by Ansible — roles/container-services. Keeps the media share readable
+# by Jellyfin.
+#
+# UGOS rebuilds a shared folder's permissions whenever a dialog for it is saved
+# (2026-11-25: an NFS rule on the aurora share left every library file at mode
+# 000). The download apps were unaffected and Jellyfin, which runs as uid 1000,
+# could open nothing: playback spun on "Loading stream". Root is not squashed
+# by the export, so root puts the modes back. Nothing is changed while uid 1000
+# can read everything; the check itself only reads metadata.
+#
+#   autolab-media-access           repair if needed; exit 0 when uid 1000 can read it all
+#   autolab-media-access --check   report only; exit 3 when a repair is needed
+#
+# Prints REPAIRED when it changed something, so Ansible reports a change only
+# then. Writes textfile metrics for the lockout alert.
+set -u
+mode="${1:-repair}"
+root="{{ autolab_services_media_root }}"
+metrics=/var/lib/autolab/textfile/autolab_media_access.prom
+state=/var/lib/autolab/media-access-repairs
+
+# The first thing under the share's folder (itself root's, and left alone) that
+# uid 1000 cannot get into: a folder it cannot enter or write, or a file it
+# cannot read. Empty when there is none. UGOS reports modes made
+# up from its own permissions, so the access is tried, not the mode read.
+blocked() {
+  setpriv --reuid=1000 --regid=1000 --clear-groups -- sh -c 'cd / && exec find "$1" -xdev -mindepth 1 \( -type d \( ! -executable -o ! -readable -o ! -writable \) -o -type f ! -readable \) -print -quit' _ "$root" 2>&1
+}
+
+repairs=$(cat "$state" 2>/dev/null || echo 0)
+status=0
+first=$(blocked)
+if [ -z "$first" ]; then
+  readable=1
+elif [ "$mode" = --check ]; then
+  echo "$first: uid 1000 cannot get in; a run would repair it"; readable=0; status=3
+else
+  # Every mode is set again, not only the ones that look wrong: a reset can
+  # deny access while the mode NFS shows is still the old one.
+  find "$root" -xdev -mindepth 1 \( ! -user 1000 -o ! -group 1000 \) -exec chown -h 1000:1000 {} +
+  find "$root" -xdev -mindepth 1 -type d -exec chmod 0775 {} +
+  find "$root" -xdev -mindepth 1 -type f -exec chmod 0664 {} +
+  first=$(blocked)
+  if [ -z "$first" ]; then
+    echo "REPAIRED $root: uid 1000 can read the media again"; readable=1; repairs=$((repairs + 1))
+  else
+    echo "$first: still blocked after repair" >&2; readable=0; status=1
+  fi
+fi
+
+if [ "$mode" != --check ]; then
+  mkdir -p "$(dirname "$metrics")" "$(dirname "$state")"
+  echo "$repairs" > "$state"
+  {
+    echo "# HELP autolab_media_readable 1 when uid 1000 (Jellyfin, the download apps) can read every file on the media share."
+    echo "# TYPE autolab_media_readable gauge"
+    echo "autolab_media_readable $readable"
+    echo "# HELP autolab_media_access_repairs_total Times the media share's permissions had to be put back."
+    echo "# TYPE autolab_media_access_repairs_total counter"
+    echo "autolab_media_access_repairs_total $repairs"
+  } > "$metrics.tmp" && mv "$metrics.tmp" "$metrics"
+fi
+exit $status

@@ -124,7 +124,9 @@ root and because touching it perturbed the mode being measured.
 
 **Confirming a dialog in UGOS can reset the folder's POSIX permissions.** This
 happened three times in one session, including after editing an unrelated NFS
-rule. Re-check access after any change in that UI.
+rule. Re-check access after any change in that UI. Two guards put it back
+for the users UGOS leaves out: `autolab-pbs-access` on ark (PBS's uid 34) and
+`autolab-media-access` on aurora (uid 1000, Jellyfin; `media.md`).
 
 **The NAS advertises NFSv4 but does not serve it.** `rpcinfo` reports
 `version 4 ready and waiting`; mounting v4.2 fails with `No such file or

@@ -416,6 +416,42 @@ groups:
                     type: lt
                     params: [1]
 
+      # Same cause on aurora's media share: a UGOS dialog resets it and
+      # Jellyfin (uid 1000) can open nothing. aurora's autolab-media-access
+      # timer puts it back every 15 minutes; this fires only when it could not.
+      - uid: autolab-media-unreadable
+        title: Jellyfin cannot read the media share
+        condition: THRESHOLD
+        for: 20m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "uid 1000 cannot read files on the media share"
+          description: "aurora could not put back the permissions on the media share (UGOS reset them). Playback fails until it can: run the services playbook on aurora and read the media access step."
+        data:
+          - refId: QUERY
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: autolab-prometheus
+            model:
+              refId: QUERY
+              instant: true
+              editorMode: code
+              expr: 'min(autolab_media_readable)'
+          - refId: THRESHOLD
+            datasourceUid: __expr__
+            model:
+              refId: THRESHOLD
+              type: threshold
+              expression: QUERY
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+
       - uid: autolab-nfs-exports-unavailable
         title: NAS NFS exports need attention
         condition: THRESHOLD
