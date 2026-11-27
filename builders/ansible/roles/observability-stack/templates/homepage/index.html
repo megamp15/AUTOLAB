@@ -1041,12 +1041,13 @@
     const land = vw / vh > 1.5;
     return { land, w: land ? (iw >= 1800 ? 2200 : 2000) : (iw >= 1400 ? 1600 : 1400) };
   }
-  // CSS zoom, not transform: scale(). A scaled transform is drawn once and
-  // stretched, so zoomed-in text went blurry (Safari above all); zoom lays the
-  // drawing out again at the new size, crisp at any level. Offsets inside the
-  // canvas stay in unzoomed units, so the wires are measured the same way.
+  // transform: scale(), not CSS zoom. CSS zoom reflows text at each size:
+  // zoomed out it hits the browsers' minimum font size (about 9px in Safari)
+  // and wraps every word into a narrow column, and Safari reports offsets
+  // inside a zoomed element in zoomed units, which breaks the placement and
+  // wire maths. A transform keeps one layout at every level and stays sharp.
   function setScale(canvas, z) {
-    if ('zoom' in canvas.style) { canvas.style.transform = ''; canvas.style.zoom = z === 1 ? '' : String(z); return; }
+    canvas.style.zoom = '';
     canvas.style.transform = z === 1 ? '' : `scale(${z})`;
     canvas.style.transformOrigin = '0 0';
   }
@@ -1056,7 +1057,8 @@
     const e = zEls(); if (!e || !zoomable()) return;
     let x = 0, y = 0, n = box; while (n && n !== e.canvas) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
     const vw = e.zoom.clientWidth, vh = e.zoom.clientHeight, pad = 32;
-    const z = Math.max(0.15, Math.min(4, (vw - pad * 2) / box.offsetWidth, (vh - pad * 2) / box.offsetHeight));
+    const fitZ = Math.min(vw / (parseFloat(e.canvas.style.width) || 1), vh / (arch.h || 1));
+    const z = Math.max(fitZ, Math.min(4, (vw - pad * 2) / box.offsetWidth, (vh - pad * 2) / box.offsetHeight));
     arch.mode = 'manual'; arch.z = z;
     placeView(e, vw / 2 - (x + box.offsetWidth / 2) * z, vh / 2 - (y + box.offsetHeight / 2) * z, parseFloat(e.canvas.style.width) || 1, arch.h || 1, vw, vh);
     const val = rowsEl.querySelector('[data-live="zoom"]'); if (val) val.textContent = Math.round(z * 100) + '%';
@@ -1079,20 +1081,19 @@
     if (vw < 50 || vh < 50) return;              // not sized yet: stay hidden
     const L = layoutFor(vw, vh), key = L.land + ':' + L.w, changed = key !== arch.layout;
     if (changed) { arch.layout = key; e.canvas.classList.toggle('a-land', L.land); e.canvas.style.width = L.w + 'px'; }
-    // The diagram's own size, in unzoomed units. CSS zoom lays text out again
-    // at each size, so a wrap can change the height: measure at the new zoom.
-    const W = L.w;
-    let H = e.canvas.offsetHeight;
-    if (arch.mode === 'fit') { setScale(e.canvas, Math.min(vw / W, vh / H)); H = e.canvas.offsetHeight; }
-    else setScale(e.canvas, Math.max(0.15, Math.min(4, z || arch.z)));
-    H = e.canvas.offsetHeight;
+    // The diagram's own size, measured at 100% so the zoom cannot skew it.
+    const W = L.w, H = e.canvas.offsetHeight;
     arch.h = H;
     let tx, ty;
     if (arch.mode === 'fit') {
       z = Math.min(vw / W, vh / H);
       tx = (vw - W * z) / 2; ty = (vh - H * z) / 2;
     } else {
-      z = Math.max(0.15, Math.min(4, z || arch.z));
+      // Never smaller than the whole map: zooming out past it only shrinks
+      // the drawing inside an empty frame. Reaching it is the same as Reset.
+      const fitZ = Math.min(vw / W, vh / H);
+      z = Math.max(fitZ, Math.min(4, z || arch.z));
+      if (z <= fitZ + 1e-3) { arch.mode = 'fit'; z = fitZ; }
       if (ax === undefined) { ax = vw / 2; ay = vh / 2; }
       // Keep the point under the cursor (or the centre) where it is.
       tx = ax - (ax - arch.tx) / arch.z * z; ty = ay - (ay - arch.ty) / arch.z * z;
@@ -1102,8 +1103,7 @@
     const val = rowsEl.querySelector('[data-live="zoom"]'); if (val) val.textContent = Math.round(z * 100) + '%';
     const reset = rowsEl.querySelector('.a-zoomctl [data-reset]'); if (reset) reset.disabled = arch.mode === 'fit';
     e.zoom.classList.add('ready');
-    // Wrapping can move cards at a new zoom, so the wires follow every change.
-    requestAnimationFrame(drawWires);
+    if (changed) requestAnimationFrame(drawWires);
   }
   // Free movement, with one rule: some of the diagram always stays in view.
   function placeView(e, tx, ty, W, H, vw, vh) {
@@ -1171,6 +1171,8 @@
       if (!suppressClick) return;
       e.preventDefault(); e.stopPropagation(); suppressClick = false;
     }, true);
+    // A double-click zooms; it must not also select a word or the page.
+    zoom.addEventListener('mousedown', e => { if (e.detail > 1 && zoomable() && !e.target.closest('a,button,input')) e.preventDefault(); });
     zoom.addEventListener('dblclick', e => {
       if (!zoomable() || e.target.closest('a,button,input')) return;
       e.preventDefault(); window.getSelection().removeAllRanges();

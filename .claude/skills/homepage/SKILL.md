@@ -47,6 +47,11 @@ A new card for a service is `surfaces`, not this skill.
    - the browser checks, against the preview:
      `agent-browser eval --stdin < scripts/test_homepage_canvas.js` and
      `scripts/test_homepage_details.js`.
+   - for any change to the Architecture map (layout, zoom, cards, wires), the
+     matrix in Safari's engine and Chromium across nine screen sizes and every
+     zoom level: `scripts/test_homepage_map_matrix.mjs` (its header says how
+     to run it). Chromium alone hides Safari-only bugs, so WebKit must pass too.
+     Look at a few of its screenshots as well, not only the pass count.
 4. Look at it in a browser at desktop and phone width, light and dark.
 5. `pull-request`. The merge deploys it: the observability role applies on
    merge. Open `home.lab.<zone>` afterwards and check the change is there.
