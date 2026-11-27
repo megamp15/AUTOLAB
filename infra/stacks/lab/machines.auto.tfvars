@@ -98,10 +98,12 @@ machines = {
   # why anything is slow. Was 8 until the tenant VMs needed the room on a
   # 15 GB node, then 6; raised to 7.5 on 2026-10-19 because code-server's
   # builds took jwst past 95%. xps-pve had 3.1 GB available and keeps ~1.6.
-  # More than this belongs on zima-pve (code-server could move there).
+  # More than this belongs on zima-pve. code-server left on 2026-11-26: even
+  # at 7.5 GB its 3 GB cap filled on opening, and the workstation (WSL) is
+  # where editing happens now.
   #
-  # 120 GB, was 40: Prometheus and Loki keep their own data here, the registry
-  # stores every image CI pushes, and code-server adds a workspace on top.
+  # 120 GB, was 40: Prometheus and Loki keep their own data here, and the
+  # registry stores every image CI pushes.
   jwst = {
     type                    = "vm"
     provisioning_class      = "builder_target"
@@ -127,11 +129,10 @@ machines = {
       }
       # The lab's own container tooling, here because this is the machine
       # with room: Dockhand to operate containers, a registry for images
-      # built in CI, its UI, Diun to say when a pinned image has a newer tag,
-      # and code-server for the operator workspace. The applications people use
-      # run on nebula (edge stack). Moving a service is a line in another
-      # machine's map.
-      services = ["dockhand", "registry", "registry-ui", "diun", "code-server", "immich-share", "dash", "qr", "paradigm-tunnel", "rustdesk", "cosmos", "hermes", "novaflix", "novaflix-admin", "hindsight"]
+      # built in CI, its UI, and Diun to say when a pinned image has a newer
+      # tag. The applications people use run on nebula (edge stack). Moving a
+      # service is a line in another machine's map.
+      services = ["dockhand", "registry", "registry-ui", "diun", "immich-share", "dash", "qr", "paradigm-tunnel", "rustdesk", "cosmos", "hermes", "novaflix", "novaflix-admin", "hindsight"]
       # Grafana is reached over the tailnet, which the baseline already allows
       # on tailscale0. Nothing is opened to the LAN.
       #
