@@ -81,6 +81,7 @@ Builds VM templates from ISOs on the running Proxmox host. Connection variables 
 
 The provider-neutral configuration phase that runs after provisioning. Current Builder targets are cloud-init-capable Proxmox VMs. LXC Builder targets are deferred until they meet the same reachable-host contract; future provider-neutral reachable Linux hosts, including VPS hosts, remain intended. Autolab's first builder implementation is Ansible.
 
+- **Workstation** — a Linux environment on a machine a person sits at (WSL2 on a desktop) that is in the lab only while that machine is on. Committed inventory `inventories/workstations`, never in `linux_servers`, tag `tag:autolab-ws`, configured by workflow 13 by hand. Off is its normal state. See `docs/gitops/workstations.md`.
 - **Builder inventory** — groups hosts by environment/provider (for example `lab` or `vps`) while keeping secrets and real IPs outside git.
 - **Builder role** — an idempotent unit of server configuration such as SSH hardening, firewall defaults, updates, Docker, or a `gitops` deploy user. Cloud-init solely owns VM Tailscale install, join, and retry; the `tailscale-update` role owns post-provision Tailscale upgrades through the official apt repo.
 - **Server baseline** — the common roles every Autolab-managed Linux host should receive before project-specific services.

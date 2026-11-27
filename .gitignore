@@ -35,6 +35,8 @@ builders/ansible/inventories/**/hosts.yml
 !builders/ansible/inventories/hypervisors/hosts.yml
 # Physical NAS appliances are declarations too, not generated VM state.
 !builders/ansible/inventories/nas/hosts.yml
+# Workstations (WSL on a desktop) are declarations too: OpenTofu creates none.
+!builders/ansible/inventories/workstations/hosts.yml
 builders/ansible/inventories/**/group_vars/
 builders/ansible/inventories/**/host_vars/
 

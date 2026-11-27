@@ -32,6 +32,13 @@
         // machine you just brought under management.
         "tag:autolab-pve": ["autogroup:admin"],
         "tag:autolab-nas": ["autogroup:admin"],
+
+        // Workstations: WSL on a desktop, in the lab while the desktop is on
+        // (docs/gitops/workstations.md). Its own tag, not autolab-vm, so the
+        // Builder's VM rules and inventory never assume it is up. Like the
+        // others, tagging takes it out of autogroup:self, so the human rule
+        // below is what keeps the operator able to reach it.
+        "tag:autolab-ws": ["autogroup:admin"],
     },
 
     // Define access control lists for users, groups, autogroups, tags,
@@ -160,6 +167,25 @@
             "users":       ["megamp15", "autolab", "gitops"],
             "checkPeriod": "12h",
         },
+        // CI to a workstation: gitops only, never root. The first baseline
+        // is run by hand on the machine (it is the operator's own desktop),
+        // so CI never needs a bootstrap account here.
+        {
+            "action": "accept",
+            "src":    ["tag:ci-runner"],
+            "dst":    ["tag:autolab-ws"],
+            "users":  ["gitops"],
+        },
+        // Humans to a workstation. pmahi is the desktop's own WSL account,
+        // where the code lives; megamp15 the lab-wide operator account;
+        // gitops the recovery path, as for VMs. Never root: sudo covers it.
+        {
+            "action":      "check",
+            "src":         ["autogroup:member"],
+            "dst":         ["tag:autolab-ws"],
+            "users":       ["pmahi", "megamp15", "gitops"],
+            "checkPeriod": "12h",
+        },
     ],
 
     "nodeAttrs": [
@@ -207,6 +233,20 @@
             "dst":    ["tag:autolab-vm"],
             "accept": ["autolab", "gitops"],
             "deny":   ["root"],
+        },
+        // A workstation: the operator in check mode as its three accounts,
+        // CI as gitops alone; neither as root.
+        {
+            "src":    "megamp15@github",
+            "dst":    ["tag:autolab-ws"],
+            "check":  ["pmahi", "megamp15", "gitops"],
+            "deny":   ["root"],
+        },
+        {
+            "src":    "tag:ci-runner",
+            "dst":    ["tag:autolab-ws"],
+            "accept": ["gitops"],
+            "deny":   ["root", "pmahi", "megamp15"],
         },
     ],
 }
