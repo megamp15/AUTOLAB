@@ -33,7 +33,7 @@ Schedules and repeat intervals: `docs/gitops/operations.md`.
 | Container is restart-looping | a bad config or a missing secret after a deploy | `docker logs` for that container |
 | Container has vanished | a service removed from the map, or a failed recreate | the last `05` `services` run |
 | Root filesystem almost full | images and build cache, or logs | `docker system df`, `du -xh / --max-depth=2` |
-| Memory nearly exhausted | jwst under a code-server build | `docker stats --no-stream` |
+| Memory nearly exhausted | jwst under an image build or a growing service | `docker stats --no-stream` |
 | Proxmox storage almost full | old restore tests, templates, or a growing guest | `pvesm status` on the node |
 | An app database has no recent dump / does not restore | nebula's dump timer or the NAS mount | `docs/gitops/nebula.md` |
 

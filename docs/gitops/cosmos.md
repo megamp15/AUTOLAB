@@ -153,7 +153,7 @@ Recorded 2026-11-08, accepted by the owner.
    workflow. Nothing deploys: `cosmos` is not yet in jwst's list and the image
    tag is empty.
 4. Check jwst's headroom with an authorized account (`docker stats`, `free -m`).
-   The VM has 7.5 GB and code-server is capped at 2 GB. COSMOS needs roughly
+   The VM has 7.5 GB. COSMOS needs roughly
    300 to 500 MB.
 5. Run "Publish COSMOS images" with the commit SHA from step 1.
 6. Second pull request: set `autolab_services_cosmos_image_tag` and add `cosmos`

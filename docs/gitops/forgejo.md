@@ -59,7 +59,7 @@ Once a Pocket ID sign-in works, set
 ## Changing an app (the point of all this)
 
 1. Edit in `apps/<app>` (clone from `https://forgejo.lab.<zone>/apps/<app>.git`
-   in code-server, or on a laptop on the tailnet; write access is a
+   on the workstation or a laptop on the tailnet; write access is a
    Forgejo token), and push a commit.
 2. In `container-services` defaults, `autolab_services_sources.<app>`: set
    `mode: fork` and `ref:` to that commit (a tag or a SHA).

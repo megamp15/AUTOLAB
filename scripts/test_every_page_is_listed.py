@@ -23,6 +23,7 @@ DASH = (ROOT / "builders/ansible/roles/container-services/templates/dash/service
 NO_PAGE = {
     "registry": "the Docker API, for `docker push`; its page is registry-ui",
     "immich-share": "serves shared links by key and nothing at its root",
+    "code-server": "runs on no machine; the catalog entry and image build stay so one line can turn it back on",
 }
 
 # The same thing under two names, or a page that does not list itself.

@@ -18,7 +18,7 @@ One list in the machines map decides it:
 ```hcl
 builder = {
   docker_enabled = true
-  services       = ["dockhand", "registry", "registry-ui", "diun", "code-server"]
+  services       = ["dockhand", "registry", "registry-ui", "diun"]
 }
 ```
 
@@ -38,7 +38,7 @@ bump is a pull request.
 | `registry` | images built in CI, pushed and pulled inside the lab | 5000 |
 | `registry-ui` | seeing what is in the registry without curl | 8082 |
 | `diun` | a notification when a pinned image has a newer tag. Never updates anything | — |
-| `code-server` | browser-based VS Code for the operator workspace | 8443 |
+| `code-server` | browser-based VS Code. **Runs on no machine** since 2026-11-26 — see [below](#code-server) | 8443 when on |
 | `adventurelog` | on [nebula](nebula.md): a travel log that pulls its photos from Immich, Pocket ID sign-in — see [adventurelog](adventurelog.md) | 8098 |
 | `forgejo` | on [nebula](nebula.md): the lab's git host — mirrors of upstream and our forks, Pocket ID sign-in — see [forgejo](forgejo.md) | 8100 |
 | `karakeep` | on [nebula](nebula.md): bookmarks that fetch the page and the video and tag themselves, Pocket ID sign-in — see [karakeep](karakeep.md) | 8107 |
@@ -73,8 +73,7 @@ binds this way.
 The tailnet is the boundary, exactly as it is for Prometheus and Loki:
 reaching these ports at all means being on the tailnet and passing its ACL.
 Tenants are on another tailnet and cannot see them. Names under
-`*.lab.<zone>` with the passkey login in front are routed automatically;
-code-server is available at `code-server.lab.<zone>` when its service is enabled.
+`*.lab.<zone>` with the passkey login in front are routed automatically.
 
 **Dockhand holds the Docker socket**, which is the whole point and the whole
 risk: it can do anything the daemon can. It is for operating what these roles
@@ -112,9 +111,22 @@ The port and the login mode live once, in `playbooks/group_vars/all.yml`,
 because two roles on two different machines have to agree on them: the
 services host publishes the port, and the ingress host routes to it.
 
+## code-server
+
+**Not running anywhere.** It left jwst on 2026-11-26: capped at 3 GB on a
+7.5 GB VM that also holds the observability stack, it filled its cap on
+opening. Editing now happens on the workstation, through VS Code's WSL and
+Remote-SSH extensions. The catalog entry, template and image build below are
+kept, so turning it back on is one name in a machine's `builder.services`;
+home and dash list it again in the same change (`scripts/test_every_page_is_listed.py`
+exempts it only while it runs nowhere). jwst's old state under
+`/opt/autolab/services/code-server` is left on disk, not deleted.
+
+What follows describes it as it ran on jwst.
+
 **code-server is intentionally different from Dockhand.** It is reached at
 `code-server.lab.<zone>` through the tailnet-only Traefik listener and Pocket ID
-middleware; it binds only jwst's tailnet address on port 8443. Its workspace is
+middleware; it binds only its host's tailnet address on port 8443. Its workspace is
 `/opt/autolab/services/code-server/workspace`, owned by `megamp15`. The
 sibling `home` directory is the container's whole `/home/coder`, where the
 CLIs keep their logins (`~/.claude.json`, `~/.codex`, `~/.gitconfig`), and
@@ -148,7 +160,7 @@ environment has `GRAFANA_URL` and `GRAFANA_SERVICE_ACCOUNT_TOKEN` from
 Grafana host: a **Viewer** service account, `autolab-agent`. An agent can
 search dashboards, run PromQL and LogQL, and read alert rules and their state,
 and change nothing; dashboard changes go through `grafana/dashboards` in git.
-Register it once per agent, from the editor's terminal:
+Register it once per agent, from the agent's terminal:
 
 ```sh
 claude mcp add --scope user grafana -- mcp-grafana
