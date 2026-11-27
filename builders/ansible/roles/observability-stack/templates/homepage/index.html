@@ -21,7 +21,9 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="details.css">
 <script src="details.js"></script>
+<script type="module" src="ui-sdk.js"></script>
 <style>
+  @layer ui-sdk;
   html, body { margin:0; padding:0; background:#FFFFFF; }
   a { color: inherit; text-decoration: none; }
   a:hover { color: inherit; }
@@ -88,9 +90,14 @@
   .ops th, .ops td { padding:10px 8px 10px 0; border-bottom:1px solid color-mix(in srgb,currentColor 25%,transparent); vertical-align:top; }
   .ops th { font-weight:500; }
   .ops td small { display:block; opacity:.75; }
-  .ops details { padding:12px 0; border-bottom:1px solid color-mix(in srgb,currentColor 25%,transparent); }
-  .ops summary { cursor:pointer; }
-  .ops details p { margin:10px 0 0; }
+  /* Alert rules: ui-sdk's accordion (ui-sdk.js), styled here. */
+  .ops ui-accordion-item { display:block; padding:12px 0; border-bottom:1px solid color-mix(in srgb,currentColor 25%,transparent); }
+  .ops ui-accordion-header h4 { margin:0; font:inherit; }
+  .ops ui-accordion-trigger button { all:unset; box-sizing:border-box; width:100%; display:flex; justify-content:space-between; gap:12px; cursor:pointer; overflow-wrap:anywhere; }
+  .ops ui-accordion-trigger button::after { content:"+"; flex:none; opacity:.7; }
+  .ops ui-accordion-trigger button[aria-expanded="true"]::after { content:"\2212"; }
+  .ops ui-accordion-trigger button:focus-visible { outline:2px solid currentColor; outline-offset:4px; }
+  .ops ui-accordion-panel p { margin:10px 0 0; }
   .ops code { font:11px 'IBM Plex Mono',monospace; overflow-wrap:anywhere; }
   .ops .table-scroll { overflow-x:auto; }
 
@@ -372,7 +379,7 @@
     map: 'M12 21s-6-5.2-6-10a6 6 0 0 1 12 0c0 4.8-6 10-6 10zM12 8.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5'
   };
 
-  const state = { dark: false, rows: [], feed: [], stale: false, tab: location.hash.slice(1).split("?")[0] || "services", operations: {} };
+  const state = { dark: false, rows: [], feed: [], stale: false, tab: location.hash.slice(1).split("?")[0] || "services", operations: {}, openRules: [] };
   const root = document.querySelector('[data-sg-root]');
   const sky = document.querySelector('[data-sg-sky]');
   const stage = document.getElementById('stage');
@@ -504,9 +511,17 @@
     box.append(el('h3', 'When a notification arrives'));
     box.append(el('p', `Backup age is measured from the snapshot timestamp, not when the job finishes. The limit is ${op.backup_max_age_hours || 26} hours, followed by a 30-minute pending period. A failed nightly can therefore leave the alert firing until a new backup succeeds.`, 'muted'));
     box.append(el('p', 'Grafana evaluates rules every minute. New groups wait 30 seconds; changed groups wait 5 minutes. Critical alerts repeat hourly, warnings every 6 hours, and update reminders every 4 days. Recovery messages use the same grouping policy.', 'muted'));
+    // Rebuilt on every refresh, so which rules are open is kept here, not in the elements.
+    const rules = document.createElement('ui-accordion'); rules.setAttribute('multiple', '');
+    rules.setAttribute('default-value', state.openRules.join(','));
+    rules.addEventListener('valuechange', event => { state.openRules = [...event.detail.value]; });
     (op.alerts || []).forEach(rule => {
-      const details = el('details');
-      details.append(el('summary', `${rule.name} · ${rule.severity} · pending ${rule.pending} · repeats ${rule.repeat}`));
+      const item = document.createElement('ui-accordion-item'); item.setAttribute('value', rule.name);
+      const header = document.createElement('ui-accordion-header'), h = el('h4'), trigger = document.createElement('ui-accordion-trigger');
+      const button = el('button', `${rule.name} · ${rule.severity} · pending ${rule.pending} · repeats ${rule.repeat}`); button.type = 'button';
+      trigger.append(button); h.append(trigger); header.append(h);
+      const details = document.createElement('ui-accordion-panel'); details.hidden = !state.openRules.includes(rule.name);
+      item.append(header, details);
       const friendly = text => String(text || '').replace(/\{\{[^}]*\}\}/g, token => token.includes('$labels.name') ? 'guest' : token.includes('$labels.instance') ? 'host' : token.includes('$value') ? 'measured value' : '');
       const description = rule.description.includes('$labels.platform')
         ? 'For VMs, use workflow 05 with the updates or reboot playbook. For nodes, use workflow 07. Package updates and reboots are separate actions.'
@@ -517,8 +532,9 @@
         details.append(el('p', 'Trigger: query result ' + (operators[rule.evaluator.type] || rule.evaluator.type) + ' ' + rule.evaluator.params.join(', ') + ' for ' + rule.pending + '.'));
       }
       const query = el('p'); query.append(el('code', rule.query)); details.append(query);
-      box.append(details);
+      rules.append(item);
     });
+    box.append(rules);
     if ((op.errors || []).length) box.append(el('p', 'Some live sources could not be read: ' + op.errors.join('; ')));
     rowsEl.replaceChildren(box);
   }

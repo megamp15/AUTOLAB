@@ -20,6 +20,7 @@ gethomepage, configured in the container-services role.
 | the status collector and access labels | `templates/autolab-obs-digest.py.j2` |
 | the read-only API | `files/homepage_api.py`, `files/homepage_metrics.py` |
 | design references | `docs/design/` |
+| ui-sdk web components (accordion, segmented control) | `templates/homepage/ui-sdk.js`, rebuilt by `scripts/build_homepage_ui_sdk.sh` |
 
 A new card for a service is `surfaces`, not this skill.
 
@@ -34,6 +35,9 @@ A new card for a service is `surfaces`, not this skill.
      pulses, flashes or replays a fade when data refreshes;
    - controls are the page's own (select, date, check, dialogs), never the
      browser's native ones; buttons are outlined and fill on hover;
+   - a control with its own keys (a disclosure, a single choice, a tree) is a
+     ui-sdk web component: add its entry to the build script, rebuild, and style
+     it from its `data-slot` and state attributes (`ui-sdk` skill);
    - a source that failed is named on the page, never shown as an empty
      healthy lab;
    - the API accepts known identities and fixed ranges only: no arbitrary
